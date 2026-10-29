@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -24,6 +25,8 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -79,6 +82,42 @@ public class ViewRestTests extends AbstractViewTestCase {
 
         assertNull("view GET on a co-resident data stream must not error", capture.error.get());
         assertNotNull(capture.response);
+    }
+
+    public void testDescriptionIsStoredAndReturned() {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View("view-with-desc", "FROM a", "A useful description")
+                )
+            )
+        );
+
+        GetViewAction.Request getRequest = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+        getRequest.indices("view-with-desc");
+        GetViewAction.Response response = client().execute(GetViewAction.INSTANCE, getRequest).actionGet(TEST_REQUEST_TIMEOUT);
+
+        assertThat(response.getViews(), hasSize(1));
+        assertThat(response.getViews().iterator().next().description(), equalTo("A useful description"));
+    }
+
+    public void testDescriptionIsOptional() {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View("view-no-desc", "FROM a"))
+            )
+        );
+
+        GetViewAction.Request getRequest = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+        getRequest.indices("view-no-desc");
+        GetViewAction.Response response = client().execute(GetViewAction.INSTANCE, getRequest).actionGet(TEST_REQUEST_TIMEOUT);
+
+        assertThat(response.getViews(), hasSize(1));
+        assertNull(response.getViews().iterator().next().description());
     }
 
     public void testGetViewByMissingNameReturnsCleanNotFound() {

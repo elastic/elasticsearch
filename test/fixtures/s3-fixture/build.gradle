@@ -12,7 +12,7 @@ description = 'Fixture for S3 Storage service'
 
 dependencies {
   api project(':server')
-  api("junit:junit:${versions.junit}") {
+  api("junit:junit:${versions.junit4}") {
     transitive = false
   }
   implementation project(':test:framework')

@@ -1,0 +1,2 @@
+    FROM employees
+    | WHERE NOT mv_in_range(salary, 25000, 30000)

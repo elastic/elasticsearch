@@ -7,46 +7,96 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.session.Result;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.equalTo;
 
-public class TransportEsqlQueryActionTests extends ESTestCase {
+public class TransportEsqlQueryActionTests extends ComputeTestCase {
 
     /**
-     * Blocking external (GCS/local file) reads must run on the dedicated, bounded
-     * {@code esql_external_blocking_io} pool. {@link TransportEsqlQueryAction}'s constructor resolves the
-     * {@link org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry#fileReadExecutor()} read executor by
-     * looking the pool up under {@link TransportEsqlQueryAction#fileReadExecutorName()}, so pinning the returned name
-     * here locks the real wiring. The round-1 bug pointed this argument at {@link ThreadPool.Names#GENERIC}, which
-     * lets a single heavy external query starve the rest of the node; the explicit not-{@code generic} assertion
-     * is what catches that regression.
+     * All external blob-store access — {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} glob
+     * expansion, footer reads, and schema reconciliation, plus the blocking data reads and streaming parse pipeline
+     * routed through {@link org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry#fileReadExecutor()} —
+     * runs on the dedicated pool named by {@link EsqlPlugin#externalBlobStorePool()} ({@code esql_external_io}), with
+     * in-flight cloud calls additionally bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}.
+     * It must never be {@link ThreadPool.Names#SEARCH} (a single wildcard query over thousands of files previously
+     * consumed nearly the entire SEARCH pool, starving unrelated searches) nor {@link ThreadPool.Names#GENERIC} (which
+     * lets a single heavy external query starve the rest of the node); the explicit assertions catch either
+     * regression.
      */
-    public void testFileReadExecutorNameIsTheDedicatedExternalBlockingIoPool() {
-        assertEquals(EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME, TransportEsqlQueryAction.fileReadExecutorName());
+    public void testExternalBlobStorePoolIsTheDedicatedExternalIoPool() {
+        assertEquals(EXTERNAL_IO_THREAD_POOL_NAME, EsqlPlugin.externalBlobStorePool());
         assertNotEquals(
-            "blocking external reads must not run on the shared generic pool",
+            "external blob-store access must not run on the shared search pool",
+            ThreadPool.Names.SEARCH,
+            EsqlPlugin.externalBlobStorePool()
+        );
+        assertNotEquals(
+            "external blob-store access must not run on the shared generic pool",
             ThreadPool.Names.GENERIC,
-            TransportEsqlQueryAction.fileReadExecutorName()
+            EsqlPlugin.externalBlobStorePool()
         );
     }
 
     /**
-     * External source coordination — including {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}
-     * glob expansion, footer reads, and schema reconciliation — must run on the dedicated {@code esql_worker} pool.
-     * A prior regression routed this work through {@link ThreadPool.Names#SEARCH}, where a single wildcard query
-     * over thousands of files consumed nearly the entire SEARCH pool for minutes, starving unrelated ES searches and
-     * other ES|QL queries. Pinning the returned name here locks the fix; the explicit not-{@code search} assertion
-     * catches any future re-introduction of that starvation.
+     * ES|QL compute — driver execution and the parallel worker fan-out — runs on {@link EsqlPlugin#computePool()}
+     * ({@code esql_worker}). This must be a <em>different</em> pool from {@link EsqlPlugin#externalBlobStorePool()}:
+     * the blocking external I/O and streaming parse pipeline (segmentator + parser tasks) would otherwise occupy the
+     * same threads as the compute drivers that consume their output and deadlock the query (the heap-attack external
+     * stall). This test pins that separation.
      */
-    public void testExternalSourceExecutorNameIsTheEsqlWorkerPool() {
-        assertEquals(ESQL_WORKER_THREAD_POOL_NAME, TransportEsqlQueryAction.externalSourceExecutorName());
+    public void testComputePoolIsSeparateFromExternalBlobStorePool() {
+        assertEquals(ESQL_WORKER_THREAD_POOL_NAME, EsqlPlugin.computePool());
         assertNotEquals(
-            "external source coordination must not run on the shared search pool",
-            ThreadPool.Names.SEARCH,
-            TransportEsqlQueryAction.externalSourceExecutorName()
+            "compute must not share the external blob-store pool, or the parse pipeline can starve the drivers",
+            EsqlPlugin.externalBlobStorePool(),
+            EsqlPlugin.computePool()
         );
+    }
+
+    /** Nothing upstream releases the pages once the helper throws; {@link ComputeTestCase#allBreakersEmpty()} catches a leak. */
+    public void testFailIfCancelledReleasesPages() {
+        Result result = resultWithTwoPages();
+        CancellableTask task = newTask();
+        TaskCancelHelper.cancel(task, "by user request");
+        var e = expectThrows(TaskCancelledException.class, () -> TransportEsqlQueryAction.failIfCancelled(task, result));
+        assertThat(e.getMessage(), equalTo("by user request"));
+    }
+
+    public void testFailIfCancelledKeepsPagesWhenNotCancelled() {
+        Result result = resultWithTwoPages();
+        TransportEsqlQueryAction.failIfCancelled(newTask(), result);
+        for (Page page : result.pages()) {
+            page.releaseBlocks();
+        }
+    }
+
+    private Result resultWithTwoPages() {
+        BlockFactory blockFactory = blockFactory();
+        List<Page> pages = List.of(
+            new Page(blockFactory.newConstantIntBlockWith(1, 10)),
+            new Page(blockFactory.newConstantIntBlockWith(2, 10))
+        );
+        return new Result(List.of(), pages, Map.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, null, null);
+    }
+
+    private static CancellableTask newTask() {
+        return new CancellableTask(1, "transport", EsqlQueryAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
     }
 }

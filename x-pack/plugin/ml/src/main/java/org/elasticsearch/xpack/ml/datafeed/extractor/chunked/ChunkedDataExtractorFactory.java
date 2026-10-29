@@ -34,20 +34,45 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         this.xContentRegistry = xContentRegistry;
     }
 
+    public DataExtractorFactory getDelegate() {
+        return dataExtractorFactory;
+    }
+
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
+        // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
+        long alignedEnd = timeAligner.alignToFloor(end);
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
-            timeAligner.alignToCeil(start),
-            timeAligner.alignToFloor(end),
+            alignStart(timeAligner, start),
+            alignedEnd,
             datafeedConfig.getChunkingConfig().getTimeSpan(),
             timeAligner,
             datafeedConfig.hasAggregations(),
-            datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null
+            datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
+            datafeedConfig.getEsqlQuery() != null
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
+    }
+
+    /**
+     * ES|QL floors start so the bucket containing an unaligned job start is kept (row time = bucket floor). DSL ceils start to skip
+     * the partial first histogram bucket. Example: 10:30 start, 1h interval — ES|QL from 10:00, DSL from 11:00.
+     */
+    private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
+        return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
+    }
+
+    @Override
+    public void excludeProject(String projectAlias) {
+        dataExtractorFactory.excludeProject(projectAlias);
+    }
+
+    @Override
+    public void includeProject(String projectAlias) {
+        dataExtractorFactory.includeProject(projectAlias);
     }
 
     private ChunkedDataExtractorContext.TimeAligner newTimeAligner() {
@@ -58,6 +83,9 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // This allows us to steer away from partial buckets, and thus avoid the problem of
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
+        }
+        if (datafeedConfig.getEsqlQuery() != null) {
+            return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
         }
         return newIdentityTimeAligner();
     }

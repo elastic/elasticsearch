@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -41,7 +44,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
                 metrics.add(attr);
             }
         });
-        if (metrics.isEmpty()) {
+        if (metrics.isEmpty() || hasNonMetricInput(agg)) {
             return agg;
         }
         Expression conditional = null;
@@ -58,14 +61,40 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
     }
 
     /**
+     * Whether an aggregation reads an input that isn't a metric field, such as a converted metric ({@code metric::double}) or a value
+     * computed in an {@code EVAL}. A filter on the metrics alone would drop the rows that only have values for that input.
+     * <p>
+     * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have
+     * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.
+     * </p>
+     */
+    private static boolean hasNonMetricInput(TimeSeriesAggregate agg) {
+        Holder<Boolean> found = new Holder<>(false);
+        agg.forEachExpression(AggregateFunction.class, af -> {
+            // VALUES and DIMENSION_VALUES only carry the grouping keys from the per time series aggregation to the final one
+            if (af instanceof Values || af instanceof DimensionValues) {
+                return;
+            }
+            for (Expression field : af.fields()) {
+                for (Attribute attr : field.references()) {
+                    if (attr.isMetric() == false && attr.isDimension() == false && attr.semanticEquals(agg.timestamp()) == false) {
+                        found.set(true);
+                    }
+                }
+            }
+        });
+        return found.get();
+    }
+
+    /**
      * Scans the given {@link LogicalPlan} to see if it is a "metrics mode" query
      */
     private static boolean isMetricsQuery(LogicalPlan logicalPlan) {
         if (logicalPlan instanceof EsRelation r) {
-            return r.indexMode() == IndexMode.TIME_SERIES;
+            return r.indexMode().isTsdb();
         }
         if (logicalPlan instanceof UnresolvedRelation r) {
-            return r.indexMode() == IndexMode.TIME_SERIES;
+            return r.indexMode().isTsdb();
         }
         return false;
     }

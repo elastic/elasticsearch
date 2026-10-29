@@ -44,6 +44,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -241,7 +243,17 @@ public class MetadataCreateDataStreamService {
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
             || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
             : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
-        assert metadataCreateIndexService.getSystemIndices().findMatchingDescriptor(dataStreamName) == null
+        final SystemIndexDescriptor matchingSystemIndexDescriptor = metadataCreateIndexService.getSystemIndices()
+            .findMatchingDescriptor(dataStreamName);
+        if (matchingSystemIndexDescriptor != null) {
+            logger.warn(
+                "creating data stream [{}] whose name matches system index pattern [{}] but which is not registered as a system data "
+                    + "stream; its backing indices will not receive system index protections and may be accessible to unauthorized users",
+                dataStreamName,
+                matchingSystemIndexDescriptor.getIndexPattern()
+            );
+        }
+        assert matchingSystemIndexDescriptor == null
             : "dataStream [" + dataStreamName + "] matches a SystemIndexDescriptor but should use a SystemDataStreamDescriptor instead";
 
         Objects.requireNonNull(metadataCreateIndexService);
@@ -350,7 +362,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(
             dataStreamName,
             initialGeneration,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            copyMapAllowingNulls(template.metadata()),
             Settings.EMPTY,
             ComposableIndexTemplate.EMPTY_MAPPINGS,
             hidden,
@@ -385,6 +397,15 @@ public class MetadataCreateDataStreamService {
         );
 
         return ClusterState.builder(currentState).putProjectMetadata(builder).build();
+    }
+
+    @Nullable
+    private static Map<String, Object> copyMapAllowingNulls(@Nullable Map<String, Object> map) {
+        if (map == null) {
+            return null;
+        }
+        // Map.copyOf would reject null values, which a template's _meta may contain
+        return Collections.unmodifiableMap(new HashMap<>(map));
     }
 
     private static ClusterState createBackingIndex(

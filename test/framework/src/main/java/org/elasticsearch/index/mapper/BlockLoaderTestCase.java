@@ -71,9 +71,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-            ? List.of(IndexMode.STANDARD, IndexMode.COLUMNAR)
-            : List.of(IndexMode.STANDARD);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -86,6 +84,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         }
         return args;
+    }
+
+    protected static boolean indexKeepsArray(Params params) {
+        var settings = getSettingsForParams(params).build();
+        return indexKeepsArray(settings);
+    }
+
+    protected static boolean indexKeepsArray(Settings settings) {
+        return Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(settings) == Mapper.SourceKeepMode.ARRAYS;
     }
 
     public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
@@ -114,7 +121,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customDataSourceHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
-        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers);
+        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers, params.indexMode());
         this.runner = new BlockLoaderTestRunner(params);
         if (randomBoolean()) {
             runner.allowDummyDocs();
@@ -146,11 +153,16 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     );
 
     /**
-     * On a random subset of runs (feature-flag permitting), prepend a handler that forces {@code doc_values.multi_value: false} on the
-     * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
+     * On a random subset of runs (columnar mode only), prepend a handler that forces
+     * {@code doc_values.multi_value: false} on the target field while keeping generated documents single-valued, so the enforced mapping
+     * is exercised without rejecting documents.
      */
-    private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
-        boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+    private static Collection<DataSourceHandler> withSingleValueDocValues(
+        String fieldType,
+        Collection<DataSourceHandler> customHandlers,
+        IndexMode indexMode
+    ) {
+        boolean singleValueRun = indexMode.isStrictColumnar()
             && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
             && ESTestCase.randomBoolean();
         if (singleValueRun == false) {
@@ -164,9 +176,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Coordinated handler pairing two decisions that otherwise run independently: it forces {@code doc_values.multi_value: false} on
-     * single-value-enforcing fields and, in lock-step, never wraps values into arrays of length two or more. Without the coupling the
-     * enforced mapping would reject any document the array wrapper happened to make multi-valued.
+     * Coordinated handler pairing two decisions that otherwise run independently: it forces {@code doc_values.multi_value: false}
+     * (optionally combined with {@code on_failure: ignore} when the feature flag is enabled) on single-value-enforcing fields and, in
+     * lock-step, never wraps values into arrays of length two or more. Without the coupling the enforced mapping would reject (or redirect)
+     * any document the array wrapper happened to make multi-valued. Because documents are kept single-valued by construction, the
+     * {@code ._on_failure} redirect path is never triggered and {@code expected()} needs no knowledge of it.
      */
     private static final class SingleValueDocValuesDataSourceHandler implements DataSourceHandler {
         @Override
@@ -176,13 +190,18 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return null;
             }
             // Delegate directly to the default handler to keep all other generated parameters, then only rewrite doc_values.
-            var defaults = new DefaultMappingParametersHandler().handle(request);
+            // This handler only ever runs when indexMode.isStrictColumnar() (see withSingleValueDocValues), so the delegate
+            // must also know it's columnar-mode aware, or it could emit store/synthetic_source_keep/copy_to that are invalid there.
+            var defaults = new DefaultMappingParametersHandler(IndexMode.COLUMNAR).handle(request);
             if (defaults == null) {
                 return null;
             }
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
-                mapping.put("doc_values", Map.of("multi_value", false));
+                mapping.put("multi_value", false);
+                if (randomBoolean()) {
+                    mapping.put("on_failure", "ignore");
+                }
                 return mapping;
             });
         }
@@ -447,44 +466,12 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
             }
         });
-        if (indexMode.isStrictColumnar()) {
-            String columnarUnwrapMarker = "_columnar_inner_";
-            coreHandlers.add(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-                    if (request.fieldName().startsWith(columnarUnwrapMarker)) {
-                        return null;
-                    }
-                    var dataSource = request.dataSource();
-                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                        var mapping = new HashMap<>(
-                            dataSource.get(
-                                new DataSourceRequest.LeafMappingParametersGenerator(
-                                    dataSource,
-                                    // Delegate to the downstream handler under a new name to avoid self-recursion.
-                                    columnarUnwrapMarker + request.fieldName(),
-                                    request.fieldType(),
-                                    request.eligibleCopyToFields(),
-                                    request.dynamicMapping()
-                                )
-                            ).mappingGenerator().get()
-                        );
-                        // synthetic_source_keep and store are forbidden on strict-columnar indices
-                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                        mapping.remove("store");
-                        // doc_values cannot be disabled on strict-columnar indices (a disabled field would not be
-                        // reconstructable from doc values), so let it fall back to the (enabled) default.
-                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
-                        return mapping;
-                    });
-                }
-            });
-        }
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
             .withDataSourceHandlers(coreHandlers)
             .withDataSourceHandlers(customHandlers)
+            .withIndexMode(indexMode)
             .build();
     }
 

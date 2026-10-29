@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -48,6 +47,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -65,6 +65,9 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 public class SigtermTerminationHandler implements TerminationHandler {
     private static final Logger logger = LogManager.getLogger(SigtermTerminationHandler.class);
 
+    /// Timestamps that have not been observed yet.
+    private static final long UNSET = -1L;
+
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -72,6 +75,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
     private final TimeValue pollInterval;
     private final TimeValue timeout;
     private final String nodeId;
+    private final SigtermShutdownMetrics metrics;
 
     public SigtermTerminationHandler(
         Client client,
@@ -80,7 +84,8 @@ public class SigtermTerminationHandler implements TerminationHandler {
         RemoteTransportClient remoteTransportClient,
         TimeValue pollInterval,
         TimeValue timeout,
-        String nodeId
+        String nodeId,
+        SigtermShutdownMetrics metrics
     ) {
         this.client = new OriginSettingClient(client, ClientHelper.STACK_ORIGIN);
         this.threadPool = threadPool;
@@ -89,6 +94,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
         this.pollInterval = pollInterval;
         this.timeout = timeout;
         this.nodeId = nodeId;
+        this.metrics = metrics;
     }
 
     @Override
@@ -98,37 +104,61 @@ public class SigtermTerminationHandler implements TerminationHandler {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SingleNodeShutdownStatus> lastStatus = new AtomicReference<>();
         AtomicBoolean failed = new AtomicBoolean(false);
-        client.execute(
-            PutShutdownNodeAction.INSTANCE,
-            shutdownRequest(),
-            ActionListener.wrap(res -> pollStatusAndLoop(0, latch, lastStatus), ex -> {
-                logger.warn("failed to register graceful shutdown request, stopping immediately", ex);
-                failed.set(true);
-                latch.countDown();
-            })
-        );
+        AtomicLong migrationStartMillis = new AtomicLong(UNSET);
+        AtomicLong migrationCompleteMillis = new AtomicLong(UNSET);
+
+        client.execute(PutShutdownNodeAction.INSTANCE, shutdownRequest(), ActionListener.wrap(res -> {
+            migrationStartMillis.set(threadPool.rawRelativeTimeInMillis());
+            pollStatusAndLoop(0, latch, lastStatus, migrationCompleteMillis);
+        }, ex -> {
+            logger.warn("failed to register graceful shutdown request, stopping immediately", ex);
+            failed.set(true);
+            latch.countDown();
+        }));
+
         try {
-            boolean latchReachedZero = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
-            boolean timedOut = latchReachedZero == false && timeout.millis() != 0;
+            final boolean latchReachedZero = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+            final boolean timedOut = latchReachedZero == false && timeout.millis() != 0;
             SingleNodeShutdownStatus status = lastStatus.get();
             if (timedOut && status != null && status.migrationStatus().getShardsRemaining() > 0) {
                 logger.info("Timed out waiting for graceful shutdown, retrieving current recoveries status");
                 logDetailedRecoveryStatusAndWait();
             }
-            var duration = threadPool.rawRelativeTimeInMillis() - started;
+
+            final long end = threadPool.rawRelativeTimeInMillis();
+            final long shutdownDuration = end - started;
+            final ShutdownStatus shutdownStatus = getShutdownStatus(failed.get(), status);
             logger.info(
-                new ESLogMessage("shutdown completed after [{}] ms with status [{}]", duration, status) //
+                new ESLogMessage("shutdown completed after [{}] ms with status [{}]", shutdownDuration, status) //
                     .withFields(
                         Map.of(
                             "elasticsearch.shutdown.status",
-                            getShutdownStatus(failed.get(), status),
+                            shutdownStatus.name(),
                             "elasticsearch.shutdown.duration",
-                            duration,
+                            shutdownDuration,
                             "elasticsearch.shutdown.timed-out",
                             timedOut
                         )
                     )
             );
+            metrics.recordShutdownTime(shutdownDuration, shutdownStatus, timedOut);
+            if (migrationStartMillis.get() != UNSET) {
+                final boolean migrationCompleted = migrationCompleteMillis.get() != UNSET;
+                final long migrationEndMillis = migrationCompleted ? migrationCompleteMillis.get() : end;
+                final long migrationDuration = migrationEndMillis - migrationStartMillis.get();
+                logger.info(
+                    new ESLogMessage("shutdown shard migration took [{}] ms, completed [{}]", migrationDuration, migrationCompleted) //
+                        .withFields(
+                            Map.of(
+                                "elasticsearch.shutdown.migration.duration",
+                                migrationDuration,
+                                "elasticsearch.shutdown.migration.completed",
+                                migrationCompleted
+                            )
+                        )
+                );
+                metrics.recordMigrationTime(migrationDuration, migrationCompleted);
+            }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ex);
@@ -201,7 +231,11 @@ public class SigtermTerminationHandler implements TerminationHandler {
         logger.info("Blocking shutdown of node {} waiting for a node with role {}", localNode.getId(), targetRole);
         Predicate<DiscoveryNode> nodeFilter = node -> node.getId().equals(nodeId) == false && node.getRoles().contains(targetRole);
 
-        ReadyChecker readyChecker = new ReadyChecker();
+        // Seed the known node set from the current cluster state *before* registering the listener. The listener fires on the
+        // cluster applier thread while this setup runs on the shutdown thread, so seeding it afterwards would let this (older)
+        // snapshot clobber a fresher node set already published by the listener. That would make maybeSendReadyCheck wrongly
+        // treat a just-added node as gone and silently drop its readiness check, hanging shutdown forever (see #148037).
+        ReadyChecker readyChecker = new ReadyChecker(clusterService.state().nodes().stream());
 
         // Watch for new nodes to join
         ClusterStateListener nodesChangedListener = event -> {
@@ -214,9 +248,9 @@ public class SigtermTerminationHandler implements TerminationHandler {
         };
         clusterService.addListener(nodesChangedListener);
 
-        // Immediately check any nodes already in the cluster
+        // Immediately check any nodes already in the cluster. Re-read the state so we don't miss a node that joined between the
+        // snapshot above and registering the listener; pendingNodes dedups against anything the listener also picked up.
         Set<DiscoveryNode> nodes = clusterService.state().nodes().stream().filter(nodeFilter).collect(Collectors.toSet());
-        readyChecker.setCurrentNodes(nodes.stream());
         readyChecker.sendReadyChecks(nodes);
 
         // Now block and wait for the first ready response
@@ -244,15 +278,17 @@ public class SigtermTerminationHandler implements TerminationHandler {
         private final Set<String> pendingNodes = new HashSet<>();
 
         /**
-         * Null indicates we don't yet have information about the nodes in the cluster
-         * and should not conclude that we can stop the retry loop for any particular node.
-         * This happens during the brief window after we've registered the cluster state listener
-         * but before we've fetched the node list for the initial round of checks.
-         * We'll set this later, once things have settled, and from then on it can be used reliably
-         * to stop retries on nodes.
+         * The IDs of the nodes currently in the cluster, used to stop retries on nodes that have left.
+         * Seeded from the current cluster state in the constructor (before the cluster state listener is
+         * registered, and thus before any readiness check runs) so it is never observed unset, and updated
+         * by the listener as nodes come and go. Volatile because the listener writes it from the cluster
+         * applier thread while readiness checks read it from other threads.
          */
-        @Nullable
-        private volatile Set<String> currentNodes = null;
+        private volatile Set<String> currentNodes;
+
+        ReadyChecker(Stream<DiscoveryNode> initialNodes) {
+            setCurrentNodes(initialNodes);
+        }
 
         private void setCurrentNodes(Stream<DiscoveryNode> nodes) {
             this.currentNodes = nodes.map(DiscoveryNode::getId).collect(Collectors.toSet());
@@ -293,8 +329,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
          * in case it re-joins in the future.
          */
         private void maybeSendReadyCheck(DiscoveryNode node, TimeValue retryInterval) {
-            var currentNodes = this.currentNodes;
-            if (currentNodes != null && currentNodes.contains(node.getId()) == false) {
+            if (this.currentNodes.contains(node.getId()) == false) {
                 logger.debug("Node {} no longer exists in the cluster", node.getId());
                 // Remove the node from pendingNodes so that we start up a fresh request loop if it ever rejoins
                 pendingNodes.remove(node.getId());
@@ -342,13 +377,32 @@ public class SigtermTerminationHandler implements TerminationHandler {
 
     }
 
-    private static String getShutdownStatus(boolean failed, SingleNodeShutdownStatus status) {
+    private static ShutdownStatus getShutdownStatus(boolean failed, SingleNodeShutdownStatus status) {
         if (failed) {
-            return "FAILED";
+            return ShutdownStatus.FAILED;
         } else if (status != null) {
-            return status.overallStatus().toString();
+            return ShutdownStatus.fromMetadataStatus(status.overallStatus());
         } else {
-            return "UNKNOWN";
+            return ShutdownStatus.UNKNOWN;
+        }
+    }
+
+    /// Shutdown outcome values used for metrics attributes and structured logs.
+    enum ShutdownStatus {
+        FAILED,
+        NOT_STARTED,
+        IN_PROGRESS,
+        STALLED,
+        COMPLETE,
+        UNKNOWN;
+
+        private static ShutdownStatus fromMetadataStatus(SingleNodeShutdownMetadata.Status status) {
+            return switch (status) {
+                case NOT_STARTED -> NOT_STARTED;
+                case IN_PROGRESS -> IN_PROGRESS;
+                case STALLED -> STALLED;
+                case COMPLETE -> COMPLETE;
+            };
         }
     }
 
@@ -394,13 +448,21 @@ public class SigtermTerminationHandler implements TerminationHandler {
         return request;
     }
 
-    private void pollStatusAndLoop(int poll, CountDownLatch latch, AtomicReference<SingleNodeShutdownStatus> lastStatus) {
+    private void pollStatusAndLoop(
+        int poll,
+        CountDownLatch latch,
+        AtomicReference<SingleNodeShutdownStatus> lastStatus,
+        AtomicLong migrationCompleteMillis
+    ) {
         // This transport action does not use a timeout, so we use INFINITE_MASTER_NODE_TIMEOUT as a way to express "this will not time out"
         final var request = new GetShutdownStatusAction.Request(INFINITE_MASTER_NODE_TIMEOUT, nodeId);
         client.execute(GetShutdownStatusAction.INSTANCE, request, ActionListener.wrap(res -> {
             assert res.getShutdownStatuses().size() == 1 : "got more than this node's shutdown status";
             SingleNodeShutdownStatus status = res.getShutdownStatuses().get(0);
             lastStatus.set(status);
+            if (status.migrationStatus().getStatus() == SingleNodeShutdownMetadata.Status.COMPLETE) {
+                migrationCompleteMillis.compareAndSet(UNSET, threadPool.rawRelativeTimeInMillis());
+            }
             if (status.overallStatus().equals(SingleNodeShutdownMetadata.Status.COMPLETE)) {
                 logger.debug("node ready for shutdown with status [{}]: {}", status.overallStatus(), status);
                 latch.countDown();
@@ -423,7 +485,11 @@ public class SigtermTerminationHandler implements TerminationHandler {
                         logDetailedRecoveryStatus(() -> {});
                     }
                 }
-                threadPool.schedule(() -> pollStatusAndLoop(poll + 1, latch, lastStatus), pollInterval, threadPool.generic());
+                threadPool.schedule(
+                    () -> pollStatusAndLoop(poll + 1, latch, lastStatus, migrationCompleteMillis),
+                    pollInterval,
+                    threadPool.generic()
+                );
             }
         }, ex -> {
             // if the node times out while waiting for a graceful shutdown, it's likely that the last GetShutdownStatusAction

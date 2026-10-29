@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 154446
+summary: Track Painless lambda and method-reference allocations
+type: enhancement

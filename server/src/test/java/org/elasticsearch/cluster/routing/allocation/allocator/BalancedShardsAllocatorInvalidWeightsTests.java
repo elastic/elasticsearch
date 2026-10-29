@@ -56,7 +56,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -87,7 +88,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -146,7 +148,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final ClusterState clusterState = failAllShards(ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1));
@@ -166,7 +169,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var allocator = new BalancedShardsAllocator(
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
+                balancingWeightsFactory,
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -267,7 +271,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                     targetNode.getId(),
                     0L,
                     "test",
-                    RoutingChangesObserver.NOOP
+                    RoutingChangesObserver.NOOP,
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
                 routingNodes.startShard(test.v2(), RoutingChangesObserver.NOOP, 0L);
             }

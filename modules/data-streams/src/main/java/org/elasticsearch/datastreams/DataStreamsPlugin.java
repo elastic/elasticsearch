@@ -46,6 +46,7 @@ import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
@@ -83,7 +84,9 @@ import org.elasticsearch.datastreams.rest.RestUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -152,6 +155,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
+    private FrozenTransitionInfoProvider frozenTransitionInfoProvider = FrozenTransitionInfoProvider.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
@@ -159,15 +163,26 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        downsamplingOperations = loadSingleExtension(loader, DownsamplingOperations.class, downsamplingOperations);
+        frozenTransitionInfoProvider = loadSingleExtension(loader, FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider);
+    }
+
+    /**
+     * Loads at most one implementation of the given extension point, falling back to {@code fallback} if none is
+     * registered. Throws if more than one implementation is found, since these extension points are meant to be
+     * implemented by a single optional plugin.
+     */
+    private static <T> T loadSingleExtension(ExtensionLoader loader, Class<T> type, T fallback) {
+        List<T> extensions = loader.loadExtensions(type);
         if (extensions.size() > 1) {
             throw new IllegalStateException(
-                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+                "Expected at most one "
+                    + type.getSimpleName()
+                    + " implementation, found: "
+                    + extensions.stream().map(Object::getClass).toList()
             );
         }
-        if (extensions.isEmpty() == false) {
-            downsamplingOperations = extensions.get(0);
-        }
+        return extensions.isEmpty() ? fallback : extensions.get(0);
     }
 
     protected Clock getClock() {
@@ -195,14 +210,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
         pluginSettings.add(LOOK_BACK_TIME);
-        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
-        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
+        pluginSettings.add(TimeSeriesIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
+        pluginSettings.add(TimeSeriesIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING);
         pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING);
         return pluginSettings;
     }
 
@@ -236,7 +253,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 services.dlmErrorStore(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings(),
+                services.dataStreamLifecycleSettings(),
                 downsamplingOperations
             )
         );
@@ -245,6 +262,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
+        components.add(new PluginComponentBinding<>(FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider));
         return components;
     }
 
@@ -306,7 +324,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
+        final List<IndexSettingProvider> providers = new ArrayList<>();
+        providers.add(new TimeSeriesIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
+        providers.add(new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
+        return providers;
     }
 
     @Override

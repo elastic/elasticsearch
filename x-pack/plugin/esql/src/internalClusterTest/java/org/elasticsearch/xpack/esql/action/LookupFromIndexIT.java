@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
@@ -337,7 +338,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 LuceneOperator.NO_LIMIT,
                 false, // no scoring
                 () -> 0L,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>();
             for (int i = 0; i < keyTypes.size(); i++) {

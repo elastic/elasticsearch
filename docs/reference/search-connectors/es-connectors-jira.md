@@ -120,11 +120,17 @@ The following configuration fields are required to set up the connector:
 `data_source`
 :   Dropdown to determine the Jira platform type: `Jira Cloud`, `Jira Server`, or `Jira Data Center`. Default value is `Jira Cloud`.
 
+`data_center_auth_method` {applies_to}`stack: ga 9.6`
+:   The authentication method for Jira Data Center: `Basic authentication` or `Personal access token`. Default value is `Basic authentication`.
+
 `data_center_username`
-:   The username of the account for Jira Data Center.
+:   The username of the account for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
 
 `data_center_password`
-:   The password of the account to be used for Jira Data Center.
+:   The password of the account to be used for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
+
+`data_center_personal_access_token` {applies_to}`stack: ga 9.6`
+:   The personal access token for Jira Data Center. This field is only available for `Personal access token`.
 
 `username`
 :   The username of the account for Jira Server.
@@ -236,21 +242,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::
 
 
-::::{dropdown} Step 3: Run the Docker image
+:::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh subs=true
-docker run \
--v ~/connectors-config:/config \
---network "elastic" \
---tty \
---rm \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
-/app/bin/elastic-ingest \
--c /config/config.yml
-```
+:::{include} _snippets/connectors-docker-run.md
+:::
 
-::::
+:::::
 
 
 Refer to [`DOCKER.md`](https://github.com/elastic/connectors/tree/main/docs/DOCKER.md) in the `elastic/connectors` repo for more details.

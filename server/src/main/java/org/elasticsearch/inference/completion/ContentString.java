@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +22,8 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONT
 
 public record ContentString(String content) implements Content, NamedWriteable {
     public static final String NAME = "content_string";
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentString.class);
 
     public static ContentString of(XContentParser parser) throws IOException {
         var content = parser.text();
@@ -53,5 +56,11 @@ public record ContentString(String content) implements Content, NamedWriteable {
     @Override
     public boolean containsMultimodalContent() {
         return false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        var contentRamBytesUsed = RamUsageEstimator.sizeOf(content());
+        return SHALLOW_SIZE + contentRamBytesUsed;
     }
 }

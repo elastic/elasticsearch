@@ -116,7 +116,7 @@ public class JvmErgonomicsTests extends ESTestCase {
         Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
         List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, hasItem("-XX:G1HeapRegionSize=4m"));
-        assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
+        assertThat(jvmErgonomics, hasItem("-XX:G1IHOP=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
@@ -124,16 +124,11 @@ public class JvmErgonomicsTests extends ESTestCase {
         long heapSize = 6L << 30;
         Map<String, JvmOption> opts = buildG1Options(
             heapSize,
-            Map.of(
-                "G1HeapRegionSize",
-                new JvmOption("4194304", "command line"),
-                "InitiatingHeapOccupancyPercent",
-                new JvmOption("45", "command line")
-            )
+            Map.of("G1HeapRegionSize", new JvmOption("4194304", "command line"), "G1IHOP", new JvmOption("45", "command line"))
         );
         List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1IHOP="))));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
@@ -141,7 +136,7 @@ public class JvmErgonomicsTests extends ESTestCase {
         long heapSize = 8L << 30;
         Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
         List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
-        assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
+        assertThat(jvmErgonomics, hasItem("-XX:G1IHOP=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=25"));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
@@ -151,7 +146,7 @@ public class JvmErgonomicsTests extends ESTestCase {
         Map<String, JvmOption> opts = buildFinalOptions(heapSize, false, Map.of());
         List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1IHOP="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
     }
 
@@ -159,17 +154,21 @@ public class JvmErgonomicsTests extends ESTestCase {
         long heapSize = 8L << 30;
         Map<String, JvmOption> opts = buildG1Options(
             heapSize,
-            Map.of(
-                "InitiatingHeapOccupancyPercent",
-                new JvmOption("60", "command line"),
-                "G1ReservePercent",
-                new JvmOption("10", "command line")
-            )
+            Map.of("G1IHOP", new JvmOption("60", "command line"), "G1ReservePercent", new JvmOption("10", "command line"))
         );
         List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1IHOP="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
+    }
+
+    public void testLegacyInitiatingHeapOccupancyPercentWhenG1IHOPAbsent() {
+        long heapSize = 6L << 30;
+        Map<String, JvmOption> opts = buildFinalOptions(heapSize, true, Map.of());
+        opts.remove("G1IHOP");
+        List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
+        assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1IHOP="))));
     }
 
     public void testExtractNoSystemProperties() {
@@ -354,6 +353,7 @@ public class JvmErgonomicsTests extends ESTestCase {
         options.put("MaxDirectMemorySize", new JvmOption("0", "default"));
         options.put("UseG1GC", new JvmOption(g1gc ? "true" : "false", g1gc ? "default" : "command line"));
         options.put("G1HeapRegionSize", new JvmOption("0", "default"));
+        options.put("G1IHOP", new JvmOption("45", "default"));
         options.put("InitiatingHeapOccupancyPercent", new JvmOption("45", "default"));
         options.put("G1ReservePercent", new JvmOption("10", "default"));
         options.putAll(overrides);

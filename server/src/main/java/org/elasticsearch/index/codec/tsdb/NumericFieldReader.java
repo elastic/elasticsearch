@@ -38,13 +38,6 @@ public interface NumericFieldReader {
     /**
      * Returns the per-block decoder used to decode the field's value blocks.
      *
-     * <p>Numeric encoding is pipeline-based and varies per field: the {@link PipelineDescriptor}
-     * carries the full stage description (delta, gcd, bitpack, ALP, etc.) written to metadata at
-     * encode time, which is needed to reconstruct the exact decoder chain. Contrast with
-     * {@link OrdinalFieldReader#decoder(int)}, which takes only a block size because ordinal
-     * encoding is always packed bits with no variable pipeline.
-     *
-     * @param pipelineDescriptor the field's pipeline descriptor, read from segment metadata
      * @return the block decoder
      */
     Decoder decoder(PipelineDescriptor pipelineDescriptor);

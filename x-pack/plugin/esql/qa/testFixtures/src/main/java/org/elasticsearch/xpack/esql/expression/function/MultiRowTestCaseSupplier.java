@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -365,6 +366,17 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> doubleRangeCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "random double range", DataType.DOUBLE_RANGE, () -> {
+            DoubleRangeBlockBuilder.DoubleRange range = TestCaseSupplier.randomDoubleRange();
+            return range;
+        });
+
+        return cases;
+    }
+
     public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -457,6 +469,26 @@ public final class MultiRowTestCaseSupplier {
         );
     }
 
+    /**
+     * Like {@link #geoShapeCasesWithoutCircle(int, int, IncludingAltitude)}, but every shape has at most {@code maxPoints} points.
+     * Unbounded shapes can be very large, which matters for aggregations that keep a copy of each value per group.
+     */
+    public static List<TypedDataSupplier> geoShapeCasesWithoutCircle(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        int maxPoints
+    ) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.GEO_SHAPE,
+            b -> GeometryTestUtils.randomGeometryWithoutCircle(b, maxPoints)
+        );
+    }
+
     public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
         return spatialCases(
             minRows,
@@ -465,6 +497,26 @@ public final class MultiRowTestCaseSupplier {
             "geo_shape",
             DataType.CARTESIAN_SHAPE,
             b -> ShapeTestUtils.randomGeometryWithoutCircle(0, b)
+        );
+    }
+
+    /**
+     * Like {@link #cartesianShapeCasesWithoutCircle(int, int, IncludingAltitude)}, but every shape has at most {@code maxPoints} points.
+     * Unbounded shapes can be very large, which matters for aggregations that keep a copy of each value per group.
+     */
+    public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        int maxPoints
+    ) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.CARTESIAN_SHAPE,
+            b -> ShapeTestUtils.randomGeometryWithoutCircle(b, maxPoints)
         );
     }
 
@@ -525,6 +577,14 @@ public final class MultiRowTestCaseSupplier {
     }
 
     public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        return exponentialHistogramCases(minRows, maxRows, false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows, boolean zeroThresholdIsZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         addSuppliers(
             cases,
@@ -540,7 +600,7 @@ public final class MultiRowTestCaseSupplier {
             maxRows,
             "random exponential histogram",
             DataType.EXPONENTIAL_HISTOGRAM,
-            EsqlTestUtils::randomExponentialHistogram
+            () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero)
         );
         return cases;
     }

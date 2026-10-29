@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -100,4 +101,16 @@ final class KMeansTestData {
         }
         return KMeansByteVectorValues.build(vectors, null, nDims);
     }
+
+    /**
+     * Performs basic k-means clustering, modifying {@code centroids} appropriately
+     *
+     * @param vectors the vectors to cluster
+     * @param kMeans the k-means algorithm to use
+     * @param centroids the initialized centroids to be shifted using k-means
+     */
+    public static <V> void runKMeans(ClusteringVectorValues<V> vectors, KMeansLocal<V> kMeans, V[] centroids) throws IOException {
+        kMeans.cluster(vectors, new KMeansResult<>(centroids, new int[vectors.size()]));
+    }
+
 }

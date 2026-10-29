@@ -88,13 +88,8 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         );
         reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
-        new TransportClearVotingConfigExclusionsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            new ActionFilters(emptySet()),
-            reconfigurator
-        ); // registers action
+        // calling the constructor registers the action with transportService
+        new TransportClearVotingConfigExclusionsAction(transportService, clusterService, threadPool, ActionFilters.EMPTY, reconfigurator);
 
         transportService.start();
         transportService.acceptIncomingRequests();

@@ -275,6 +275,17 @@ FROM logs-*
 
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) works on `text` and `keyword` fields. Use [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) when the words must appear together in order. For Lucene query syntax with `field:value` and boolean operators, use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md). For {{kib}} Query Language syntax, use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
 
+{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
+`MATCH` can also target expressions that are not backed by an index, such as
+columns produced by [`EVAL`](/reference/query-languages/esql/commands/eval.md) or [`STATS`](/reference/query-languages/esql/commands/stats-by.md).
+When the target is not an indexed field, `MATCH` evaluates by scanning values
+row by row instead of using the inverted index, which is slower on large
+datasets. For best performance, prefer searching indexed fields when possible.
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+`MATCH_PHRASE` can target `text` and `keyword` expressions in the same way,
+with the same performance characteristics.
+
 :::{tip}
 To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
 :::
@@ -443,6 +454,8 @@ The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md)
 
 When running an {{esql}} query through the [ES|QL query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-query), set the `profile` body parameter to `true` to include a `profile` object in the response. The profile output is intended for human debugging and can help identify which parts of a query contribute to its runtime. The response format can change at any time, so use it for investigation rather than automation.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` An operator that reads values reports `bytes_decoded`, the bytes the values it decoded spell, next to `bytes_read`, the bytes they were read from. The ratio is how far the stored bytes expanded into values, and dividing `bytes_decoded` by that operator's `process_nanos` gives the rate they were read at. Both the field value read and an external dataset read report it.
+
 ### Query logging
 
 ```{applies_to}
@@ -470,6 +483,17 @@ Cancel a specific task:
 POST _tasks/<task_id>/_cancel
 ```
 
+
+## Optimize queries for {{esql}} Data Federation
+
+```{applies_to}
+stack: preview =9.5
+serverless: preview
+```
+
+The advice on this page, particularly adding a [`WHERE`](/reference/query-languages/esql/commands/where.md), a [`KEEP`](/reference/query-languages/esql/commands/keep.md), and a [`LIMIT`](/reference/query-languages/esql/commands/limit.md), applies to [external datasets](/reference/query-languages/esql/esql-data-federation-querying.md) as well as indices. Because datasets read from object storage rather than local disk, every unnecessary column or row translates directly into additional network I/O.
+
+Datasets also have their own performance characteristics, including partition pruning, Parquet row-group skipping, late materialization, and metadata caching. For details, refer to [query external datasets](/reference/query-languages/esql/esql-data-federation-querying.md#how-external-data-is-read).
 
 ## Related pages
 

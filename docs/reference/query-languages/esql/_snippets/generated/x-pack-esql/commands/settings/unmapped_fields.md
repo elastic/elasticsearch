@@ -2,36 +2,58 @@
 
 ### `unmapped_fields` [esql-unmapped_fields]
 ```{applies_to}
-serverless: preview
-stack: preview 9.3.0
+serverless: ga
+stack: ga preview 9.3-9.4, ga 9.5+
 ```
-Determines how unmapped fields are treated. Possible values are:
+Determines how unmapped fields are treated.
+For a conceptual overview and use cases, including performance considerations, refer to
+[Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
-- `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
-- `NULLIFY` : Treats unmapped fields as null values.
-- `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
-with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
+An unmapped field is present in documents but not defined in the index mapping. Across the queried indices, a field is:
 
-An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
-When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some
-indices but not others.
+- *fully unmapped* if none of the queried indices map it.
+- *partially mapped* (also called *partially unmapped*) if some of the queried indices map it and others don't.
+  In the indices that don't map it, its values are `null` unless they are loaded with `LOAD`.
 
-Unmapped fields are different from
-[runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md).
-Runtime fields are computed fields defined in the index
-mapping that {{esql}} treats like regular mapped fields.
-You cannot define new runtime fields at search time in
-{{esql}}, but you can use the
-[`EVAL`](/reference/query-languages/esql/commands/eval.md)
-command to create computed columns instead.
+Possible values are:
+
+- `DEFAULT` : Standard ESQL queries fail when referencing fully unmapped fields.
+- `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
+  appear in the output.
+- `LOAD` : Loads referenced fully unmapped fields from the stored
+  [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
+  absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
+  even if the query doesn't reference them.
+{applies_to}`stack: preview =9.4, ga 9.5+`
+- `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+  single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
+  Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
+  {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 
 [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
-Special notes about the `LOAD` option:
-- `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+Special notes about the `LOAD` and `LOAD_ALL` options:
+- [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
 - Referencing subfields of `flattened` parents is not supported.
-- Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
-unless referenced in a `KEEP` or `DROP`.
+- `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+  Other commands fail with an error that lists the supported ones.
+  {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+- [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
+  although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
+  {applies_to}`stack: ga 9.5+`
+  - Full-text search functions are not supported anywhere in the query. {applies_to}`stack: preview =9.4`
+- Partially unmapped non-`keyword` fields can be used in expressions. If the field is mapped to a single type and there's an
+  available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion
+  (for example `text`, `aggregate_metric_double`, or `dense_vector`), and an explicit one has not been provided by the user,
+  values retain the mapped type but are `null` for rows from indices where the field is unmapped.
+  {applies_to}`stack: ga 9.5+`
+  - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
+    `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
+
+The default itself is configurable. If a query does not specify a value, the
+`esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
+either, the value is `DEFAULT`.
+{applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
 
 
 **Type**: `keyword`

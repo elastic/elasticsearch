@@ -360,7 +360,7 @@ public class TopTests extends AbstractAggregationTestCase {
             dataTypes.add(outputFieldSupplier.type());
         }
 
-        DataType expectedType = outputFieldSupplied ? outputFieldSupplier.type().noText() : fieldSupplier.type();
+        DataType expectedType = (outputFieldSupplied ? outputFieldSupplier.type() : fieldSupplier.type()).noText();
         String name = fieldSupplier.name() + ", " + limitCaseSupplier.name() + ", " + order;
         if (outputFieldSupplied) {
             name += ", " + outputFieldSupplier.name();

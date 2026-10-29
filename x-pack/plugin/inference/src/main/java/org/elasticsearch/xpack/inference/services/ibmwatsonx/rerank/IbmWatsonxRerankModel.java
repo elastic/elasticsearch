@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -16,7 +16,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -70,7 +69,7 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     }
 
     public IbmWatsonxRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, (IbmWatsonxRateLimitServiceSettings) modelConfigurations.getServiceSettings());
+        super(modelConfigurations, modelSecrets);
         try {
             var serviceSettings = (IbmWatsonxRerankServiceSettings) modelConfigurations.getServiceSettings();
             this.uri = buildUri(serviceSettings.uri().toString(), serviceSettings.apiVersion());
@@ -90,12 +89,11 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         IbmWatsonxRerankServiceSettings serviceSettings,
         IbmWatsonxRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            serviceSettings,
             authHeaderDecorator
         );
         try {

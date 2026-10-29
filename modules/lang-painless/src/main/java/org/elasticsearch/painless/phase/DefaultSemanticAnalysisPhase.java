@@ -73,6 +73,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.AllocatesAnnotation;
 import org.elasticsearch.painless.spi.annotation.DynamicTypeAnnotation;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
@@ -986,6 +987,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Operation operation = userAssignmentNode.getOperation();
 
         if (operation != null) {
+            // A compound assignment loads its target before it stores. The load sites only capture for reads, so do it here.
+            if (defLoadNeedsScript(userLeftNode, semanticScope)) {
+                semanticScope.setUsesInstanceMethod();
+            }
             checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).valueType();
 
@@ -2383,7 +2388,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, LastSource.class);
         visit(userBlockNode, lambdaScope);
 
-        boolean needsScriptCapture = lambdaScope.usesInstanceMethod() || scriptScope.getScriptClassInfo().supportsCancellation();
+        // A def lambda (no TargetType) can't use the typed #scriptThis-parameter injection the IR phase applies to typed
+        // static lambdas, so when allocation tracking is on it instead captures the script as an instance, letting its body
+        // reach $checkAllocBytes through `this`. Typed lambdas are unaffected here and keep the injection path.
+        boolean needsScriptCapture = lambdaScope.usesInstanceMethod()
+            || scriptScope.getScriptClassInfo().supportsCancellation()
+            || (targetType == null && scriptScope.getCompilerSettings().isAllocationTrackingEnabled());
 
         if (needsScriptCapture) {
             semanticScope.setCondition(userLambdaNode, InstanceCapturingLambda.class);
@@ -2417,7 +2427,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             valueType = String.class;
             semanticScope.putDecoration(
                 userLambdaNode,
-                EncodingDecoration.of(true, needsScriptCapture, "this", name, capturedVariables.size())
+                EncodingDecoration.of(true, needsScriptCapture, "this", name, capturedVariables.size(), false)
             );
         } else {
             FunctionRef ref = FunctionRef.create(
@@ -2451,119 +2461,112 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     @Override
     public void visitFunctionRef(EFunctionRef userFunctionRefNode, SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
 
         Location location = userFunctionRefNode.getLocation();
         String symbol = userFunctionRefNode.getSymbol();
         String methodName = userFunctionRefNode.getMethodName();
         boolean read = semanticScope.getCondition(userFunctionRefNode, Read.class);
 
-        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
+        Class<?> type = painlessLookup.canonicalTypeNameToType(symbol);
         TargetType targetType = semanticScope.getDecoration(userFunctionRefNode, TargetType.class);
-        Class<?> valueType;
-
         boolean isInstanceReference = "this".equals(symbol);
-        if (isInstanceReference || type != null) {
-            if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException(
-                        "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"
-                    )
-                );
-            }
+        // this::f or Type::f, as opposed to x::f on a variable, which captures x
+        boolean isTypeReference = isInstanceReference || type != null;
+        String kind = isTypeReference ? "function reference" : "capturing function reference";
 
-            if (read == false) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException("not a statement: function reference [" + symbol + ":" + methodName + "] not used")
-                );
-            }
+        if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
+            throw userFunctionRefNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + kind + " [" + symbol + ":" + methodName + "]"
+                )
+            );
+        }
 
-            if (isInstanceReference) {
-                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-            }
-            if (targetType == null) {
-                valueType = String.class;
-                semanticScope.putDecoration(userFunctionRefNode, EncodingDecoration.of(true, isInstanceReference, symbol, methodName, 0));
-            } else {
-                FunctionRef ref = FunctionRef.create(
-                    scriptScope.getPainlessLookup(),
-                    scriptScope.getFunctionTable(),
-                    location,
-                    targetType.targetType(),
-                    symbol,
-                    methodName,
-                    0,
-                    scriptScope.getCompilerSettings().asMap(),
-                    isInstanceReference
-                );
+        if (read == false) {
+            throw userFunctionRefNode.createError(
+                new IllegalArgumentException("not a statement: " + kind + " [" + symbol + ":" + methodName + "] not used")
+            );
+        }
 
-                if (ref.isScriptAware) {
-                    semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-                }
-
-                valueType = targetType.targetType();
-                semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
-            }
-        } else {
-            if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException(
-                        "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":" + methodName + "]"
-                    )
-                );
-            }
-
-            if (read == false) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException(
-                        "not a statement: capturing function reference [" + symbol + ":" + methodName + "] not used"
-                    )
-                );
-            }
-
-            SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
+        // The receiver: the type for this::f and Type::f, the captured variable for x::f.
+        SemanticScope.Variable captured = null;
+        String receiverName = symbol;
+        Class<?> receiverType = type;
+        int numCaptures = 0;
+        if (isTypeReference == false) {
+            captured = semanticScope.getVariable(location, symbol);
             semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(List.of(captured)));
 
             if (captured.type().isPrimitive()) {
                 semanticScope.setCondition(userFunctionRefNode, CaptureBox.class);
             }
 
-            if (targetType == null) {
-                EncodingDecoration encodingDecoration;
-                if (captured.type() == def.class) {
-                    // dynamic implementation
-                    encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 1);
-                } else {
-                    // typed implementation
-                    encodingDecoration = EncodingDecoration.of(true, false, captured.getCanonicalTypeName(), methodName, 1);
-                }
-                valueType = String.class;
-                semanticScope.putDecoration(userFunctionRefNode, encodingDecoration);
-            } else {
-                valueType = targetType.targetType();
-                // static case
-                if (captured.type() != def.class) {
-                    FunctionRef ref = FunctionRef.create(
-                        scriptScope.getPainlessLookup(),
-                        scriptScope.getFunctionTable(),
-                        location,
-                        targetType.targetType(),
-                        captured.getCanonicalTypeName(),
-                        methodName,
-                        1,
-                        scriptScope.getCompilerSettings().asMap(),
-                        false
-                    );
-
-                    if (ref.isScriptAware) {
-                        semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-                    }
-
-                    semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
-                }
-            }
+            receiverName = captured.getCanonicalTypeName();
+            receiverType = captured.type();
+            numCaptures = 1;
         }
 
-        semanticScope.putDecoration(userFunctionRefNode, new ValueType(valueType));
+        // The target may need the script: it may be @script_aware (only the name is known until it resolves), or it is charged
+        // under tracking. A reference takes the script from this, so a lambda around it must capture the script too.
+        boolean tracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
+        boolean scriptAwareName = painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName);
+
+        if (isInstanceReference && targetType == null) {
+            // this::f, interface known at runtime. The script is the receiver, so a lambda around it must capture the script.
+            semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            semanticScope.setUsesInstanceMethod();
+            semanticScope.putDecoration(userFunctionRefNode, EncodingDecoration.of(true, true, symbol, methodName, 0, false));
+        } else if (captured != null && captured.type() == def.class) {
+            // x::f on a def. The receiver type is unknown too, so the script is captured after the receiver whenever it might be
+            // needed, and the runtime decides by what the receiver resolves to. With the interface known, the IR phase does this.
+            if (scriptAwareName) {
+                semanticScope.setUsesInstanceMethod();
+            }
+            if (targetType == null) {
+                boolean takesScript = tracking || scriptAwareName;
+                semanticScope.putDecoration(
+                    userFunctionRefNode,
+                    EncodingDecoration.of(false, false, symbol, methodName, takesScript ? 2 : 1, tracking)
+                );
+            }
+        } else if (targetType == null) {
+            // Type::f or x::f on a typed variable, interface known at runtime. Capture the script ahead of the receiver when the
+            // target may be @script_aware or is charged. A primitive receiver is boxed when captured, so look on the boxed type.
+            Class<?> boxedReceiverType = PainlessLookupUtility.typeToBoxedType(receiverType);
+            boolean charged = tracking && painlessLookup.hasAllocationEstimatorMethod(boxedReceiverType, methodName);
+            if (scriptAwareName || charged) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            }
+            if (scriptAwareName) {
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(
+                userFunctionRefNode,
+                EncodingDecoration.of(true, scriptAwareName || charged, receiverName, methodName, numCaptures, charged)
+            );
+        } else {
+            // this::f, Type::f or x::f on a typed variable with the interface known. Resolve it now.
+            FunctionRef ref = FunctionRef.create(
+                painlessLookup,
+                scriptScope.getFunctionTable(),
+                location,
+                targetType.targetType(),
+                receiverName,
+                methodName,
+                numCaptures,
+                scriptScope.getCompilerSettings().asMap(),
+                isInstanceReference
+            );
+            // this::f takes the script as its receiver, so a lambda around it must capture the script, as for a script-aware target.
+            if (isInstanceReference || ref.isScriptAware) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
+        }
+
+        semanticScope.putDecoration(userFunctionRefNode, new ValueType(targetType == null ? String.class : targetType.targetType()));
     }
 
     /**
@@ -2602,13 +2605,16 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             throw userNewArrayFunctionRefNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
+        // Under tracking the array is charged inside the synthetic method, which needs the script. So the method is then an
+        // instance method and the reference captures the script, as a lambda that needs the script does.
+        boolean tracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
         String name = scriptScope.getNextSyntheticName("newarray");
-        scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+        scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, tracking == false);
         semanticScope.putDecoration(userNewArrayFunctionRefNode, new MethodNameDecoration(name));
 
         if (targetType == null) {
             valueType = String.class;
-            scriptScope.putDecoration(userNewArrayFunctionRefNode, EncodingDecoration.of(true, false, "this", name, 0));
+            scriptScope.putDecoration(userNewArrayFunctionRefNode, EncodingDecoration.of(true, tracking, "this", name, 0, false));
         } else {
             FunctionRef ref = FunctionRef.create(
                 scriptScope.getPainlessLookup(),
@@ -2619,7 +2625,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 name,
                 0,
                 scriptScope.getCompilerSettings().asMap(),
-                false
+                tracking
             );
             valueType = targetType.targetType();
             semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReferenceDecoration(ref));
@@ -2686,6 +2692,93 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * getter/setter method on a type, or a getter/setter for a Map or List.
      * Checks: type validation, method resolution, field resolution
      */
+    /**
+     * Whether a def call to {@code methodName} with {@code argumentCount} arguments must pass the script instance: some
+     * allowlisted method of that shape is {@code @script_aware}, or, with tracking on, {@code @allocates}. The receiver is
+     * unknown here, so this goes by name and arity. The semantic phase uses it to make an enclosing lambda capture the
+     * script, and the IR phase to push it at the call site, so both must agree.
+     */
+    static boolean defCallNeedsScript(ScriptScope scriptScope, String methodName, int argumentCount) {
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, argumentCount)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, methodName, argumentCount));
+    }
+
+    /**
+     * Whether a def load of the shortcut {@code name} must pass the script instance: some allowlisted class has a
+     * {@code @script_aware} getter for it, or tracking is on and some class has a getter for it with an {@code @allocates}
+     * estimator to charge. A numeric name is a list index shortcut, the same read as a bracket with an int index, so it
+     * follows the bracket rule.
+     */
+    static boolean defGetterNeedsScript(ScriptScope scriptScope, String name) {
+        if (isListShortcut(name)) {
+            return defBraceLoadNeedsScript(scriptScope, int.class);
+        }
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return hasAnnotatedGetter(painlessLookup, ScriptAwareAnnotation.class, name)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && hasAnnotatedGetter(painlessLookup, AllocatesAnnotation.class, name));
+    }
+
+    /**
+     * Whether a def bracket read with an index of {@code indexType} must pass the script instance: some allowlisted class has a
+     * {@code @script_aware} {@code get(int)}, or tracking is on and some class has a {@code get(int)} with an {@code @allocates}
+     * estimator. A String index can only be a map key.
+     */
+    static boolean defBraceLoadNeedsScript(ScriptScope scriptScope, Class<?> indexType) {
+        if (indexType == String.class) {
+            return false;
+        }
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, "get", 1)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, "get", 1));
+    }
+
+    /** True when {@code name} is digits only, which a def load on a list treats as an index. */
+    private static boolean isListShortcut(String name) {
+        if (name.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < name.length(); i++) {
+            if (Character.isDigit(name.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasAnnotatedGetter(PainlessLookup painlessLookup, Class<?> annotationType, String name) {
+        if (name.isEmpty()) {
+            return false;
+        }
+        String suffix = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        return painlessLookup.hasAnnotationAwareMethod(annotationType, "get" + suffix, 0)
+            || painlessLookup.hasAnnotationAwareMethod(annotationType, "is" + suffix, 0);
+    }
+
+    /**
+     * Whether a def load of {@code userNode}, a dot or bracket on a def prefix, must pass the script instance. The dot and
+     * bracket visitors check this for reads; {@link #visitAssignment} checks it for a compound target, which loads before it
+     * stores.
+     */
+    private static boolean defLoadNeedsScript(AExpression userNode, SemanticScope semanticScope) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+        if (userNode instanceof EDot userDotNode) {
+            ValueType prefixValueType = semanticScope.getDecoration(userDotNode.getPrefixNode(), ValueType.class);
+            return prefixValueType != null
+                && prefixValueType.valueType() == def.class
+                && defGetterNeedsScript(scriptScope, userDotNode.getIndex());
+        }
+        if (userNode instanceof EBrace userBraceNode) {
+            Class<?> prefixValueType = semanticScope.getDecoration(userBraceNode.getPrefixNode(), ValueType.class).valueType();
+            Class<?> indexValueType = semanticScope.getDecoration(userBraceNode.getIndexNode(), ValueType.class).valueType();
+            return prefixValueType == def.class && defBraceLoadNeedsScript(scriptScope, indexValueType);
+        }
+        return false;
+    }
+
     @Override
     public void visitDot(EDot userDotNode, SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(userDotNode, Read.class);
@@ -2806,6 +2899,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     if (write) {
                         semanticScope.setCondition(userDotNode, DefOptimized.class);
                     }
+
+                    // A def load may resolve to a getter that needs the script instance: @script_aware, or @allocates under tracking.
+                    // A compound store like d.x += v loads too; visitAssignment handles that one.
+                    if (read && defGetterNeedsScript(scriptScope, index)) {
+                        semanticScope.setUsesInstanceMethod();
+                    }
                 } else {
                     Class<?> prefixType;
                     String prefixCanonicalTypeName;
@@ -2890,6 +2989,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
                             if (getter != null) {
                                 semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
+
+                                if (getter.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                                    semanticScope.setUsesInstanceMethod();
+                                }
                             }
 
                             if (setter != null) {
@@ -3082,6 +3185,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             if (write) {
                 semanticScope.setCondition(userBraceNode, DefOptimized.class);
+            }
+
+            // A def bracket read may resolve to a list get(int) that needs the script instance: @script_aware, or @allocates
+            // under tracking. A compound store like l[i] += v loads too; visitAssignment handles that one.
+            Class<?> indexValueType = semanticScope.getDecoration(userIndexNode, ValueType.class).valueType();
+            if (read && defBraceLoadNeedsScript(semanticScope.getScriptScope(), indexValueType)) {
+                semanticScope.setUsesInstanceMethod();
             }
         } else if (Map.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
@@ -3325,9 +3435,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
 
-            if (semanticScope.getScriptScope()
-                .getPainlessLookup()
-                .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, userArgumentsSize)) {
+            // The call site pushes the script under the same rule, so an enclosing lambda must capture it.
+            if (defCallNeedsScript(semanticScope.getScriptScope(), methodName, userArgumentsSize)) {
                 semanticScope.setUsesInstanceMethod();
             }
         } else {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
@@ -16,33 +17,32 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
-import static org.hamcrest.Matchers.containsString;
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportTracerSupplierTests extends ESTestCase {
 
-    public void testConstructorWithoutEndpointThrows() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new OtelSdkExportTracerSupplier(Settings.EMPTY, MeterProvider::noop)
-        );
-        assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
-        assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+    public void testMissingEndpointReturnsNoopInsteadOfThrowing() {
+        assertDegradesToNoop(Settings.EMPTY);
     }
 
-    public void testConstructorWithEmptyEndpointThrows() {
-        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "").build();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)
-        );
-        assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
-        assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+    public void testEmptyEndpointReturnsNoopInsteadOfThrowing() {
+        assertDegradesToNoop(Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "").build());
+    }
+
+    private void assertDegradesToNoop(Settings settings) {
+        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+            assertThat(supplier.get(), is(OpenTelemetry.noop()));
+            assertThat(supplier.attemptFlushTraces().isSuccess(), is(true));
+        }
     }
 
     public void testConstructorWithNoopMeterProviderDoesNotThrow() {
@@ -84,4 +84,35 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
         }
         meterProvider.close();
     }
+
+    public void testGetAfterSecureSettingsClosed() throws IOException {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("telemetry.secret_token", "tok");
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
+            .setSecureSettings(secureSettings)
+            .build();
+        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+            secureSettings.close();
+            supplier.get();
+            assertThat(supplier.authHeader, equalTo("Bearer tok"));
+        }
+    }
+
+    public void testSampledRootSpanCarriesLegacyOtTracestate() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
+            .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
+            .build();
+        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+            var span = supplier.get().getTracer("test").spanBuilder("root").startSpan();
+            assertThat(span.getSpanContext().getTraceState().get("ot"), equalTo("p:0"));
+            span.end();
+        }
+    }
+
 }

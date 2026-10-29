@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ActionListenerUtils.anyCollection;
@@ -62,7 +61,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
             context
@@ -104,7 +103,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
             context
@@ -158,7 +157,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final var action = new TransportHasPrivilegesAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             authorizationService,
             privilegeStore,
             context

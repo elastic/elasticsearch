@@ -22,7 +22,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -31,6 +33,30 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public class DefaultMappingParametersHandler implements DataSourceHandler {
+    private final IndexMode indexMode;
+
+    public DefaultMappingParametersHandler() {
+        this(IndexMode.STANDARD);
+    }
+
+    public DefaultMappingParametersHandler(IndexMode indexMode) {
+        this.indexMode = indexMode;
+    }
+
+    /**
+     * {@code store} cannot be enabled in strict-columnar mode.
+     */
+    public static boolean storeParam(IndexMode indexMode) {
+        return indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean();
+    }
+
+    /**
+     * {@code doc_values} cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
+     */
+    public static boolean docValuesParam(IndexMode indexMode) {
+        return indexMode.isStrictColumnar() || ESTestCase.randomBoolean();
+    }
+
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
         var fieldType = FieldType.tryParse(request.fieldType());
@@ -87,13 +113,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("doc_values", extendedDocValuesParams());
+            putExtendedDocValuesParams(mapping);
 
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
             // Actual value being copied does not influence the core logic of copy_to anyway.
-            if (ESTestCase.randomDouble() <= 0.05) {
+            // copy_to is not allowed on fields in strict-columnar mode.
+            if (indexMode.isStrictColumnar() == false && ESTestCase.randomDouble() <= 0.05) {
                 var options = request.eligibleCopyToFields()
                     .stream()
                     .filter(f -> f.equals(request.fieldName()) == false)
@@ -208,7 +235,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            mapping.put("store", ESTestCase.randomBoolean());
+            mapping.put("store", storeParam(indexMode));
             mapping.put("index", ESTestCase.randomBoolean());
 
             return mapping;
@@ -219,7 +246,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("doc_values", extendedDocValuesParams());
+            putExtendedDocValuesParams(mapping);
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
@@ -264,13 +291,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return HashMap::new;
     }
 
-    public static HashMap<String, Object> commonMappingParameters() {
+    public HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
-        map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
-        map.put("doc_values", ESTestCase.randomBoolean());
+        map.put("store", storeParam(indexMode));
+        map.put("doc_values", docValuesParam(indexMode));
 
-        if (ESTestCase.randomBoolean()) {
+        // synthetic_source_keep is not allowed on fields in strict-columnar mode.
+        if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
             map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
         }
 
@@ -281,7 +309,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
             mapping.put("index", ESTestCase.randomBoolean());
-            mapping.put("doc_values", ESTestCase.randomBoolean());
+            mapping.put("doc_values", docValuesParam(indexMode));
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -311,19 +339,69 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    protected Object extendedDocValuesParams() {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return ESTestCase.randomBoolean();
+    protected void putExtendedDocValuesParams(Map<String, Object> mapping) {
+        if (indexMode.isStrictColumnar() == false) {
+            // Sub-params are only valid in strict-columnar mode, so only toggle doc_values itself.
+            mapping.put("doc_values", ESTestCase.randomBoolean());
+            return;
         }
 
-        // Only multi_value: true is emitted here because this handler does not coordinate single-value data generation, so emitting. The
-        // multi_value: false path is exercised by SingleValueDocValuesDataSourceHandler.
-        return switch (ESTestCase.randomInt(2)) {
-            case 0 -> false;
-            case 1 -> true;
-            case 2 -> Map.of("multi_value", true);
-            default -> throw new IllegalStateException();
-        };
+        if (supportsTopLevelDocValuesAttributes() == false) {
+            var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
+            if (supportsOnFailure()) {
+                choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
+                choices.add(Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")));
+                choices.add(Map.of("nullability", false, "on_failure", "ignore"));
+            }
+            mapping.put("doc_values", ESTestCase.randomFrom(choices));
+            return;
+        }
+
+        if (supportsOnFailure() == false) {
+            switch (ESTestCase.between(0, 2)) {
+                case 0 -> {
+                }
+                case 1 -> mapping.put("doc_values", true);
+                case 2 -> mapping.put("multi_value", true);
+                default -> throw new AssertionError("unreachable");
+            }
+            return;
+        }
+        var choices = new ArrayList<Runnable>(
+            List.of(
+                () -> {},
+                () -> mapping.put("doc_values", true),
+                () -> mapping.put("multi_value", true),
+                () -> mapping.put("on_failure", ESTestCase.randomFrom("fail", "ignore")),
+                () -> {
+                    mapping.put("multi_value", true);
+                    mapping.put("on_failure", ESTestCase.randomFrom("fail", "ignore"));
+                },
+                () -> {
+                    mapping.put("nullability", false);
+                    mapping.put("on_failure", "ignore");
+                }
+            )
+        );
+        ESTestCase.randomFrom(choices).run();
+    }
+
+    /**
+     * Returns {@code true} if the target cluster supports top-level doc-values attributes
+     * ({@code multi_value}, {@code nullability}, {@code on_failure} at field level rather than
+     * nested under {@code doc_values: {...}}).
+     * Override in mixed-version tests to gate on the old cluster's capabilities.
+     */
+    protected boolean supportsTopLevelDocValuesAttributes() {
+        return true;
+    }
+
+    /**
+     * Returns {@code true} if the target cluster supports the {@code doc_values.on_failure} sub-parameter.
+     * Override in mixed-version tests to gate on the old cluster's capabilities.
+     */
+    protected boolean supportsOnFailure() {
+        return true;
     }
 
     @Override
@@ -337,7 +415,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", randomFrom("true", "false", "strict"));
                 }
-                if (ESTestCase.randomBoolean()) {
+                // synthetic_source_keep is not allowed on objects in strict-columnar mode
+                if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
                     parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
                 }
 
@@ -364,6 +443,17 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 return parameters;
             }
 
+            if (indexMode.isStrictColumnar()) {
+                // subobjects and synthetic_source_keep are not allowed on objects in strict-columnar mode
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
+                }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("enabled", request.isRoot() ? "true" : randomFrom("true", "false"));
+                }
+                return parameters;
+            }
+
             if (ESTestCase.randomBoolean()) {
                 parameters.put("subobjects", subobjects.toString());
             }
@@ -373,7 +463,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", randomFrom("true", "false"));
             }
-
             if (ESTestCase.randomBoolean()) {
                 var value = request.isRoot() ? randomFrom("none", "arrays") : randomFrom("none", "arrays", "all");
                 parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);

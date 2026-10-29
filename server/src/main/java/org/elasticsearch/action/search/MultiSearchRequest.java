@@ -261,7 +261,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             /*
              * This `ccsMinimizeRoundtrips` refers to the value specified as the query parameter and is extracted in
              * `RestMultiSearchAction#parseMultiLineRequest()`. If in a Cross Project Search environment, it is
-             * guaranteed to be `true`. Otherwise, its value is whatever that the user is provided.
+             * guaranteed to be `false`. Otherwise, its value is whatever that the user is provided.
              */
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
@@ -299,7 +299,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
+                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) ? false : nodeBooleanValue(value));
                             if (crossProjectEnabled.orElse(false) && warnedMrtForCps == false) {
                                 HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
                                 warnedMrtForCps = true;
@@ -313,9 +313,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
                             searchRequest.routing(nodeStringValue(value, null));
-                            searchRequest.searchSlice(null);
                             routingProvided = true;
-                        } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
+                        } else if (SliceIndexing.FIELD_NAME.equals(entry.getKey())) {
                             if (routingProvided || topLevelHasRouting) {
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
@@ -388,13 +387,9 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     }
 
     private static void applySearchRoutingOrSlice(SearchRequest searchRequest, @Nullable SliceIndexing.ParsedRouting parsedRouting) {
-        if (parsedRouting == null) {
-            return;
+        if (parsedRouting != null) {
+            searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         }
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
     }
 
     private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
@@ -468,7 +463,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             xContentBuilder.field("preference", request.preference());
         }
         if (request.isRoutingFromSlice()) {
-            xContentBuilder.field(SliceIndexing.PARAM_NAME, request.searchSlice());
+            xContentBuilder.field(SliceIndexing.FIELD_NAME, request.searchSlice());
         } else if (request.routing() != null) {
             xContentBuilder.field("routing", request.routing());
         }

@@ -22,10 +22,8 @@ public class UpsertCtxMapTests extends ESTestCase {
     Metadata meta;
     long TS = 922860000000L;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initUpsertCtxMap() throws Exception {
         map = new UpsertCtxMap("myIndex", "myId", "create", TS, Map.of("foo", "bar"));
         meta = map.getMetadata();
     }

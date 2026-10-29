@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -47,24 +47,25 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -92,6 +93,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -130,7 +132,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 public abstract class ViewResolutionBenchmarkBase {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     protected abstract String getScenario();
@@ -140,7 +142,7 @@ public abstract class ViewResolutionBenchmarkBase {
     private ViewResolver viewResolver;
     private LogicalPlan preParsedPlan;
     private String queryString;
-    private BiFunction<String, String, LogicalPlan> viewParser;
+    private BiFunction<String, String, EsqlStatement> viewParser;
     private Analyzer analyzer;
     private LogicalPlanOptimizer optimizer;
     private ThreadPool threadPool;
@@ -154,11 +156,16 @@ public abstract class ViewResolutionBenchmarkBase {
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
-        SettingsValidationContext validationCtx = new SettingsValidationContext(false, false);
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, inferenceSettings, viewName).plan();
+        viewParser = (query, viewName) -> parser.parseView(
+            query,
+            new QueryParams(),
+            inferenceSettings,
+            viewName,
+            EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+        );
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -170,10 +177,9 @@ public abstract class ViewResolutionBenchmarkBase {
             String name = "col" + i;
             mapping.put(name, new EsField(name, KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
-        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
+        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
 
         Configuration config = new Configuration(
-            DateUtils.UTC,
             Instant.now(),
             Locale.US,
             null,
@@ -188,8 +194,7 @@ public abstract class ViewResolutionBenchmarkBase {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
-            null,
-            null,
+            ResolvedSettings.EMPTY,
             Map.of()
         );
 
@@ -209,7 +214,7 @@ public abstract class ViewResolutionBenchmarkBase {
             new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
 
-        optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
+        optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), minimumVersion));
 
         boolean viewsEnabled;
         ViewMetadata viewMetadata;
@@ -312,7 +317,7 @@ public abstract class ViewResolutionBenchmarkBase {
     @Benchmark
     public void resolveViews(Blackhole blackhole) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(preParsedPlan, null, viewParser, future);
+        viewResolver.replaceViews(preParsedPlan, null, true, true, viewParser, ViewBoundaryPreservation.NONE, future);
         blackhole.consume(future.actionGet());
     }
 
@@ -322,7 +327,7 @@ public abstract class ViewResolutionBenchmarkBase {
         LogicalPlan parsed = parsePlan(queryString);
 
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(parsed, null, viewParser, future);
+        viewResolver.replaceViews(parsed, null, true, true, viewParser, ViewBoundaryPreservation.NONE, future);
         LogicalPlan resolved = future.actionGet().plan();
 
         LogicalPlan analyzed = analyzer.analyze(resolved);

@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 139587
+pr: 156772
+summary: Define coordinating-only nodes as having no roles
+type: bug

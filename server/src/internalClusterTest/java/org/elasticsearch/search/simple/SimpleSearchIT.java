@@ -181,7 +181,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testIpCidrHighCardinality() throws Exception {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // In strict-columnar mode an ip field defaults to HIGH-cardinality (binary) doc values, exercising the same path the explicit
         // cardinality option used to provide.
         // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
@@ -539,11 +538,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("idx");
 
         // Ensure the field `num` exists in the mapping
-        client().admin()
-            .indices()
-            .preparePutMapping("idx")
-            .setSource("{\"properties\":{\"num\":{\"type\":\"keyword\"}}}", XContentType.JSON)
-            .get();
+        client().admin().indices().preparePutMapping("idx").setSource("{\"properties\":{\"num\":{\"type\":\"keyword\"}}}").get();
 
         // Index a simple document to ensure the field `num` is in the index
         indexRandom(true, prepareIndex("idx").setSource("{\"num\":\"test\"}", XContentType.JSON));

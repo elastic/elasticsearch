@@ -16,7 +16,6 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.StringTemplatePlugin
 
-    
     def setup() {
         configureBwcVersions()
     }
@@ -54,7 +53,7 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         """
 
         when:
-        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+        def result = gradleRunner("stringTemplates").build()
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
@@ -103,7 +102,7 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         """
 
         when:
-        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+        def result = gradleRunner("stringTemplates").build()
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
@@ -138,7 +137,7 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         """
 
         when:
-        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+        def result = gradleRunner("stringTemplates").build()
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
@@ -173,7 +172,7 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         """
 
         when:
-        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+        def result = gradleRunner("stringTemplates").build()
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
@@ -208,7 +207,7 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         """
 
         when:
-        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+        def result = gradleRunner("stringTemplates").build()
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS
@@ -235,7 +234,7 @@ class StringTemplatePluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         """
 
         when:
-        def result = gradleRunner("stringTemplates", '-g', gradleUserHome).build()
+        def result = gradleRunner("stringTemplates").build()
 
         then:
         result.task(":stringTemplates").outcome == TaskOutcome.SUCCESS

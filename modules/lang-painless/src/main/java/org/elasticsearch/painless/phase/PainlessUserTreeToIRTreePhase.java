@@ -9,12 +9,15 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
 import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
@@ -48,6 +51,7 @@ import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
@@ -56,7 +60,6 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFieldType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFunction;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
@@ -146,11 +149,11 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
-            // Carry the per-context allocation limit on the execute entry so its prologue can reset $allocBytes; the value
-            // is -1 when tracking is disabled, in which case no counter bytecode is emitted.
-            irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
+            // The execute entry needs both: its prologue resets $allocBytes and its return path records the total.
+            attachAllocationLimit(irFunctionNode, scriptScope);
 
             injectStaticFieldsAndGetters();
+            injectAllocationMetricsField(scriptScope);
             injectGetsDeclarations(irBlockNode, scriptScope);
             injectNeedsMethods(scriptScope);
             injectSandboxExceptions(irFunctionNode);
@@ -159,6 +162,23 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } else {
             super.visitFunction(userFunctionNode, scriptScope);
         }
+    }
+
+    /**
+     * Declares the static field holding this script's allocation recorder, which {@code Compiler} sets after defining the
+     * class. Only when metrics are enabled; the field is what the {@code execute} return path records through.
+     */
+    protected void injectAllocationMetricsField(ScriptScope scriptScope) {
+        if (scriptScope.getCompilerSettings().isAllocationMetricsEnabled() == false) {
+            return;
+        }
+
+        FieldNode irFieldNode = new FieldNode(new Location("$internal$injectAllocationMetricsField", 0));
+        irFieldNode.attachDecoration(new IRDModifiers(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC));
+        irFieldNode.attachDecoration(new IRDFieldType(AllocationMetrics.ContextRecorder.class));
+        irFieldNode.attachDecoration(new IRDName(WriterConstants.ALLOC_METRICS_FIELD));
+
+        irClassNode.addFieldNode(irFieldNode);
     }
 
     // adds static fields and getter methods required by PainlessScript for exception handling
@@ -353,6 +373,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      * }
      *
      */
+    @SuppressForbidden(
+        reason = "injectSandboxExceptions generates IR catch nodes for StackOverflowError to sandbox it within Painless scripts"
+    )
     protected static void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
@@ -401,7 +424,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                     List.of(),
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    null
                 )
             );
 
@@ -478,7 +502,16 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.attachDecoration(new IRDExpressionType(Map.class));
                 irInvokeCallNode.setBox(Collections.class);
                 irInvokeCallNode.setMethod(
-                    new PainlessMethod(Collections.class.getMethod("emptyMap"), Collections.class, null, List.of(), null, null, Map.of())
+                    new PainlessMethod(
+                        Collections.class.getMethod("emptyMap"),
+                        Collections.class,
+                        null,
+                        List.of(),
+                        null,
+                        null,
+                        Map.of(),
+                        null
+                    )
                 );
 
                 irBinaryImplNode.setRightNode(irInvokeCallNode);
@@ -571,6 +604,10 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irCallSubDefNode.addArgumentNode(injectCast(userCallLocalNode.getArgumentNodes().get(1), scriptScope));
             irCallSubDefNode.attachDecoration(new IRDExpressionType(def.class));
             irCallSubDefNode.attachDecoration(new IRDName("get"));
+            // Same rule as any def call: a get(default) may reach a @script_aware or @allocates field read.
+            if (DefaultSemanticAnalysisPhase.defCallNeedsScript(scriptScope, "get", 1)) {
+                irCallSubDefNode.attachCondition(IRCScriptAware.class);
+            }
 
             BinaryImplNode irBinaryImplNode = new BinaryImplNode(userCallLocalNode.getLocation());
             irBinaryImplNode.setLeftNode(irInvokeCallMemberNode);

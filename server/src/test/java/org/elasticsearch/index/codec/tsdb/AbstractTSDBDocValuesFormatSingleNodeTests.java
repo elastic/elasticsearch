@@ -22,9 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -41,8 +41,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
 
-    protected abstract void assumeCodecSelected();
-
     protected abstract void assertTSDBDocValuesFormat(DocValuesFormat format, String field);
 
     protected abstract void assertStandardIndexDocValuesFormat(DocValuesFormat format, String field);
@@ -50,7 +48,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     protected abstract String expectedCodecName();
 
     public void testTSDBWithSinglePrefixByte() throws Exception {
-        assumeCodecSelected();
         assumeTrue("require single prefix byte to enable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
         final String indexName = "tsdb-test";
         final Settings settings = tsdbSettings();
@@ -85,7 +82,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     public void testTSDBWithMultiplePrefixByte() throws Exception {
-        assumeCodecSelected();
         assumeFalse("require multiple byte prefix to disable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
         final String indexName = "tsdb-test";
         final Settings settings = tsdbSettings();
@@ -113,7 +109,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     public void testStandardIndexWithTSDBDocValuesFormatSetting() throws Exception {
-        assumeCodecSelected();
         final String indexName = "standard-tsdb-dv-test";
         final Settings settings = Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build();
 
@@ -128,7 +123,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
-        assumeCodecSelected();
         final String indexName = "standard-large-binary-block-dv-test";
         final Settings settings = Settings.builder()
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
@@ -184,13 +178,14 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
             return es93104codec.getDocValuesFormatForField(field);
-        } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyCodec) {
-                return legacyCodec.getDocValuesFormatForField(field);
-            } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
-                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
-                return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
-            }
+        } else if (codec instanceof Elasticsearch96Codec defaultCodec) {
+            // Now a DeduplicateFieldInfosCodec in its own right, so CodecService no longer wraps it in one.
+            return defaultCodec.getDocValuesFormatForField(field);
+        }
+        Codec unwrapped = codec;
+        if (unwrapped instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
+            assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+            return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
         }
         fail("Unexpected codec type: " + codec.getClass().getName());
         return null;

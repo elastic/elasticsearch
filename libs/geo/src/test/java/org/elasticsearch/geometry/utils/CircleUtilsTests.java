@@ -19,12 +19,16 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * The pole filters below match production's formula because a boundary circle measured by two different formulas gets
+ * classified two different ways.
+ */
 public class CircleUtilsTests extends ESTestCase {
 
     public void testCreateRegularGeoShapePolygon() {
         final Circle circle = randomValueOtherThanMany(
-            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) < c.getRadiusMeters()
-                || SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) < c.getRadiusMeters(),
+            c -> CircleUtils.slowHaversin(c.getLat(), c.getLon(), 90, 0) < c.getRadiusMeters()
+                || CircleUtils.slowHaversin(c.getLat(), c.getLon(), -90, 0) < c.getRadiusMeters(),
             () -> GeometryTestUtils.randomCircle(true)
         );
         doRegularGeoShapePolygon(circle);
@@ -32,7 +36,7 @@ public class CircleUtilsTests extends ESTestCase {
 
     public void testCircleContainsNorthPole() {
         final Circle circle = randomValueOtherThanMany(
-            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) >= c.getRadiusMeters(),
+            c -> CircleUtils.slowHaversin(c.getLat(), c.getLon(), 90, 0) >= c.getRadiusMeters(),
             () -> GeometryTestUtils.randomCircle(true)
         );
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
@@ -41,7 +45,7 @@ public class CircleUtilsTests extends ESTestCase {
 
     public void testCircleContainsSouthPole() {
         final Circle circle = randomValueOtherThanMany(
-            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) >= c.getRadiusMeters(),
+            c -> CircleUtils.slowHaversin(c.getLat(), c.getLon(), -90, 0) >= c.getRadiusMeters(),
             () -> GeometryTestUtils.randomCircle(true)
         );
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
@@ -59,9 +63,13 @@ public class CircleUtilsTests extends ESTestCase {
         // check there are numSides edges
         assertThat(numPoints, equalTo(numSides + 1));
         // check that all the points are about a radius away from the center
+        // 0.1 is the loop's own convergence bound, so it only holds when measured with the loop's own formula.
+        // 0.5 is that bound plus SloppyMath's documented 40cm error: loose enough to only catch gross drift.
         for (int i = 0; i < numPoints; i++) {
-            double actualDistance = SloppyMath.haversinMeters(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
+            double actualDistance = CircleUtils.slowHaversin(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
             assertThat(actualDistance, closeTo(circle.getRadiusMeters(), 0.1));
+            double approximateDistance = SloppyMath.haversinMeters(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
+            assertThat(approximateDistance, closeTo(circle.getRadiusMeters(), 0.5));
         }
     }
 

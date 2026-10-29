@@ -37,6 +37,9 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
+    /** Node setting keys that must all resolve to true for this plugin's native controller to be spawned. */
+    private List<String> nativeControllerEnabledSettings = new ArrayList<>();
+
     /** Whether a license agreement must be accepted before this plugin can be installed. */
     private boolean isLicensed = false;
 
@@ -106,6 +109,14 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
+    }
+
+    public List<String> getNativeControllerEnabledSettings() {
+        return this.nativeControllerEnabledSettings;
+    }
+
+    public void setNativeControllerEnabledSettings(List<String> nativeControllerEnabledSettings) {
+        this.nativeControllerEnabledSettings = nativeControllerEnabledSettings;
     }
 
     public boolean isLicensed() {

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -40,7 +40,6 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -314,8 +313,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // Rollover to ensure the index we will downsample is not the write index
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String sourceIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String sourceIndex = backingIndices.get(0).getName();
         String interval = "5m";
         String targetIndex = "downsample-" + interval + "-" + sourceIndex;
         // Set the source index to read-only state
@@ -550,9 +549,6 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private void testEsqlMetrics(String dataStreamName, String nonDownsampledIndex) throws Exception {
-        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
-            ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
-            : null;
         // test _over_time commands with implicit casting of aggregate_metric_double
         for (String outerCommand : List.of("min", "max", "sum", "count")) {
             String expectedType = outerCommand.equals("count") ? "long" : "double";
@@ -567,7 +563,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             List.of(
                                 new ColumnInfoImpl(command, innerCommand.equals("count_over_time") ? "long" : expectedType, null),
                                 new ColumnInfoImpl("cluster", "keyword", null),
-                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null, bucketMeta)
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
                             )
                         )
                     );
@@ -591,7 +587,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             List.of(
                                 new ColumnInfoImpl(command, expectedType, null),
                                 new ColumnInfoImpl("cluster", "keyword", null),
-                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null, bucketMeta)
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
                             )
                         )
                     );
@@ -615,7 +611,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             List.of(
                                 new ColumnInfoImpl(command, expectedType, null),
                                 new ColumnInfoImpl("cluster", "keyword", null),
-                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null, bucketMeta)
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
                             )
                         )
                     );

@@ -329,7 +329,7 @@ public class RestActions {
     ) {
         return delegate.delegateFailureAndWrap((l, response) -> {
             DirectoryMetrics metrics = metricsExtractor.apply(response);
-            if (metrics.isEmpty() == false) {
+            if (metrics.entries().isEmpty() == false) {
                 String value = metrics.entries()
                     .entrySet()
                     .stream()

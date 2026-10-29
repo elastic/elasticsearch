@@ -9,8 +9,6 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.Unroll
-
 import com.github.tomakehurst.wiremock.WireMockServer
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -30,8 +28,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     WireMockServer wireMock
 
     def setup() {
-        // Cannot serialize BwcSetupExtension containing project object
-        configurationCacheCompatible = false
+        disableConfigurationCache("cannot serialize BwcSetupExtension containing project object")
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
@@ -50,54 +47,42 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     }
 
     def "builds distribution from branches via archives extractedAssemble"() {
-        given:
-        buildFile.text = ""
-        internalBuild()
-        buildFile << """
-            apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
-        """
+        // A single BWC branch is sufficient to verify that buildBwcDarwinTar triggers
+        // extractedAssemble — the plugin logic is identical for all supported branches.
         when:
-        def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
-                ":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
-                "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin",
-                "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
-                .build()
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dbwc.dist.version=8.4.0-SNAPSHOT"
+        )
+            .build()
         then:
-        result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
-
-        where:
-        bwcDistVersion | bwcProject | expectedAssembleTaskName
-        "8.4.0"        | "major1"   | "extractedAssemble"
-        "8.3.0"        | "major2"   | "extractedAssemble"
-        "8.2.1"        | "major3"   | "extractedAssemble"
-        "8.1.3"        | "major4"   | "extractedAssemble"
+        assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
     }
 
-    @Unroll
-    def "supports #platform aarch distributions"() {
+    def "supports linux aarch distributions"() {
+        // One aarch64 platform is sufficient to verify the feature; the same plugin
+        // logic handles both darwin and linux aarch64 targets.
         when:
-        def result = gradleRunner(":distribution:bwc:major1:buildBwc${platform.capitalize()}Aarch64Tar",
-                "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin",
-                "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
-                .build()
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcLinuxAarch64Tar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dbwc.dist.version=8.4.0-SNAPSHOT"
+        )
+            .build()
         then:
-        result.task(":distribution:bwc:major1:buildBwc${platform.capitalize()}Aarch64Tar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcLinuxAarch64Tar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble tasks triggered"
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:${platform}-aarch64-tar:extractedAssemble")
-
-        where:
-        bwcDistVersion | platform
-        "8.4.0"       | "darwin"
-        "8.4.0"       | "linux"
+        assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:linux-aarch64-tar:extractedAssemble")
     }
 
-    def "downloads distribution from DRA snapshot when mode=dra and hash override is set"() {
+    def "downloads distribution from a prebuilt snapshot when mode=prebuilt and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -105,14 +90,14 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         def buildId = "${bwcVersion}-${shortHash}"
         stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -127,9 +112,11 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
 
         and: "the distribution directory was created at the expected path"
-        file("cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
-            "distribution/archives/darwin-tar/build/install/" +
-            "elasticsearch-${bwcVersion}-SNAPSHOT").exists()
+        file(
+            "cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
+                "distribution/archives/darwin-tar/build/install/" +
+                "elasticsearch-${bwcVersion}-SNAPSHOT"
+        ).exists()
     }
 
     def "resolveByLatest falls back to origin remote when configured remote ref is absent (CI scenario)"() {
@@ -151,7 +138,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
         stubManifestWithCommit(wireMock, draManifestPath(buildId, bwcVersion), fullHash)
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         // bwc.remote=elastic (the default) — no elastic remote ref exists, only origin
@@ -173,22 +160,22 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
     }
 
-    def "downloads JDBC jar from DRA snapshot when mode=dra and hash override is set"() {
+    def "downloads JDBC jar from a prebuilt snapshot when mode=prebuilt and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
         def shortHash = "abc12345"
         def buildId = "${bwcVersion}-${shortHash}"
         stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
-        stubJarArtifact(wireMock, draMavenArtifactPath(buildId, bwcVersion, "org.elasticsearch.plugin", "x-pack-sql-jdbc"))
-        redirectDraRepositories(wireMock.baseUrl())
+        stubJarArtifact(wireMock, mavenSnapshotArtifactPath(bwcVersion, "org.elasticsearch.plugin", "x-pack-sql-jdbc"))
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
             ":distribution:bwc:major1:buildBwcJdbc",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -199,27 +186,19 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         and: "no nested Gradle build was triggered"
         result.output.contains("> Task :x-pack:plugin:sql:jdbc:assemble") == false
 
+        and: "the warning explains that the hash override does not pin Maven snapshots"
+        result.output.contains("tests.bwc.dra.hash is set")
+        result.output.contains("does not pin this JAR")
+
         and: "the DRA log message names the snapshot build ID"
         result.output.contains("DRA snapshot ${buildId}")
 
         and: "the JDBC jar was created at the expected path"
-        file("cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
-            "x-pack/plugin/sql/jdbc/build/distributions/" +
-            "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar").exists()
-    }
-
-    def "builds from source when mode is gradle (default)"() {
-        when:
-        def result = gradleRunner(":distribution:bwc:major1:buildBwcDarwinTar",
-            "-DtestRemoteRepo=" + remoteGitRepo,
-            "-Dbwc.remote=origin",
-            "-Dbwc.dist.version=8.4.0-SNAPSHOT")
-            .build()
-        then:
-        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-
-        and: "local nested build was triggered"
-        assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+        file(
+            "cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
+                "x-pack/plugin/sql/jdbc/build/distributions/" +
+                "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
     }
 
     def "falls back to local gradle build when DRA manifest returns 404"() {
@@ -262,7 +241,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
         stubManifestWithCommit(wireMock, draManifestPath(buildId, bwcVersion), fullHash)
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
@@ -318,10 +297,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
 
         and: "log explains why DRA was not used"
-        result.output.contains("DRA snapshot commit did not match")
+        result.output.contains("pre-built snapshot commit did not match")
     }
 
-    def "downloads distribution from DRA when mode=dra and no hash override uses latest snapshot without commit check"() {
+    def "downloads distribution from a prebuilt snapshot when mode=prebuilt and no hash override uses latest snapshot without commit check"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -330,14 +309,14 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         // resolveLatestBuildId does not read local git refs — no remote tracking ref needed.
         stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -351,12 +330,14 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
 
         and: "the distribution directory was created at the expected path"
-        file("cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
-            "distribution/archives/darwin-tar/build/install/" +
-            "elasticsearch-${bwcVersion}-SNAPSHOT").exists()
+        file(
+            "cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
+                "distribution/archives/darwin-tar/build/install/" +
+                "elasticsearch-${bwcVersion}-SNAPSHOT"
+        ).exists()
     }
 
-    def "falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)"() {
+    def "falls back to source build with warning when mode=prebuilt but prebuilt snapshots are unavailable (distribution archive)"() {
         given:
         // Stub the latest endpoint with 404 so resolveLatestBuildId returns an empty build ID.
         wireMock.stubFor(get(urlEqualTo(draLatestPath("8.x"))).willReturn(aResponse().withStatus(404)))
@@ -367,7 +348,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
             "-Dbwc.dist.version=8.4.0-SNAPSHOT",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -378,7 +359,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
 
         and: "a warning explains that DRA was unavailable"
-        result.output.contains("tests.bwc.mode=dra but no DRA snapshot was available")
+        result.output.contains("tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
@@ -406,31 +387,37 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         }
         """
         when:
-        def result = gradleRunner(":resolveExpandedDistribution",
-                "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin")
-                .build()
+        def result = gradleRunner(
+            ":resolveExpandedDistribution",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin"
+        )
+            .build()
         then:
         result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
         result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
         result.output.contains("[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        result.output.contains("expandedRootPath /distribution/bwc/major1/build/bwc/checkout-8.x/" +
-                        "distribution/archives/darwin-tar/build/install")
-        result.output.contains("nested folder /distribution/bwc/major1/build/bwc/checkout-8.x/" +
-                        "distribution/archives/darwin-tar/build/install/elasticsearch-8.4.0-SNAPSHOT")
+        result.output.contains(
+            "expandedRootPath /distribution/bwc/major1/build/bwc/checkout-8.x/" +
+                "distribution/archives/darwin-tar/build/install"
+        )
+        result.output.contains(
+            "nested folder /distribution/bwc/major1/build/bwc/checkout-8.x/" +
+                "distribution/archives/darwin-tar/build/install/elasticsearch-8.4.0-SNAPSHOT"
+        )
     }
 
     // -------------------------------------------------------------------------
     // Build-file helper
     // -------------------------------------------------------------------------
 
-    /** Appends a Gradle snippet that redirects all DRA Ivy repositories to {@code baseUrl}. */
-    private void redirectDraRepositories(String baseUrl) {
+    /** Appends a Gradle snippet that redirects all BWC snapshot repositories to {@code baseUrl}. */
+    private void redirectBwcRepositories(String baseUrl) {
         buildFile << """
             allprojects { p ->
                 p.repositories.all { repo ->
-                    if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
+                    if (repo.name.startsWith("dra-bwc-elasticsearch-") || repo.name == "maven-snapshots-elasticsearch") {
                         repo.setUrl('${baseUrl}')
                         allowInsecureProtocol = true
                     }
@@ -455,8 +442,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         "/elasticsearch/${buildId}/downloads/elasticsearch/elasticsearch-${version}-SNAPSHOT-${classifier}.tar.gz"
     }
 
-    private static String draMavenArtifactPath(String buildId, String version, String mavenGroup, String module) {
-        "/elasticsearch/${buildId}/maven/${mavenGroup.replace('.', '/')}/${module}/${version}-SNAPSHOT/${module}-${version}-SNAPSHOT.jar"
+    private static String mavenSnapshotArtifactPath(String version, String mavenGroup, String module) {
+        "/${mavenGroup.replace('.', '/')}/${module}/${version}-SNAPSHOT/${module}-${version}-SNAPSHOT.jar"
     }
 
     // -------------------------------------------------------------------------
@@ -472,9 +459,13 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     /** Stubs HEAD+GET for a manifest path, returning HTTP 200 with the given commit hash in the body. */
     private static void stubManifestWithCommit(WireMockServer wireMock, String path, String commitHash) {
         wireMock.stubFor(head(urlEqualTo(path)).willReturn(aResponse().withStatus(200)))
-        wireMock.stubFor(get(urlEqualTo(path))
-            .willReturn(aResponse().withStatus(200)
-                .withBody("""{"projects": {"elasticsearch": {"commit_hash": "${commitHash}"}}}""")))
+        wireMock.stubFor(
+            get(urlEqualTo(path))
+                .willReturn(
+                    aResponse().withStatus(200)
+                        .withBody("""{"projects": {"elasticsearch": {"commit_hash": "${commitHash}"}}}""")
+                )
+        )
     }
 
     /** Stubs HEAD+GET for a manifest path to return HTTP 404, triggering source-build fallback. */
@@ -485,22 +476,28 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
     /** Stubs GET for the DRA "latest" endpoint, returning a JSON body with the given build ID. */
     private static void stubLatest(WireMockServer wireMock, String path, String buildId) {
-        wireMock.stubFor(get(urlEqualTo(path))
-            .willReturn(aResponse().withStatus(200).withBody("""{"build_id": "${buildId}"}""")))
+        wireMock.stubFor(
+            get(urlEqualTo(path))
+                .willReturn(aResponse().withStatus(200).withBody("""{"build_id": "${buildId}"}"""))
+        )
     }
 
     /** Stubs HEAD+GET for a distribution tar.gz artifact path, serving a minimal extractable archive. */
     private static void stubTarArtifact(WireMockServer wireMock, String path, String bwcVersion) {
         wireMock.stubFor(head(urlEqualTo(path)).willReturn(aResponse().withStatus(200)))
-        wireMock.stubFor(get(urlEqualTo(path))
-            .willReturn(aResponse().withStatus(200).withBody(minimalElasticsearchTarGz("${bwcVersion}-SNAPSHOT"))))
+        wireMock.stubFor(
+            get(urlEqualTo(path))
+                .willReturn(aResponse().withStatus(200).withBody(minimalElasticsearchTarGz("${bwcVersion}-SNAPSHOT")))
+        )
     }
 
     /** Stubs HEAD+GET for a Maven JAR artifact path, serving a minimal fake JAR body. */
     private static void stubJarArtifact(WireMockServer wireMock, String path, byte[] content = "fake-jar-content".bytes) {
         wireMock.stubFor(head(urlEqualTo(path)).willReturn(aResponse().withStatus(200)))
-        wireMock.stubFor(get(urlEqualTo(path))
-            .willReturn(aResponse().withStatus(200).withBody(content)))
+        wireMock.stubFor(
+            get(urlEqualTo(path))
+                .willReturn(aResponse().withStatus(200).withBody(content))
+        )
     }
 
     // -------------------------------------------------------------------------

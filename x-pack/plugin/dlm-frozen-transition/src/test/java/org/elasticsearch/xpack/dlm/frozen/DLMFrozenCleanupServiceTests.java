@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -167,6 +168,22 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
             .build();
     }
 
+    /**
+     * Builds an index mounted as a searchable snapshot backed by {@code snapshotUuid}, i.e. one
+     * that satisfies {@link SearchableSnapshotsSettings#isSearchableSnapshotStore}.
+     */
+    private IndexMetadata createMountedSearchableSnapshotIndex(String name, String snapshotUuid) {
+        return IndexMetadata.builder(name)
+            .settings(
+                settings(IndexVersion.current()).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+                    .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY, snapshotUuid)
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+    }
+
     private IndexMetadata createDlmManagedClonedIndex(String name, String sourceIndexName, String sourceIndexUuid) {
         return IndexMetadata.builder(name)
             .settings(
@@ -219,8 +236,17 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     }
 
     private SnapshotInfo createSnapshotInfo(String snapshotName, List<String> snapshotIndices, Map<String, Object> userMetadata) {
+        return createSnapshotInfo(snapshotName, randomAlphaOfLength(10), snapshotIndices, userMetadata);
+    }
+
+    private SnapshotInfo createSnapshotInfo(
+        String snapshotName,
+        String snapshotUuid,
+        List<String> snapshotIndices,
+        Map<String, Object> userMetadata
+    ) {
         return new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, snapshotUuid)),
             snapshotIndices,
             List.of(),
             List.of(),
@@ -381,6 +407,58 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         DeleteSnapshotRequest req = capturedDeleteSnapshotRequest.get();
         assertThat(req, not(nullValue()));
         assertThat(req.repository(), is(REPO_NAME));
+        assertThat(List.of(req.snapshots()), containsInAnyOrder(snapshotName));
+    }
+
+    public void testSnapshot_backingMountedSearchableSnapshot_notDeleted() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+        String snapshotUuid = randomAlphaOfLength(10);
+        SnapshotInfo orphanedSnapshot = createSnapshotInfo(
+            snapshotName,
+            snapshotUuid,
+            List.of(orphanedIndex),
+            Map.of(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY, true)
+        );
+        IndexMetadata mountedMeta = createMountedSearchableSnapshotIndex(
+            DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + randomAlphaOfLength(10),
+            snapshotUuid
+        );
+
+        setClusterState(List.of(mountedMeta), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(orphanedSnapshot), null, 1, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testSnapshot_mountedSearchableSnapshotWithDifferentUuid_stillDeleted() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+        SnapshotInfo orphanedSnapshot = createSnapshotInfo(
+            snapshotName,
+            randomAlphaOfLength(10),
+            List.of(orphanedIndex),
+            Map.of(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY, true)
+        );
+        IndexMetadata mountedMeta = createMountedSearchableSnapshotIndex(
+            DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + randomAlphaOfLength(10),
+            randomAlphaOfLength(10)
+        );
+
+        setClusterState(List.of(mountedMeta), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(orphanedSnapshot), null, 1, 0));
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        DeleteSnapshotRequest req = capturedDeleteSnapshotRequest.get();
+        assertThat(req, not(nullValue()));
         assertThat(List.of(req.snapshots()), containsInAnyOrder(snapshotName));
     }
 

@@ -27,8 +27,8 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -301,12 +301,12 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             service.infer(model, List.of("test input"), false, new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
 
             InferenceServiceResults results = listener.actionGet(TIMEOUT);
-            assertThat(results, instanceOf(ChatCompletionResults.class));
+            assertThat(results, instanceOf(CompletionResults.class));
 
-            var completionResults = (ChatCompletionResults) results;
+            var completionResults = (CompletionResults) results;
             assertThat(
                 completionResults.getResults(),
-                is(List.of(new ChatCompletionResults.Result("Hello there, how may I assist you today?")))
+                is(List.of(new CompletionResults.Result("Hello there, how may I assist you today?")))
             );
         }
     }
@@ -788,6 +788,30 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
             assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarity_ByteEmbeddingType_UsesDotProduct() throws IOException {
+        try (var service = createInferenceService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = createInternalEmbeddingModel(
+                new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BYTE),
+                URL_VALUE
+            );
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+            assertThat(updatedModel.getServiceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarity_BitEmbeddingType_UsesDotProduct() throws IOException {
+        try (var service = createInferenceService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = createInternalEmbeddingModel(
+                new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BIT),
+                URL_VALUE
+            );
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+            assertThat(updatedModel.getServiceSettings().similarity(), is(SimilarityMeasure.DOT_PRODUCT));
         }
     }
 

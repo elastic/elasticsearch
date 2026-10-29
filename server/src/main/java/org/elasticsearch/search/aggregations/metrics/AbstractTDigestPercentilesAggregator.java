@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -87,7 +88,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         states = bigArrays.grow(states, bucket + 1);
         HistogramUnionState state = states.get(bucket);
         if (state == null) {
-            state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
+            state = HistogramUnionState.create(context.breaker(), executionHint, compression);
             states.set(bucket, state);
         }
         return state;
@@ -105,8 +106,38 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         return states.get(bucketOrd);
     }
 
+    /**
+     * Removes and returns the state for {@code bucketOrd}, releasing its breaker bytes now while
+     * the context is still open. Returns {@code null} if the bucket was never collected or already taken.
+     */
+    @Nullable
+    protected final HistogramUnionState takeState(long bucketOrd) {
+        if (bucketOrd >= states.size()) {
+            return null;
+        }
+        HistogramUnionState state = states.get(bucketOrd);
+        states.set(bucketOrd, null);
+        if (state != null) {
+            context.breaker().addWithoutBreaking(-state.ramBytesUsed());
+        }
+        return state;
+    }
+
     @Override
     protected void doClose() {
+        // super() registers this in the constructor, super() called first, object exists
+        // so doClose can be called before the constructor of this class
+        // finishes and states could be null
+        if (states == null) {
+            return;
+        }
+        // doClose can be called before this constructor finishes (same reason states can be null
+        // above), so cleanup may run while an exception is already propagating. Using
+        // closeWhileHandlingException ensures a failure during cleanup never replaces the original
+        // exception, and still closes every element even if one fails.
+        for (long i = 0; i < states.size(); i++) {
+            Releasables.closeWhileHandlingException(states.get(i));
+        }
         Releasables.close(states);
     }
 

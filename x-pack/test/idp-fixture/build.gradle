@@ -6,7 +6,7 @@ dockerFixtures {
   idp {
     dockerContext = file("src/main/resources/idp")
     version = "1.2"
-    baseImages = ["openjdk:11.0.16-jre"]
+    baseImages = ["eclipse-temurin:11.0.16_8-jre"]
   }
   httpproxy {
     dockerContext = file("src/main/resources/nginx")
@@ -20,15 +20,15 @@ dockerFixtures {
   }
   openldap {
     dockerContext = file("src/main/resources/openldap")
-    version = "1.0"
-    baseImages = ["osixia/openldap:1.4.0"]
+    version = "1.1"
+    baseImages = ["osixia/openldap:1.5.0"]
   }
 }
 
 dependencies {
   testImplementation project(':test:framework')
   api project(':test:fixtures:testcontainer-utils')
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
 
   runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }

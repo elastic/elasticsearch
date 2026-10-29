@@ -1,0 +1,146 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_bbq_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: cosine
+                index_options:
+                  type: bbq_hnsw
+
+  # dv_bbq_hnsw needs ≥64 dims for the binary-quantization codec. Three roughly-clustered docs:
+  # rabbit is closest to the test query [0.1] * 64, cow next, moose furthest.
+  - do:
+      index:
+        index: dv_bbq_hnsw
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      index:
+        index: dv_bbq_hnsw
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+  - do:
+      index:
+        index: dv_bbq_hnsw
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                   0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                   0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                   -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                   -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                   -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                   0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+
+  - do:
+      indices.refresh: {}
+
+---
+"dense_vector exact query against bbq_hnsw uses raw scoring by default":
+  # bbq_hnsw applies aggressive 1-bit binary quantization. The raw path iterates the preserved
+  # full-precision vectors (when available); quantized=true exercises the binary scorer.
+  # Top hit must be the document whose stored vector is closest to the query under cosine similarity.
+  - do:
+      search:
+        index: dv_bbq_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                             0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                             0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                             -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                             -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                             -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                             0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                             -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - match: {hits.total.value: 3}
+  # Query equals doc 3 (rabbit) verbatim ⇒ raw cosine ≈ 1.0 with very tight tolerance.
+  - match: {hits.hits.0._id: "3"}
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}
+
+---
+"dense_vector on bbq_hnsw: quantized scoring stays close to raw within binary-quantization budget":
+  # Same query as above; switch to quantized=true. Binary quantization can flip individual bits, so
+  # the score is bounded but noticeably noisier than int8/int4. We assert top hit ordering AND that
+  # the quantized score sits in a wide band around the raw 1.0 — proving the codec scorer is bounded
+  # by the BBQ noise budget.
+  - do:
+      search:
+        index: dv_bbq_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                             0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                             0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                             -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                             -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                             -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                             0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                             -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+              quantized: true
+  - match: {hits.hits.0._id: "3"}
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.5}}
+
+---
+"similarity_function override on bbq_hnsw":
+  # Override the cosine-mapped bbq_hnsw index to l2_norm using a query at half the magnitude of doc 3.
+  # Cosine is scale-invariant (score ≈ 1.0), but EUCLIDEAN on the reconstructed original gives
+  # 1/(1 + 0.25·||doc3||²) ≈ 0.375 — clearly different, proving the override drove scoring.
+  - do:
+      search:
+        index: dv_bbq_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.0695,  0.089 , -0.0585,  0.1995,  0.007 , -0.0695,  0.1735, -0.165 ,
+                             0.0695,  0.170 , -0.026 , -0.026 , -0.1245,  0.1635, -0.144 ,  0.0245,
+                             0.232 ,  0.169 ,  0.258 ,  0.1235, -0.052 ,  0.1295, -0.1045, -0.123 ,
+                             -0.055 ,  0.1615,  0.0455,  0.221 , -0.127 ,  0.0975, -0.0545, -0.029 ,
+                             -0.1395,  0.201 , -0.0535,  0.154 , -0.1365,  0.0095,  0.041 ,  0.1995,
+                             -0.329 , -0.015 ,  0.138 ,  0.0205,  0.0935, -0.1655,  0.0825,  0.0085,
+                             0.0855, -0.1015, -0.099 ,  0.0575, -0.0035,  0.1685, -0.222 ,  0.3075,
+                             -0.3415,  0.6655,  0.097 , -0.0785, -0.05  , -0.1395, -0.049 , -0.088 ]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # query = 0.5·doc3_original → dist² = 0.25·||doc3||² ≈ 0.25·6.655 = 1.664 → score ≈ 1/2.664 ≈ 0.375.
+  # BBQ scoring uses the preserved full-precision floats (not the 1-bit representation), so error is small.
+  - close_to: {hits.hits.0._score: {value: 0.375, error: 0.05}}
+

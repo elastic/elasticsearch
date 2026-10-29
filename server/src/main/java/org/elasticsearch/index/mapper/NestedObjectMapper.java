@@ -169,6 +169,7 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
                 context.isSourceSynthetic(),
+                context.isSourceColumnarStored(),
                 context.isDataStream(),
                 context.parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -199,6 +200,8 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
+            // Check nested limit early, before any expensive parsing, so we fail fast.
+            parserContext.checkNestedFieldCount();
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
@@ -237,6 +240,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedMapperBuilderContext(
             String path,
             boolean isSourceSynthetic,
+            boolean isSourceColumnarStored,
             boolean isDataStream,
             boolean parentObjectContainsDimensions,
             Query nestedTypeFilter,
@@ -244,7 +248,17 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
+            super(
+                path,
+                isSourceSynthetic,
+                isDataStream,
+                parentObjectContainsDimensions,
+                dynamic,
+                mergeReason,
+                true,
+                false,
+                isSourceColumnarStored
+            );
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
@@ -254,6 +268,7 @@ public class NestedObjectMapper extends ObjectMapper {
             return new NestedMapperBuilderContext(
                 buildFullName(name),
                 isSourceSynthetic(),
+                isSourceColumnarStored(),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -398,12 +413,8 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder.endObject();
     }
 
-    @Override
-    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
-        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
-        if (patchLoader == null) {
-            return null;
-        }
+    /** Groups the patches {@code patchLoader} produces per nested document, reported against this object's path. */
+    SourceLoader.SyntheticVectorsLoader wrapSyntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader patchLoader) {
         return context -> {
             var leaf = patchLoader.leaf(context);
             if (leaf == null) {
@@ -442,19 +453,9 @@ public class NestedObjectMapper extends ObjectMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(
-            filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
-            NOOP,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
-        );
-        // Some synthetic source use cases require using _ignored_source field
-        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
-        // force sequential access since nested fields are indexed per block
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
         return new NestedSyntheticFieldLoader(
-            storedFieldLoader,
-            sourceLoader,
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
+            filter,
             () -> bitsetProducer.apply(parentTypeFilter),
             nestedTypeFilter
         );
@@ -466,6 +467,10 @@ public class NestedObjectMapper extends ObjectMapper {
         private final Supplier<BitSetProducer> parentBitSetProducer;
         private final Query childFilter;
 
+        // The loader of the fields inside the nested object, behind the leaf currently in use (read-time or columnar). The leaf
+        // is reused across parent documents, so a reset of this loader has to reach it too.
+        private SourceLoader.SyntheticFieldLoader innerLoader;
+
         // Read-time (real segment) reconstruction state: children are doc-ids found via a child scorer.
         private LeafStoredFieldLoader leafStoredFieldLoader;
         private SourceLoader.Leaf leafSourceLoader;
@@ -476,17 +481,26 @@ public class NestedObjectMapper extends ObjectMapper {
         private boolean columnar;
         private ColumnarSourceWriter.ReusableColumnarStoredLeafReader columnarChildReader;
         private SourceLoader.Leaf columnarChildLeaf;
-        private LeafStoredFieldLoader columnarChildStoredLoader;
         private final List<LuceneDocument> columnarChildren = new ArrayList<>();
 
         private NestedSyntheticFieldLoader(
-            org.elasticsearch.index.fieldvisitor.StoredFieldLoader storedFieldLoader,
-            SourceLoader sourceLoader,
+            Supplier<SourceLoader.SyntheticFieldLoader> innerLoaderSupplier,
+            SourceFilter filter,
             Supplier<BitSetProducer> parentBitSetProducer,
             Query childFilter
         ) {
-            this.storedFieldLoader = storedFieldLoader;
-            this.sourceLoader = sourceLoader;
+            // The supplier is called once here, for the required stored fields, and once per leaf; the last loader it produced
+            // is the one the leaf uses.
+            this.sourceLoader = new SourceLoader.Synthetic(
+                filter,
+                () -> innerLoader = innerLoaderSupplier.get(),
+                NOOP,
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+            );
+            // Some synthetic source use cases require using _ignored_source field
+            var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+            // force sequential access since nested fields are indexed per block
+            this.storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
             this.parentBitSetProducer = parentBitSetProducer;
             this.childFilter = childFilter;
         }
@@ -494,29 +508,28 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
             // columnar_stored materializes the blob at index time from the in-memory document tree, which is not a
-            // searchable segment. Detect that reader and reconstruct children by parent-pointer match instead of a
+            // searchable segment. Detect that reader and reconstruct children from the document tree instead of a
             // child scorer + parent bitset. (At read time the root takes the pre-computed-blob shortcut, so this loader
             // is only ever reached during the index-time write here.)
             if (leafReader instanceof ColumnarSourceWriter.ReusableColumnarStoredLeafReader parentReader) {
                 this.columnar = true;
                 this.columnarChildren.clear();
                 this.columnarChildReader = new ColumnarSourceWriter.ReusableColumnarStoredLeafReader();
-                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader, ColumnarSourceWriter.DOC_IDS);
-                this.columnarChildStoredLoader = storedFieldLoader.getLoader(
-                    columnarChildReader.getContext(),
-                    ColumnarSourceWriter.DOC_IDS
-                );
+                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
                 return parentDoc -> {
                     columnarChildren.clear();
                     LuceneDocument parent = parentReader.currentDoc();
                     for (LuceneDocument doc : parentReader.allDocs()) {
-                        // A child of this nested field under this parent: same nested path, directly parented by it.
-                        if (doc.getParent() == parent && NestedObjectMapper.this.fullPath().equals(doc.getPath())) {
+                        // Every document of this nested field within the parent being reconstructed. Under
+                        // subobjects:false an object sub-field/array inside the nested field is materialized as its own
+                        // documents, parented to a nested child rather than the parent directly, so membership is by
+                        // nested path plus subtree descent - not a direct parent-pointer match, which would miss those
+                        // deeper documents. allDocs is in shard-index order (each child before its parent), so this
+                        // preserves array order across all of them.
+                        if (NestedObjectMapper.this.fullPath().equals(doc.getPath()) && descendsFrom(doc, parent)) {
                             columnarChildren.add(doc);
                         }
                     }
-                    // Share the document tree so deeper nested levels can resolve their own children.
-                    columnarChildReader.setAllDocs(parentReader.allDocs());
                     return columnarChildren.isEmpty() == false;
                 };
             }
@@ -524,7 +537,7 @@ public class NestedObjectMapper extends ObjectMapper {
             this.columnar = false;
             this.children.clear();
             this.leafStoredFieldLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
-            this.leafSourceLoader = sourceLoader.leaf(leafReader, null);
+            this.leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), null);
 
             IndexSearcher searcher = new IndexSearcher(leafReader);
             searcher.setQueryCache(null);
@@ -587,8 +600,24 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private void writeColumnarChild(LuceneDocument child, XContentBuilder b) throws IOException {
             columnarChildReader.repopulate(child);
-            columnarChildStoredLoader.advanceTo(ColumnarSourceWriter.DOC_ID);
-            columnarChildLeaf.write(columnarChildStoredLoader, ColumnarSourceWriter.DOC_ID, b);
+            // A fresh loader per child: every child reuses DOC_ID (0), and a reused loader would skip re-reading stored fields.
+            var childStoredLoader = storedFieldLoader.getLoader(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
+            childStoredLoader.advanceTo(ColumnarSourceWriter.DOC_ID);
+            columnarChildLeaf.write(childStoredLoader, ColumnarSourceWriter.DOC_ID, b);
+        }
+
+        /**
+         * Whether {@code doc} is a descendant of {@code ancestor}, following parent pointers. Used to gather every
+         * document belonging to a nested field's subtree, including the deeper documents that {@code subobjects:false}
+         * creates for object sub-fields and arrays inside the nested field.
+         */
+        private static boolean descendsFrom(LuceneDocument doc, LuceneDocument ancestor) {
+            for (LuceneDocument current = doc.getParent(); current != null; current = current.getParent()) {
+                if (current == ancestor) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -600,6 +629,9 @@ public class NestedObjectMapper extends ObjectMapper {
         public void reset() {
             children.clear();
             columnarChildren.clear();
+            if (innerLoader != null) {
+                innerLoader.reset();
+            }
         }
     }
 

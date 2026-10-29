@@ -215,7 +215,7 @@ public class IndexingStateProcessor implements StateProcessor {
 
     private String getConcreteIndexOrWriteAlias(String documentId) {
         Objects.requireNonNull(documentId);
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
                     .fetchSource(false)

@@ -47,9 +47,9 @@ public enum SafeUtils {
 
     public static void checkRange(byte[] buf, int off, int len) {
         checkLength(len);
-        if (len > 0) {
-            checkRange(buf, off);
-            checkRange(buf, off + len - 1);
+        // buf.length intentionally performs the null check even when len is 0.
+        if (off < 0 || off > buf.length - len) {
+            throw new ArrayIndexOutOfBoundsException(off);
         }
     }
 

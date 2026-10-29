@@ -29,7 +29,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.hnsw.HnswGraph;
@@ -51,10 +50,12 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_C
  * Validates that the CPU fallback path in {@link ES92GpuHnswVectorsWriter} produces
  * equivalent results to Lucene's {@link Lucene99HnswVectorsFormat}. No GPU required.
  *
- * <p>For float vectors, graph topology is compared structurally (same levels, same nodes
- * on each level) and kNN search results are compared to verify functional equivalence.
- * Neighbor lists are not compared exactly because 1-ULP floating-point differences in
- * vector scoring (due to JIT compilation state) can cause harmless tie-breaking divergence.
+ * <p>Graph topology is compared structurally (same levels, same nodes on each level).
+ * Neither neighbor lists nor kNN search results are compared exactly because 1-ULP
+ * floating-point differences in vector scoring (due to JIT compilation state) can cause
+ * harmless tie-breaking divergence during graph construction, producing structurally
+ * similar but not byte-identical graphs. Instead, both tests compare aggregate recall
+ * against brute-force ground truth.
  */
 public class ES92GpuHnswWriteGraphTests extends ESTestCase {
 
@@ -84,7 +85,7 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
             indexVectors(luceneDir, luceneFormat, vectors, similarity);
             try (DirectoryReader gpuReader = DirectoryReader.open(gpuDir); DirectoryReader luceneReader = DirectoryReader.open(luceneDir)) {
                 assertGraphStructureEqual(getGraph(gpuReader), getGraph(luceneReader));
-                assertSearchResultsEqual(gpuReader, luceneReader, vectors);
+                assertEqualRecallAgainstBruteForce(gpuReader, luceneReader, vectors, similarity);
             }
         }
     }
@@ -153,29 +154,6 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
             var luceneNodes = luceneGraph.getNodesOnLevel(level);
             var gpuNodes = gpuGraph.getNodesOnLevel(level);
             assertEquals("nodes on level " + level, luceneNodes.size(), gpuNodes.size());
-        }
-    }
-
-    /**
-     * Runs kNN queries against both indexes and asserts that the result sets are identical,
-     * verifying that the graphs are functionally equivalent even if neighbor lists differ
-     * slightly due to floating-point tie-breaking.
-     */
-    private void assertSearchResultsEqual(DirectoryReader gpuReader, DirectoryReader luceneReader, float[][] vectors) throws IOException {
-        int k = Math.min(10, numVectors);
-        int numQueries = Math.min(50, numVectors);
-        var gpuSearcher = new IndexSearcher(gpuReader);
-        var luceneSearcher = new IndexSearcher(luceneReader);
-
-        for (int q = 0; q < numQueries; q++) {
-            float[] queryVec = vectors[q];
-            var query = new KnnFloatVectorQuery(FIELD, queryVec, k);
-            TopDocs gpuDocs = gpuSearcher.search(query, k);
-            TopDocs luceneDocs = luceneSearcher.search(query, k);
-
-            Set<Integer> gpuIds = Arrays.stream(gpuDocs.scoreDocs).map(d -> d.doc).collect(Collectors.toSet());
-            Set<Integer> luceneIds = Arrays.stream(luceneDocs.scoreDocs).map(d -> d.doc).collect(Collectors.toSet());
-            assertEquals("kNN results for query " + q + " should match", luceneIds, gpuIds);
         }
     }
 

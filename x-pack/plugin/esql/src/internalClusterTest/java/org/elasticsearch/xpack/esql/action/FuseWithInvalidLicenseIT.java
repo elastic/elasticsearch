@@ -27,7 +27,7 @@ public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithNonEnterpriseOrExpiredLicense.class, TestEncryptionServicePlugin.class);
+        return List.of(TestEncryptionServicePlugin.class, EsqlPluginWithNonEnterpriseOrExpiredLicense.class);
     }
 
     @Before

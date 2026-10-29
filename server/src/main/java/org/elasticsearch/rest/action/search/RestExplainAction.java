@@ -38,7 +38,12 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_explain/{id}"), new Route(POST, "/{index}/_explain/{id}"));
+        return List.of(
+            new Route(GET, "/{index}/_explain/{id}"),
+            new Route(POST, "/{index}/_explain/{id}"),
+            new Route(GET, "/{index}/{_slice}/_explain/{id}"),
+            new Route(POST, "/{index}/{_slice}/_explain/{id}")
+        );
     }
 
     @Override
@@ -85,7 +90,7 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     private static void validateSliceParamForExplain(RestRequest request) {
-        final String slice = request.param(SliceIndexing.PARAM_NAME);
+        final String slice = request.param(SliceIndexing.FIELD_NAME);
         if (slice == null || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             return;
         }

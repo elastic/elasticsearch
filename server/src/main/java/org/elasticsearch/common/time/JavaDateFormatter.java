@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.truncateForError;
 
 class JavaDateFormatter implements DateFormatter {
     @SuppressWarnings("unchecked")
@@ -34,7 +35,7 @@ class JavaDateFormatter implements DateFormatter {
         if (parser instanceof JavaTimeDateTimeParser jtp) {
             return (T) defaultRoundUp(jtp);
         }
-        if (parser instanceof Iso8601DateTimeParser iso) {
+        if (parser instanceof FastDateTimeParser iso) {
             return (T) defaultRoundUp(iso);
         }
         throw new IllegalArgumentException("Unknown parser implementation " + parser.getClass());
@@ -85,7 +86,7 @@ class JavaDateFormatter implements DateFormatter {
         return new JavaTimeDateTimeParser(builder.toFormatter(parser.getLocale()));
     }
 
-    private static Iso8601DateTimeParser defaultRoundUp(Iso8601DateTimeParser parser) {
+    private static FastDateTimeParser defaultRoundUp(FastDateTimeParser parser) {
         return parser.withDefaults(
             Map.ofEntries(
                 entry(ChronoField.MONTH_OF_YEAR, 1),
@@ -214,7 +215,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, roundupParsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 
@@ -227,7 +231,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, parsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 
@@ -338,7 +345,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
+        if (obj == null || obj.getClass().equals(this.getClass()) == false) {
             return false;
         }
         JavaDateFormatter other = (JavaDateFormatter) obj;

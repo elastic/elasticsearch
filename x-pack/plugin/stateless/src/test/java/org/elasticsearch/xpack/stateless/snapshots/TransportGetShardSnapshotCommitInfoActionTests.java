@@ -51,6 +51,8 @@ import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,9 +87,8 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
     private final DiscoveryNode remoteNode = DiscoveryNodeUtils.create("node1", "node1");
     private final DiscoveryNode remoteNode2 = DiscoveryNodeUtils.create("node2", "node2");
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initTransportResources() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         transport = new CapturingTransport();
         clusterService = ClusterServiceUtils.createClusterService(
@@ -113,15 +114,14 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
         action = new TransportGetShardSnapshotCommitInfoAction(
             clusterService,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             snapshotsCommitService,
             maxInFlightSendRequests
         );
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeTransportResources() throws Exception {
         transportService.close();
         clusterService.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);

@@ -3,6 +3,7 @@
 //
 
 dedupSingleColumn
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 FROM employees
@@ -71,6 +72,7 @@ true
 
 
 dedupChainedWithLimit
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 FROM employees
@@ -177,6 +179,7 @@ marker:integer
 
 
 dedupTsSingleDimension
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 TS k8s
@@ -274,4 +277,161 @@ FROM employees METADATA _source
 
 c:long
 2
+;
+
+
+dedupBasicForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: dedup_command
+
+// tag::dedupBasicForDocs[]
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| KEEP gender
+| DEDUP
+| SORT gender
+// end::dedupBasicForDocs[]
+;
+
+// tag::dedupBasicForDocs-result[]
+gender:keyword
+F
+M
+// end::dedupBasicForDocs-result[]
+;
+
+
+dedupMultipleColumnsForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: dedup_command
+
+// tag::dedupMultipleColumnsForDocs[]
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender, languages
+| DEDUP
+| SORT gender NULLS LAST, languages
+// end::dedupMultipleColumnsForDocs[]
+;
+
+// tag::dedupMultipleColumnsForDocs-result[]
+gender:keyword | languages:integer
+F              | 5
+M              | 2
+null           | 4
+null           | 5
+// end::dedupMultipleColumnsForDocs-result[]
+;
+
+
+// Shows the alternative to DEDUP when more than one copy of each duplicate should be kept.
+dedupKeepSeveralCopiesForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: esql_limit_by
+
+// tag::dedupKeepSeveralCopiesForDocs[]
+FROM employees
+| WHERE emp_no IN (10001, 10003, 10007, 10008, 10010)
+| KEEP languages
+| LIMIT 2 BY languages
+| SORT languages
+// end::dedupKeepSeveralCopiesForDocs[]
+;
+
+// tag::dedupKeepSeveralCopiesForDocs-result[]
+languages:integer
+2
+2
+4
+4
+// end::dedupKeepSeveralCopiesForDocs-result[]
+;
+
+
+// Shows the alternative to DEDUP when only a subset of the columns should be deduplicated on.
+dedupSubsetOfColumnsForDocs
+required_capability: esql_limit_by
+
+// tag::dedupSubsetOfColumnsForDocs[]
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| SORT last_name
+| LIMIT 1 BY gender
+| KEEP first_name, last_name, gender
+// end::dedupSubsetOfColumnsForDocs[]
+;
+
+// tag::dedupSubsetOfColumnsForDocs-result[]
+first_name:keyword | last_name:keyword | gender:keyword
+Parto              | Bamford           | M
+Anneke             | Preusig           | F
+// end::dedupSubsetOfColumnsForDocs-result[]
+;
+
+
+dedupAfterUnionTypeConversionToUngroupableType
+required_capability: dedup_command
+required_capability: dedup_ignores_synthetic_union_conversions
+required_capability: subquery_in_from_command
+required_capability: date_range_field_type_v6
+
+// TO_DATE_RANGE is pushed into the UnionAll branches as a synthetic date_range column, which cannot be grouped on
+// but is not part of the output, so it must not make DEDUP fail.
+FROM (FROM conv_from_keyword), (FROM conv_from_keyword)
+| EVAL min_bound = RANGE_MIN(TO_DATE_RANGE(date_range_str))
+| KEEP date_range_str, min_bound
+| DEDUP
+;
+
+date_range_str:keyword                              | min_bound:date
+2023-01-01T00:00:00.000Z..2024-01-01T00:00:00.000Z  | 2023-01-01T00:00:00.000Z
+;
+
+
+dedupOverUnsupportedUnionTypeColumn
+required_capability: dedup_command
+
+// emp_no is a union type (integer / long), so it is unsupported and shows as null: all rows are identical.
+FROM employees, employees_incompatible
+| KEEP emp_no
+| DEDUP
+;
+
+emp_no:unsupported
+null
+;
+
+
+dedupOverUnsupportedUnionTypeColumnThenCast
+required_capability: dedup_command
+required_capability: dedup_ignores_synthetic_union_conversions
+
+// DEDUP has already collapsed the rows when the cast runs, so the cast, which is a synthetic attribute at DEDUP time, cannot bring
+// the rows back.
+FROM employees, employees_incompatible
+| KEEP emp_no
+| DEDUP
+| EVAL e = emp_no::long
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+
+dedupOverUnsupportedUnionTypeColumnConvertedFirst
+required_capability: dedup_command
+
+// Converting the union type column before DEDUP gives DEDUP a real column to compare.
+FROM employees, employees_incompatible
+| KEEP emp_no
+| EVAL e = emp_no::long
+| DROP emp_no
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+100
 ;

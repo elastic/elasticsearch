@@ -56,7 +56,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -249,7 +248,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 actionName,
                 clusterService,
                 transportService,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestTasksRequest::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)

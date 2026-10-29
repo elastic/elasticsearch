@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159319
+summary: Type HTTP 206 length mismatch as EUE
+type: enhancement

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -103,6 +104,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    /**
+     * Several tests here create a snapshot with a retention period of 1ms and then assert that the snapshot exists before triggering
+     * retention themselves. SLM retention otherwise runs on a default schedule of 01:30 node-local time, which would delete such a
+     * snapshot the moment it fires, so any test straddling that instant would fail. Pin the schedule to a cron that never fires;
+     * tests that need retention to run on a schedule override this setting themselves.
+     */
+    @Before
+    public void disableScheduledSLMRetention() throws IOException {
+        updatePersistentSetting(LifecycleSettings.SLM_RETENTION_SCHEDULE, NEVER_EXECUTE_CRON_SCHEDULE);
     }
 
     public void testMissingRepo() throws Exception {
@@ -465,15 +477,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }, 60, TimeUnit.SECONDS);
 
         // Run retention every second
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
-        try (XContentBuilder builder = jsonBuilder()) {
-            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request r = new Request("PUT", "/_cluster/settings");
-            r.setJsonEntity(Strings.toString(builder));
-            Response updateSettingsResp = client().performRequest(r);
-            assertAcked(updateSettingsResp);
-        }
+        updatePersistentSetting(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?");
 
         logSLMPolicies();
 
@@ -506,15 +510,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             }, 60, TimeUnit.SECONDS);
 
         } finally {
-            // Unset retention
-            ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-            unsetRequest.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
-            try (XContentBuilder builder = jsonBuilder()) {
-                unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                Request r = new Request("PUT", "/_cluster/settings");
-                r.setJsonEntity(Strings.toString(builder));
-                client().performRequest(r);
-            }
+            // Stop running retention on a schedule again
+            updatePersistentSetting(LifecycleSettings.SLM_RETENTION_SCHEDULE, NEVER_EXECUTE_CRON_SCHEDULE);
         }
     }
 
@@ -928,14 +925,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     private void disableSLMMinimumIntervalValidation() throws IOException {
+        updatePersistentSetting(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s");
+    }
+
+    private void updatePersistentSetting(String setting, String value) throws IOException {
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
+        req.persistentSettings(Settings.builder().put(setting, value));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request r = new Request("PUT", "/_cluster/settings");
             r.setJsonEntity(Strings.toString(builder));
-            Response updateSettingsResp = client().performRequest(r);
-            assertAcked(updateSettingsResp);
+            assertAcked(client().performRequest(r));
         }
     }
 

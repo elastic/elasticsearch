@@ -45,10 +45,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initNamedWriteableRegistry() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());

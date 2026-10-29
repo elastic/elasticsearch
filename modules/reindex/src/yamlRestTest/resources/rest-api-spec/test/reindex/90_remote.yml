@@ -46,7 +46,7 @@
               text: test
   - match: {hits.total: 1}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -101,7 +101,7 @@
             match_all: {}
   - match: {hits.total: 1}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -150,7 +150,7 @@
               text: test
   - match: {hits.total: 1}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -210,7 +210,7 @@
               text: test
   - match: {hits.total: 1}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -276,7 +276,7 @@
               text: test
   - match: {hits.total: 1}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -385,7 +385,7 @@
 
 ---
 "Reindex from remote with rethrottle":
-  # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
+  # Throttling happens between each paginated search batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
       indices.create:
@@ -458,7 +458,7 @@
               text: test
   - match: {hits.total: 3}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source

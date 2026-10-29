@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,6 +20,7 @@ import static org.elasticsearch.index.mapper.MapperService.MergeReason.INDEX_TEM
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -54,11 +56,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper.Builder existing = createMappingBuilder(false, true, true, false);
         RootObjectMapper.Builder mergeWith = createMappingBuilder(false, true, true, true);
 
-        final ObjectMapper merged = mergeBuilders(
-            existing,
-            mergeWith,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-        );
+        final ObjectMapper merged = mergeBuilders(existing, mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
 
         final ObjectMapper mergedFoo = (ObjectMapper) merged.getMapper("foo");
         {
@@ -77,7 +75,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> existing.mergeWith(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> existing.mergeWith(mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
@@ -89,7 +87,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper merged = (RootObjectMapper) mergeBuilders(
             existing,
             mergeWith,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build()
         );
         assertFalse(((ObjectMapper) merged.getMapper("disabled")).isEnabled());
     }
@@ -100,13 +98,13 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> existing.mergeWith(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> existing.mergeWith(mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertEquals("the [enabled] parameter can't be updated for the object mapping [disabled]", e.getMessage());
 
         RootObjectMapper.Builder existing2 = createMappingBuilder(false, true, true, false);
         RootObjectMapper.Builder mergeWith2 = createMappingBuilder(true, true, true, false);
-        ObjectMapper result = mergeBuilders(existing2, mergeWith2, MapperMergeContext.root(false, false, INDEX_TEMPLATE, Long.MAX_VALUE));
+        ObjectMapper result = mergeBuilders(existing2, mergeWith2, new TestRootMapperMergeContextBuilder(INDEX_TEMPLATE).build());
         assertTrue(result.isEnabled());
     }
 
@@ -117,17 +115,13 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstBuilder.mergeWith(secondBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> firstBuilder.mergeWith(secondBuilder, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertEquals("the [enabled] parameter can't be updated for the object mapping [" + type + "]", e.getMessage());
 
         ObjectMapper.Builder firstBuilder2 = new RootObjectMapper.Builder("_doc");
         ObjectMapper.Builder secondBuilder2 = new RootObjectMapper.Builder("_doc").enabled(false);
-        ObjectMapper result = mergeBuilders(
-            firstBuilder2,
-            secondBuilder2,
-            MapperMergeContext.root(false, false, INDEX_TEMPLATE, Long.MAX_VALUE)
-        );
+        ObjectMapper result = mergeBuilders(firstBuilder2, secondBuilder2, new TestRootMapperMergeContextBuilder(INDEX_TEMPLATE).build());
         assertFalse(result.isEnabled());
     }
 
@@ -141,7 +135,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper merged = (RootObjectMapper) mergeBuilders(
             rootBuilder,
             mergeWithBuilder,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build()
         );
         assertFalse(merged.isEnabled());
         assertEquals(1, merged.runtimeFields().size());
@@ -152,11 +146,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper.Builder mergeInto = createRootSubobjectFalseLeafWithDotsBuilder();
         RootObjectMapper.Builder mergeWith = createRootSubobjectFalseLeafWithDotsBuilder();
 
-        final ObjectMapper merged = mergeBuilders(
-            mergeInto,
-            mergeWith,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-        );
+        final ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
 
         final KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) merged.getMapper("host.name");
         assertEquals("host.name", keywordFieldMapper.fullPath());
@@ -167,11 +157,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper.Builder mergeInto = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithDots());
         RootObjectMapper.Builder mergeWith = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithDots());
 
-        final ObjectMapper merged = mergeBuilders(
-            mergeInto,
-            mergeWith,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-        );
+        final ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
 
         ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
         ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
@@ -184,11 +170,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper.Builder mergeInto = new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text"));
         RootObjectMapper.Builder mergeWith = new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text"));
 
-        final ObjectMapper merged = mergeBuilders(
-            mergeInto,
-            mergeWith,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-        );
+        final ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
 
         TextFieldMapper text = (TextFieldMapper) merged.getMapper("text");
         assertEquals("text", text.fullPath());
@@ -202,11 +184,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper.Builder mergeInto = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithMultiField());
         RootObjectMapper.Builder mergeWith = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithMultiField());
 
-        final ObjectMapper merged = mergeBuilders(
-            mergeInto,
-            mergeWith,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-        );
+        final ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
 
         ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
         ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
@@ -226,11 +204,19 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         RootObjectMapper.Builder existing0 = createMappingBuilder(false, true, true, false);
         RootObjectMapper.Builder mergeWith0 = createMappingBuilder(false, true, true, true);
-        final ObjectMapper mergedAdd0 = mergeBuilders(existing0, mergeWith0, MapperMergeContext.root(false, false, MAPPING_UPDATE, 0));
+        final ObjectMapper mergedAdd0 = mergeBuilders(
+            existing0,
+            mergeWith0,
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(0).build()
+        );
 
         RootObjectMapper.Builder existing1 = createMappingBuilder(false, true, true, false);
         RootObjectMapper.Builder mergeWith1 = createMappingBuilder(false, true, true, true);
-        final ObjectMapper mergedAdd1 = mergeBuilders(existing1, mergeWith1, MapperMergeContext.root(false, false, MAPPING_UPDATE, 1));
+        final ObjectMapper mergedAdd1 = mergeBuilders(
+            existing1,
+            mergeWith1,
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build()
+        );
 
         assertEquals(3, existingMapper.getTotalFieldsCount());
         assertEquals(4, mergeWithMapper.getTotalFieldsCount());
@@ -254,7 +240,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                     new KeywordFieldMapper.Builder("child1", INDEX_SETTINGS)
                 ).add(new KeywordFieldMapper.Builder("child2", INDEX_SETTINGS))
             ),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 0)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(0).build()
         );
         ObjectMapper mergedAdd1 = mergeBuilders(
             new RootObjectMapper.Builder("_doc"),
@@ -263,7 +249,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                     new KeywordFieldMapper.Builder("child1", INDEX_SETTINGS)
                 ).add(new KeywordFieldMapper.Builder("child2", INDEX_SETTINGS))
             ),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 1)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build()
         );
         ObjectMapper mergedAdd2 = mergeBuilders(
             new RootObjectMapper.Builder("_doc"),
@@ -272,7 +258,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                     new KeywordFieldMapper.Builder("child1", INDEX_SETTINGS)
                 ).add(new KeywordFieldMapper.Builder("child2", INDEX_SETTINGS))
             ),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 2)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(2).build()
         );
         ObjectMapper mergedAdd3 = mergeBuilders(
             new RootObjectMapper.Builder("_doc"),
@@ -281,7 +267,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                     new KeywordFieldMapper.Builder("child1", INDEX_SETTINGS)
                 ).add(new KeywordFieldMapper.Builder("child2", INDEX_SETTINGS))
             ),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 3)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(3).build()
         );
 
         assertEquals(0, rootBuilder.build(MapperBuilderContext.root(false, false)).getTotalFieldsCount());
@@ -315,7 +301,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 new ObjectMapper.Builder("parent").add(new KeywordFieldMapper.Builder("child1", INDEX_SETTINGS).ignoreAbove(42))
                     .add(new KeywordFieldMapper.Builder("child2", INDEX_SETTINGS))
             ),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 0)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(0).build()
         );
         ObjectMapper mergedAdd1 = mergeBuilders(
             new RootObjectMapper.Builder("_doc").add(
@@ -325,7 +311,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 new ObjectMapper.Builder("parent").add(new KeywordFieldMapper.Builder("child1", INDEX_SETTINGS).ignoreAbove(42))
                     .add(new KeywordFieldMapper.Builder("child2", INDEX_SETTINGS))
             ),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 1)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build()
         );
         assertEquals(2, root.getTotalFieldsCount());
         assertEquals(2, mergedAdd0.getTotalFieldsCount());
@@ -354,12 +340,12 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper mergedAdd0 = mergeBuilders(
             new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text", "keyword1")),
             new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text", "keyword2")),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 0)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(0).build()
         );
         ObjectMapper mergedAdd1 = mergeBuilders(
             new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text", "keyword1")),
             new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text", "keyword2")),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 1)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build()
         );
         assertEquals(2, mergedAdd0.getTotalFieldsCount());
         assertEquals(3, mergedAdd1.getTotalFieldsCount());
@@ -381,14 +367,14 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 .add(createTextKeywordMultiField("text", "keyword1")),
             new RootObjectMapper.Builder("_doc").addRuntimeField(new TestRuntimeField("existing_runtime_field", "keyword"))
                 .addRuntimeField(new TestRuntimeField("new_runtime_field", "keyword")),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 0)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(0).build()
         );
         ObjectMapper mergedAdd1 = mergeBuilders(
             new RootObjectMapper.Builder("_doc").addRuntimeField(new TestRuntimeField("existing_runtime_field", "keyword"))
                 .add(createTextKeywordMultiField("text", "keyword1")),
             new RootObjectMapper.Builder("_doc").addRuntimeField(new TestRuntimeField("existing_runtime_field", "keyword"))
                 .addRuntimeField(new TestRuntimeField("new_runtime_field", "keyword")),
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, 1)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build()
         );
         assertEquals(3, mergedAdd0.getTotalFieldsCount());
         assertEquals(4, mergedAdd1.getTotalFieldsCount());
@@ -404,7 +390,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             )
         );
 
-        ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
+        ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
         ObjectMapper parentMapper = (ObjectMapper) merged.getMapper("parent");
         assertNotNull(parentMapper);
         assertNotNull(parentMapper.getMapper("child.grandchild"));
@@ -424,11 +410,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
 
         MapperService.MergeReason autoUpdateMergeReason = randomFrom(MAPPING_AUTO_UPDATE, MAPPING_AUTO_UPDATE_PREFLIGHT);
-        ObjectMapper merged = mergeBuilders(
-            mergeInto,
-            mergeWith,
-            MapperMergeContext.root(false, false, autoUpdateMergeReason, Long.MAX_VALUE)
-        );
+        ObjectMapper merged = mergeBuilders(mergeInto, mergeWith, new TestRootMapperMergeContextBuilder(autoUpdateMergeReason).build());
         FieldMapper httpStatusCode = (FieldMapper) merged.getMapper("http.status_code");
         assertThat(httpStatusCode, is(instanceOf(KeywordFieldMapper.class)));
 
@@ -445,7 +427,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mergeInto2.mergeWith(mergeWith2, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> mergeInto2.mergeWith(mergeWith2, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertThat(e.getMessage(), equalTo("mapper [http.status_code] cannot be changed from type [keyword] to [long]"));
     }
@@ -462,7 +444,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper merged = (RootObjectMapper) mergeBuilders(
             objectMapperBuilder,
             passThroughMapperBuilder,
-            MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+            new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic).dataStream(true).build()
         );
         assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
         PassThroughObjectMapper metrics = (PassThroughObjectMapper) merged.getMapper("metrics");
@@ -480,10 +462,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> subobjectsTrueBuilder.mergeWith(
-                passThroughBuilder2,
-                MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-            )
+            () -> subobjectsTrueBuilder.mergeWith(passThroughBuilder2, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertThat(
             e.getMessage(),
@@ -512,6 +491,65 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name) {
         return createTextKeywordMultiField(name, "keyword");
+    }
+
+    public void testNestedFieldLimitAtMergeTime() {
+        // Build builders directly, bypassing MapperService, so no parse-time check runs.
+        // This demonstrates the bug: merging nested objects should enforce the nested fields limit.
+        long nestedFieldsLimit = 1;
+        MapperMergeContext mergeContext = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).nestedFieldsLimit(nestedFieldsLimit)
+            .build();
+
+        RootObjectMapper.Builder existing = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder incoming = new RootObjectMapper.Builder("_doc");
+        incoming.add(
+            new NestedObjectMapper.Builder(
+                "nested1",
+                IndexVersion.current(),
+                q -> { throw new UnsupportedOperationException(); },
+                INDEX_SETTINGS
+            )
+        );
+        incoming.add(
+            new NestedObjectMapper.Builder(
+                "nested2",
+                IndexVersion.current(),
+                q -> { throw new UnsupportedOperationException(); },
+                INDEX_SETTINGS
+            )
+        );
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> existing.mergeWith(incoming, mergeContext));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [" + nestedFieldsLimit + "] has been exceeded"));
+
+        // One nested object at the limit is fine; use a fresh context so the counter resets.
+        MapperMergeContext mergeContextAtLimit = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).nestedFieldsLimit(nestedFieldsLimit)
+            .build();
+        RootObjectMapper.Builder atLimit = new RootObjectMapper.Builder("_doc");
+        atLimit.add(
+            new NestedObjectMapper.Builder(
+                "nested1",
+                IndexVersion.current(),
+                q -> { throw new UnsupportedOperationException(); },
+                INDEX_SETTINGS
+            )
+        );
+        new RootObjectMapper.Builder("_doc").mergeWith(atLimit, mergeContextAtLimit); // must not throw
+    }
+
+    /**
+     * Pins that deduplicating builders while building assumes all features are supported.
+     */
+    public void testBuildAssumesAllFeatures() {
+        FeatureProbeFieldMapper.Builder probe = new FeatureProbeFieldMapper.Builder("p");
+        RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+        root.add(probe);
+        root.add(probe);
+
+        RootObjectMapper mapper = root.build(MapperBuilderContext.root(false, false));
+
+        assertThat(probe.featureSeen(), equalTo("true"));
+        assertThat(((FeatureProbeFieldMapper) mapper.getMapper("p")).featureSeen(), equalTo("true"));
     }
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {

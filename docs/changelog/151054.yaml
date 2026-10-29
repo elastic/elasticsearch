@@ -1,5 +1,0 @@
-pr: 151054
-summary: Support the Google Vertex AI global endpoint for inference endpoints
-area: Inference
-type: enhancement
-issues: [150990]

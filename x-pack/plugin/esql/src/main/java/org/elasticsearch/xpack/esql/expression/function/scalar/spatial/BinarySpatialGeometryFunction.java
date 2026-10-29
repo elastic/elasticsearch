@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
@@ -127,6 +128,12 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
             return UNSPECIFIED.jtsGeometryToWkb(jtsOperation(leftJts, rightJts));
         } catch (ParseException e) {
             throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
+        } catch (TopologyException e) {
+            // JTS overlay operations (union, intersection, difference, symDifference) can fail with a
+            // TopologyException for numerically degenerate geometries (e.g. extreme coordinate values),
+            // even though the geometries themselves are valid. Surface this as a normal user-facing error
+            // rather than letting the JTS internal exception propagate.
+            throw new IllegalArgumentException("could not compute the geometry operation: " + e.getMessage(), e);
         }
     }
 

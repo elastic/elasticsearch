@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
@@ -39,7 +40,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             immediatelyReturn(),
             responseListener(responseResult),
             retryListener(retryResult),
-            () -> true,
+            e -> true,
             context
         );
 
@@ -96,7 +97,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             failOnceThen(immediatelyReturn()),
             responseListener(responseResult),
             retryListener(retryResult),
-            () -> true,
+            e -> true,
             context
         );
 
@@ -111,10 +112,14 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
     }
 
     private Consumer<ActionListener<Void>> failOnceThen(Consumer<ActionListener<Void>> followup) {
+        return failOnceThen(followup, new IllegalStateException("first call fails"));
+    }
+
+    private Consumer<ActionListener<Void>> failOnceThen(Consumer<ActionListener<Void>> followup, Exception firstFailure) {
         var firstRun = new AtomicBoolean(true);
         return l -> {
             if (firstRun.compareAndSet(true, false)) {
-                l.onFailure(new IllegalStateException("first call fails"));
+                l.onFailure(firstFailure);
             } else {
                 followup.accept(l);
             }
@@ -133,7 +138,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             failOnceThen(immediatelyReturn()),
             responseListener(),
             retryListener(),
-            () -> true,
+            e -> true,
             context
         );
 
@@ -165,7 +170,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             failOnceThen(immediatelyReturn()),
             responseListener(responseResult),
             retryListener(retryResult),
-            () -> true,
+            e -> true,
             context
         );
 
@@ -192,7 +197,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             alwaysFail(),
             responseListener(responseResult),
             retryListener(retryResult),
-            () -> runTwice.compareAndSet(true, false),
+            e -> runTwice.compareAndSet(true, false),
             context
         );
 
@@ -225,7 +230,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             alwaysFail(),
             responseListener(responseResult),
             retryListener(retryResult),
-            () -> false,
+            e -> false,
             context
         );
 
@@ -236,6 +241,67 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
         assertNotNull("Retry Listener should be called.", retryResult.get());
         assertFalse("Retries should not be scheduled.", retryResult.get());
         verify(context, only()).resetStartUpFailureCount();
+    }
+
+    /**
+     * Given an action that fails with a permanent exception (e.g. the transform's task is in a
+     * FAILED state and cannot be started again without a force stop)
+     * When shouldRetry inspects the exception and classifies it as non-retryable
+     * Then we should call the actionListener's onFailure handler once, without ever re-arming the
+     * retry. This is the regression case for the startup retry loop bug: previously shouldRetry
+     * could not inspect the exception at all, so a permanent failure retried forever.
+     */
+    public void testCancelRetryOnPermanentException() {
+        var retryResult = new AtomicReference<Boolean>();
+        var responseResult = new AtomicInteger(0);
+        var context = mock(TransformContext.class);
+
+        var listener = new TransformRetryableStartUpListener<>(
+            "transformId",
+            l -> l.onFailure(new CannotStartFailedTransformException("failed state")),
+            responseListener(responseResult),
+            retryListener(retryResult),
+            e -> e instanceof CannotStartFailedTransformException == false,
+            context
+        );
+
+        callThreeTimes("transformId", listener);
+
+        // assert no retries and 1 failure; the permanent exception is never treated as retryable
+        assertEquals("Response Listener should only be called once.", -1, responseResult.get());
+        assertNotNull("Retry Listener should be called.", retryResult.get());
+        assertFalse("Retries should not be scheduled.", retryResult.get());
+        verify(context, only()).resetStartUpFailureCount();
+    }
+
+    /**
+     * Given an action that fails once with a retryable exception (e.g. a transient master
+     * failover) then succeeds
+     * When shouldRetry inspects the exception and classifies it as retryable
+     * Then we should retry once and then succeed.
+     */
+    public void testRetriesOnRetryableException() {
+        var retryResult = new AtomicReference<Boolean>();
+        var responseResult = new AtomicInteger(0);
+        var context = mock(TransformContext.class);
+
+        var listener = new TransformRetryableStartUpListener<>(
+            "transformId",
+            failOnceThen(immediatelyReturn(), new NotMasterException("not master")),
+            responseListener(responseResult),
+            retryListener(retryResult),
+            e -> e instanceof NotMasterException,
+            context
+        );
+
+        callThreeTimes("transformId", listener);
+
+        // assert only 1 retry and 1 success
+        assertEquals("Response Listener should only be called once.", 1, responseResult.get());
+        assertNotNull("Retry Listener should be called.", retryResult.get());
+        assertTrue("Retries should be scheduled.", retryResult.get());
+        verify(context, times(1)).incrementAndGetStartUpFailureCount(any(NotMasterException.class));
+        verify(context, times(1)).resetStartUpFailureCount();
     }
 
     /**
@@ -265,7 +331,7 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
             action,
             responseListener(responseResult),
             retryListener(retryResult),
-            () -> true,
+            e -> true,
             context
         );
 

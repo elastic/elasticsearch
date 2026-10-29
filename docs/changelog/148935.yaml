@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148935
-summary: "Parquet: nested-And short-circuit + filter eval cleanups"
-type: enhancement

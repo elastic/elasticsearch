@@ -9,21 +9,26 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -45,8 +50,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
-    public static final String BULK_SESSION_TASK_TYPE = "bulk_session_timeout_tracking";
-    public static final String BULK_SESSION_ACTION = "bulk_session_timeout_tracking_action";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk";
+    public static final String BULK_SESSION_ACTION = "internal:bulk";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -127,9 +132,9 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest(
-        @Nullable String waitForActiveShards,
+        @Nullable ActiveShardCount waitForActiveShards,
         @Nullable TimeValue timeout,
-        @Nullable String refresh,
+        @Nullable WriteRequest.RefreshPolicy refreshPolicy,
         Set<String> paramsUsed
     ) {
         ensureEnabled();
@@ -138,7 +143,7 @@ public class IncrementalBulkService {
             indexingPressure,
             waitForActiveShards,
             timeout,
-            refresh,
+            refreshPolicy,
             chunkWaitTimeMillisHistogram,
             paramsUsed,
             taskManager,
@@ -186,11 +191,12 @@ public class IncrementalBulkService {
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
         private final Set<String> paramsUsed;
-        private final String refresh;
+        private final WriteRequest.RefreshPolicy refreshPolicy;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private final IndexingPressure.Incremental incrementalOperation;
+        private final Releasable requestContextReservation;
         // Ideally this should be in RestBulkAction, but it's harder to inject the metric registry there
         private final LongHistogram chunkWaitTimeMillisHistogram;
         private boolean closed = false;
@@ -208,15 +214,36 @@ public class IncrementalBulkService {
         protected Handler(
             Client client,
             IndexingPressure indexingPressure,
-            @Nullable String waitForActiveShards,
+            @Nullable ActiveShardCount waitForActiveShards,
             @Nullable TimeValue timeout,
-            @Nullable String refresh,
+            @Nullable WriteRequest.RefreshPolicy refreshPolicy,
             LongHistogram chunkWaitTimeMillisHistogram,
             Set<String> paramsUsed,
             TaskManager taskManager,
             ThreadPool threadPool
         ) {
+            this.client = client;
+            this.threadPool = threadPool;
             this.taskManager = taskManager;
+            this.waitForActiveShards = waitForActiveShards;
+            this.timeout = timeout;
+            this.refreshPolicy = refreshPolicy;
+            this.paramsUsed = paramsUsed;
+            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
+            // The REST request's context (headers and transient security metadata) is retained until this handler closes, which
+            // outlives the coordinating operations that are split off per sub-request. Reserve it once for the handler's lifetime.
+            this.requestContextReservation = indexingPressure.markCoordinatingOperationStarted(
+                0,
+                threadPool.getThreadContext().estimatedRequestContextBytes(),
+                false
+            );
+            try {
+                this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            } catch (Exception e) {
+                requestContextReservation.close();
+                throw e;
+            }
+
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                 bulkSessionTask = (CancellableTask) taskManager.register(
                     BULK_SESSION_TASK_TYPE,
@@ -239,17 +266,12 @@ public class IncrementalBulkService {
                         }
                     }
                 );
+                createNewBulkRequest(EMPTY_STATE);
+            } catch (Exception e) {
+                // The caller never receives this Handler, so nothing would be left to release the reservations.
+                Releasables.close(incrementalOperation, requestContextReservation);
+                throw e;
             }
-
-            this.client = client;
-            this.threadPool = threadPool;
-            this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
-            this.timeout = timeout;
-            this.refresh = refresh;
-            this.paramsUsed = paramsUsed;
-            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
-            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
-            createNewBulkRequest(EMPTY_STATE);
         }
 
         /**
@@ -260,11 +282,16 @@ public class IncrementalBulkService {
             // Guard on millis(), not nanos(): ThreadPool#schedule floors the delay to whole milliseconds, so a
             // sub-millisecond timeout would otherwise arm a zero-delay task that cancels the request immediately.
             if (requestTimeout != null && requestTimeout.millis() > 0) {
-                pendingTimeout = threadPool.schedule(
-                    () -> cancel("request timed out after [" + requestTimeout + "]", () -> {}),
-                    requestTimeout,
-                    threadPool.generic()
-                );
+                try {
+                    pendingTimeout = threadPool.schedule(
+                        () -> cancel("request timed out after [" + requestTimeout + "]", () -> {}),
+                        requestTimeout,
+                        threadPool.generic()
+                    );
+                } catch (EsRejectedExecutionException e) {
+                    // Failing to arm cancellation tracking is not a reason to reject the bulk request: the timeout is best effort.
+                    assert e.isExecutorShutdown() : e;
+                }
             }
         }
 
@@ -276,8 +303,18 @@ public class IncrementalBulkService {
             }
         }
 
+        /**
+         * Stashes the thread context before propagating the cancellation. {@code internal:admin/tasks/ban}
+         * (and its matching unban) can never be granted to a user and must run as the system user.
+         * {@link ThreadPool#schedule} preserves the REST caller's context into the timeout lambda, so
+         * without the stash the security interceptor would deny the ban request. Mirrors
+         * {@link org.elasticsearch.tasks.TaskCancellationService} sending {@code cancel_child}.
+         */
         public void cancel(String reason, Runnable listener) {
-            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
+            try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().markAsSystemContext();
+                taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
+            }
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
@@ -306,6 +343,9 @@ public class IncrementalBulkService {
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
                         bulkInProgress = true;
+                        // the individual item requests list is mutated by the transport action, and requests marked as failed are set to
+                        // null; we need to copy it in case the request as a whole is failed, so that we can mark all items as failures
+                        final List<DocWriteRequest<?>> submittedItems = new ArrayList<>(bulkRequest.requests());
                         client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
@@ -317,7 +357,7 @@ public class IncrementalBulkService {
 
                             @Override
                             public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
+                                handleBulkFailure(isFirstRequest, e, submittedItems);
                             }
                         }, () -> {
                             bulkInProgress = false;
@@ -351,6 +391,9 @@ public class IncrementalBulkService {
                     releasables.clear();
                     // We do not need to set this back to false as this will be the last request.
                     bulkInProgress = true;
+                    // the individual item requests list is mutated by the transport action, and requests marked as failed are set to
+                    // null; we need to copy it in case the request as a whole is failed, so that we can mark all items as failures
+                    final List<DocWriteRequest<?>> submittedItems = new ArrayList<>(bulkRequest.requests());
                     client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                         private final boolean isFirstRequest = incrementalRequestSubmitted == false;
@@ -363,7 +406,7 @@ public class IncrementalBulkService {
 
                         @Override
                         public void onFailure(Exception e) {
-                            handleBulkFailure(isFirstRequest, e);
+                            handleBulkFailure(isFirstRequest, e, submittedItems);
                             errorResponse(finalListener);
                         }
                     }, () -> {
@@ -382,15 +425,11 @@ public class IncrementalBulkService {
                 closed = true;
                 cancelTimeout();
                 incrementalOperation.close();
+                requestContextReservation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
-                    taskManager.cancelTaskAndDescendants(
-                        bulkSessionTask,
-                        "handler closed",
-                        false,
-                        ActionListener.running(() -> taskManager.unregister(bulkSessionTask))
-                    );
+                    cancel("handler closed", () -> taskManager.unregister(bulkSessionTask));
                 }
             }
         }
@@ -418,11 +457,13 @@ public class IncrementalBulkService {
             bulkRequest = null;
         }
 
-        private void handleBulkFailure(boolean isFirstRequest, Exception e) {
+        private void handleBulkFailure(boolean isFirstRequest, Exception e, List<DocWriteRequest<?>> items) {
             assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
-            bulkActionLevelFailure = e;
-            addItemLevelFailures(bulkRequest.requests());
+            bulkActionLevelFailure = e instanceof TaskCancelledException tce
+                ? new ElasticsearchStatusException(tce.getMessage(), RestStatus.TOO_MANY_REQUESTS, tce)
+                : e;
+            addItemLevelFailures(items);
             bulkRequest = null;
         }
 
@@ -459,7 +500,7 @@ public class IncrementalBulkService {
         }
 
         private void failAndRelease(Exception e) {
-            handleBulkFailure(incrementalRequestSubmitted == false, e);
+            handleBulkFailure(incrementalRequestSubmitted == false, e, bulkRequest.requests());
             incrementalOperation.split().close();
             releasables.forEach(Releasable::close);
             releasables.clear();
@@ -479,10 +520,15 @@ public class IncrementalBulkService {
             if (timeout != null) {
                 bulkRequest.timeout(timeout);
             }
-            if (refresh != null) {
-                bulkRequest.setRefreshPolicy(refresh);
+            if (refreshPolicy != null) {
+                bulkRequest.setRefreshPolicy(refreshPolicy);
             }
             bulkRequest.requestParamsUsed(paramsUsed);
+        }
+
+        // Visible for testing
+        protected Task getBulkSessionTask() {
+            return bulkSessionTask;
         }
     }
 }

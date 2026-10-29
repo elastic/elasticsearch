@@ -32,6 +32,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,6 +92,13 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
         if (policyName == null) {
             listener.onFailure(
                 new IllegalArgumentException("index [" + request.getIndex() + "] is not associated with an Index Lifecycle Policy")
+            );
+            return;
+        }
+
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            listener.onFailure(
+                new IllegalArgumentException("index [" + request.getIndex() + "] is a lookup index and cannot be managed by ILM")
             );
             return;
         }

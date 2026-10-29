@@ -1,0 +1,10 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "url": { "type": "keyword" },
+        "host": { "type": "keyword" },
+        "agent": { "type": "keyword" },
+        "addr": { "type": "ip" }
+    }
+}

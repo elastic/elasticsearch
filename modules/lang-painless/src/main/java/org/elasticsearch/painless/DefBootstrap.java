@@ -158,6 +158,8 @@ public final class DefBootstrap {
          * Does a slow lookup against the whitelist.
          */
         private MethodHandle lookup(int flavorValue, String nameValue, Class<?> receiver) throws Throwable {
+            // For a load, array load or iterator, an int flag says the script instance was pushed after the receiver.
+            boolean scriptPushed = args.length > 0 && args[0] instanceof Integer flag && flag != 0;
             return switch (flavorValue) {
                 case METHOD_CALL -> Def.lookupMethod(
                     painlessLookup,
@@ -169,11 +171,11 @@ public final class DefBootstrap {
                     nameValue,
                     args
                 );
-                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue);
+                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue, scriptPushed);
                 case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
-                case ARRAY_LOAD -> Def.lookupArrayLoad(receiver);
+                case ARRAY_LOAD -> Def.lookupArrayLoad(painlessLookup, receiver, scriptPushed);
                 case ARRAY_STORE -> Def.lookupArrayStore(receiver);
-                case ITERATOR -> Def.lookupIterator(receiver);
+                case ITERATOR -> Def.lookupIterator(painlessLookup, receiver, scriptPushed);
                 case REFERENCE -> Def.lookupReference(
                     painlessLookup,
                     functions,
@@ -181,7 +183,11 @@ public final class DefBootstrap {
                     methodHandlesLookup,
                     (String) args[0],
                     receiver,
-                    nameValue
+                    nameValue,
+                    // the script, when pushed, follows the receiver
+                    type().parameterCount() == 2,
+                    // optional trailing int charge flag; absent for ordinary references
+                    args.length > 1 && ((int) args[1]) != 0
                 );
                 case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
                 default -> throw new AssertionError();
@@ -536,18 +542,30 @@ public final class DefBootstrap {
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
-            case LOAD, STORE, ARRAY_LOAD, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
+            case LOAD, ARRAY_LOAD, ITERATOR -> {
+                // an optional int flag says the script instance follows the other arguments, for a getter, list get or iterator
+                // that charges with it
+                if (args.length > 1 || (args.length == 1 && args[0] instanceof Integer == false)) {
+                    throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
+                }
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
+            case STORE, ARRAY_STORE, INDEX_NORMALIZE -> {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
             case REFERENCE -> {
-                if (args.length != 1) {
+                // args[0] is the interface class; args[1], present when the script is pushed, is the int charge flag.
+                if (args.length < 1 || args.length > 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
+                }
+                if (args.length == 2 && args[1] instanceof Integer == false) {
+                    throw new BootstrapMethodError("Illegal charge flag for reference call: " + args[1]);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }

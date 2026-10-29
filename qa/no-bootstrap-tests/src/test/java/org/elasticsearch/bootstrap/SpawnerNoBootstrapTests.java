@@ -29,11 +29,8 @@ import org.elasticsearch.test.MockLog;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.HashSet;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -243,6 +240,71 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         assertThat(e.getMessage(), equalTo("module [test_plugin] does not have permission to fork native controller"));
     }
 
+    /**
+     * A module can declare, via the {@code native.controller.enabled.settings} descriptor property, that its controller should only
+     * be spawned when certain node settings are {@code true}. Unset settings default to {@code true}, preserving prior behavior for
+     * modules that opt in but leave the setting unconfigured.
+     */
+    public void testControllerSpawnGatedBySettings() throws Exception {
+        assertControllerSpawnGating(null, true);
+        assertControllerSpawnGating(true, true);
+        assertControllerSpawnGating(false, false);
+    }
+
+    private void assertControllerSpawnGating(Boolean gatingSettingValue, boolean expectSpawn) throws Exception {
+        /*
+         * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
+         * file as an argument and that's out of the remit of the controller daemon process spawner.
+         */
+        assumeFalse("This test does not work on Windows", Constants.WINDOWS);
+
+        final String gatingSetting = "some.gated.plugin.enabled";
+
+        Path esHome = createTempDir().resolve("esHome");
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
+        if (gatingSettingValue != null) {
+            settingsBuilder.put(gatingSetting, gatingSettingValue);
+        }
+        Settings settings = settingsBuilder.build();
+
+        Environment environment = TestEnvironment.newEnvironment(settings);
+
+        Path plugin = environment.modulesDir().resolve("gated_plugin");
+        Files.createDirectories(environment.modulesDir());
+        Files.createDirectories(plugin);
+        PluginTestUtil.writePluginProperties(
+            plugin,
+            "description",
+            "gated_plugin",
+            "version",
+            Build.current().version(),
+            "elasticsearch.version",
+            Build.current().version(),
+            "name",
+            "gated_plugin",
+            "java.version",
+            "1.8",
+            "classname",
+            "GatedPlugin",
+            "has.native.controller",
+            "true",
+            "native.controller.enabled.settings",
+            gatingSetting
+        );
+        Path controllerProgram = Platforms.nativeControllerPath(plugin);
+        createControllerProgram(controllerProgram);
+
+        try (Spawner spawner = new Spawner()) {
+            spawner.spawnNativeControllers(environment);
+            if (expectSpawn) {
+                assertThat(spawner.getProcesses(), hasSize(1));
+            } else {
+                assertThat(spawner.getProcesses(), is(empty()));
+            }
+        }
+    }
+
     public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {
         final Path esHome = createTempDir().resolve("home");
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString()).build();
@@ -269,19 +331,11 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     private void createControllerProgram(final Path outputFile) throws IOException {
         final Path outputDir = outputFile.getParent();
         Files.createDirectories(outputDir);
-        Files.writeString(outputFile, CONTROLLER_SOURCE);
-        final PosixFileAttributeView view = Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
-        if (view != null) {
-            final Set<PosixFilePermission> perms = new HashSet<>();
-            perms.add(PosixFilePermission.OWNER_READ);
-            perms.add(PosixFilePermission.OWNER_WRITE);
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.GROUP_READ);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_READ);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-            Files.setPosixFilePermissions(outputFile, perms);
+        if (outputFile.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            // Create the controller already-executable before writing its contents, instead of writing it and then chmod-ing it.
+            Files.createFile(outputFile, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")));
         }
+        Files.writeString(outputFile, CONTROLLER_SOURCE);
     }
 
 }

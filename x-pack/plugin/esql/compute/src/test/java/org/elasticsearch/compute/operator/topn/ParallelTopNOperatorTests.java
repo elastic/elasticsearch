@@ -9,17 +9,25 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -31,11 +39,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -469,6 +480,76 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         }
     }
 
+    public void testWorkerCpuIsMetered() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        DriverContext driverContext = driverContext();
+        TopNOperator initialWorker = workerOnlyFactory().get(driverContext);
+        TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), between(1, 4), 10, 0);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
+        try {
+            for (int i = 0; i < 100; i++) {
+                op.addInput(buildLongPage(driverContext.blockFactory(), random().longs(1000)));
+            }
+            op.finish();
+            assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+            assertThat(driverContext.cpuNanos(), greaterThan(0L));
+        } finally {
+            drainAndClose(op);
+        }
+    }
+
+    /**
+     * Closing the operator while a worker runs makes that worker's task the last to finish, so it releases the workers
+     * on its own thread. The driver context parks the worker inside its first measurement until the operator is closed,
+     * and burns CPU when a worker thread releases a worker's block factory.
+     */
+    public void testWorkersReleasedOnWorkerThreadAreMetered() {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        long releaseNanos = TimeUnit.MILLISECONDS.toNanos(20);
+        CountDownLatch workerMetering = new CountDownLatch(1);
+        CountDownLatch operatorClosed = new CountDownLatch(1);
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null) {
+            @Override
+            public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+                return super.meteredCpu(() -> {
+                    if (Thread.currentThread().getName().contains(ESQL_WORKER) && workerMetering.getCount() > 0) {
+                        workerMetering.countDown();
+                        safeAwait(operatorClosed);
+                    }
+                    return work.get();
+                });
+            }
+
+            @Override
+            public void releaseChildBlockFactory(BlockFactory childFactory) {
+                if (Thread.currentThread().getName().contains(ESQL_WORKER)) {
+                    long start = ThreadCpuTimer.currentNanos();
+                    while (ThreadCpuTimer.elapsedNanos(start) < releaseNanos) {
+                        Thread.onSpinWait();
+                    }
+                }
+                super.releaseChildBlockFactory(childFactory);
+            }
+        };
+        TopNOperator initialWorker = workerOnlyFactory().get(driverContext);
+        TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
+        try {
+            safeAwait(workerMetering);
+            op.close();
+        } finally {
+            operatorClosed.countDown();
+        }
+        driverContext.finish();
+        PlainActionFuture<Void> asyncActionsDone = new PlainActionFuture<>();
+        driverContext.waitForAsyncActions(asyncActionsDone);
+        safeGet(asyncActionsDone);
+        assertThat(driverContext.cpuNanos(), greaterThanOrEqualTo(releaseNanos));
+    }
+
     public void testPartialWorkerRejectionProducesCorrectOutput() throws Exception {
         Executor randomlyRejectingExecutor = task -> {
             if (randomBoolean() && task instanceof AbstractRunnable runnable) {
@@ -526,6 +607,124 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
                 op.close();
             }
         }
+    }
+
+    /**
+     * Two sibling pages carry two <em>distinct</em> {@link OrdinalBytesRefBlock} instances that
+     * share the same underlying dictionary {@link BytesRefVector} (via {@code incRef}), matching
+     * what a degenerate, full-range {@link OrdinalBytesRefBlock#slice}/{@link
+     * OrdinalBytesRefBlock#keepMask} does in production -- a new wrapper block, but the same
+     * dictionary instance. Dispatched to two different worker threads, their releases raced on the
+     * shared dictionary's reference count before it became thread safe (see
+     * {@link org.elasticsearch.core.AbstractRefCounted}).
+     */
+    public void testConcurrentReleaseOfSharedDictionaryThroughRealOperator() throws Exception {
+        int workerCount = 2;
+        TestThreadPool racePool = new TestThreadPool(
+            "race-pool",
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "race_worker",
+                workerCount,
+                1024,
+                "race_worker",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
+        List<Throwable> escaped = Collections.synchronizedList(new ArrayList<>());
+        // ParallelTopNOperator submits worker tasks as AbstractRunnable, whose run() only catches
+        // Exception. Releasables#closeExpectNoException raises an AssertionError (an Error) on a
+        // failed decRef, so it escapes uncaught to the thread pool. Capture it here directly
+        // instead of relying on the test runner's global uncaught-exception handling.
+        //
+        // The wrapper must be an AbstractRunnable so that EsThreadPoolExecutor calls onRejection()
+        // instead of rethrowing when the pool's queue is momentarily full. Wrapping command in a
+        // plain lambda causes TimedRunnable.onRejection to rethrow (because the plain lambda is not
+        // an AbstractRunnable), propagating the EsRejectedExecutionException out of scheduleWorker
+        // and crashing the ParallelTopNOperator constructor rather than taking the expected no-op
+        // onRejection path.
+        Executor observingExecutor = command -> racePool.executor("race_worker").execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                try {
+                    command.run();
+                } catch (Throwable t) {
+                    escaped.add(t);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                escaped.add(e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (command instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onRejection(e);
+                }
+            }
+        });
+        try {
+            for (int i = 0; i < 20_000 && escaped.isEmpty(); i++) {
+                DriverContext driverContext = driverContext();
+                BlockFactory blockFactory = driverContext.blockFactory();
+
+                // Two distinct OrdinalBytesRefBlock wrappers sharing one dictionary vector,
+                // matching the incRef a degenerate slice/keepMask performs in production.
+                BytesRefVector dict = blockFactory.newConstantBytesRefVector(new BytesRef("shared"), 1);
+                IntBlock ordinalsA = blockFactory.newConstantIntBlockWith(0, 1);
+                OrdinalBytesRefBlock blockA = new OrdinalBytesRefBlock(ordinalsA, dict);
+                dict.incRef();
+                IntBlock ordinalsB = blockFactory.newConstantIntBlockWith(0, 1);
+                OrdinalBytesRefBlock blockB = new OrdinalBytesRefBlock(ordinalsB, dict);
+
+                TopNOperator.TopNOperatorFactory factory = workerOnlyBytesRefFactory();
+                TopNOperator initial = factory.get(driverContext);
+                TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(
+                    observingExecutor,
+                    workerCount,
+                    workerCount * 4,
+                    0
+                );
+                ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initial);
+                try {
+                    op.addInput(new Page(blockA));
+                    op.addInput(new Page(blockB));
+                    op.finish();
+                    assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+                    drainAndClose(op);
+                } catch (Throwable t) {
+                    escaped.add(t);
+                } finally {
+                    try {
+                        op.close();
+                    } catch (Throwable t) {
+                        escaped.add(t);
+                    }
+                }
+            }
+        } finally {
+            terminate(racePool);
+        }
+        assertThat("expected no races releasing the shared dictionary vector", escaped, empty());
+    }
+
+    /**
+     * A single-column {@code BYTES_REF} factory used by
+     * {@link #testConcurrentReleaseOfSharedDictionaryThroughRealOperator}.
+     */
+    private static TopNOperator.TopNOperatorFactory workerOnlyBytesRefFactory() {
+        return new TopNOperator.TopNOperatorFactory(
+            100,
+            List.of(ElementType.BYTES_REF),
+            List.of(TopNEncoder.UTF8),
+            List.of(new TopNOperator.SortOrder(0, true, false)),
+            100,
+            Long.MAX_VALUE,
+            TopNOperator.InputOrdering.NOT_SORTED,
+            null
+        );
     }
 
     // -------------------------------------------------------------------------

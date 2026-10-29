@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +33,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME;
@@ -129,9 +129,9 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         var validationException = new ValidationException();
 
         // Extract Google Vertex AI fields
-        var projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var location = ServiceUtils.extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, SERVICE_SETTINGS, validationException);
+        var location = ServiceUtils.extractOptionalString(map, LOCATION, SERVICE_SETTINGS, validationException);
+        var modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
 
         // Extract Google Model Garden fields
         var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
@@ -139,7 +139,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         var provider = ServiceUtils.extractOptionalEnum(
             map,
             PROVIDER_SETTING_NAME,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             GoogleModelGardenProvider::fromString,
             EnumSet.allOf(GoogleModelGardenProvider.class),
             validationException

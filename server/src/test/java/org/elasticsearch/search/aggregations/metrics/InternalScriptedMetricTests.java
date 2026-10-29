@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,10 +53,9 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { HashMap::new, ArrayList::new };
 
-    @Override
+    @Before
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHasReduceScript() throws Exception {
         hasReduceScript = randomBoolean();
     }
 

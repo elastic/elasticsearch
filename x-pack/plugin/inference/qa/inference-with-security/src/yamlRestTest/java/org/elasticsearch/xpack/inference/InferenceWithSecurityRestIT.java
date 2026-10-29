@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -48,11 +48,10 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         .user(INFERENCE_USERNAME, INFERENCE_PASSWORD, "monitor_only_user", false)
         .user(MONITOR_INFERENCE_USERNAME, MONITOR_INFERENCE_PASSWORD, "monitor_inference_only_user", false)
         .plugin("inference-service-test")
-        .feature(FeatureFlag.INFERENCE_REGION_POLICY)
         .distribution(DistributionType.DEFAULT)
         .build();
 
-    public InferenceWithSecurityRestIT(final ClientYamlTestCandidate testCandidate) {
+    public InferenceWithSecurityRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

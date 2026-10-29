@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -112,6 +113,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
     private final CCSUsageTelemetry esqlUsageHolder;
+    private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
+    @Nullable
+    private final ClusterStatsTagsProvider tagsProvider;
+    @Nullable
+    private final SearchTierStatsProvider searchTierStatsProvider;
 
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
@@ -147,6 +153,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
         this.esqlUsageHolder = usageService.getEsqlUsageHolder();
+        this.projectRoutingUsageHolder = usageService.getProjectRoutingUsageHolder();
+        this.tagsProvider = usageService.getTagsProvider();
+        this.searchTierStatsProvider = usageService.getSearchTierStatsProvider();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -187,10 +196,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
 
-        additionalStatsListener.andThenApply(
-            additionalStats -> request.isRemoteStats()
-                // Return stripped down stats for remote clusters
-                ? new ClusterStatsResponse(
+        additionalStatsListener.andThenApply(additionalStats -> {
+            if (request.isRemoteStats()) {
+                // Return stripped down stats for remote clusters — no tags or search_tier blocks needed
+                return new ClusterStatsResponse(
                     System.currentTimeMillis(),
                     clusterService.state().metadata().clusterUUID(),
                     clusterService.getClusterName(),
@@ -201,22 +210,33 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     Map.of(),
-                    false
-                )
-                : new ClusterStatsResponse(
-                    System.currentTimeMillis(),
-                    additionalStats.clusterUUID(),
-                    clusterService.getClusterName(),
-                    responses,
-                    failures,
-                    additionalStats.mappingStats(),
-                    additionalStats.analysisStats(),
-                    VersionStats.of(clusterService.state().metadata(), responses),
-                    additionalStats.clusterSnapshotStats(),
-                    additionalStats.getRemoteStats(),
-                    request.isCPS()
-                )
-        ).addListener(listener);
+                    false,
+                    null,
+                    null
+                );
+            }
+            // compute both provider sections from the same cluster state snapshot
+            ClusterState clusterState = clusterService.state();
+            TagsConfigSnapshot tagsConfig = (tagsProvider != null) ? tagsProvider.getTagsConfig(clusterState) : null;
+            SearchTierStats searchTierStats = (searchTierStatsProvider != null)
+                ? searchTierStatsProvider.getSearchTierStats(clusterState)
+                : null;
+            return new ClusterStatsResponse(
+                System.currentTimeMillis(),
+                additionalStats.clusterUUID(),
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                additionalStats.mappingStats(),
+                additionalStats.analysisStats(),
+                VersionStats.of(clusterService.state().metadata(), responses),
+                additionalStats.clusterSnapshotStats(),
+                additionalStats.getRemoteStats(),
+                request.isCPS(),
+                tagsConfig,
+                searchTierStats
+            );
+        }).addListener(listener);
     }
 
     @Override
@@ -320,6 +340,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
         final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
         final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
+        final ProjectRoutingUsageSnapshot projectRoutingUsage = projectRoutingUsageHolder.getSnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -330,7 +351,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             searchUsageStats,
             repositoryUsageStats,
             ccsTelemetry,
-            esqlTelemetry
+            esqlTelemetry,
+            projectRoutingUsage
         );
     }
 

@@ -91,8 +91,12 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1033593b - added qualifier back to FieldAttribute #132925
          *  1033595b - added split indices to EsRelation #138396
          *  1152296b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
+         *  1152297b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  1152897b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
+         *  1152898b - added slice selection to EsRelation (1 byte for the absent optional string)
+         *  1159898b - added passthrough flag to EsField
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1152296));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1159898));
     }
 
     /**
@@ -115,8 +119,12 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1986023b - added qualifier back to FieldAttribute #132925
          *  1986025b - added split indices to EsRelation #138396
          *  2303919b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
+         *  2303920b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  2304520b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
+         *  2304521b - added slice selection to EsRelation (1 byte for the absent optional string)
+         *  2311521b - added passthrough flag to EsField
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2303919));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2311521));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -140,13 +148,16 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43665025b - added time series field type to EsField  #129649
          *  43927169b - added qualifier back to FieldAttribute #132925
          *  43927171b - added split indices to EsRelation #138396
+         *  43927172b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  43927171b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
+         *  44189316b - added passthrough flag to EsField
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927171L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44189316L));
     }
 
     /**
@@ -165,13 +176,16 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  351b - added time series field type to EsField  #129649
          *  352b - added qualifier back to FieldAttribute #132925
          *  354b - added split indices to EsRelation #138396
+         *  355b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  354b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
+         *  356b - added passthrough flag to EsField
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(354), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(356), false);
     }
 
     /**
@@ -184,6 +198,8 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * History:
          * 4996b - initial
          * 4998b - added split indices to EsRelation #138396
+         * 4999b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         * 5098b - make IndexProperties Writeable: inline VInt(0) per 100 indices (+100 -1 for removed trailing map)
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -193,7 +209,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4998));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5099));
     }
 
     /**
@@ -227,7 +243,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            index.indexNameWithModes(),
+            index.indexProperties(),
             keepAttributes
         );
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);

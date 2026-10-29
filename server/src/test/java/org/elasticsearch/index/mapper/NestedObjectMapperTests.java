@@ -814,14 +814,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         createMapperService(mapping.apply("_doc"));
 
         // explicitly setting limit to 0 prevents nested fields
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> {
             Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build();
             createMapperService(settings, mapping.apply("_doc"));
         });
         assertThat(e.getMessage(), containsString("Limit of nested fields [0] has been exceeded"));
 
         // setting limit to 1 with 2 nested fields fails
-        e = expectThrows(IllegalArgumentException.class, () -> {
+        e = expectThrows(MapperParsingException.class, () -> {
             Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build();
             createMapperService(settings, mapping.apply("_doc"));
         });
@@ -1623,7 +1623,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstBuilder.mergeWith(secondBuilder, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> firstBuilder.mergeWith(secondBuilder, new TestRootMapperMergeContextBuilder(MergeReason.MAPPING_UPDATE).build())
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
@@ -1633,12 +1633,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         NestedObjectMapper.Builder secondBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
         }, null).includeInParent(false).includeInRoot(true);
-        MapperMergeContext templateContext = MapperMergeContext.root(
-            false,
-            false,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            Long.MAX_VALUE
-        );
+        MapperMergeContext templateContext = new TestRootMapperMergeContextBuilder(MapperService.MergeReason.INDEX_TEMPLATE).build();
         NestedObjectMapper result = (NestedObjectMapper) firstBuilder2.mergeWith(secondBuilder2, templateContext)
             .build(templateContext.getMapperBuilderContext());
         assertFalse(result.isIncludeInParent());
@@ -1998,6 +1993,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     public void testIsInNestedContext() {
         NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
             "nested_path",
+            false,
             false,
             false,
             false,

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,6 +29,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +38,8 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
+
 /**
  * Plugin for the project encryption key (PEK) lifecycle. Wires up the key cache, rotation coordinator, AES-GCM encryption service, and
  * health indicator. Loads {@link EncryptedDataHandlerProvider} contributions from other plugins and forwards secure-settings reloads.
@@ -43,10 +47,10 @@ import java.util.function.Supplier;
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
-
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
+    private final SetOnce<SnapshotEncryptedDataWarningFilter> snapshotWarningFilter = new SetOnce<>();
 
     private volatile Settings pekSettings;
 
@@ -56,6 +60,9 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     public EncryptionPlugin(Settings settings) {
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        // Clear any service left in the registry by a previously constructed plugin instance (e.g. a prior node in the same test JVM),
+        // so this node's createComponents publishes into a clean slot.
+        EncryptionServiceRegistry.reset();
     }
 
     @Override
@@ -75,8 +82,12 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             pekService::state,
             pekService::isEncryptionRequired
         );
+        EncryptionServiceRegistry.setEncryptionService(encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
+        snapshotWarningFilter.set(
+            new SnapshotEncryptedDataWarningFilter(services.clusterService(), services.projectResolver(), handlerRegistry)
+        );
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),
             services.threadPool(),
@@ -138,6 +149,11 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     @Override
     public Collection<ActionHandler> getActions() {
         return List.of(new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class));
+    }
+
+    @Override
+    public Collection<MappedActionFilter> getMappedActionFilters() {
+        return singletonList(snapshotWarningFilter.get());
     }
 
     @Override

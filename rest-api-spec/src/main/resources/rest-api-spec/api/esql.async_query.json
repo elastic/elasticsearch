@@ -56,7 +56,7 @@
       }
     },
     "body": {
-      "description": "Use the `query` element to start a query. Use `columnar` to format the answer.",
+      "description": "Use the `query` element to start a query. Use `columnar` to format the answer. Use the `settings` object to supply per-query settings (e.g. `time_zone`) — the request-body equivalent of in-query `SET`.",
       "required": true
     }
   }

@@ -25,9 +25,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -60,18 +59,6 @@ import java.util.Map;
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
-
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
-        }
-
-        if (indexMode.isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true);
-        }
-
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
-    }
 
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
@@ -181,7 +168,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -191,7 +178,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -201,7 +188,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -213,7 +200,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         public static final DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -290,21 +277,22 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
-        private final boolean indexDisabledByDefault;
-        private final IndexMode indexMode;
-        private final IndexSortConfig indexSortConfig;
+        private final IndexSettings indexSettings;
 
         public Builder(String name, IndexSettings indexSettings) {
-            this(name, indexSettings.getMode(), indexSettings.getIndexSortConfig(), indexSettings.isIndexDisabledByDefault());
-        }
-
-        public Builder(String name, IndexMode indexMode, IndexSortConfig indexSortConfig, boolean indexDisabledByDefault) {
             super(name);
-            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
-            this.indexDisabledByDefault = indexDisabledByDefault;
-            this.indexMode = indexMode;
-            this.indexSortConfig = indexSortConfig;
-            this.docValuesPameters = DocValuesParameter.of(defaultDocValuesParameters(indexMode), m -> toType(m).docValuesParams());
+            this.indexSettings = indexSettings;
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
+            this.docValuesPameters = DocValuesParameter.of(
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.HIGH,
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                ),
+                m -> toType(m).docValuesParams(),
+                indexSettings
+            );
         }
 
         Builder nullValue(String nullValue) {
@@ -322,6 +310,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesPameters,
+                docValuesPameters.multiValue(),
+                docValuesPameters.nullability(),
+                docValuesPameters.onFailure(),
                 stored,
                 indexOptions,
                 hasNorms,
@@ -379,7 +370,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public ICUCollationKeywordFieldMapper build(MapperBuilderContext context) {
-            enforceIndexSortDocValuesCompatibility(context.buildFullName(leafName()), indexSortConfig, docValuesPameters);
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             final DocValuesParameter.Values docValuesParams = docValuesPameters.getValue();
@@ -400,7 +390,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 collator,
                 this,
-                indexMode
+                indexSettings
             );
         }
     }
@@ -526,9 +516,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final String indexOptions;
     private final DocValuesParameter.Values docValuesParams;
-    private final boolean indexDisabledByDefault;
-    private final IndexMode indexMode;
-    private final IndexSortConfig indexSortConfig;
+    private final IndexSettings indexSettings;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
@@ -537,7 +525,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         Collator collator,
         Builder builder,
-        IndexMode indexMode
+        IndexSettings indexSettings
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
@@ -549,13 +537,26 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.docValuesParams = builder.docValuesPameters.getValue();
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
-        this.indexMode = indexMode;
-        this.indexSortConfig = builder.indexSortConfig;
+        this.indexSettings = indexSettings;
     }
 
     public DocValuesParameter.Values docValuesParams() {
         return docValuesParams;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParams.nullability() || nullValue != null;
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParams.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParams.onFailure();
     }
 
     @Override
@@ -575,7 +576,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexMode, indexSortConfig, indexDisabledByDefault).init(this);
+        return new Builder(leafName(), indexSettings).init(this);
     }
 
     @Override

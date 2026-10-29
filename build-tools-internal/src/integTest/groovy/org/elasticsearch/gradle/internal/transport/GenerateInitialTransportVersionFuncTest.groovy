@@ -79,6 +79,82 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         assertGenerateAndValidateSuccess(result)
         assertUnreferableDefinition("initial_9.1.2", "8012002")
         assertUpperBound("9.1", "initial_9.1.2,8012002")
+        // the current upper bound is in a different base, so the patch id does not affect it
+        assertUpperBound("9.2", "existing_92,8123000")
+    }
+
+    def "patch reserves a new base for the current branch in the same base"() {
+        given:
+        featureFreezeNewMinor()
+
+        when: "the minor is finalized, generating the initial transport version for its first patch release"
+        def result = runGenerateAndValidateTask("--stack-version", "9.2.1").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUnreferableDefinition("initial_9.2.1", "8124001")
+        assertUpperBound("9.2", "initial_9.2.1,8124001")
+        // no transport version has been added to the current branch since the minor was branched, so its upper bound
+        // still points at initial_9.2.0 in the same base. The patch id cannot be adopted here, so a new base is
+        // reserved for the current branch instead.
+        assertUnreferableDefinition("placeholder_9.3.0", "8125000")
+        assertUpperBound("9.3", "placeholder_9.3.0,8125000")
+    }
+
+    def "patch of the current minor does not reserve a base"() {
+        when: "the release branch generates the initial version for its own next patch release"
+        def result = runGenerateAndValidateTask("--stack-version", "9.2.1").build()
+
+        then: "its upper bound is the patch id itself, and no base is reserved"
+        assertGenerateAndValidateSuccess(result)
+        assertUnreferableDefinition("initial_9.2.1", "8123001")
+        assertUpperBound("9.2", "initial_9.2.1,8123001")
+        file("myserver/src/main/resources/transport/definitions/unreferable/placeholder_9.2.0.csv").exists() == false
+    }
+
+    def "transport version generated after a reserved base gets a base id"() {
+        given:
+        featureFreezeNewMinor()
+        assertGenerateSuccess(runGenerateTask("--stack-version", "9.2.1").build())
+        execute("git add .")
+        execute('git commit -m Finalize-9.2.0')
+
+        when: "a transport version is added to the current branch"
+        referencedTransportVersion("new_tv")
+        def result = gradleRunner(
+            ":myserver:validateTransportVersionResources",
+            ":myserver:generateTransportVersion",
+            "--name",
+            "new_tv"
+        ).build()
+
+        then: "it increments from the reserved base, rather than from a patch id"
+        result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.SUCCESS
+        assertValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8126000")
+        assertUpperBound("9.3", "new_tv,8126000")
+    }
+
+    /**
+     * Cuts a release branch for 9.2 the way release automation does, leaving the current branch at 9.3.0 with its upper
+     * bound pointing at the initial version of the minor that was just branched.
+     */
+    private void featureFreezeNewMinor() {
+        execute("git checkout main")
+        // version properties will be updated by release automation before running initial version generation
+        versionPropertiesFile.text = versionPropertiesFile.text.replace("9.2.0", "9.3.0")
+        // the branch has moved on to 9.3.0, so that is the upper bound the transport version tasks work against
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                currentUpperBoundName = '9.3'
+            }
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.3'
+            }
+        """
+        assertGenerateSuccess(runGenerateTask("--stack-version", "9.2.0").build())
+        execute("git add .")
+        execute('git commit -m Feature-freeze-9.2')
     }
 
     def "cannot create upper bound file for patch"() {

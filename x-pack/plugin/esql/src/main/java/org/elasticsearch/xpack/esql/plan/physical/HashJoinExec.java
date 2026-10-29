@@ -113,6 +113,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
             rightWithAppendedKeys.removeAll(rightFields);
             rightWithAppendedKeys.addAll(leftFields);
 
+            for (Attribute f : addedFields) {
+                if (right().outputSet().contains(f) == false) {
+                    rightWithAppendedKeys.add(f);
+                }
+            }
+
             lazyOutput = mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys);
         }
         return lazyOutput;

@@ -144,6 +144,27 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                         } else {
                             vStats.vectorIndexTypeCount.compute(DenseVectorFieldStats.NOT_INDEXED, (t, c) -> c == null ? 1 : c + 1);
                         }
+                    } else if (type.equals("rank_vectors")) {
+                        stats = fieldTypes.computeIfAbsent(type, RankVectorsFieldStats::new);
+                        RankVectorsFieldStats vStats = (RankVectorsFieldStats) stats;
+                        String elementTypeStr = "float";
+                        if (fieldMapping.containsKey("element_type")) {
+                            Object elementType = fieldMapping.get("element_type");
+                            elementTypeStr = elementType.toString();
+                        }
+                        vStats.vectorElementTypeCount.compute(elementTypeStr, (t, c) -> c == null ? count : c + count);
+                        // `dims` is optional: it is filled in by a dynamic mapping update on the first indexed document,
+                        // so a mapping that has not seen a document yet contributes no dimension information.
+                        Object obj = fieldMapping.get("dims");
+                        if (obj != null) {
+                            int dims = (int) obj;
+                            if (vStats.vectorDimMin == RankVectorsFieldStats.UNSET || dims < vStats.vectorDimMin) {
+                                vStats.vectorDimMin = dims;
+                            }
+                            if (vStats.vectorDimMax == RankVectorsFieldStats.UNSET || dims > vStats.vectorDimMax) {
+                                vStats.vectorDimMax = dims;
+                            }
+                        }
                     } else {
                         stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
                     }

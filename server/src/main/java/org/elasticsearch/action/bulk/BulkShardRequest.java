@@ -16,6 +16,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReshardSplitAwareReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -33,14 +34,21 @@ import java.util.Set;
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
     implements
         Accountable,
-        RawIndexingDataTransportRequest {
+        RawIndexingDataTransportRequest,
+        ReshardSplitAwareReplicationRequest {
 
     public static final TransportVersion BULK_SHARD_BATCH = TransportVersion.fromName("bulk_shard_batch");
+    /**
+     * The batch payload is encoded as ESCF. Nodes that only support {@link #BULK_SHARD_BATCH} expect the older EIRF layout
+     * and reject ESCF payloads, so coordinators must not build batches unless every node supports this version.
+     */
+    public static final TransportVersion BULK_SHARD_ESCF_BATCH = TransportVersion.fromName("bulk_shard_escf_batch");
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
     private final boolean isSimulated;
+    private final SplitShardCountSummary splitShardCountSummary;
     @Nullable
     private BulkShardBatch bulkShardBatch = null;
 
@@ -56,6 +64,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
                 BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
             }
         }
+        this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
     }
 
     public BulkShardRequest(
@@ -74,10 +83,16 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         BulkItemRequest[] items,
         boolean isSimulated
     ) {
-        super(shardId, splitShardCountSummary);
+        super(shardId);
+        this.splitShardCountSummary = splitShardCountSummary;
         this.items = items;
         setRefreshPolicy(refreshPolicy);
         this.isSimulated = isSimulated;
+    }
+
+    @Override
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     /**
@@ -186,6 +201,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         if (supportsBatch) {
             out.writeOptionalWriteable(bulkShardBatch);
         }
+        writeReshardSplitAwareSummary(out, splitShardCountSummary);
     }
 
     @Override

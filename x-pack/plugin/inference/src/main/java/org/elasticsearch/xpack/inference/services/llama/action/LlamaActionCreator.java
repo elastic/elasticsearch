@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddin
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsResponseHandler;
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.llama.request.embeddings.LlamaEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Objects;
 
@@ -48,7 +48,7 @@ public class LlamaActionCreator implements LlamaActionVisitor {
     );
     private static final ResponseHandler COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
         "llama completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
 
     private final Sender sender;
@@ -90,7 +90,7 @@ public class LlamaActionCreator implements LlamaActionVisitor {
             model,
             COMPLETION_HANDLER,
             inputs -> new LlamaChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());

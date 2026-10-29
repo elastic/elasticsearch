@@ -57,7 +57,6 @@ public class ValuesNextPreparedForEmitting implements Releasable {
     }
 
     private final BlockFactory blockFactory;
-    private final IntVector selected;
     private final int min;
     private final int max;
     private int[] selectedCounts;
@@ -66,7 +65,6 @@ public class ValuesNextPreparedForEmitting implements Releasable {
 
     private ValuesNextPreparedForEmitting(BlockFactory blockFactory, IntVector selected) {
         this.blockFactory = blockFactory;
-        this.selected = selected;
         this.min = selected.min();
         this.max = selected.max();
     }
@@ -153,10 +151,10 @@ public class ValuesNextPreparedForEmitting implements Releasable {
      */
     private int total() {
         int total = 0;
-        for (int s = 0; s < selected.getPositionCount(); s++) {
-            int group = selected.getInt(s);
-            int count = -selectedCounts[group - min];
-            selectedCounts[group - min] = total;
+        for (int group = min; group <= max; group++) {
+            int g = group - min;
+            int count = -selectedCounts[g];
+            selectedCounts[g] = total;
             total += count;
         }
         return total;

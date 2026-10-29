@@ -7,32 +7,36 @@
 package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -42,25 +46,127 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportPreviewDatafeedActionTests extends ESTestCase {
+
+    public void testEsqlDatafeedWhenFlagOnShouldAllowPreview() {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
+    }
+
+    public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectPreview() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setChunkingConfig(
+            ChunkingConfig.newManual(TimeValue.timeValueMinutes(10))
+        ).build();
+        TransportVersion mixedVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions("older-node", mixedVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state)
+        );
+        assertThat(exception.getMessage(), containsString("cluster upgrade is in progress"));
+        assertThat(exception.getMessage(), containsString("before previewing it"));
+        assertThat(exception.getMessage(), containsString("esql-datafeed"));
+    }
+
+    public void testClassicDatafeedAlwaysAllowedToPreview() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
+    }
+
+    public void testPreviewShouldUseRequestWindowNotPersistedCheckpoint() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 7_200_000L);
+        assertThat(request.getStartTime(), equalTo(OptionalLong.of(1_000L)));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(7_200_000L));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedWithUnalignedEndShouldCoverBucketContainingEnd() {
+        long nineHours = Duration.ofHours(9).toMillis();
+        long tenHours = Duration.ofHours(10).toMillis();
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        // 09:29:53: the bucket [09:00, 10:00) overlaps the requested range and must be part of the preview
+        long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, unalignedEnd);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(tenHours));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedWithAlignedEndShouldKeepEnd() {
+        long nineHours = Duration.ofHours(9).toMillis();
+        long tenHours = Duration.ofHours(10).toMillis();
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, tenHours);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(tenHours));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedWithNoEndShouldStayUnbounded() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testResolvePreviewEndTimeClassicDatafeedShouldNotAlignEnd() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(5_123L));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedNearLongMaxShouldCapAtLongMaxValue() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long endNearMax = Long.MAX_VALUE - 1_000L;
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, endNearMax);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedNearDateNanosMaxShouldCapAtNanosMax() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax - 1L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1));
+    }
+
+    private static ClusterState currentCompatibleClusterState() {
+        return ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions("current-node", TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+    }
 
     private DataExtractor dataExtractor;
     private ActionListener<PreviewDatafeedAction.Response> actionListener;
@@ -95,7 +201,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     public void testBuildPreviewDatafeed_GivenPersistedCredential_ShouldClearForPreview() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("cred_feed", "job_foo");
         datafeed.setIndices(Collections.singletonList("my_index"));
-        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", new SecureString("secret".toCharArray())));
+        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
 
         DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build())
             .setCloudInternalCredential(null)
@@ -104,31 +210,38 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
     }
 
-    public void testExtractCallerCloudCredential_GivenCloudManagedCredential_ShouldReturnExtractedCredential() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        CloudCredential expected = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(cloudCredentialManager.extractCloudManagedCredential(threadContext)).thenReturn(expected);
+    public void testIsCrossProjectPreviewAllowed_GivenPersistedLegacyWithoutEnvelope_ShouldReturnFalse() {
+        DatafeedConfig persisted = new DatafeedConfig.Builder("legacy_feed", "job_foo").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request("legacy_feed", (String) null, (String) null);
 
-        assertThat(
-            TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext),
-            sameInstance(expected)
-        );
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(request, persisted, true), is(false));
     }
 
-    public void testExtractCallerCloudCredential_GivenNoCloudManagedCredential_ShouldReturnNull() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
+    public void testIsCrossProjectPreviewAllowed_GivenPersistedWithEnvelopeAndCaller_ShouldReturnTrue() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("uiam_feed", "job_foo");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request("uiam_feed", (String) null, (String) null);
 
-        assertThat(TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext), nullValue());
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(request, builder.build(), true), is(true));
     }
 
-    public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
-        ElasticsearchStatusException exception = DatafeedConfig.projectRoutingRequiresCpsException();
-        assertThat(exception.getMessage(), equalTo(DatafeedConfig.PROJECT_ROUTING_REQUIRES_CPS_MESSAGE));
-        assertThat(exception.status(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
+    public void testIsCrossProjectPreviewAllowed_GivenInlinePreviewAndCaller_ShouldReturnTrue() {
+        DatafeedConfig inline = new DatafeedConfig.Builder("inline_feed", "job_foo").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(inline, null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(request, inline, true), is(true));
+    }
+
+    public void testIsCrossProjectPreviewAllowed_GivenNoCallerCredential_ShouldReturnFalse() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("uiam_feed", "job_foo");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
+        PreviewDatafeedAction.Request persistedRequest = new PreviewDatafeedAction.Request("uiam_feed", (String) null, (String) null);
+        PreviewDatafeedAction.Request inlineRequest = new PreviewDatafeedAction.Request(builder.build(), null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(persistedRequest, builder.build(), false), is(false));
+        assertThat(TransportPreviewDatafeedAction.isCrossProjectPreviewAllowed(inlineRequest, builder.build(), false), is(false));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCpsEnabled_ShouldEnableCrossProjectIndicesOptions() {
@@ -140,9 +253,40 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
 
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_FlagOffPreviewClearsProjectRouting() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_flag_off_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig previewConfig = TransportPreviewDatafeedAction.buildPreviewDatafeed(builder.build()).build();
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(previewConfig, decider, true);
+
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
+        assertThat(previewConfig.getProjectRouting(), equalTo("_alias:prod-*"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNoCallerCredential_DoesNotPromote() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_no_cred_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, false);
+
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
     }
 
     public void testBuildDateNanosFieldCapsRequest_GivenCpsIndicesOptions_ShouldRequestResolvedTo() {
@@ -153,7 +297,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         CrossProjectModeDecider decider = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
-        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
         assertThat(datafeed.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
 
         FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");
@@ -171,6 +315,16 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(request.includeResolvedTo(), is(false));
         assertThat(request.indices(), equalTo(new String[] { "my_index" }));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenEsqlDatafeedWithoutIndicesOptionsShouldUseDefaults() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql_feed", "job_foo").build();
+        assertThat(datafeed.getIndicesOptions(), nullValue());
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");
+
+        assertThat(request.indicesOptions(), equalTo(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        assertThat(request.includeResolvedTo(), is(false));
     }
 
     public void testBuildPreviewDatafeed_GivenNoAggregations() {
@@ -199,7 +353,19 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getChunkingConfig(), equalTo(datafeed.build().getChunkingConfig()));
     }
 
+    public void testPreviewDatafeedExtractorWithNothingToExtractShouldReturnEmptyArray() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(false);
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+
+        assertThat(capturedResponse, equalTo("[]"));
+        assertThat(capturedFailure, is(nullValue()));
+        verify(dataExtractor, never()).next();
+        verify(dataExtractor).destroy();
+    }
+
     public void testPreviewDatafeed_GivenEmptyStream() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.empty(), List.of()));
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
@@ -212,6 +378,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     public void testPreviewDatafeed_GivenNonEmptyStream() throws IOException {
         String streamAsString = "{\"a\":1, \"b\":2} {\"c\":3, \"d\":4}\n{\"e\":5, \"f\":6}";
         InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
@@ -222,6 +389,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testPreviewDatafeed_GivenFailure() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(true);
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);

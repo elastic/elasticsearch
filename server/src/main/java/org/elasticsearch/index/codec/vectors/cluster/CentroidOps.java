@@ -73,8 +73,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /** Element-wise deep copy from {@code source} to {@code destination}. */
     void deepCopy(V[] source, V[] destination);
 
-    /** Copy elements of the centroid array ({@code System.arraycopy} semantics). */
+    /** Copy elements of the centroid array ({@code System.arraycopy} semantics for the outer array of references). */
     void arrayCopy(V[] src, int srcPos, V[] dest, int destPos, int length);
+
+    /**
+     * Deep copy {@code length} vectors starting at {@code srcPos} into {@code dest} starting at
+     * {@code destPos}, copying each inner array's <em>contents</em> rather than the reference.
+     * Destination slots {@code dest[destPos..destPos+length)} must be pre-allocated to at least
+     * the source vector length (e.g. via {@link #newCentroidArray}); a {@code null} or shorter
+     * destination inner array may throw {@code NullPointerException} or silently truncate.
+     */
+    void arrayCopyDeep(V[] src, int srcPos, V[] dest, int destPos, int length);
 
     /** Returns the length (dimension) of the vector. */
     int length(V vector);
@@ -140,6 +149,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      * Computes {@code dest[i] += scale * src[i]}. The source is type V and the destination is always a float accumulator.
      */
     void addScaled(float scale, V src, float[] dest);
+
+    /**
+     * Accumulates all vectors from {@code values} into {@code accumulator} using unit weight.
+     * After calling, {@code accumulator[d]} contains the sum of all vector components at dimension {@code d}.
+     * Divide by {@code values.size()} to obtain the mean.
+     */
+    default void accumulateAll(ClusteringVectorValues<V> values, float[] accumulator) throws IOException {
+        for (int i = 0; i < values.size(); i++) {
+            addScaled(1.0f, values.vectorValue(i), accumulator);
+        }
+    }
 
     /**
      * Applies a batch update to a centroid: {@code centroid[i] = scaleSrc * src[i] + scaleCentroid * centroid[i]}.
@@ -250,6 +270,14 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      */
     float normalizedFrobeniusNorm(V[] vecs1, V[] vecs2);
 
+    /**
+     * Computes the global centroid as a float[] by averaging all centroids.
+     * For byte centroids, values are widened to float during accumulation.
+     * The global centroid is always float because it is the arithmetic mean,
+     * which is not representable as byte[].
+     */
+    float[] computeFloatGlobalCentroid(V[] centroids, int dims);
+
     /** Convenience constant for the float ops singleton. */
     CentroidOps<float[]> FLOAT = FloatOps.INSTANCE;
 
@@ -351,6 +379,13 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void arrayCopyDeep(float[][] src, int srcPos, float[][] dest, int destPos, int length) {
+            for (int i = 0; i < length; i++) {
+                System.arraycopy(src[srcPos + i], 0, dest[destPos + i], 0, src[srcPos + i].length);
+            }
+        }
+
+        @Override
         public int length(float[] vector) {
             return vector.length;
         }
@@ -396,6 +431,23 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             }
             divideAccumulator(centroid, centroid, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public float[] computeFloatGlobalCentroid(float[][] centroids, int dims) {
+            final float[] globalCentroid = new float[dims];
+            if (centroids.length == 0) {
+                return globalCentroid;
+            }
+            for (float[] centroid : centroids) {
+                for (int j = 0; j < dims; j++) {
+                    globalCentroid[j] += centroid[j];
+                }
+            }
+            for (int j = 0; j < dims; j++) {
+                globalCentroid[j] /= centroids.length;
+            }
+            return globalCentroid;
         }
 
         @Override
@@ -584,6 +636,13 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void arrayCopyDeep(byte[][] src, int srcPos, byte[][] dest, int destPos, int length) {
+            for (int i = 0; i < length; i++) {
+                System.arraycopy(src[srcPos + i], 0, dest[destPos + i], 0, src[srcPos + i].length);
+            }
+        }
+
+        @Override
         public int length(byte[] vector) {
             return vector.length;
         }
@@ -685,6 +744,23 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             byte[] centroid = new byte[dimension];
             divideAccumulator(centroid, acc, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public float[] computeFloatGlobalCentroid(byte[][] centroids, int dims) {
+            final float[] globalCentroid = new float[dims];
+            if (centroids.length == 0) {
+                return globalCentroid;
+            }
+            for (byte[] centroid : centroids) {
+                for (int j = 0; j < dims; j++) {
+                    globalCentroid[j] += centroid[j];
+                }
+            }
+            for (int j = 0; j < dims; j++) {
+                globalCentroid[j] /= centroids.length;
+            }
+            return globalCentroid;
         }
 
         @Override

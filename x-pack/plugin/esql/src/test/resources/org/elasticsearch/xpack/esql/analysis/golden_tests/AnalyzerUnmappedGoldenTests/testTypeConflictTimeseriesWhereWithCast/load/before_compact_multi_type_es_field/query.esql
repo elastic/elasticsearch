@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM k8s, k8s_unmapped
+| WHERE network.cost::double > 10.0
+| KEEP cluster, network.cost

@@ -65,6 +65,20 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         return state == State.BUCKET_COMPLETED;
     }
 
+    static int lowerBound(int[] values, int from, int to, int target) {
+        int low = from;
+        int high = to;
+        while (low < high) {
+            int mid = (low + high) >>> 1;
+            if (values[mid] < target) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return low;
+    }
+
     /**
      * @return the leaf reader that will retrieve the doc values for this field.
      */

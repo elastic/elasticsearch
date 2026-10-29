@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -93,8 +93,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
 import static org.elasticsearch.index.SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
+import static org.elasticsearch.indices.recovery.RecoveryCancelledException.RECOVERY_CANCELLED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
+import static org.elasticsearch.snapshots.ShardRestoringException.SHARD_RESTORING_EXCEPTION_VERSION;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -126,6 +128,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
+    public static final Throwable[] NO_ADDITIONAL_SUPPRESSED = new Throwable[0];
     public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
@@ -387,10 +390,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     private static Writer<Throwable> createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
+        return createNestingFunction(thisLevel, nestedExceptionLimitCallback, NO_ADDITIONAL_SUPPRESSED);
+    }
+
+    private static Writer<Throwable> createNestingFunction(
+        int thisLevel,
+        Runnable nestedExceptionLimitCallback,
+        Throwable[] additionalSuppressed
+    ) {
         int nextLevel = thisLevel + 1;
         return (o, t) -> {
             writeException(t.getCause(), o, nextLevel, nestedExceptionLimitCallback);
-            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback));
+            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback), additionalSuppressed);
         };
     }
 
@@ -433,19 +444,23 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, 0);
+        return toXContent(builder, params, 0, NO_ADDITIONAL_SUPPRESSED);
     }
 
     /**
      * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it limits nesting depth
      * so that it can avoid stackoverflow errors.
+     *
+     * @param additionalSuppressed rendered after this exception's own suppressed exceptions, see
+     *                             {@link #generateThrowableXContent(XContentBuilder, Params, Throwable, Throwable[])}
      */
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, nestedLevel);
+            generateThrowableXContent(builder, params, this, nestedLevel, additionalSuppressed);
         } else {
-            innerToXContent(builder, params, this, bodyHeaders, metadata, getCause(), nestedLevel);
+            innerToXContent(builder, params, this, bodyHeaders, metadata, getCause(), nestedLevel, additionalSuppressed);
         }
         return builder;
     }
@@ -458,6 +473,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Map<String, List<String>> metadata,
         Throwable cause,
         int nestedLevel
+    ) throws IOException {
+        innerToXContent(builder, params, throwable, headers, metadata, cause, nestedLevel, NO_ADDITIONAL_SUPPRESSED);
+    }
+
+    protected static void innerToXContent(
+        XContentBuilder builder,
+        Params params,
+        Throwable throwable,
+        Map<String, List<String>> headers,
+        Map<String, List<String>> metadata,
+        Throwable cause,
+        int nestedLevel,
+        Throwable[] additionalSuppressed
     ) throws IOException {
 
         if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
@@ -498,13 +526,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
 
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
-            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
+            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable, additionalSuppressed));
         }
 
         Throwable[] allSuppressed = throwable.getSuppressed();
-        if (allSuppressed.length > 0) {
+        if (allSuppressed.length + additionalSuppressed.length > 0) {
             builder.startArray(SUPPRESSED.getPreferredName());
             for (Throwable suppressed : allSuppressed) {
+                builder.startObject();
+                generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
+                builder.endObject();
+            }
+            for (Throwable suppressed : additionalSuppressed) {
                 builder.startObject();
                 generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
                 builder.endObject();
@@ -669,17 +702,41 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
+     * Like {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but renders {@code additionalSuppressed} after the
+     * suppressed exceptions of {@code t}, as if they had been added to it with {@link Throwable#addSuppressed}. Use this instead of
+     * {@link Throwable#addSuppressed} when {@code t} may be shared by many responses, so that each response gets its own extra entries.
+     */
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, Throwable[] additionalSuppressed)
+        throws IOException {
+        generateThrowableXContent(builder, params, t, 0, additionalSuppressed);
+    }
+
+    /**
      * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but limits nesting depth
      * so that it can avoid stackoverflow errors.
      */
     protected static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel)
         throws IOException {
+        generateThrowableXContent(builder, params, t, nestedLevel, NO_ADDITIONAL_SUPPRESSED);
+    }
+
+    /**
+     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable, Throwable[])} but limits nesting depth
+     * so that it can avoid stackoverflow errors.
+     */
+    protected static void generateThrowableXContent(
+        XContentBuilder builder,
+        Params params,
+        Throwable t,
+        int nestedLevel,
+        Throwable[] additionalSuppressed
+    ) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
+            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel, additionalSuppressed);
         } else {
-            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel);
+            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel, additionalSuppressed);
         }
     }
 
@@ -876,14 +933,30 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static void writeStackTraces(Throwable throwable, StreamOutput out, Writer<Throwable> exceptionWriter) throws IOException {
+    private static void writeStackTraces(
+        Throwable throwable,
+        StreamOutput out,
+        Writer<Throwable> exceptionWriter,
+        Throwable[] additionalSuppressed
+    ) throws IOException {
         out.writeArray((o, v) -> {
             o.writeString(v.getClassName());
             o.writeOptionalString(v.getFileName());
             o.writeString(v.getMethodName());
             o.writeVInt(v.getLineNumber());
         }, throwable.getStackTrace());
-        out.writeArray(exceptionWriter, throwable.getSuppressed());
+        Throwable[] suppressed = throwable.getSuppressed();
+        if (additionalSuppressed.length == 0) {
+            out.writeArray(exceptionWriter, suppressed);
+        } else {
+            out.writeVInt(suppressed.length + additionalSuppressed.length);
+            for (Throwable s : suppressed) {
+                exceptionWriter.write(out, s);
+            }
+            for (Throwable s : additionalSuppressed) {
+                exceptionWriter.write(out, s);
+            }
+        }
     }
 
     /**
@@ -891,6 +964,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static void writeException(Throwable throwable, StreamOutput output) throws IOException {
         writeException(throwable, output, () -> {});
+    }
+
+    /**
+     * Like {@link #writeException(Throwable, StreamOutput)} but writes {@code additionalSuppressed} after the suppressed exceptions of
+     * {@code throwable}, as if they had been added to it with {@link Throwable#addSuppressed}. Use this instead of
+     * {@link Throwable#addSuppressed} when {@code throwable} may be shared by many responses, so that each response gets its own extra
+     * entries.
+     */
+    public static void writeException(Throwable throwable, StreamOutput output, Throwable[] additionalSuppressed) throws IOException {
+        writeException(throwable, output, 0, () -> {}, additionalSuppressed);
     }
 
     static void writeException(Throwable throwable, StreamOutput output, Runnable nestedExceptionLimitCallback) throws IOException {
@@ -901,6 +984,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     private static void writeException(Throwable throwable, StreamOutput output, int nestedLevel, Runnable nestedExceptionLimitCallback)
         throws IOException {
+        writeException(throwable, output, nestedLevel, nestedExceptionLimitCallback, NO_ADDITIONAL_SUPPRESSED);
+    }
+
+    private static void writeException(
+        Throwable throwable,
+        StreamOutput output,
+        int nestedLevel,
+        Runnable nestedExceptionLimitCallback,
+        Throwable[] additionalSuppressed
+    ) throws IOException {
         if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
             nestedExceptionLimitCallback.run();
             writeException(new IllegalStateException("too many nested exceptions"), output);
@@ -1012,7 +1105,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             output.writeVInt(0);
             output.writeVInt(getId(ex.getClass()));
-            ex.writeTo(output, createNestingFunction(nestedLevel, nestedExceptionLimitCallback));
+            ex.writeTo(output, createNestingFunction(nestedLevel, nestedExceptionLimitCallback, additionalSuppressed));
             return;
         }
 
@@ -1022,7 +1115,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (writeCause) {
             writeException(throwable.getCause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
         }
-        writeStackTraces(throwable, output, (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback));
+        writeStackTraces(
+            throwable,
+            output,
+            (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback),
+            additionalSuppressed
+        );
     }
 
     /**
@@ -1818,8 +1916,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersion.minimumCompatible()
         ),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(
-            ShardStateAction.NoLongerPrimaryShardException.class,
-            ShardStateAction.NoLongerPrimaryShardException::new,
+            NoLongerPrimaryShardException.class,
+            NoLongerPrimaryShardException::new,
             142,
             TransportVersion.minimumCompatible()
         ),
@@ -2115,6 +2213,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException::new,
             196,
             org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
+        ),
+        RECOVERY_CANCELLED_EXCEPTION(
+            org.elasticsearch.indices.recovery.RecoveryCancelledException.class,
+            org.elasticsearch.indices.recovery.RecoveryCancelledException::new,
+            197,
+            RECOVERY_CANCELLED_EXCEPTION_VERSION
+        ),
+        SHARD_RESTORING_EXCEPTION(
+            org.elasticsearch.snapshots.ShardRestoringException.class,
+            org.elasticsearch.snapshots.ShardRestoringException::new,
+            198,
+            SHARD_RESTORING_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

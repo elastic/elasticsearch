@@ -514,6 +514,26 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             .checkDatafeedTaskCanBeCreated();
     }
 
+    public void testEsqlDatafeedWithoutIndicesAndUnassignedShardsShouldBeAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0, List.of(new Tuple<>(0, ShardRoutingState.UNASSIGNED)));
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            "datafeed_id",
+            job.getId(),
+            List.of(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+    }
+
     public void testSelectNode_jobTaskStale() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
@@ -816,7 +836,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 );
             }
 

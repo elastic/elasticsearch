@@ -17,6 +17,7 @@ import org.elasticsearch.license.LicensedFeature;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -57,6 +58,18 @@ public final class MachineLearningField {
     );
 
     /**
+     * When set, overrides automatic ML node platform detection for built-in model variant selection
+     * (e.g. ELSER, E5). The configured list of architectures is used in place of querying ML node
+     * OS info. When empty (default), architectures are auto-detected from running ML nodes.
+     * Example values: {@code ["linux-x86_64"]}, {@code ["linux-aarch64"]}.
+     */
+    public static final Setting<List<String>> MODEL_PLATFORM_ARCHITECTURES = Setting.stringListSetting(
+        "xpack.ml.model_platform_architectures",
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * When set to {@code false}, the pytorch_inference process skips TorchScript
      * model graph validation (the operation allowlist/forbidden list check).
      * This is an emergency escape hatch — disabling validation removes the
@@ -65,6 +78,26 @@ public final class MachineLearningField {
     public static final Setting<Boolean> MODEL_GRAPH_VALIDATION_ENABLED = Setting.boolSetting(
         "xpack.ml.trained_models.graph_validation_enabled",
         true,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Controls whether the ML controller launches the {@code pytorch_inference}
+     * process inside the Sandbox2 security sandbox. This setting implements a
+     * staged 9.6 dark launch: the default is {@code false}, so sandboxing is
+     * disabled out of the box and the process falls back to the legacy
+     * in-process seccomp system call filter, which gives {@code pytorch_inference}
+     * less process and filesystem isolation for untrusted models than the
+     * sandbox provides. That trade-off applies to the shipped default state, not
+     * to some exceptional opt-out - understand it before changing this setting
+     * either way. Operators can opt in by setting this to {@code true} once their
+     * deployment has been qualified; note that {@code true} is not yet supported
+     * for on-prem deployments until a later stage of the rollout plan.
+     */
+    public static final Setting<Boolean> SANDBOX_ENABLED = Setting.boolSetting(
+        "xpack.ml.trained_models.sandbox_enabled",
+        false,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );

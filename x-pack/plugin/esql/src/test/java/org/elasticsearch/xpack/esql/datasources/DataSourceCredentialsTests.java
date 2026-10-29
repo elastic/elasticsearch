@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -52,11 +50,9 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
     private DataSourceCredentials credentials;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        credentials = new DataSourceCredentials();
-        credentials.setEncryptionService(IDENTITY);
+    @Before
+    public void initCredentials() {
+        credentials = new DataSourceCredentials(IDENTITY);
     }
 
     public void testNullMapPassesThrough() {
@@ -163,31 +159,5 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
         assertEquals(snapshot, input);
         assertSame(blob, input.get("secret_access_key"));
-    }
-
-    public void testUnboundEncryptionServiceFailsLoudWhenEncryptedBlobPresent() throws Exception {
-        // Consumer-side strict: if an encrypted blob reaches the connector boundary without an
-        // EncryptionService to decrypt it, fail with 503 rather than hand the SDK opaque bytes.
-        DataSourceCredentials unbound = new DataSourceCredentials();
-        EncryptedData blob = encryptedSecret("plain");
-        Map<String, Object> input = new HashMap<>();
-        input.put("region", "us-east-1");
-        input.put("secret_access_key", blob);
-
-        ElasticsearchStatusException ese = expectThrows(ElasticsearchStatusException.class, () -> unbound.decryptInPlace(input));
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ese.status());
-        assertThat(ese.getMessage(), containsString("encryption service is not bound"));
-    }
-
-    public void testUnboundServiceWithPlaintextSecretsIsAllowedThrough() throws Exception {
-        // The no-encryption-service producer path produces plaintext String values; reading them back
-        // on a node still without a service is fine — there is nothing to decrypt.
-        DataSourceCredentials unbound = new DataSourceCredentials();
-        Map<String, Object> input = new HashMap<>();
-        input.put("region", "us-east-1");
-        input.put("secret_access_key", "AKIA_plaintext");
-        Map<String, Object> out = unbound.decryptInPlace(input);
-        assertEquals("us-east-1", out.get("region"));
-        assertEquals("AKIA_plaintext", out.get("secret_access_key"));
     }
 }

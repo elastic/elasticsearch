@@ -13,5 +13,5 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 
 public interface ModelValidator {
-    void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener);
+    void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener);
 }

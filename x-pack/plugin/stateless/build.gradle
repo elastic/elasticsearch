@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.stateless'
+apply plugin: 'elasticsearch.foreign-api'
 
 
 esplugin {
@@ -21,10 +22,12 @@ configurations {
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project(':libs:lucene-store')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('blob-cache'))
 
   testImplementation project(':test:framework')
+  testImplementation project(':libs:lucene-store')
   testImplementation testArtifact(project(xpackModule('blob-cache')))
   testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
   testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
@@ -43,11 +46,13 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('shutdown'))
   internalClusterTestImplementation project(':modules:data-streams')
   internalClusterTestImplementation project(':modules:mapper-extras')
+  internalClusterTestImplementation project(':modules:lang-painless')
+  internalClusterTestImplementation project(':modules:lang-painless:spi')
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation project(xpackModule('esql-core'))
   internalClusterTestImplementation project(':x-pack:plugin:encryption')
   internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
-  internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
+  internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.71.0'
 
   javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
   yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')
@@ -84,6 +89,8 @@ tasks.named('internalClusterTest') {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
     // A small write buffer size to avoid OOM when many nodes run in the same JVM
     systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256kb")
+    // refill Azure uploads every 4 buffers instead of 64, see AzureBccUploadRefillRaceIT
+    systemProperty("reactor.netty.send.maxPrefetchSize", "8")
 }
 
 tasks.register('statelessS3ThirdPartyTests', Test) {
@@ -91,6 +98,8 @@ tasks.register('statelessS3ThirdPartyTests', Test) {
     testClassesDirs = testSourceSet.output.classesDirs
     classpath = testSourceSet.runtimeClasspath
     include '**/S3RegisterCASLinearizabilityTests.class'
+    // The linearizability checker can need a lot of heap for large histories (many threads/iterations with unknown outcomes)
+    maxHeapSize = '2g'
     systemProperty 'test.s3.access_key', System.getenv('stateless_aws_s3_access_key')
     systemProperty 'test.s3.secret_key', System.getenv('stateless_aws_s3_secret_key')
     systemProperty 'test.s3.session_token', System.getenv('stateless_aws_s3_session_token')

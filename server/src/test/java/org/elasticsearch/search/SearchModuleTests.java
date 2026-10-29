@@ -419,6 +419,7 @@ public class SearchModuleTests extends ESTestCase {
         "constant_score",
         "combined_fields",
         "dis_max",
+        "dense_vector",
         "exists",
         "exact_knn",
         "function_score",

@@ -14,14 +14,18 @@ import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.eirf.EirfBatch;
+import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 public class BulkShardBatch implements Writeable {
 
     private final SourceBatch batch;
+    // Built on first use by the sequential path and shared by every row of the batch.
+    private SourceRowXContentParser.SchemaNode schemaTree;
 
     public BulkShardBatch(SourceBatch batch) {
         if (batch == null) {
@@ -31,7 +35,7 @@ public class BulkShardBatch implements Writeable {
     }
 
     public BulkShardBatch(StreamInput in) throws IOException {
-        this.batch = new EirfBatch(in.readBytesReference(), () -> {});
+        this.batch = EscfBatch.parse(in.readBytesReference(), () -> {});
     }
 
     @Override
@@ -41,6 +45,13 @@ public class BulkShardBatch implements Writeable {
 
     public SourceBatch getBatch() {
         return batch;
+    }
+
+    public SourceRowXContentParser.SchemaNode schemaTree() {
+        if (schemaTree == null) {
+            schemaTree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+        }
+        return schemaTree;
     }
 
     @Override
@@ -54,6 +65,25 @@ public class BulkShardBatch implements Writeable {
     @Override
     public int hashCode() {
         return batch.data().hashCode();
+    }
+
+    /**
+     * Returns true if {@code items} map 1:1 and in order onto {@code batch}'s rows.
+     */
+    static boolean rowsAlignWithItems(SourceBatch batch, List<BulkItemRequest> items) {
+        if (items.size() != batch.docCount()) {
+            return false;
+        }
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).request() instanceof IndexRequest indexRequest) {
+                if (indexRequest.indexSource().rowIndex() != i) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -72,22 +102,5 @@ public class BulkShardBatch implements Writeable {
             indexSource.setSourceRow(batch, rowNumber++);
         }
         assert rowNumber == batch.docCount();
-    }
-
-    /**
-     * For each item converted to an EIRF row, serializes that row back into its original content type and restores it as the
-     * inline source, then detaches the batch from the request. No-op if no batch is attached.
-     */
-    public static void ensureInlineSources(BulkShardRequest request) throws IOException {
-        BulkShardBatch shardBatch = request.getBulkShardBatch();
-        if (shardBatch == null) {
-            return;
-        }
-        for (BulkItemRequest item : request.items()) {
-            IndexRequest indexRequest = (IndexRequest) item.request();
-            IndexSource indexSource = indexRequest.indexSource();
-            indexSource.ensureInlineSource();
-        }
-        request.setBulkShardBatch(null);
     }
 }

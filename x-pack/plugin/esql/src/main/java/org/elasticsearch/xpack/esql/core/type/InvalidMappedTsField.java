@@ -46,7 +46,7 @@ public class InvalidMappedTsField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) {
-        throw new UnsupportedOperationException("InvalidMappedTsField must never leave the coordinator");
+        throw new UnsupportedOperationException("InvalidMappedTsField [" + getName() + "] must never leave the coordinator");
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.dataset;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -17,9 +18,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -38,8 +42,9 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, SecurityConfigChangeRequest {
         private String[] names;
+        private ResolvedIndexExpressions resolvedIndexExpressions;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
             super(masterNodeTimeout, ackTimeout);
@@ -83,6 +88,28 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         @Override
         public IndicesOptions indicesOptions() {
             return DEFAULT_INDICES_OPTIONS;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            // Resolution must be able to see co-resident data streams (e.g. Security's entities-metadata-default)
+            // in order to distinguish existing non-datasets from genuinely missing or hidden resources.
+            return true;
+        }
+
+        @Override
+        public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+            this.resolvedIndexExpressions = expressions;
+        }
+
+        @Override
+        public ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return this.resolvedIndexExpressions;
+        }
+
+        @Override
+        public Map<String, Object> auditFields() {
+            return Map.of("names", List.of(names));
         }
 
         @Override

@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| DROP emp_*
+| KEEP does_not_exist_field

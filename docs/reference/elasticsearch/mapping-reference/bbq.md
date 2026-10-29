@@ -274,6 +274,251 @@ Typically, increasing the number of bits used for indexed vectors is useful in c
 This setting can be changed at any time without reindexing the data.
 
 
+## Auto-calibration for `bbq_disk` [bbq-auto-calibration]
+
+```{applies_to}
+stack: ga 9.5
+```
+
+When auto-calibration is enabled for a `bbq_disk` field, {{es}} automatically determines the best quantization encoding, oversampling (rerank depth), and preconditioning for each merged segment.
+Rather than applying the same fixed encoding to every segment, auto-calibration runs a recall-estimation pipeline on a representative sample of the merged corpus and selects the cheapest configuration that meets a 90% recall target at k=10.
+
+You control auto-calibration with the `auto_calibrate` parameter in `index_options`:
+
+- {applies_to}`stack: ga 9.6+` Auto-calibration is enabled by default, using the `iso_sizing` profile, for `bbq_disk` fields in indices created in 9.6 or later.
+  To opt out, set `auto_calibrate` to `false`.
+  Indices created before 9.6 keep the previous default, which is disabled.
+- {applies_to}`stack: ga =9.5` Auto-calibration is disabled by default.
+  Set `auto_calibrate` to `true` to enable it.
+
+### How it works
+
+At merge time, for each merge producing at least 10,000 vectors, {{es}} samples up to 17,000 vectors from the merged corpus and sweeps candidate configurations in ascending estimated cost order. For each candidate, it predicts the expected recall at k=10, and picks the cheapest option that meets the 90% target. If no candidate meets the target, the one with the best estimated recall is used instead.
+
+The sweep covers:
+
+- Five quantization encodings (1/1, 1/4, 2/4, 4/4, and 7/7 doc/query bits)
+- Six rerank-depth multipliers (1.25×, 1.5×, 1.75×, 2.0×, 2.5×, and 3.0×)
+- Preconditioned and non-preconditioned variants of each
+
+If calibration fails for any reason, {{es}} falls back to the codec default encoding for that segment.
+
+:::{note}
+{applies_to}`stack: ga 9.6+` The encodings that are considered depend on the [auto-calibration profile](#bbq-auto-calibration-profiles).
+:::
+
+### Auto-calibration profiles [bbq-auto-calibration-profiles]
+
+```{applies_to}
+stack: ga 9.6
+```
+
+A profile limits which candidate configurations the calibration sweep can choose from.
+Set the profile with the `auto_calibrate` parameter:
+
+`iso_sizing`
+:   Only considers encodings that use 1 bit per document dimension (1/1 and 1/4 doc/query bits).
+    The index stays the same size as an uncalibrated `bbq_disk` index, while calibration still tunes the query bits, rerank depth, and preconditioning.
+    This is the default profile.
+
+`quality`
+:   Considers all encodings.
+    Calibration can select more bits per document dimension, which can improve recall at the cost of additional disk space and memory usage.
+
+`disabled`
+:   Turns auto-calibration off.
+    Equivalent to `false`.
+
+Boolean values are also accepted.
+`false` is the same as `disabled`.
+`true` selects the default profile for the index, which is:
+
+- `iso_sizing` for indices created in 9.6 or later
+- `quality` for indices created in 9.5
+
+:::{note}
+You can change the profile on an existing field.
+Refer to [Changing `auto_calibrate` on an existing field](#bbq-auto-calibration-update).
+:::
+
+### Segments below the calibration threshold
+
+Segments containing fewer than 10,000 vectors after merging are not calibrated. These segments use a default oversampling factor of 3.0× with the encoding determined by the `bits` setting.
+
+### Interaction with other parameters
+
+- **`bits`**: Controls the encoding at flush time for freshly written, pre-merge segments. Auto-calibration operates independently at merge time and may select a different encoding for merged segments.
+- **`precondition`**: The calibration sweep always evaluates both preconditioned and non-preconditioned variants and selects whichever achieves better estimated recall per unit cost. The `precondition` mapping parameter controls the encoding applied at flush time and serves as the fallback default if calibration fails. Cannot be changed after the field is created.
+- **`rescore_vector.oversample`**: For calibrated merged segments, the oversampling factor is selected automatically and stored per segment. At query time, the effective oversample is resolved in this order:
+  1. Query-time `rescore_vector.oversample` on the kNN query or retriever, if set. This value is applied uniformly to all segments and overrides calibrated per-segment values.
+  2. Per-segment calibrated oversample, when the segment was calibrated at merge time. Different segments in the same index may use different factors.
+  3. Mapping `rescore_vector.oversample`, or the default 3.0× if unset. This applies to unmerged segments, segments below the calibration threshold, and segments where calibration fell back to codec defaults.
+
+     Query-time oversample affects rerank depth only. Preconditioning and quantization encoding continue to follow each segment's stored configuration.
+
+### Changing `auto_calibrate` on an existing field [bbq-auto-calibration-update]
+
+```{applies_to}
+stack: ga 9.6
+```
+
+You can turn auto-calibration on or off, or switch to a different [profile](#bbq-auto-calibration-profiles), on an existing `bbq_disk` field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping).
+Existing segments are not rewritten, so the new value applies from the next merge:
+
+- If you turn it on by setting `auto_calibrate` to `true`, `iso_sizing`, or `quality`, later merges that produce at least 10,000 vectors are calibrated.
+  Segments written before the change are calibrated when they are merged.
+- If you turn it off, later merges use the mapping settings.
+  When you search, segments no longer use their calibrated oversampling factor. They use the query-time `rescore_vector.oversample` if set, otherwise the mapping value (default 3.0).
+  Encoding and preconditioning are properties of how each segment was written, so a segment that was calibrated continues to be searched with its calibrated encoding and preconditioning until it is merged again.
+- If you switch profiles, for example from `iso_sizing` to `quality`, later calibrated merges choose from the new profile's candidate configurations.
+  Segments that were already calibrated keep their stored encoding, oversampling, and preconditioning, and are searched with those values until they are merged again.
+  The index can contain segments calibrated under different profiles.
+  Switching to `quality` can increase disk and memory usage as segments are merged.
+
+### Examples
+
+The following examples show how to configure auto-calibration and inspect the result.
+
+#### Enable or disable auto-calibration
+
+To explicitly enable auto-calibration:
+
+```console
+PUT my-auto-calibrated-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 1024,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk",
+          "auto_calibrate": true
+        }
+      }
+    }
+  }
+}
+```
+
+To explicitly disable it:
+
+```console
+PUT my-auto-calibrated-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 1024,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk",
+          "auto_calibrate": false
+        }
+      }
+    }
+  }
+}
+```
+
+#### Using a specific profile
+
+```{applies_to}
+stack: ga 9.6
+```
+
+```console
+PUT my-quality-calibrated-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 1024,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk",
+          "auto_calibrate": "quality" <1>
+        }
+      }
+    }
+  }
+}
+```
+1. Set the `auto_calibrate` parameter value to the [profile name](#bbq-auto-calibration-profiles).
+
+#### Getting the active configuration
+
+```{applies_to}
+stack: ga 9.6
+```
+
+You can inspect the active configuration for each segment using the [index segments API]({{es-apis}}operation/operation-indices-segments).
+Set the `include_auto_calibration` query parameter to `true` to include the calibration details:
+
+```console
+GET my-auto-calibrated-index/_segments?include_auto_calibration=true
+```
+
+The following abbreviated response shows two segments of the same shard:
+
+```console-result
+{
+  ...
+  "indices": {
+    "my-auto-calibrated-index": {
+      "shards": {
+        "0": [
+          {
+            ...
+            "segments": {
+              "_a": {
+                ...
+                "auto_calibration": {
+                  "my_vector": { <1>
+                    "calibrated": true, <2>
+                    "type": "osq",
+                    "number_of_vectors": 250000,
+                    "size_in_bytes": 145000000,
+                    "parameters": { <3>
+                      "bits": 2,
+                      "query_bits": 4,
+                      "precondition": true,
+                      "oversample": 2.5
+                    }
+                  }
+                }
+              },
+              "_b": {
+                ...
+                "auto_calibration": {
+                  "my_vector": { <4>
+                    "calibrated": false,
+                    "type": "osq",
+                    "number_of_vectors": 4200,
+                    "size_in_bytes": 2400000
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+1. One entry exists for each `dense_vector` field in the segment, keyed by field name.
+2. `calibrated` reports if the segment was calibrated when it was merged.
+3. `parameters` reports the results of auto-calibration: encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor stored for this segment.
+   Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
+4. An uncalibrated `dense_vector` field in a segment.
+   No `parameters` are returned.
+   The segment is searched using the mapping settings.
+   A query-time [`rescore_vector.oversample`](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) on the kNN query or retriever overrides the oversampling factor, as described in [Interaction with other parameters](#interaction-with-other-parameters).
+
 ## Oversampling [bbq-oversampling]
 
 Oversampling is a technique used with BBQ searches to reduce the accuracy loss from compression. Compression lowers the memory footprint by over 95% and improves query latency, at the cost of decreased result accuracy. This decrease can be mitigated by oversampling during query time and reranking the top results using the full vector.
@@ -295,7 +540,7 @@ GET bbq-index/_search
 By default, oversampling is set to 3×, meaning if you request k:10, {{es}} retrieves 30 candidates for re-ranking. You don’t need to configure this behavior; it’s applied automatically for BBQ searches.
 
 :::{note}
-You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 :::
 
 ## Learn more [bbq-learn-more]

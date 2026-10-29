@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -391,8 +392,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
+                // The object array is preserved via _ignored_source, so only assert on _id: with columnar id it moves to
+                // binary doc values and is no longer a stored field, otherwise it remains a stored field.
                 if (isUseColumnarId(reader)) {
-                    assertThat(storedFieldNames, empty());
+                    assertThat(storedFieldNames, not(hasItem("_id")));
                 } else {
                     assertThat(storedFieldNames, hasItem("_id"));
                 }

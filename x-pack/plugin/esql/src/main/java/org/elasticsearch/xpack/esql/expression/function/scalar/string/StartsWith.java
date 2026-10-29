@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -42,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class StartsWith extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
+public class StartsWith extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StartsWith",
@@ -56,6 +59,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
     private final Expression prefix;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
         briefSummary = "Checks whether a keyword string starts with another string.",
         description = "Returns a boolean that indicates whether a keyword string starts with another string.",
@@ -158,18 +162,20 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(str) && prefix.foldable() ? Translatable.YES : Translatable.NO;
+        return pushdownPredicates.isPushableValueAttribute(str) && prefix.foldable() ? Translatable.YES : Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         LucenePushdownPredicates.checkIsPushableAttribute(str);
-        var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
+        // A field pushable only over its values is named as it stands, and its value is what the pattern matches.
+        final boolean overValues = LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, str);
+        var fieldName = handler.nameOf(overValues == false && str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
         var wildcardQuery = StringUtils.escapeWildcardLiteral(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, overValues || pushdownPredicates.flags().stringLikeOnIndex());
     }
 
     @Override
@@ -177,7 +183,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         return str;
     }
 
-    Expression str() {
+    public Expression str() {
         return str;
     }
 

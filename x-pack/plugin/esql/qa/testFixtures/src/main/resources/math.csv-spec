@@ -805,6 +805,36 @@ ul:ul
 null
 ;
 
+roundIntOverflowAtNegativePrecision
+required_capability: fn_round_int_overflow_warns
+row n = round(2147483647, -1);
+
+warning:Line 1:9: evaluation of [round(2147483647, -1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.ArithmeticException: integer overflow
+
+n:integer
+null
+;
+
+roundIntOverflowNoFold
+required_capability: fn_round_int_overflow_warns
+row n = 2145000000 | eval n = round(n, -7);
+
+warning:Line 1:31: evaluation of [round(n, -7)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:31: java.lang.ArithmeticException: integer overflow
+
+n:integer
+null
+;
+
+roundIntNoOverflowAtEvenPrecision
+required_capability: fn_round_int_overflow_warns
+row n = round(2147483647, -2);
+
+n:integer
+2147483600
+;
+
 roundToInt
 required_capability: round_to
 ROW v = 1
@@ -911,6 +941,93 @@ FROM employees
 ;
 
 COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+
+roundToOverFunctionArgument
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS COUNT(*) BY salary=ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| SORT salary ASC
+;
+
+COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+roundToOverFunctionArgumentInsideAggFunction
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS s = SUM(ROUND_TO(
+    ABS(salary),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+))
+;
+
+s:long
+4175000
+;
+
+roundToOverFunctionArgumentInsideMinMax
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| STATS mn = MIN(ROUND_TO(ABS(salary), 0, 20000, 25000, 30000, 40000, 50000, 70000, 90000)),
+        mx = MAX(ROUND_TO(ABS(salary), 0, 20000, 25000, 30000, 40000, 50000, 70000, 90000))
+;
+
+mn:integer | mx:integer
+     25000 | 70000
+;
+
+roundToOverFunctionArgumentInEval
+required_capability: round_to
+required_capability: fix_round_to_query_and_tags_over_function
+FROM employees
+| EVAL bucket = ROUND_TO(
+    GREATEST(salary, 0),
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| STATS COUNT(*) BY bucket
+| SORT bucket ASC
+;
+
+COUNT(*):long | bucket:integer
             9 | 25000
            27 | 30000
            22 | 40000
@@ -1631,7 +1748,9 @@ a:integer | b:integer | l:integer
 ;
 
 leastNull
+required_capability: warn_null_misuse
 ROW l=LEAST(10, 5, null);
+warning:Line 1:7: Expression [LEAST(10, 5, null)] always evaluates to NULL.
 
 l:integer
 null
@@ -1659,7 +1778,9 @@ a:integer | b:integer | g:integer
 ;
 
 greatestNull
+required_capability: warn_null_misuse
 ROW g=GREATEST(10, 5, null);
+warning:Line 1:7: Expression [GREATEST(10, 5, null)] always evaluates to NULL.
 
 g:integer
 null
@@ -1765,7 +1886,9 @@ emp_no: integer | x:date     | y:date
 
 greatestWithMixedNumericValues
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW g1=GREATEST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), g2=GREATEST(10.0, 5, 1, -100.1, null);
+warning:Line 1:60: Expression [GREATEST(10.0, 5, 1, -100.1, null)] always evaluates to NULL.
 
 g1:double |g2:double
 1234      |null
@@ -1773,7 +1896,9 @@ g1:double |g2:double
 
 leastWithMixedNumericValues
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW l1=LEAST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), l2=LEAST(10.0, 5, 1, -100.1, null);
+warning:Line 1:57: Expression [LEAST(10.0, 5, 1, -100.1, null)] always evaluates to NULL.
 
 l1:double |l2:double
 -10000    |null
@@ -1781,12 +1906,14 @@ l1:double |l2:double
 
 greatestWithMixedNumericFields
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL g1 = GREATEST(height, salary, languages), g2 = GREATEST(height, salary, languages, null)
 | KEEP emp_no, g1, g2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:55: Expression [GREATEST(height, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | g1:double | g2:double
 10001          | 57305.0   | null
@@ -1796,12 +1923,14 @@ emp_no:integer | g1:double | g2:double
 
 leastWithMixedNumericFields
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL l1 = LEAST(height, salary, languages), l2 = LEAST(height, salary, languages, null)
 | KEEP emp_no, l1, l2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:52: Expression [LEAST(height, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | l1:double | l2:double
 10001          | 2.0       | null
@@ -1811,7 +1940,9 @@ emp_no:integer | l1:double | l2:double
 
 greatestWithMixedNumericValuesWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW g1=GREATEST([10.0, 4], 1), g2=GREATEST([10.0, 4], 1, null);
+warning:Line 1:35: Expression [GREATEST([10.0, 4], 1, null)] always evaluates to NULL.
 
 g1:double |g2:double
 10        |null
@@ -1819,7 +1950,9 @@ g1:double |g2:double
 
 leastWithMixedNumericValuesWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 ROW l1=LEAST([10.0, 4], 1), l2=LEAST([10.0, 4], 1, null);
+warning:Line 1:32: Expression [LEAST([10.0, 4], 1, null)] always evaluates to NULL.
 
 l1:double |l2:double
 1         |null
@@ -1827,12 +1960,14 @@ l1:double |l2:double
 
 greatestWithMixedNumericFieldsWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL g1 = GREATEST(salary_change, salary, languages), g2 = GREATEST(salary_change, salary, languages, null)
 | KEEP emp_no, g1, g2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:62: Expression [GREATEST(salary_change, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | g1:double | g2:double
 10001          | 57305.0   | null
@@ -1842,17 +1977,47 @@ emp_no:integer | g1:double | g2:double
 
 leastWithMixedNumericFieldsWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
+required_capability: warn_null_misuse
 FROM employees
 | EVAL l1 = LEAST(salary_change, salary, languages), l2 = LEAST(salary_change, salary, languages, null)
 | KEEP emp_no, l1, l2
 | SORT emp_no
 | LIMIT 3
 ;
+warning:Line 2:59: Expression [LEAST(salary_change, salary, languages, null)] always evaluates to NULL.
 
 emp_no:integer | l1:double | l2:double
 10001          | 1.19      | null     
 10002          | -7.23     | null     
 10003          | 4.0       | null     
+;
+
+greatestWithKeywordFields
+FROM employees
+| EVAL g = GREATEST(first_name, last_name)
+| KEEP emp_no, g
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g:keyword
+10001          | Georgi
+10002          | Simmel
+10003          | Parto
+;
+
+leastWithKeywordFields
+FROM employees
+| EVAL l = LEAST(first_name, last_name)
+| KEEP emp_no, l
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l:keyword
+10001          | Facello
+10002          | Bezalel
+10003          | Bamford
 ;
 
 copySignWithMixedNumericValues

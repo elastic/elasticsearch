@@ -14,12 +14,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -30,9 +30,9 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -42,13 +42,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * When the streaming-parallel segmentator hits the {@code max_record_size} cap on a stream-only
+ * When the streaming-parallel segmentator hits the {@code external_max_record_size} cap on a stream-only
  * (gzip) input, the read must honor the {@code error_mode}: a strict policy still hard-fails, while a
  * non-strict policy truncates the read at the undelimitable record and returns the records parsed so
  * far (rather than failing the whole query). The non-strict truncation also surfaces a prominent,
@@ -58,77 +57,69 @@ import static org.hamcrest.Matchers.greaterThan;
  * propagates back through the normal response-header collection to the client; this test proves that
  * end-to-end by running the query through a chosen coordinator and reading that node's response
  * {@code Warning} headers (mirroring {@code ExternalCsvHivePartitionedIT} and {@code WarningsIT}).
- * Follow-up to the record-boundary livelock fix (capped grow loop). See elastic/esql-planning#835.
+ * Follow-up to the record-boundary livelock fix (capped grow loop).
  */
-public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase {
+public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourceIT {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // The oversized record is one repeated character gzip-compressed at ~1000:1, which exceeds the default
+            // decompression ratio limit of 200 before the record-size cap fires. Disable the ratio guard so this
+            // test exercises the record-size cap path it was designed to test.
+            .put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey(), 0)
+            .build();
+    }
 
     private static final int LEADING_ROWS = 5;
-    /** {@code max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */
+    /** {@code external_max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */
     private static final String MAX_RECORD_SIZE = "1mb";
     private static final long MAX_RECORD_SIZE_BYTES = 1024L * 1024L;
     /**
-     * Size of the single oversized field. It is strictly larger than {@code max_record_size}, so the
+     * Size of the single oversized field. It is strictly larger than {@code external_max_record_size}, so the
      * segmentator can never accumulate a full record within the cap and raises {@code RECORD_TOO_LARGE}
      * — independent of the reader's {@code minimumSegmentSize} floor (asserted in {@link #assertFixtureSizing}).
      */
     private static final int GIANT_RECORD_BYTES = 4 * 1024 * 1024;
 
-    /**
-     * {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses {@link ExtensiblePlugin#loadExtensions} to keep the
-     * IT base lean (extensions can pull in heavy deps); we need extensions ON so the datasource plugins added in
-     * {@link #nodePlugins()} can register their format readers / storage providers via SPI. This subclass restores the
-     * default behavior — call {@code super} explicitly.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(GzipDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, GzipDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     /**
      * Pins the fixture's defining property so the test cannot silently change meaning if a constant or
      * the reader's segment floor is later retuned: a single record strictly larger than
-     * {@code max_record_size} can never be delimited within the cap, so {@code RECORD_TOO_LARGE} fires
+     * {@code external_max_record_size} can never be delimited within the cap, so {@code RECORD_TOO_LARGE} fires
      * regardless of chunk/segment sizing. The {@code 2x} margin keeps that true even when a chunk
      * straddles the leading rows and the start of the giant field.
      */
     @Before
     public void assertFixtureSizing() {
         assertThat(
-            "GIANT_RECORD_BYTES must exceed 2x max_record_size so the cap-hit is independent of segment sizing",
+            "GIANT_RECORD_BYTES must exceed 2x external_max_record_size so the cap-hit is independent of segment sizing",
             (long) GIANT_RECORD_BYTES,
             greaterThan(2 * MAX_RECORD_SIZE_BYTES)
         );
     }
 
     /**
-     * Default (strict) policy: a record exceeding {@code max_record_size} must fail the query fast with
+     * Default (strict) policy: a record exceeding {@code external_max_record_size} must fail the query fast with
      * a diagnosable error, as before this change.
      */
     public void testStrictPolicyHardFailsOnOversizedRecord() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         Path file = writeGzipWithOversizedRecord();
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" WITH {\"header_row\": false} | STATS c = COUNT(*)";
+            String dataset = registerDataset("strict_oversized", StoragePath.fileUri(file), Map.of("header_row", false));
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             // Pin allow_partial_results=false (cluster default is true) so the hard failure is thrown
             // rather than swallowed into a partial response.
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE)).allowPartialResults(false);
             Exception e = expectThrows(Exception.class, () -> run(request, TimeValue.timeValueMinutes(2)).close());
             String trace = ExceptionsHelper.stackTrace(e);
-            assertTrue("strict policy must hard-fail on the cap-hit, got: " + trace, trace.contains("record exceeded max_record_size"));
+            assertTrue("strict policy must hard-fail on the cap-hit, got: " + trace, trace.contains("record exceeds [1mb]"));
         } finally {
             Files.deleteIfExists(file);
         }
@@ -146,13 +137,15 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
      * driver ran the external read (coordinator or data node) through {@code DriverCompletionInfo}.
      */
     public void testSkipRowPolicyReturnsPartialResultsAndWarnsClient() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         Path file = writeGzipWithOversizedRecord();
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(file)
-                + "\" WITH {\"header_row\": false, \"error_mode\": \"skip_row\"} | STATS c = COUNT(*)";
+            String dataset = registerDataset(
+                "skip_row_oversized",
+                StoragePath.fileUri(file),
+                Map.of("header_row", false, "error_mode", "skip_row")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE));
 
             DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
@@ -187,11 +180,42 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
             assertThat("non-strict read must return only the rows parsed before the cap-hit", count.get(), equalTo((long) LEADING_ROWS));
             assertTrue(
                 "client must receive a prominent partial-results truncation Warning, got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("truncated at byte"))
+                warnings.stream().anyMatch(w -> w.contains("Record in [") && w.contains("; results are partial"))
             );
             assertTrue("a truncated lenient read must flip the response is_partial flag", partial.get());
         } finally {
             Files.deleteIfExists(file);
+        }
+    }
+
+    public void testCrDelimitedRecordsBelowTheCapAreAccepted() throws Exception {
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        String payload = randomAlphaOfLength(128 * 1024);
+        QueryPragmas pragmas = pragmas(2, "256kb");
+        for (Map.Entry<String, String> terminator : Map.of("lf", "\n", "cr", "\r", "crlf", "\r\n").entrySet()) {
+            StringBuilder content = new StringBuilder();
+            for (int i = 0; i < 3; i++) {
+                content.append("{\"id\":").append(i).append(",\"name\":\"").append(payload).append("\"}").append(terminator.getValue());
+            }
+            for (String mode : List.of("fail_fast", "skip_row")) {
+                String label = terminator.getKey() + "_" + mode;
+                Path file = writeGzipped(createTempDir().resolve(label + ".ndjson.gz"), content.toString());
+                try {
+                    String dataset = registerDataset(label, StoragePath.fileUri(file), Map.of("segment_size", "64kb", "error_mode", mode));
+                    EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)").pragmas(pragmas)
+                        .allowPartialResults(false)
+                        .profile(true);
+                    try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(2))) {
+                        List<List<Object>> rows = getValuesList(response);
+                        assertThat(rows.size(), equalTo(1));
+                        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+                        assertThat(response.documentsFound(), greaterThan(0L));
+                        assertFalse(response.isPartial());
+                    }
+                } finally {
+                    Files.deleteIfExists(file);
+                }
+            }
         }
     }
 
@@ -207,7 +231,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
     /**
      * Writes a gzip TSV with {@link #LEADING_ROWS} clean rows, then a single {@link #GIANT_RECORD_BYTES}-byte
      * field terminated by a newline, then a couple of trailing rows. Because that one field is larger than
-     * {@code max_record_size}, the segmentator cannot accumulate the whole record within the cap and trips
+     * {@code external_max_record_size}, the segmentator cannot accumulate the whole record within the cap and trips
      * {@code RECORD_TOO_LARGE} (either the grow-loop pre-check or the forward-scan boundary check) before it
      * can reach the terminator — so the read truncates there and the trailing rows are never parsed.
      */

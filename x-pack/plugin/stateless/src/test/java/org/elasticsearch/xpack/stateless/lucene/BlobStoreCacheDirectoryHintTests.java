@@ -43,8 +43,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
 
     public void testExplicitHintIsPreserved() throws IOException {
         var capturedContext = new AtomicReference<IOContext>();
-        var dir = createCapturingDirectory(capturedContext);
-        dir.updateMetadata(Map.of("_0.vec", createBlobFileRanges(1L, 0L, 0, 1024)), 1024L);
+        var dir = createCapturingDirectory(capturedContext, Map.of("_0.vec", createBlobFileRanges(1L, 0L, 0, 1024)), 1024L);
 
         dir.openInput("_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM));
 
@@ -73,6 +72,62 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.contextToAdvice(randomCtx, false));
     }
 
+    // --- Index-tier StatelessAdviceHint tests ---
+
+    public void testContextToAdviceWithStatelessHintOnIndexTier() {
+        IOContext ctx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, StatelessAdviceHint.STORED_FIELDS);
+        int advice = CacheFileReaderTestUtils.contextToAdvice(ctx, false);
+
+        if (CacheFileReaderTestUtils.isIndexTierMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, advice);
+        } else {
+            assertEquals(SharedBytes.MADV_NORMAL, advice);
+        }
+    }
+
+    public void testContextToAdviceWithStatelessHintOnSearchTier() {
+        IOContext ctx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, StatelessAdviceHint.STORED_FIELDS);
+        int advice = CacheFileReaderTestUtils.contextToAdvice(ctx, true);
+
+        if (CacheFileReaderTestUtils.isMadviseRandomEnabled()) {
+            assertEquals(SharedBytes.MADV_RANDOM, advice);
+        } else {
+            assertEquals(SharedBytes.MADV_NORMAL, advice);
+        }
+    }
+
+    public void testContextToAdviceWithStatelessHintAloneOnIndexTier() {
+        // StatelessAdviceHint without DataAccessHint.RANDOM should NOT trigger MADV_RANDOM
+        IOContext ctx = IOContext.DEFAULT.withHints(StatelessAdviceHint.STORED_FIELDS);
+        int advice = CacheFileReaderTestUtils.contextToAdvice(ctx, false);
+        assertEquals(SharedBytes.MADV_NORMAL, advice);
+    }
+
+    public void testContextToAdviceWithoutStatelessHintOnIndexTier() {
+        IOContext randomCtx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+        assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.contextToAdvice(randomCtx, false));
+    }
+
+    // --- IndexDirectory.maybeAddStatelessAdviceHint tests ---
+
+    public void testMaybeAddStatelessAdviceHintForStoredFieldsFile() {
+        IOContext ctx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+        IOContext result = IndexDirectory.maybeAddStatelessAdviceHint("_0.fdt", ctx);
+        assertTrue(result.hints().contains(StatelessAdviceHint.STORED_FIELDS));
+        assertTrue(result.hints().contains(DataAccessHint.RANDOM));
+    }
+
+    public void testMaybeAddStatelessAdviceHintIgnoresNonStoredFieldsFile() {
+        IOContext ctx = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+        IOContext result = IndexDirectory.maybeAddStatelessAdviceHint("_0.vec", ctx);
+        assertFalse(result.hints().contains(StatelessAdviceHint.STORED_FIELDS));
+    }
+
+    public void testMaybeAddStatelessAdviceHintIgnoresWithoutRandomHint() {
+        IOContext result = IndexDirectory.maybeAddStatelessAdviceHint("_0.fdt", IOContext.DEFAULT);
+        assertFalse(result.hints().contains(StatelessAdviceHint.STORED_FIELDS));
+    }
+
     // --- Top-level file (exclusive blob) tests ---
 
     // Top-level CacheFileReader has exclusiveRange covering the entire blob.
@@ -87,6 +142,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
+            true,
             true
         );
 
@@ -108,6 +164,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
+            true,
             true
         );
         var copy = original.copy();
@@ -134,6 +191,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
 
@@ -169,6 +227,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
 
@@ -200,6 +259,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
 
@@ -229,6 +289,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
 
@@ -265,6 +326,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
+            true,
             true
         );
 
@@ -291,6 +353,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
 
@@ -328,7 +391,8 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            false
+            false,
+            true
         );
         var slice = original.copyWithContext(IOContext.DEFAULT, 0, 500 * 1024 * 1024L);
         assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, ByteRange.of(0, REGION_SIZE)));
@@ -350,6 +414,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
+            true,
             true
         );
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 500 * 1024 * 1024, 0);
@@ -383,7 +448,8 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            false
+            false,
+            true
         );
         long parentOffset = 100;
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 2048, parentOffset);
@@ -410,6 +476,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
+            true,
             true
         );
         var indexInput = new BlobCacheIndexInput("test.vec", IOContext.DEFAULT, reader, null, 1024, 0);
@@ -430,7 +497,8 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
-            System::currentTimeMillis
+            System::currentTimeMillis,
+            true
         );
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
         var slice = (BlobCacheIndexInput) indexInput.doSlice("_0.doc", 0, 512);
@@ -465,7 +533,8 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
-            System::currentTimeMillis
+            System::currentTimeMillis,
+            true
         );
 
         ByteBuffer buf = ByteBuffer.allocate(10);
@@ -473,11 +542,25 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         verify(cacheFile).tryRead(buf, 0);
     }
 
-    private static BlobStoreCacheDirectory createCapturingDirectory(AtomicReference<IOContext> capturedContext) {
+    private static BlobStoreCacheDirectory createCapturingDirectory(
+        AtomicReference<IOContext> capturedContext,
+        Map<String, BlobFileRanges> metadata,
+        long dataSetSizeInBytes
+    ) {
         var cacheService = mock(StatelessSharedBlobCacheService.class);
         var shardId = mock(ShardId.class);
 
         return new BlobStoreCacheDirectory(cacheService, shardId) {
+            @Override
+            protected Map<String, BlobFileRanges> getCurrentMetadata() {
+                return metadata;
+            }
+
+            @Override
+            public long estimateDataSetSizeInBytes() {
+                return dataSetSizeInBytes;
+            }
+
             @Override
             protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
                 capturedContext.set(context);
@@ -497,6 +580,20 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             @Override
             public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
                 return this;
+            }
+
+            @Override
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                Map<String, BlobFileRanges> readMetadata,
+                long readDataSetSizeInBytes
+            ) {
+                throw new UnsupportedOperationException(
+                    "test directory does not support per-BCC metadata reads for "
+                        + readMetadata.size()
+                        + " files totaling "
+                        + readDataSetSizeInBytes
+                        + " bytes"
+                );
             }
         };
     }

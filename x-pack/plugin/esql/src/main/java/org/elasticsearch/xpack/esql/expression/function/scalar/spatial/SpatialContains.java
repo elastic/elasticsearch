@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -97,7 +99,7 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Override
         protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            if (right.getValueCount(position) < 1) {
+            if (right.isNull(position)) {
                 builder.appendNull();
             } else {
                 processSourceAndConstant(builder, position, left, asLuceneComponent2Ds(crsType, right, position));
@@ -133,7 +135,7 @@ public class SpatialContains extends SpatialRelatesFunction {
 
         private void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D[] right)
             throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -147,7 +149,7 @@ public class SpatialContains extends SpatialRelatesFunction {
             LongBlock left,
             @Fixed Component2D[] right
         ) throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(
@@ -163,6 +165,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean" },
         briefSummary = "Returns whether the first geometry contains the second geometry.",
         description = """

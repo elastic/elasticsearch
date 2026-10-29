@@ -86,18 +86,14 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
     private S3HttpHandler s3HttpHandler;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHttpHandler() throws Exception {
         s3HttpHandler = new S3HttpHandler(BUCKET, S3ConsistencyModel.randomConsistencyModel());
         httpServer.createContext("/", s3HttpHandler);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void removeHttpContext() throws Exception {
         httpServer.removeContext("/");
-        super.tearDown();
     }
 
     private S3BlobContainer buildContainer(
@@ -275,7 +271,7 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
         assertStorageClass("STANDARD", sourceBlobName);
 
         // Copy with SNAPSHOT_DATA purpose — destination should receive the configured data storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(dataStorageClass, destBlobName);
     }
@@ -292,7 +288,7 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
         assertStorageClass("STANDARD", sourceBlobName);
 
         // Copy with SNAPSHOT_METADATA purpose — destination should receive the configured metadata storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(metadataStorageClass, destBlobName);
     }

@@ -86,10 +86,14 @@ The `dynamic` parameter controls whether new fields are added dynamically, and a
 :   New fields are added to the mapping (default).
 
 `runtime`
-:   New fields are added to the mapping as [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md). These fields are not indexed, and are loaded from `_source` at query time.
+:   New fields are added to the mapping as [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md). These fields are not indexed and are loaded from `_source` at query time. This option is not supported for [columnar](/reference/elasticsearch/columnar/index.md) indices.
 
 `false`
-:   New fields are ignored. These fields will not be indexed or searchable, but will still appear in the `_source` field of returned hits. These fields will not be added to the mapping, and new fields must be added explicitly.
+:   New fields are ignored and will not be indexed or searchable. These fields will not be added to the mapping, and any new fields must be added explicitly. For non-columnar indices, these fields will still appear in the `_source` field of returned hits.
+
+:::{warning}
+If you configure `"dynamic": false` on a [columnar](/reference/elasticsearch/columnar/index.md) index, new fields are not stored at all and will be lost.
+:::
 
 `strict`
 :   If new fields are detected, an exception is thrown and the document is rejected. New fields must be explicitly added to the mapping.

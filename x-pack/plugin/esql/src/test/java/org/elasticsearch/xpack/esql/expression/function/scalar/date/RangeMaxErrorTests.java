@@ -33,6 +33,6 @@ public class RangeMaxErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, i) -> "date_range"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, i) -> "date_range or double_range"));
     }
 }

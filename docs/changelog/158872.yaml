@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 158872
+summary: Keep `query_string` leniency in columnar mode
+type: enhancement

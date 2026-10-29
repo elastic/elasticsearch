@@ -49,7 +49,10 @@ public class ArrowToBlockConverters {
         map.put(Types.MinorType.UINT2, UInt16ArrowBufBlock::of);
         map.put(Types.MinorType.UINT4, UInt32ArrowBufBlock::of);
         map.put(Types.MinorType.BIT, BooleanArrowBlock::of);
-        map.put(Types.MinorType.VARCHAR, BytesRefArrowBlock::of);
+        // VARCHAR is nominally UTF-8 but external producers can emit malformed bytes; sanitize to U+FFFD so
+        // downstream KEYWORD ops (e.g. the TopN Utf8 encoders) stay total regardless of which reader feeds this
+        // registry. sanitize is a no-op (zero-copy) for well-formed data.
+        map.put(Types.MinorType.VARCHAR, BytesRefArrowBlock::ofSanitizedUtf8);
         map.put(Types.MinorType.VARBINARY, BytesRefArrowBlock::of);
         map.put(Types.MinorType.TIMESTAMPSEC, LongMul1kArrowBufBlock::of);
         map.put(Types.MinorType.TIMESTAMPSECTZ, LongMul1kArrowBufBlock::of);

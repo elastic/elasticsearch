@@ -1,0 +1,5 @@
+area: "Vector Search"
+issues: []
+pr: 155001
+summary: Eliminate movprfx stalls in SVE BBQ D1Q4 bulk scorer (~14% throughput improvement)
+type: enhancement

@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +34,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -57,6 +60,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,6 +76,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
@@ -91,7 +97,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         writer.close();
 
         int[] docs = randomDocIds(docCount - 1);
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
 
             LeafReaderContext ctx = null;
             int[] docsInLeaf = null;
@@ -130,6 +136,122 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         directory.close();
     }
 
+    public void testMeasureAccumulatesNonStorePluggableMetricAcrossThreads() throws Exception {
+        int docCount = randomIntBetween(20, 100);
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        ThreadLocal<DirectoryMetricsTests.Counter> threadCounter = ThreadLocal.withInitial(DirectoryMetricsTests.Counter::new);
+        DirectoryMetrics.Capture capture = DirectoryMetricsTests.metricsCapture(DirectoryMetricsTests.Counter.NAME, threadCounter::get);
+
+        int[] docs = randomDocIds(docCount - 1);
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(capture) {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                threadCounter.get().increment();
+                return new SearchHit(doc);
+            }
+        };
+
+        ExecutorService fetchExecutor = Executors.newSingleThreadExecutor();
+        try {
+            SearchHit[] hits = fetchExecutor.submit(() -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult()).hits)
+                .get();
+            for (SearchHit hit : hits) {
+                hit.decRef();
+            }
+        } finally {
+            fetchExecutor.shutdown();
+            assertTrue(fetchExecutor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+
+        DirectoryMetrics delta = it.getFetchMetricsDelta();
+        var counter = delta.metrics(DirectoryMetricsTests.Counter.NAME);
+        assertThat(counter, notNullValue());
+        assertThat(counter.cast(DirectoryMetricsTests.Counter.class).getCount(), equalTo((long) docs.length));
+
+        reader.close();
+        directory.close();
+    }
+
+    public void testStreamingMeasureAccumulatesNonStorePluggableMetricAcrossChunks() throws Exception {
+        LuceneDocs docs = createDocs(randomIntBetween(100, 300), false);
+
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        InFlightTrackingChunkWriter chunkWriter = new InFlightTrackingChunkWriter(circuitBreaker);
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+
+        ThreadLocal<DirectoryMetricsTests.Counter> threadCounter = ThreadLocal.withInitial(DirectoryMetricsTests.Counter::new);
+        DirectoryMetrics.Capture capture = DirectoryMetricsTests.metricsCapture(DirectoryMetricsTests.Counter.NAME, threadCounter::get);
+
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(capture) {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                threadCounter.get().increment();
+                return new SearchHit(doc);
+            }
+        };
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+            CountDownLatch refsComplete = new CountDownLatch(1);
+            RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+            it.iterateAsync(
+                createShardTarget(),
+                docs.reader,
+                docs.docIds,
+                chunkWriter,
+                50,
+                refs,
+                1,
+                sendFailure,
+                new AtomicBoolean(false)::get,
+                threadPool.generic(),
+                future
+            );
+
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (future.isDone() == false && System.nanoTime() < deadlineNanos) {
+                chunkWriter.ackAll();
+                Thread.yield();
+            }
+
+            IterateResult result = future.get(10, TimeUnit.SECONDS);
+            refs.close();
+            assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+            assertThat("no send failure", sendFailure.get(), nullValue());
+
+            DirectoryMetrics delta = it.getFetchMetricsDelta();
+            var counter = delta.metrics(DirectoryMetricsTests.Counter.NAME);
+            assertThat(counter, notNullValue());
+            assertThat(counter.cast(DirectoryMetricsTests.Counter.class).getCount(), equalTo((long) docs.docIds.length));
+
+            result.close();
+            assertThat(circuitBreaker.getUsed(), equalTo(0L));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
     public void testExceptions() throws IOException {
         int docCount = randomIntBetween(300, 400);
         Directory directory = newDirectory();
@@ -149,7 +271,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         int[] docs = randomDocIds(docCount - 1);
         int badDoc = docs[randomInt(docs.length - 1)];
 
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -168,6 +290,53 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+
+        reader.close();
+        directory.close();
+    }
+
+    public void testMeasureAccumulatesMetricsWhenIterationFails() throws IOException {
+        int docCount = randomIntBetween(20, 100);
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        int[] docs = randomDocIds(docCount - 1);
+        int badDoc = docs[randomInt(docs.length - 1)];
+
+        ThreadLocal<DirectoryMetricsTests.Counter> threadCounter = ThreadLocal.withInitial(DirectoryMetricsTests.Counter::new);
+        DirectoryMetrics.Capture capture = DirectoryMetricsTests.metricsCapture(DirectoryMetricsTests.Counter.NAME, threadCounter::get);
+        AtomicInteger processed = new AtomicInteger();
+
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(capture) {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                threadCounter.get().increment();
+                processed.incrementAndGet();
+                if (doc == badDoc) {
+                    throw new IllegalArgumentException("Error processing doc");
+                }
+                return new SearchHit(doc);
+            }
+        };
+
+        expectThrows(FetchPhaseExecutionException.class, () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult()));
+
+        DirectoryMetrics delta = it.getFetchMetricsDelta();
+        var counter = delta.metrics(DirectoryMetricsTests.Counter.NAME);
+        assertThat(counter, notNullValue());
+        assertThat(processed.get(), greaterThan(0));
+        assertThat(counter.cast(DirectoryMetricsTests.Counter.class).getCount(), equalTo((long) processed.get()));
 
         reader.close();
         directory.close();
@@ -396,6 +565,105 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         docs.directory.close();
     }
 
+    /** The held last chunk goes through the writer, and the result carries what the writer returned, so the writer can charge it. */
+    public void testIterateAsyncHoldsLastChunkThroughWriter() throws Exception {
+        boolean singleChunk = randomBoolean();
+        LuceneDocs docs = createDocs(singleChunk ? 5 : 100, false);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        AtomicReference<ReleasableBytesReference> returned = new AtomicReference<>();
+        AtomicInteger holds = new AtomicInteger();
+        AtomicBoolean heldClosed = new AtomicBoolean();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker) {
+            @Override
+            public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                holds.incrementAndGet();
+                ReleasableBytesReference held = new ReleasableBytesReference(bytes, () -> {
+                    heldClosed.set(true);
+                    bytes.close();
+                });
+                returned.set(held);
+                return held;
+            }
+        };
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        createStreamingIterator().iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            singleChunk ? 1024 * 1024 : 50,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+
+        IterateResult result = future.get(10, TimeUnit.SECONDS);
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+        assertThat(holds.get(), equalTo(1));
+        assertThat(result.lastChunkBytes, sameInstance(returned.get()));
+        assertFalse(heldClosed.get());
+
+        result.close();
+        assertTrue(heldClosed.get());
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
+    /** A writer that cannot hold the last chunk, because its charge trips, fails the fetch and the chunk's pages are released. */
+    public void testIterateAsyncFailsWhenHoldingLastChunkTrips() throws Exception {
+        LuceneDocs docs = createDocs(randomBoolean() ? 5 : 100, false);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker) {
+            @Override
+            public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                throw new CircuitBreakingException("simulated trip holding the last chunk", CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        createStreamingIterator().iterateAsync(
+            createShardTarget(),
+            docs.reader,
+            docs.docIds,
+            chunkWriter,
+            randomBoolean() ? 1024 * 1024 : 50,
+            refs,
+            4,
+            sendFailure,
+            cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+
+        Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
+        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+        assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
+
+        docs.reader.close();
+        docs.directory.close();
+    }
+
     public void testIterateAsyncRespectsMaxInFlightWithDelayedAcks() throws Exception {
         for (int maxInFlightChunks : List.of(1, 2, 3)) {
             LuceneDocs docs = createDocs(100, false);
@@ -538,7 +806,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         // Iterator that cancels after processing some docs
         AtomicInteger processedDocs = new AtomicInteger(0);
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -592,7 +860,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
         // Iterator that throws after processing some docs
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
             private int count = 0;
 
             @Override
@@ -758,7 +1026,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         List<int[]> setNextReaderDocsInLeaf = new CopyOnWriteArrayList<>();
         List<Integer> nextDocCalls = new CopyOnWriteArrayList<>();
 
-        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
                 setNextReaderLeafOrdinals.add(ctx.ord);
@@ -860,7 +1128,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         // in doc-id order: 10, 50, 100, 150, 200, ... timeout at doc 200
         final int timeoutAfterDocId = 200;
 
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1138,7 +1406,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     private static StreamingFetchPhaseDocsIterator createStreamingIterator() {
-        return new StreamingFetchPhaseDocsIterator() {
+        return new StreamingFetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1189,6 +1457,10 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     private static class RecordingStreamingIterator extends StreamingFetchPhaseDocsIterator {
         private final List<SetupEvent> setups = new CopyOnWriteArrayList<>();
+
+        RecordingStreamingIterator() {
+            super(DirectoryMetrics.Capture.NOOP);
+        }
 
         @Override
         protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {

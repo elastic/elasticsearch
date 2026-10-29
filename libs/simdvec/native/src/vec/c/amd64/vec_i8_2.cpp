@@ -219,7 +219,8 @@ template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int batches = 4,
-    int unroll_dim = 1
+    int unroll_dim = 1,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void doti8_bulk(
     const TData* a, const int8_t* b, const int32_t dims, const int32_t pitch,
@@ -299,7 +300,7 @@ static inline void doti8_bulk(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)(_mm512_reduce_add_epi32(acc[I]) - b_correction);
+            results[out_mapper(offsets, c + I)] = (f32_t)(_mm512_reduce_add_epi32(acc[I]) - b_correction);
         });
 
         if (has_next) {
@@ -309,23 +310,12 @@ static inline void doti8_bulk(
 
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)doti8_inner_bulk(a0, b, dims, b_correction);
+        results[out_mapper(offsets, c)] = (f32_t)doti8_inner_bulk(a0, b, dims, b_correction);
     }
 }
 
 EXPORT void vec_doti8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     doti8_bulk<int8_t, sequential_mapper, 4, 2>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_doti8_bulk_offsets_2(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    doti8_bulk<int8_t, offsets_mapper, 4, 1>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_doti8_bulk_sparse_2(
@@ -335,16 +325,6 @@ EXPORT void vec_doti8_bulk_sparse_2(
     const int32_t count,
     f32_t* results) {
     doti8_bulk<const int8_t*, sparse_mapper, 4, 2>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_doti8_bulk8_2(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    doti8_bulk<const int8_t*, sparse_mapper, 4, 2>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }
 
 // Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
@@ -436,7 +416,8 @@ EXPORT f32_t vec_sqri8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void sqri8_bulk(
     const TData* a, const int8_t* b, const int32_t dims, const int32_t pitch,
@@ -490,7 +471,7 @@ static inline void sqri8_bulk(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
+            results[out_mapper(offsets, c + I)] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
         });
 
         if (has_next) {
@@ -500,23 +481,12 @@ static inline void sqri8_bulk(
 
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)sqri8_inner(a0, b, dims);
+        results[out_mapper(offsets, c)] = (f32_t)sqri8_inner(a0, b, dims);
     }
 }
 
 EXPORT void vec_sqri8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     sqri8_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_sqri8_bulk_offsets_2(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    sqri8_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_sparse_2(
@@ -526,16 +496,6 @@ EXPORT void vec_sqri8_bulk_sparse_2(
     const int32_t count,
     f32_t* results) {
     sqri8_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqri8_bulk8_2(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    sqri8_bulk<const int8_t*, sparse_mapper>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }
 
 // --- Cosine i8 (signed) AVX-512 ---
@@ -577,7 +537,11 @@ EXPORT f32_t vec_cosi8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     return cosi8_inner(a, b, dims);
 }
 
-template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 4>
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int batches = 4,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
 static inline void cosi8_inner_bulk(
     const TData* a,
     const int8_t* b,
@@ -664,7 +628,9 @@ static inline void cosi8_inner_bulk(
             _mm512_reduce_add_epi32(a_norms[2]), _mm512_reduce_add_epi32(a_norms[3]));
         __m128 b_norm_ps = _mm_set1_ps(b_norm);
         __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(a_norm_ps, b_norm_ps)));
-        _mm_storeu_ps(results + c, res);
+        apply_indexed<batches>([&](auto I) {
+            results[out_mapper(offsets, c + I)] = _mm_cvtss_f32(_mm_shuffle_ps(res, res, decltype(I)::value));
+        });
 
         if (has_next) {
             std::copy_n(next_vecs, batches, current_vecs);
@@ -674,23 +640,12 @@ static inline void cosi8_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = cosi8_inner(a0, b, dims);
+        results[out_mapper(offsets, c)] = cosi8_inner(a0, b, dims);
     }
 }
 
 EXPORT void vec_cosi8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     cosi8_inner_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_cosi8_bulk_offsets_2(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    cosi8_inner_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_cosi8_bulk_sparse_2(
@@ -700,14 +655,4 @@ EXPORT void vec_cosi8_bulk_sparse_2(
     const int32_t count,
     f32_t* results) {
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_cosi8_bulk8_2(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    cosi8_inner_bulk<const int8_t*, sparse_mapper>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }

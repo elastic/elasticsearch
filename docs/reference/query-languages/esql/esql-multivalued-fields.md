@@ -213,6 +213,7 @@ POST /_query
 ## Functions [esql-multivalued-fields-functions]
 
 Unless otherwise documented functions will return `null` when applied to a multivalued field.
+For more about how `NULL` behaves in expressions and filters, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
 
 $$$esql-multivalued-fields-mv-into-null$$$
 

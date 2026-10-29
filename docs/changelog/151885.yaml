@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 123389
-pr: 151885
-summary: Make FUSE command GA
-type: feature

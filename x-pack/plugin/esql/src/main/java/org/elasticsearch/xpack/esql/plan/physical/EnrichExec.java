@@ -25,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesOn {
+public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesOn, RowCountPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EnrichExec",
@@ -39,6 +39,8 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
     private final String policyMatchField;
     private final Map<String, String> concreteIndices; // cluster -> enrich index
     private final List<NamedExpression> enrichFields;
+
+    private List<Attribute> lazyOutput;
 
     /**
      * @param matchField the match field in the source data
@@ -164,7 +166,10 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(enrichFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(enrichFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

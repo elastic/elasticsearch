@@ -23,10 +23,12 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private String language;
+    private final Object sharingKey;
 
     SnowballTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "English")));
+        this.sharingKey = new Key(language);
     }
 
     @Override
@@ -34,4 +36,10 @@ public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
         return new SnowballFilter(tokenStream, language);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String language) {}
 }

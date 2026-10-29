@@ -194,10 +194,10 @@ public interface RuntimeField extends ToXContentFragment {
                 if (parserContext.getNamespaceValidator() != null) {
                     parserContext.getNamespaceValidator().validateNamespace(null, fieldName);
                 }
-                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName)) {
+                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.isReservedFieldName(fieldName)) {
                     throw new MapperParsingException(
                         "["
-                            + SliceIndexing.PARAM_NAME
+                            + fieldName
                             + "] is a reserved field name and cannot be used when ["
                             + IndexSettings.SLICE_ENABLED.getKey()
                             + "] is true"

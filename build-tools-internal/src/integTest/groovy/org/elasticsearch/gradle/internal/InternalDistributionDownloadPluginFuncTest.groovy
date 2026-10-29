@@ -13,9 +13,30 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 
 
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
+
+    @TempDir
+    File gradleUserHome
+
+    def setup() {
+        def branchesFile = file("branches.json")
+        branchesFile.text = """
+        {
+          "branches": [
+            { "branch": "main", "version": "9.0.0" },
+            { "branch": "8.x", "version": "8.4.0" },
+            { "branch": "8.3", "version": "8.3.0" },
+            { "branch": "8.2", "version": "8.2.1" },
+            { "branch": "8.1", "version": "8.1.3" },
+            { "branch": "7.16", "version": "7.16.10" }
+          ]
+        }
+        """
+        propertiesFile << "\norg.elasticsearch.build.branches-file-location=${branchesFile.absolutePath.replace('\\', '/')}\n"
+    }
 
     def "resolves current version from local build"() {
         given:

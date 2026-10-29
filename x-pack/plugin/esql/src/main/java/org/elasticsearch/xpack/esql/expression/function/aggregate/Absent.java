@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The function that checks for the absence of a field in the output result.
  * An absence means that the input expression does not yield a non-null value.
  */
-public class Absent extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Absent extends UnaryAggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Absent", Absent::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Absent.class)
         .unary(Absent::new)
@@ -75,8 +75,10 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",
@@ -118,11 +120,6 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Absent(source(), field(), filter, window());
-    }
-
-    @Override
     public Absent replaceChildren(List<Expression> newChildren) {
         return new Absent(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
@@ -139,13 +136,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types or date_range"
-        );
+        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override

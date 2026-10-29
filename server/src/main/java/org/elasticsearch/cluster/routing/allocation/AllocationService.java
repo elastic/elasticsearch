@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -47,6 +48,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -56,6 +59,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -87,6 +91,18 @@ public class AllocationService {
 
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
+    /**
+     * Whether allocation decisions should retain their decider label when not in debug mode. This supports metrics which attribute
+     * moves to the decider that caused them. Changes apply to {@link RoutingAllocation} instances created after the change, an
+     * instance's value is fixed for its lifetime.
+     */
+    public static final Setting<Boolean> PRESERVE_DECISION_LABELS_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.preserve_decision_labels",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final AllocationDeciders allocationDeciders;
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
@@ -94,6 +110,7 @@ public class AllocationService {
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
     private final ShardChangesObserver shardChangesObserver;
+    private volatile boolean preserveDecisionLabels;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -105,7 +122,15 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, MeterRegistry.NOOP);
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            shardRoutingRoleStrategy,
+            MeterRegistry.NOOP,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -115,7 +140,8 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        MeterRegistry meterRegistry
+        MeterRegistry meterRegistry,
+        ClusterSettings clusterSettings
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
@@ -123,6 +149,7 @@ public class AllocationService {
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
         this.shardChangesObserver = new ShardChangesObserver(meterRegistry);
+        clusterSettings.initializeAndWatch(PRESERVE_DECISION_LABELS_SETTING, value -> this.preserveDecisionLabels = value);
     }
 
     /**
@@ -231,21 +258,28 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failedAllocations() : 0;
+                final UnassignedInfo currentUnassignedInfo = failedShard.unassignedInfo();
+                final Exception cause = failedShardEntry.failure();
+                final int failedAllocations = currentUnassignedInfo != null ? currentUnassignedInfo.failedAllocations() : 0;
+                final boolean cancelledByMaster = ExceptionsHelper.unwrap(cause, RecoveryCancelledException.class) != null;
                 final Set<String> failedNodeIds;
-                if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().failedNodeIds());
-                    failedNodeIds.add(failedShard.currentNodeId());
+                if (currentUnassignedInfo != null) {
+                    if (cancelledByMaster == false) {
+                        failedNodeIds = Sets.newHashSetWithExpectedSize(currentUnassignedInfo.failedNodeIds().size() + 1);
+                        failedNodeIds.addAll(currentUnassignedInfo.failedNodeIds());
+                        failedNodeIds.add(failedShard.currentNodeId());
+                    } else {
+                        failedNodeIds = currentUnassignedInfo.failedNodeIds();
+                    }
                 } else {
                     failedNodeIds = Collections.emptySet();
                 }
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.message();
-                UnassignedInfo unassignedInfo = new UnassignedInfo(
-                    UnassignedInfo.Reason.ALLOCATION_FAILED,
+                final UnassignedInfo updatedUnassignedInfo = new UnassignedInfo(
+                    cancelledByMaster ? UnassignedInfo.Reason.RECOVERY_CANCELLED : UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    failedShardEntry.failure(),
-                    failedAllocations + 1,
+                    cancelledByMaster ? null : cause, // no need to preserve the failure if we know it was cancelled
+                    cancelledByMaster ? failedAllocations : failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),
                     false,
@@ -256,8 +290,12 @@ public class AllocationService {
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
-                logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
-                allocation.routingNodes().failShard(failedShard, unassignedInfo, allocation.changes());
+                if (cancelledByMaster) {
+                    logger.debug(() -> "recovery cancelled for shard [" + failedShardEntry + "]");
+                } else {
+                    logger.warn(() -> "failing shard [" + failedShardEntry + "]", cause);
+                }
+                allocation.routingNodes().failShard(failedShard, updatedUnassignedInfo, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
@@ -312,7 +350,8 @@ public class AllocationService {
                 clusterState,
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
-                currentNanoTime()
+                currentNanoTime(),
+                preserveDecisionLabels
             )
         );
         final Supplier<RoutingAllocation> allocationSupplier = lazyAllocation::getOrCompute;
@@ -778,7 +817,8 @@ public class AllocationService {
             clusterState,
             clusterInfo,
             snapshotShardSizeInfo,
-            System.nanoTime()
+            System.nanoTime(),
+            preserveDecisionLabels
         );
         return new AllocationQueryContext(allocation, allocationDeciders);
     }
@@ -789,7 +829,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            preserveDecisionLabels
         );
     }
 
@@ -802,7 +843,8 @@ public class AllocationService {
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime,
             false,
-            shardChangesObserver
+            shardChangesObserver,
+            preserveDecisionLabels
         );
     }
 

@@ -827,11 +827,14 @@ public class Strings {
                     break;
                 }
             }
-            if (chunkedToXContent.isFragment()) {
+            if (truncatedStream.isTruncated() == false && chunkedToXContent.isFragment()) {
                 builder.endObject();
             }
 
-            return new TruncatedString(toString(builder), truncatedStream.isTruncated());
+            return new TruncatedString(
+                toString(builder, /* allowIllFormed = */ truncatedStream.isTruncated()),
+                truncatedStream.isTruncated()
+            );
         } catch (IOException e) {
             return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
         }
@@ -880,7 +883,15 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        xContentBuilder.close();
+        return toString(xContentBuilder, /* allowIllFormed = */ false);
+    }
+
+    private static String toString(XContentBuilder xContentBuilder, boolean allowIllFormed) {
+        if (allowIllFormed) {
+            xContentBuilder.closeAllowIllFormed();
+        } else {
+            xContentBuilder.close();
+        }
         OutputStream stream = xContentBuilder.getOutputStream();
         if (stream instanceof ByteArrayOutputStream baos) {
             return baos.toString(StandardCharsets.UTF_8);
@@ -1033,4 +1044,22 @@ public class Strings {
     public static String stripDisallowedChars(String string) {
         return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
+
+    /**
+     * Look for a character in a string, like indexOf(), but for multiple characters.
+     * <p>
+     * Saves doing multiple passes in case we need to check for presence (or absence) of any of them.
+     */
+    public static int indexOfAny(String s, char... chars) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            for (char target : chars) {
+                if (c == target) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
 }

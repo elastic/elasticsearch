@@ -919,7 +919,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .collect(Collectors.toSet());
             assert matchedIndices.isEmpty() == false;
             return resolvedIndexExpression(pattern, matchedIndices, SUCCESS);
-        }).toList());
+        }).toList(), null);
 
         final String[] expectedIndices = expectedResolvedIndexExpressions.getLocalIndicesList().toArray(String[]::new);
 
@@ -3832,8 +3832,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
 
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
@@ -3901,7 +3916,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             remoteExpressions
         );
     }

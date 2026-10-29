@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM text_state_mapped, text_state_unmapped
+| EVAL txt_text = TO_TEXT(txt)
+| KEEP txt_text

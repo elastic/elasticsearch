@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
@@ -26,8 +27,17 @@ import static org.hamcrest.Matchers.instanceOf;
  * Tests for parsing the EXTERNAL command.
  *
  * <p>The {@code EXTERNAL} grammar surface is gated to snapshot builds; release builds reject it at
- * the lexer level. Each test asserts the snapshot precondition rather than executing under release
- * — release-build CI silently skips, which is the intended behaviour for a snapshot-only feature.
+ * the lexer/parser level via {@link EsqlCapabilities.Cap#EXTERNAL_COMMAND}, which the grammar
+ * predicates read directly. Each positive/parsing test asserts the snapshot precondition rather
+ * than executing under release — release-build CI silently skips those, which is the intended
+ * behaviour for a snapshot-only feature.
+ *
+ * <p>{@link #testExternalCommandUnavailableOnRealReleaseBuild} is the sole test covering the
+ * release-build rejection path: it drives the real, default {@link EsqlConfig}/{@link EsqlParser}
+ * construction (the same one {@code EsqlPlugin} uses at runtime) against the actual running build,
+ * so it is a no-op on ordinary snapshot test runs and only actually exercises the release-build gate
+ * when the suite is run with {@code -Dbuild.snapshot=false} (see {@code TESTING.asciidoc}), e.g. via
+ * the CI {@code release-tests} job.
  */
 public class IcebergParsingTests extends AbstractStatementParserTests {
 
@@ -84,13 +94,24 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
         assertThat(config.get("use_cache"), equalTo(true));
     }
 
-    public void testIcebergCommandNotAvailableInProduction() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+    /**
+     * Regression test for the EXTERNAL command leaking into release builds: drives the real,
+     * default {@link EsqlConfig}/{@link EsqlParser} construction (the same one {@code EsqlPlugin}
+     * uses at runtime) against the actual running build. It only meaningfully executes — rather
+     * than being skipped — when the test JVM is a genuine release build (e.g.
+     * {@code -Dbuild.snapshot=false}, as used by the CI {@code release-tests} job), which is the
+     * only way to catch a build-type check that is accidentally inverted, since such a bug is
+     * invisible while {@code Build.current().isSnapshot()} is {@code true}.
+     */
+    public void testExternalCommandUnavailableOnRealReleaseBuild() {
+        assumeFalse("only exercises the real release-build gate", Build.current().isSnapshot());
 
-        // Create a parser with production mode (dev version = false)
-        EsqlConfig config = new EsqlConfig(false, TEST_FUNCTION_REGISTRY);
-        EsqlParser prodParser = new EsqlParser(config);
+        assertFalse(
+            "EXTERNAL command capability must not be reported as enabled on a release build",
+            EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()
+        );
 
+        EsqlParser prodParser = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
         ParsingException pe = expectThrows(ParsingException.class, () -> prodParser.createStatement("EXTERNAL \"s3://bucket/table\""));
         assertThat(pe.getMessage(), containsString("mismatched input 'EXTERNAL'"));
     }

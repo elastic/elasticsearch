@@ -128,8 +128,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request bulkWithSlice = new Request("POST", "/" + index + "/_bulk");
-        bulkWithSlice.addParameter("_slice", "s1");
+        Request bulkWithSlice = new Request("POST", "/" + index + "/s1/_bulk");
         bulkWithSlice.setJsonEntity("""
             {"index":{"_id":"2"}}
             {"field":"value2"}
@@ -241,8 +240,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request bulkWithSlice = new Request("POST", "/" + alias + "/_bulk");
-        bulkWithSlice.addParameter("_slice", "s1");
+        Request bulkWithSlice = new Request("POST", "/" + alias + "/s1/_bulk");
         bulkWithSlice.setJsonEntity("""
             {"index":{"_id":"2"}}
             {"field":"value2"}
@@ -263,8 +261,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request bulk = new Request("POST", "/" + index + "/_bulk");
-        bulk.addParameter("_slice", "s1");
+        Request bulk = new Request("POST", "/" + index + "/s1/_bulk");
         bulk.setJsonEntity("""
             {"index":{"_id":"1"}}
             {"field":"value1"}
@@ -278,8 +275,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         assertThat(bulkResponsePath.evaluate("items.1.update.result"), equalTo("updated"));
         assertThat(bulkResponsePath.evaluate("items.2.delete.result"), equalTo("deleted"));
 
-        Request getDeletedDoc = new Request("GET", "/" + index + "/_doc/1");
-        getDeletedDoc.addParameter("_slice", "s1");
+        Request getDeletedDoc = new Request("GET", "/" + index + "/s1/_doc/1");
         ResponseException getException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getDeletedDoc));
         String getResponse = Streams.copyToString(new InputStreamReader(getException.getResponse().getEntity().getContent(), UTF_8));
         assertThat(getResponse, containsString("\"found\":false"));
@@ -287,8 +283,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
 
     public void testBulkSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request bulk = new Request("POST", "/test_index/_bulk");
-        bulk.addParameter("_slice", "s1");
+        Request bulk = new Request("POST", "/test_index/s1/_bulk");
         bulk.setJsonEntity("""
             {"index":{"_id":"1"}}
             {"field":"value1"}
@@ -310,8 +305,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request bulk = new Request("POST", "/" + index + "/_bulk");
-        bulk.addParameter("_slice", "s1");
+        Request bulk = new Request("POST", "/" + index + "/s1/_bulk");
         bulk.setJsonEntity("""
             {"index":{"_id":"1"}}
             {"field":"value1"}

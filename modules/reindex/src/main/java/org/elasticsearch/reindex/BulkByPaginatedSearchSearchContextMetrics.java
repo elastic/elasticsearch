@@ -40,7 +40,7 @@ public class BulkByPaginatedSearchSearchContextMetrics {
     public BulkByPaginatedSearchSearchContextMetrics(MeterRegistry meterRegistry) {
         this.searchContextKeepaliveExpiredCounter = meterRegistry.registerLongCounter(
             SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER,
-            "Bulk-by-scroll tasks whose missing scroll/PIT contexts expired before the next refresh (heuristic)",
+            "Bulk-by-paginated-search tasks whose missing scroll/PIT contexts expired before the next refresh (heuristic)",
             "unit"
         );
     }

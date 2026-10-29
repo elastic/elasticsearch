@@ -1,5 +1,0 @@
-area: Authentication
-issues: []
-pr: 151968
-summary: Upgrade opentelemetry in ms-graph-authz
-type: upgrade

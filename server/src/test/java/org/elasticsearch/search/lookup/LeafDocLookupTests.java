@@ -27,6 +27,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -44,11 +46,8 @@ public class LeafDocLookupTests extends ESTestCase {
     private LeafDocLookup docLookup;
     private Consumer<Integer> nextDocCallback;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initDocLookup() throws Exception {
         docValues = mock(ScriptDocValues.class);
         nextDocCallback = i -> {}; // do nothing by default
 
@@ -438,5 +437,63 @@ public class LeafDocLookupTests extends ESTestCase {
     public void testLookupAdvanceDoc() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
         assertEquals(docValues, fetchedDocValues);
+    }
+
+    /**
+     * A reader that reports a positive {@link DocValuesScriptFieldFactory#maxDecodeBytes()} is accounted once when it
+     * is opened: cached access and the script-access path that shares the doc-access reader must not account again.
+     * Factories are mocked, consistent with the rest of this test, because a real factory backed by binary doc values
+     * requires a full index fixture just to produce a fixed {@code maxDecodeBytes()} value.
+     */
+    public void testAccountsDecodeMemoryOncePerNewReader() {
+        long decodeBytes = 512L * 1024L;
+
+        MappedFieldType fieldType = mock(MappedFieldType.class);
+        when(fieldType.name()).thenReturn("field");
+
+        DocValuesScriptFieldFactory factory = mock(DocValuesScriptFieldFactory.class);
+        when(factory.maxDecodeBytes()).thenReturn(decodeBytes);
+        LeafFieldData leafFieldData = mock(LeafFieldData.class);
+        doReturn(factory).when(leafFieldData).getScriptFieldFactory("field");
+        IndexFieldData<?> fieldData = mock(IndexFieldData.class);
+        doReturn(leafFieldData).when(fieldData).load(any());
+
+        List<String> accounted = new ArrayList<>();
+        LeafDocLookup lookup = new LeafDocLookup(
+            field -> field.equals("field") ? fieldType : null,
+            (ft, operation) -> fieldData,
+            null,
+            (bytes, field, ctx) -> accounted.add(field + ":" + bytes)
+        );
+
+        lookup.get("field"); // opens the doc-access reader: accounted
+        lookup.get("field"); // cached: not accounted again
+        lookup.getScriptField("field"); // shares the already-accounted doc-access reader: not accounted again
+        assertEquals(List.of("field:" + decodeBytes), accounted);
+    }
+
+    /** Readers that report no decode-buffer estimate ({@code maxDecodeBytes() <= 0}) are not accounted. */
+    public void testDoesNotAccountReadersWithoutDecodeEstimate() {
+        MappedFieldType fieldType = mock(MappedFieldType.class);
+        when(fieldType.name()).thenReturn("field");
+
+        DocValuesScriptFieldFactory factory = mock(DocValuesScriptFieldFactory.class);
+        when(factory.maxDecodeBytes()).thenReturn(randomBoolean() ? 0L : -1L);
+        LeafFieldData leafFieldData = mock(LeafFieldData.class);
+        doReturn(factory).when(leafFieldData).getScriptFieldFactory("field");
+        IndexFieldData<?> fieldData = mock(IndexFieldData.class);
+        doReturn(leafFieldData).when(fieldData).load(any());
+
+        List<String> accounted = new ArrayList<>();
+        LeafDocLookup lookup = new LeafDocLookup(
+            field -> field.equals("field") ? fieldType : null,
+            (ft, operation) -> fieldData,
+            null,
+            (bytes, field, ctx) -> accounted.add(field + ":" + bytes)
+        );
+
+        lookup.get("field");
+        lookup.getScriptField("field");
+        assertTrue("a reader without an estimate must not be accounted", accounted.isEmpty());
     }
 }

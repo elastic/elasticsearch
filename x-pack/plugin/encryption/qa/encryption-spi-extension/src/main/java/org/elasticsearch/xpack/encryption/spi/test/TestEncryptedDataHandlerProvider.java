@@ -41,7 +41,7 @@ public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerPro
         public TestEncryptedBlob reEncrypt(TestEncryptedBlob current, EncryptionService encryptionService, String activeKeyId) {
             INVOCATIONS.incrementAndGet();
             if (current == null) {
-                return null;
+                return new TestEncryptedBlob(encryptionService.encrypt("seed".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             }
             EncryptedData existing = current.blob();
             if (existing.keyId().equals(activeKeyId)) {

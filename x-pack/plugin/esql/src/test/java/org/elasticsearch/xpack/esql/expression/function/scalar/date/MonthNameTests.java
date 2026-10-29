@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matchers;
 
@@ -120,7 +121,10 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
     public void testRandomLocale() {
         long randomMillis = randomMillisUpToYear9999();
         Configuration cfg = configurationForTimezoneAndLocale(randomZone(), randomLocale(random()));
-        String expected = Instant.ofEpochMilli(randomMillis).atZone(cfg.zoneId()).getMonth().getDisplayName(TextStyle.FULL, cfg.locale());
+        String expected = Instant.ofEpochMilli(randomMillis)
+            .atZone(QuerySettings.TIME_ZONE.get(cfg.resolvedSettings()))
+            .getMonth()
+            .getDisplayName(TextStyle.FULL, cfg.locale());
 
         MonthName func = new MonthName(Source.EMPTY, new Literal(Source.EMPTY, randomMillis, DataType.DATETIME), cfg);
         assertThat(BytesRefs.toBytesRef(expected), equalTo(func.fold(FoldContext.small())));

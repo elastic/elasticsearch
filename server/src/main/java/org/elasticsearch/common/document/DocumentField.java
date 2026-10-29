@@ -124,6 +124,10 @@ public class DocumentField implements Writeable, Iterable<Object> {
         return lookupFields;
     }
 
+    public long ramBytesUsedEstimate() {
+        return DocumentFieldRamUsageEstimator.estimate(this);
+    }
+
     public ToXContentFragment getValidValuesWriter() {
         return (builder, params) -> {
             builder.startArray(name);

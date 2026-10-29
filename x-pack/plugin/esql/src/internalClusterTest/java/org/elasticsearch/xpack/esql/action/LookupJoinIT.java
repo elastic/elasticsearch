@@ -18,7 +18,6 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
@@ -101,12 +100,12 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(TestEncryptionServicePlugin.class);
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(MapperExtrasPlugin.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
-        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 
@@ -437,10 +436,6 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
      * those bytes are reflected in the top-level response {@code bytesRead}.
      */
     public void testBytesReadAccountedForLookupJoin() throws IOException {
-        assumeTrue(
-            "directory_metrics feature flag must be enabled to record store bytes",
-            Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-        );
         ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
 
         String query = String.format(Locale.ROOT, """

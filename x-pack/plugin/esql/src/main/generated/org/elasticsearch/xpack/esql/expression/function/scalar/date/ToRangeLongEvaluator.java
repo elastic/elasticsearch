@@ -63,10 +63,11 @@ public final class ToRangeLongEvaluator implements ExpressionEvaluator {
   public LongRangeBlock eval(int positionCount, LongBlock fromBlock, LongBlock toBlock) {
     try(LongRangeBlock.Builder result = driverContext.blockFactory().newLongRangeBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fromBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fromBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -74,10 +75,11 @@ public final class ToRangeLongEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (toBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (toBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -110,7 +112,7 @@ public final class ToRangeLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

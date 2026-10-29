@@ -1,0 +1,34 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name = 'x-pack-kibana'
+  description = 'Implicit security privileges for Kibana as-data features'
+  classname = 'org.elasticsearch.xpack.kibana.KibanaSecurityPlugin'
+  extendedPlugins = ['x-pack-security']
+}
+
+base {
+  archivesName = 'x-pack-kibana'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("javaRestTest").configure {
+  // The provider ships in the default distribution and is auto-discovered via the SecurityExtension
+  // SPI, so the test exercises the real bundling/loading path rather than installing a test plugin.
+  usesDefaultDistribution("contributes implicit privileges through the security SecurityExtension SPI")
+}
+
+addQaCheckDependencies(project)

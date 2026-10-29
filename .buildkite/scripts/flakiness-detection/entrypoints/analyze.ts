@@ -3,10 +3,22 @@ import { mkdirSync } from "fs";
 import { readdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
-import { analyzeReports } from "../analyzer/analyze.ts";
+import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
-import { DEFAULT_AGENT_CONFIG } from "../domain.ts";
+import {
+  BLOCK_ALL_PRS,
+  COMPILE_FAILED_ENV,
+  DEFAULT_AGENT_CONFIG,
+  FLAKINESS_PROVEN_EXIT_CODE,
+  KIND_KEYS,
+  matchedBlockingLabels,
+  SKIPPED_COUNT_ENV,
+  type SkippedTest,
+  STATUS_DIR_NAME,
+  TASK_STATUS_FILE_PREFIX,
+  type TestKind,
+} from "../domain.ts";
 import { NEVER_FAIL_GRACE_MINUTES } from "../runners/buildkite.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -19,7 +31,7 @@ const INNER_TIMEOUT_SEC = (DEFAULT_AGENT_CONFIG.timeoutInMinutes - NEVER_FAIL_GR
 
 // Per-job status files (rc + duration) the batch wrappers uploaded; downloaded
 // flat into this dir by the analyze step command before this script runs.
-const STATUS_DIR = join(PROJECT_ROOT, "flakiness-status");
+const STATUS_DIR = join(PROJECT_ROOT, STATUS_DIR_NAME);
 
 // Per-job JUnit XML is downloaded under here, one subdir per job id, so the
 // analyzer can attribute results to a single job (a flat download would mix
@@ -37,6 +49,13 @@ const MAX_FAILING_CLASSES = 50;
 // Keep this filename in sync with FLAKINESS_OUTCOMES_ARTIFACT in runners/buildkite.ts.
 const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 
+// Written by the generate step: targets the resolver could not re-run, each with
+// its reason (e.g. "requires-packaging-host"). Downloaded next to this script, scoped to the generate job,
+// and folded into the outcomes as `not_applicable`. Keep in sync with SKIPPED_FILE in
+// entrypoints/generate.ts, which writes it, and FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts, which
+// uploads it.
+const SKIPPED_FILE = "flakiness-skipped.json";
+
 // Self-reported by each batch job's never-fail wrapper (runners/buildkite.ts).
 interface JobStatus {
   jobId: string;
@@ -45,6 +64,42 @@ interface JobStatus {
   rc: number;
   durationSec: number;
 }
+
+interface TaskStatusEntry {
+  path: string;
+  outcome: string;
+}
+
+/**
+ * Whether EVERY task this batch asked for came back SKIPPED.
+ *
+ * Gradle reports a task rejected by `onlyIf` - bwc's `bwc_tests_enabled`, the distro architecture check - and
+ * one with no source as SKIPPED: zero tests, exit 0, which from rc alone is indistinguishable from a hang.
+ * Verified against Gradle 9: both `onlyIf { false }` and NO-SOURCE surface as `SKIPPED` in task-status.json
+ * (gradle-runner discards the skip message, so the two collapse into one outcome - which is what we want,
+ * since neither means "the PR is flaky").
+ *
+ * Scoped to the batch's own task paths on purpose: a healthy build contains unrelated SKIPPED entries (a
+ * `processResources` with no resources), so an unscoped check would mislabel the muted-tests case - task ran,
+ * filter matched nothing - as not_applicable.
+ *
+ * Requires ALL of them rather than ANY: if even one requested task really ran, a zero-test outcome is not
+ * explained by `onlyIf` and should stay a hang.
+ */
+export function allTargetTasksSkipped(taskPaths: string[], entries: TaskStatusEntry[]): boolean {
+  if (taskPaths.length === 0 || entries.length === 0) {
+    // No paths carried (a plan predating taskPaths) or no report - do not invent a verdict.
+    return false;
+  }
+  const skipped = new Set(entries.filter((e) => e.outcome === "SKIPPED").map((e) => e.path));
+  return taskPaths.every((p) => skipped.has(p));
+}
+
+// A JobStatus plus the raw signals the wrapper reports that are inputs to
+// classification but are not themselves payload fields (the payload's
+// `infraSubtype` comes from deriveOutcome, not the wrapper). Kept separate so it
+// is not spread into the payload.
+type JobStatusWithSignals = JobStatus & { oomDetected: boolean; taskSkipped: boolean };
 
 // One element of the `data-flakiness` annotation array.
 interface FlakinessPayload extends JobStatus {
@@ -55,20 +110,28 @@ interface FlakinessPayload extends JobStatus {
   timedOut: boolean;
   infraSubtype?: string;
   failingClasses: string[];
+  // Set only on `not_applicable` records: why the test could not be re-run, as
+  // decided by the Java resolver (e.g. "no-runnable-task",
+  // "requires-packaging-host"). See PlanEntry.reason in domain.ts.
+  reason?: string;
 }
 
-async function readJobStatuses(): Promise<JobStatus[]> {
+async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
   let entries;
   try {
     entries = await readdir(STATUS_DIR, { withFileTypes: true });
   } catch {
     return [];
   }
-  const statuses: JobStatus[] = [];
+  const statuses: JobStatusWithSignals[] = [];
   for (const e of entries) {
     if (!e.isFile() || !e.name.endsWith(".json")) continue;
     try {
       const parsed = JSON.parse(await readFile(join(STATUS_DIR, e.name), "utf8"));
+      // Discriminated on shape, not filename, so the `tasks-<jobId>.json` copies that share this directory
+      // are skipped: they are gradle-runner task reports and carry no jobId. That is why the wrapper's
+      // `status-` prefix is not a contract - only TASK_STATUS_FILE_PREFIX is, since that one is rebuilt
+      // from a jobId below.
       if (parsed && typeof parsed.jobId === "string") {
         statuses.push({
           jobId: parsed.jobId,
@@ -76,6 +139,15 @@ async function readJobStatuses(): Promise<JobStatus[]> {
           kind: String(parsed.kind ?? ""),
           rc: Number(parsed.rc ?? 0),
           durationSec: Number(parsed.durationSec ?? 0),
+          // The wrapper reports `infraSubtype: "oom"` when a heap dump was found;
+          // it is a classification input, not a payload field.
+          oomDetected: parsed.infraSubtype === "oom",
+          // Same idea for the skipped-task verdict: the wrapper copies gradle-runner's report verbatim and
+          // carries the task paths it asked for; the matching happens here, where JSON is parsed properly.
+          taskSkipped: allTargetTasksSkipped(
+            Array.isArray(parsed.taskPaths) ? parsed.taskPaths : [],
+            await readTaskStatusEntries(String(parsed.jobId))
+          ),
         });
       }
     } catch (err) {
@@ -83,6 +155,18 @@ async function readJobStatuses(): Promise<JobStatus[]> {
     }
   }
   return statuses;
+}
+
+// Read the per-job copy of gradle-runner's task-status.json. Absent/unreadable -> no entries, which
+// allTargetTasksSkipped treats as "no verdict" rather than as "not skipped by onlyIf".
+async function readTaskStatusEntries(jobId: string): Promise<TaskStatusEntry[]> {
+  try {
+    const raw = await readFile(join(STATUS_DIR, `${TASK_STATUS_FILE_PREFIX}${jobId}.json`), "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.tasks) ? parsed.tasks : [];
+  } catch {
+    return [];
+  }
 }
 
 // Download one job's JUnit XML into its own dir. Returns the dir, which may be
@@ -112,7 +196,10 @@ function downloadJobReports(jobId: string): string {
 // job's XML fails, fall back to classifying from rc/duration alone (zero test
 // counts) so a single bad job can never block the whole annotation. The status
 // file's rc is the most important signal anyway.
-async function buildPayload(status: JobStatus): Promise<FlakinessPayload> {
+async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<FlakinessPayload> {
+  // Split the classification-only signals from the fields that belong in the
+  // payload (spread below).
+  const { oomDetected, taskSkipped, ...status } = statusWithSignals;
   let realFailures = 0;
   let suiteTimeouts = 0;
   let totalCases = 0;
@@ -127,7 +214,15 @@ async function buildPayload(status: JobStatus): Promise<FlakinessPayload> {
   } catch (err) {
     console.error(`Failed to analyze reports for job ${status.jobId}; classifying from rc/duration only:`, err);
   }
-  const derived = deriveOutcome({ rc: status.rc, durationSec: status.durationSec, realFailures, totalCases, timeoutThresholdSec: INNER_TIMEOUT_SEC });
+  const derived = deriveOutcome({
+    rc: status.rc,
+    durationSec: status.durationSec,
+    realFailures,
+    totalCases,
+    timeoutThresholdSec: INNER_TIMEOUT_SEC,
+    oomDetected,
+    taskSkipped,
+  });
   const payload: FlakinessPayload = {
     ...status,
     realFailures,
@@ -140,7 +235,207 @@ async function buildPayload(status: JobStatus): Promise<FlakinessPayload> {
   if (derived.infraSubtype) {
     payload.infraSubtype = derived.infraSubtype;
   }
+  // Give the reason the same shape the resolver's own not_applicable records use, so downstream can group
+  // "could not be re-run" by cause regardless of whether the resolver or Gradle itself decided it.
+  if (derived.outcome === "not_applicable" && taskSkipped) {
+    payload.reason = "task-skipped";
+  }
   return payload;
+}
+
+/** The report inputs as analyze found them; a non-empty `problems` means the report is incomplete. */
+export interface ReportInputsRead {
+  compileFailed: boolean;
+  skipped: SkippedTest[];
+  problems: string[];
+}
+
+/**
+ * What the generate step declared, checked against the skip list that reached this step.
+ *
+ * The compile failure comes from the env. The skip list has to hold exactly the declared number of entries.
+ * Anything else, a missing list included, is returned as a problem, and the report then says it is incomplete.
+ *
+ * `skipListText` is the file's contents, or `null` when it is absent.
+ */
+export function parseReportInputs(
+  env: Record<string, string | undefined>,
+  skipListText: string | null
+): ReportInputsRead {
+  const problems: string[] = [];
+  const compileFailedValue = env[COMPILE_FAILED_ENV];
+  if (compileFailedValue !== "true" && compileFailedValue !== "false") {
+    problems.push(`${COMPILE_FAILED_ENV} is ${JSON.stringify(compileFailedValue)}, expected "true" or "false"`);
+  }
+  const countValue = env[SKIPPED_COUNT_ENV];
+  const expected = countValue !== undefined && /^\d+$/.test(countValue) ? Number(countValue) : undefined;
+  if (expected === undefined) {
+    problems.push(`${SKIPPED_COUNT_ENV} is ${JSON.stringify(countValue)}, expected a non-negative integer`);
+  }
+
+  let skipped: SkippedTest[] = [];
+  if (expected !== 0) {
+    if (skipListText === null) {
+      const declared = expected === undefined ? "" : `, but the generate step declared ${expected} skipped target(s)`;
+      problems.push(`${SKIPPED_FILE} did not reach this step${declared}`);
+    } else {
+      try {
+        const parsed = JSON.parse(skipListText);
+        if (!Array.isArray(parsed)) {
+          problems.push(`${SKIPPED_FILE} is not a JSON array`);
+        } else {
+          skipped = parsed;
+          if (expected !== undefined && parsed.length !== expected) {
+            problems.push(`${SKIPPED_FILE} has ${parsed.length} entries, but the generate step declared ${expected}`);
+          }
+        }
+      } catch {
+        problems.push(`${SKIPPED_FILE} is not valid JSON`);
+      }
+    }
+  }
+  return { compileFailed: compileFailedValue === "true", skipped, problems };
+}
+
+async function readReportInputs(): Promise<ReportInputsRead> {
+  let skipListText: string | null = null;
+  try {
+    skipListText = await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8");
+  } catch {
+    skipListText = null;
+  }
+  return parseReportInputs(process.env, skipListText);
+}
+
+// A skipped test never ran as a job, so it has no rc/duration/XML. It is
+// recorded as a `not_applicable` payload with zeroed counts and a synthetic
+// jobId so downstream keyed on jobId stays well-formed. The resolver's reason is
+// carried verbatim; `not-runnable` is only a fallback for a legacy artifact that
+// predates the reason field.
+export function notApplicablePayload(t: SkippedTest): FlakinessPayload {
+  const target = t.yamlTest ? `${t.fqcn}.${t.yamlTest}` : (t.fqcn ?? t.suitePath ?? "");
+  return {
+    jobId: `not-applicable:${t.kind}:${t.gradleProject}:${target}`,
+    stepKey: KIND_KEYS[t.kind as TestKind] ?? "",
+    kind: t.kind,
+    rc: 0,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "not_applicable",
+    timedOut: false,
+    failingClasses: [],
+    reason: t.reason ?? "not-runnable",
+  };
+}
+
+// A single record standing in for the batches that were skipped because the
+// compile orchestration step failed. `reason` names the gate, not a specific cause:
+// the step exits non-zero on a genuine compile error but also on an infra failure
+// within it (dependency download, build-scan upload, OOM), and it does not read
+// its own log to tell them apart. The stepKey is deliberately under the
+// `flakiness-orchestration:` prefix so the external batch-job metric predicate
+// (which matches `flakiness-detection:` step keys) does not treat this synthetic
+// build_failed record as a test batch.
+export function buildFailedPayload(): FlakinessPayload {
+  return {
+    jobId: "build-failed:precompile",
+    stepKey: "flakiness-orchestration:compile",
+    kind: "",
+    rc: 1,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "build_failed",
+    timedOut: false,
+    failingClasses: [],
+    reason: "precompile",
+  };
+}
+
+/**
+ * A record standing in for report inputs the analyze step could not read, so the external pipeline can tell
+ * an incomplete report from a complete one. `infra_fail` because the failure is in the reporting pipeline,
+ * not in the PR.
+ */
+export function reportErrorPayload(): FlakinessPayload {
+  return {
+    jobId: "report-error:inputs",
+    stepKey: "flakiness-orchestration:report",
+    kind: "",
+    rc: 1,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "infra_fail",
+    timedOut: false,
+    infraSubtype: "report_error",
+    failingClasses: [],
+  };
+}
+
+/**
+ * The jobs that proved flakiness: a test case that actually failed on a re-run.
+ *
+ * This is the only outcome that may fail the step, and the reason the verdict lives here rather than in the
+ * batch steps, whose rc cannot tell a failing test from a timeout or an OOM-kill. `timeout`, `infra_fail`,
+ * `hang` and `not_applicable` are the false failures the taxonomy exists to keep off PRs, and `build_failed`
+ * means the PR is already red from its own main build, so none of them are counted.
+ */
+export function provenFlakinessJobs<T extends { outcome: string }>(payloads: T[]): T[] {
+  return payloads.filter((p) => p.outcome === "flaky_detected");
+}
+
+/**
+ * Reads `BUILDKITE_PULL_REQUEST`. Both `"false"` and unset mean not a PR, so on a build where the variable
+ * is missing, proven flakiness fails the build.
+ */
+export function isPullRequestBuild(pullRequest: string): boolean {
+  const value = pullRequest.trim();
+  return value !== "" && value !== "false";
+}
+
+export interface BlockingContext {
+  pullRequest: string;
+  labels: string;
+  // Defaults to BLOCK_ALL_PRS; tests set it to cover both values.
+  blockAllPrs?: boolean;
+}
+
+export interface BlockingVerdict {
+  block: boolean;
+  reason: string;
+}
+
+/**
+ * Whether this step must fail the build. Only proven flakiness can fail it, and then only if the build is
+ * not a PR, blocking is enabled for all PRs, or the PR carries a blocking label. The rules are checked in
+ * that order and `reason` names the first one that matched.
+ *
+ * The single definition of what blocks, kept out of run()'s control flow so the rule is unit-testable and
+ * so both the exit code and the message it prints derive from one expression.
+ */
+export function shouldBlock(
+  payloads: { outcome: string }[],
+  { pullRequest, labels, blockAllPrs = BLOCK_ALL_PRS }: BlockingContext
+): BlockingVerdict {
+  if (provenFlakinessJobs(payloads).length === 0) {
+    return { block: false, reason: "no job proved flakiness" };
+  }
+  if (!isPullRequestBuild(pullRequest)) {
+    return { block: true, reason: `this is not a PR build (BUILDKITE_PULL_REQUEST="${pullRequest}")` };
+  }
+  if (blockAllPrs) {
+    return { block: true, reason: "blocking is enabled for all PRs" };
+  }
+  const matched = matchedBlockingLabels(labels);
+  if (matched.length > 0) {
+    return { block: true, reason: `PR labelled ${matched.join(", ")}` };
+  }
+  return { block: false, reason: "this PR carries no blocking label" };
 }
 
 function annotate(context: string, style: string, body: string): void {
@@ -169,6 +464,35 @@ async function run(): Promise<void> {
       console.error(`Failed to build payload for job ${status.jobId}:`, err);
     }
   }
+
+  const inputs = await readReportInputs();
+  for (const problem of inputs.problems) {
+    console.error(`Flakiness report is incomplete: ${problem}`);
+  }
+
+  // Fold in the targets the resolver could not re-run: recorded as
+  // `not_applicable` so they are counted separately from `hang`/`infra_fail`.
+  const skipped = inputs.skipped;
+  for (const t of skipped) {
+    payloads.push(notApplicablePayload(t));
+  }
+  if (skipped.length > 0) {
+    const reasons = [...new Set(skipped.map((t) => t.reason ?? "not-runnable"))].join(", ");
+    console.log(`Recorded ${skipped.length} not_applicable (${reasons}).`);
+  }
+
+  // If the compile phase failed, the batches were skipped and produced
+  // no statuses; record a single `build_failed` so a non-compiling PR does not
+  // read as zero problems.
+  const buildFailed = inputs.compileFailed;
+  if (buildFailed) {
+    payloads.push(buildFailedPayload());
+    console.log("Recorded build_failed (PR did not compile; re-runs were skipped).");
+  }
+  if (inputs.problems.length > 0) {
+    payloads.push(reportErrorPayload());
+  }
+
   if (process.env.CI && payloads.length > 0) {
     // Written at PROJECT_ROOT (the step cwd / checkout root) so the analyze
     // step's `artifact_paths` glob picks it up for upload.
@@ -181,10 +505,32 @@ async function run(): Promise<void> {
 
   // Human-readable report aggregated across every downloaded job.
   const report = await analyzeReports([JOBS_DIR]);
-  const md = renderMarkdown(report);
+  const md = renderMarkdown(report, buildFailed, inputs.problems);
   console.log(md);
   if (process.env.CI) {
-    annotate("flakiness-detection-report", severity(report), md);
+    annotate("flakiness-detection-report", severity(report, buildFailed, inputs.problems), md);
+  }
+
+  // The verdict, last, so the outcomes artifact and the annotation that explains a red step have already
+  // landed. Only the exit code depends on `shouldBlock`: the artifact and the annotation say the same thing
+  // on every build, so the observability data does not depend on who opted in.
+  //
+  // `exitCode` rather than `exit()`: the step's stdout is a pipe, and `exit()` abandons writes still
+  // queued on it - which would truncate the report just printed above, the one thing a blocked developer
+  // needs to read. Nothing runs after this, so the process exits with this code once the loop drains.
+  const proven = provenFlakinessJobs(payloads);
+  // One verdict drives both the message and the exit code, so the log cannot claim one thing while the
+  // step does another.
+  const verdict = shouldBlock(payloads, {
+    pullRequest: process.env.BUILDKITE_PULL_REQUEST ?? "",
+    labels: process.env.GITHUB_PR_LABELS ?? "",
+  });
+  if (proven.length > 0) {
+    const action = verdict.block ? "failing this step" : "reported only";
+    console.log(`${proven.length} job(s) proved flakiness; ${action}, ${verdict.reason}.`);
+  }
+  if (verdict.block) {
+    process.exitCode = FLAKINESS_PROVEN_EXIT_CODE;
   }
 }
 

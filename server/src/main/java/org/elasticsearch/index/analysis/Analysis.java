@@ -51,6 +51,7 @@ import org.apache.lucene.analysis.util.CSVUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
@@ -65,7 +66,9 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -173,6 +176,48 @@ public class Analysis {
         return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
+    /**
+     * Wraps a stop-word set for inclusion in an analyzer provider's {@code sharingKey()}. {@link
+     * #parseStopWords(Environment, Settings, CharArraySet)} builds the runtime set with the
+     * {@code stopwords_case} flag, which toggles case-sensitive matching, so two recipes that differ
+     * only in {@code stopwords_case} can tokenize differently. Folding the flag into the key here is
+     * what keeps those recipes from resolving to one shared instance.
+     */
+    public static StableCharArraySet stableStopWords(Settings settings, CharArraySet stopWords) {
+        return new StableCharArraySet(stopWords, settings.getAsBoolean("stopwords_case", false));
+    }
+
+    /**
+     * A SHA-256 of {@code text}, as hex, to stand in for large text in a {@code sharingKey()}. Hashes UTF-16 code units, not an
+     * encoding, so unpaired surrogates stay distinct.
+     */
+    public static String sha256Hex(CharSequence text) {
+        MessageDigest digest = MessageDigests.sha256();
+        byte[] buf = new byte[8192];
+        int n = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            buf[n++] = (byte) (c >>> 8);
+            buf[n++] = (byte) c;
+            if (n == buf.length) {
+                digest.update(buf, 0, n);
+                n = 0;
+            }
+        }
+        digest.update(buf, 0, n);
+        return MessageDigests.toHexString(digest.digest());
+    }
+
+    /**
+     * A parsed user dictionary with a SHA-256 of its rules. Dictionaries have no value equality and their rules can be large, so the
+     * hash stands in for them in sharing keys. Both are null when there are no rules.
+     */
+    public record LoadedUserDictionary<T>(T dictionary, String rulesSha256) {
+        public static <T> LoadedUserDictionary<T> none() {
+            return new LoadedUserDictionary<>(null, null);
+        }
+    }
+
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
         if (namedWords == null) {
             return new CharArraySet(words, ignoreCase);
@@ -195,6 +240,87 @@ public class Analysis {
         }
         boolean ignoreCase = settings.getAsBoolean(settingsPrefix + "_case", false);
         return new CharArraySet(wordList, ignoreCase);
+    }
+
+    /**
+     * Thin wrapper that exposes a stable {@code hashCode} for a {@link CharArraySet}, suitable for
+     * inclusion in a factory's {@code sharingKey()} record. The wrapper holds a reference to the
+     * source set (which the owning factory retains anyway for runtime use) and a single precomputed
+     * {@code int} hash, so cache entries do not duplicate the set's contents.
+     *
+     * <p>Why this exists: {@link CharArraySet#hashCode} (inherited from {@code AbstractSet}) is not
+     * stable across calls because {@code CharArrayMap.MapEntry#getKey} clones the key
+     * {@code char[]} on every iteration and {@code char[].hashCode} is identity-based — the sum
+     * varies per call. {@link CharArraySet#equals} however IS content-based (via
+     * {@code containsAll}) and works correctly, so this wrapper precomputes the hash once at
+     * construction and delegates equals to the underlying set.
+     *
+     * <p>Two sets with the same content compare equal and produce the same hash; different
+     * content is detected by {@link CharArraySet#equals} on a hash collision, so there is no
+     * possibility of an incorrect cache hit.
+     *
+     * <p><b>Case sensitivity:</b> a {@link CharArraySet} built with {@code ignoreCase=true} matches
+     * differently from one built with {@code ignoreCase=false}, but that flag does NOT change the
+     * stored content — so {@link CharArraySet#equals} (content-based) reports two sets that differ
+     * only in case mode as equal. If left unaccounted for, two factories whose only difference is a
+     * {@code *_case} / {@code ignore_case} setting would wrongly share one analyzer instance. The
+     * {@code caseInsensitive} flag is therefore folded into both {@code equals} and {@code hashCode}.
+     * Callers whose set is built from a configurable case setting MUST use the two-argument
+     * constructor; the single-argument constructor is reserved for sets whose case-sensitivity is
+     * fixed (and is treated as case-sensitive).
+     */
+    public static final class StableCharArraySet {
+        private final CharArraySet set;
+        private final boolean caseInsensitive;
+        private final int hash;
+
+        public StableCharArraySet(CharArraySet set) {
+            this(set, false);
+        }
+
+        public StableCharArraySet(CharArraySet set, boolean caseInsensitive) {
+            // The set is captured by reference and its content is folded into the cached hash below;
+            // callers must not mutate it after wrapping, or the hash (and any sharing key derived from
+            // it) goes stale.
+            this.set = set;
+            this.caseInsensitive = caseInsensitive;
+            this.hash = 31 * computeHash(set) + (caseInsensitive ? 1 : 0);
+        }
+
+        private static int computeHash(CharArraySet set) {
+            if (set == null || set.isEmpty()) {
+                return 0;
+            }
+            // Sum the per-term char[] hashes. Addition is commutative, so the result is independent of
+            // CharArraySet's (unspecified) iteration order without sorting or allocating a String per
+            // term — cheaper than a sort while staying content-stable.
+            int h = 0;
+            for (Object o : set) {
+                h += Arrays.hashCode((char[]) o);
+            }
+            return h;
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof StableCharArraySet other) {
+                // computeHash maps null and empty to the same hash (0), so a null-set instance and a
+                // non-null one can collide and reach equals(). Guard set != null before calling
+                // set.equals(other.set): a null receiver would otherwise NPE. null and empty are then
+                // reported unequal, which is safe (it only forgoes a sharing opportunity, never shares
+                // wrongly).
+                return caseInsensitive == other.caseInsensitive && (set == other.set || (set != null && set.equals(other.set)));
+            }
+            return false;
+        }
     }
 
     /**

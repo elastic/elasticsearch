@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -250,7 +249,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 TEST_TASK_ACTION.name(),
                 clusterService,
                 transportService,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 NodeRequest::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
@@ -367,7 +366,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 UNBLOCK_TASK_ACTION.name(),
                 clusterService,
                 transportService,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 UnblockTestTasksRequest::new,
                 UnblockTestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)

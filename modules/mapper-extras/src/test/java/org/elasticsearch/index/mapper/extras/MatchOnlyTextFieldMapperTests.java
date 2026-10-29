@@ -20,14 +20,17 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -44,8 +47,12 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,6 +99,91 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/160320: a phrase query on a {@code match_only_text} field
+     * mapped with {@code index: false} used to silently return zero hits, because phrase confirmation is seeded from postings that no
+     * longer exist. It should instead be rejected clearly, the way a {@code text} field rejects phrase queries without positions.
+     */
+    public void testPhraseQueriesRejectedWhenNotIndexed() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("index", false)));
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+
+        IllegalArgumentException phrase = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MatchPhraseQueryBuilder("field", "brown fox").toQuery(context)
+        );
+        assertThat(phrase.getMessage(), containsString("Cannot run phrase queries on field [field] since it is not indexed"));
+
+        IllegalArgumentException phrasePrefix = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MatchPhrasePrefixQueryBuilder("field", "brown fo").toQuery(context)
+        );
+        assertThat(phrasePrefix.getMessage(), containsString("Cannot run phrase prefix queries on field [field] since it is not indexed"));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/132352: phrase queries on
+     * match_only_text fields inside nested objects must correctly load the nested source slice rather
+     * than the empty source that a plain stored-source loader returns for nested child doc IDs.
+     */
+    public void testPhraseQueryInsideNestedObject() throws IOException {
+        assertNestedPhraseQueries(false, "the quick brown fox", "the slow lazy dog", "quick brown");
+    }
+
+    /**
+     * Reproduces #156803: the per-query cached source-loader leaf shares forward-only child iterators across searches, so the
+     * second search re-reads the segment at a LOWER nested-child doc id and threw "Cannot find object path for document" before
+     * the fix in NestedDocuments.findObjectPath. The first phrase matches the child at the higher doc id, advancing the shared
+     * iterators past the lower one; both docs must land in one segment for the leaf to be shared, hence the force-merge.
+     */
+    public void testPhraseQueryInsideNestedObjectBackwardDocAccess() throws IOException {
+        assertNestedPhraseQueries(true, "the slow lazy dog", "the quick brown fox", "quick brown", "lazy dog");
+    }
+
+    /**
+     * Indexes two root documents, each with one nested child holding the given text, then runs each phrase query against
+     * children.text on one shared SearchExecutionContext and asserts exactly one hit per phrase.
+     */
+    private void assertNestedPhraseQueries(boolean forceMerge, String firstChildText, String secondChildText, String... phrases)
+        throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("children");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("text").field("type", "match_only_text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String childText : new String[] { firstChildText, secondChildText }) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+                    b.startArray("children");
+                    b.startObject().field("text", childText).endObject();
+                    b.endArray();
+                }));
+                iw.addDocuments(doc.docs());
+            }
+            if (forceMerge) {
+                iw.forceMerge(1);
+            }
+        }, reader -> {
+            DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId(mapperService.index(), 0));
+            // Pass false to avoid random reader re-wrapping (e.g. SlowCompositeReaderWrapper) that would break
+            // the ElasticsearchLeafReader chain needed by BitsetFilterCache to resolve the shard ID.
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(wrapped, false));
+            for (String phrase : phrases) {
+                NestedQueryBuilder query = new NestedQueryBuilder(
+                    "children",
+                    new MatchPhraseQueryBuilder("children.text", phrase),
+                    ScoreMode.None
+                );
+                TopDocs docs = context.searcher().search(query.toQuery(context), 10);
+                assertThat("phrase [" + phrase + "]", docs.totalHits.value(), equalTo(1L));
+            }
+        });
+    }
+
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -116,17 +208,20 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
-        }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            checker.registerConflictCheck("index", b -> b.field("index", false));
-        }
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "match_only_text");
+    }
+
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
     }
 
     @Override
@@ -703,6 +798,16 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         // match_only_text defaults to HIGH cardinality, which uses binary doc values — that path is unchanged by the write-side fix
         return DocValuesType.BINARY;
@@ -715,15 +820,38 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
     }
 
+    /**
+     * {@code match_only_text} is the same family, so a predicate over its value is answered from the values it keeps:
+     * the document whose value is {@code quick} answers a term, and the one that merely holds that token does not.
+     */
+    public void testPredicatesOverTheValuesItKeeps() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        final MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "match_only_text").endObject())
+        );
+        final TextFamilyFieldType field = (TextFamilyFieldType) mapperService.fieldType("field");
+        assertNotNull(field.valueQueries());
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String doc : List.of("the quick brown fox", "quick")) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", doc))).rootDoc());
+            }
+        }, reader -> {
+            final IndexSearcher searcher = newSearcher(reader);
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            assertEquals(1, searcher.count(field.termLikeQuery("quick", context)));
+            assertEquals(0, searcher.count(field.termLikeQuery("brown", context)));
+            assertEquals(1, searcher.count(field.wildcardLikeQuery("the quick*", null, false, context)));
+        });
+    }
+
     public void testColumnarArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -746,7 +874,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * introduction in 9.4.0. This test pins that contract for the current index version.
      */
     public void testDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
@@ -763,7 +890,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * doc values write path must produce SeparateCount output so the read path can decode it.
      */
     public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         DocumentMapper mapper = createMapperService(
             legacyVersion,
@@ -780,12 +906,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
     }
 
@@ -817,8 +941,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testKeepsOwnDocValuesInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         // In columnar mode a match_only_text field always keeps its own doc values and reconstructs _source from them,
         // regardless of any keyword multi-field. A keyword multi-field is never used as a doc-values delegate.
         assertKeepsOwnDocValues(b -> {});
@@ -869,14 +991,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesExplicitlyDisabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", false)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertFalse("doc_values should be disabled", fieldType.hasDocValues());
     }
 
     public void testPhraseQueryWithDocValuesEnabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         try (Directory directory = newDirectory()) {
@@ -928,12 +1048,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     /**
      * Phrase query on a multi-value document in columnar mode. Before the fix this crashed with an invalid-vInt error because
-     * {@code SourceConfirmedTextQuery}'s position-confirming phase read {@code ArrayOrderInlineNull} bytes through the
+     * {@code ReanalyzingTextQuery}'s position-confirming phase read {@code ArrayOrderInlineNull} bytes through the
      * {@code SeparateCount} decoder. Tests the regression fix in
      * {@link MatchOnlyTextFieldMapper.MatchOnlyTextFieldType#getValueFetcherProvider}.
      */
     public void testPhraseQueryMatchesValueInMultiValueArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -953,7 +1072,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testPhraseQueryMatchesSingleValueDocumentColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -972,7 +1090,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * slot; the decoder must skip those nulls and correctly expose the non-null values for the phrase-confirmation scan.
      */
     public void testPhraseQueryWithNullsInArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -998,7 +1115,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * All-null array: the {@code ArrayOrderInlineNull} encoder writes no binary blob; the phrase query must not match.
      */
     public void testPhraseQueryDoesNotMatchAllNullArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {

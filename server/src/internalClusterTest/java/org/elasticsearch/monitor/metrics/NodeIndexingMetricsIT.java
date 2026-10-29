@@ -71,9 +71,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     public static class TestAPMInternalSettings extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
+            return List.of(Setting.timeSetting("telemetry.export.interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope));
         }
     }
 
@@ -86,7 +84,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            .put("telemetry.export.interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
     }
 
@@ -315,7 +313,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         var indexingTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.docs.total");
         assertThat(indexingTotal.getLong(), equalTo((long) docsCount));
 
-        var indexingCurrent = getSingleRecordedMetric(plugin::getLongGaugeMeasurement, "es.indexing.docs.current.total");
+        var indexingCurrent = getSingleRecordedMetric(plugin::getLongAsyncGaugeMeasurement, "es.indexing.docs.current.total");
         assertThat(indexingCurrent.getLong(), equalTo(0L));
 
         var indexingFailedTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.indexing.failed.total");
@@ -329,7 +327,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         var deletionTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
         assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));
 
-        var deletionCurrent = getSingleRecordedMetric(plugin::getLongGaugeMeasurement, "es.indexing.deletion.docs.current.total");
+        var deletionCurrent = getSingleRecordedMetric(plugin::getLongAsyncGaugeMeasurement, "es.indexing.deletion.docs.current.total");
         assertThat(deletionCurrent.getLong(), equalTo(0L));
 
         var indexingTime = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.time");
@@ -358,13 +356,13 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(coordinatingOperationsTotal.getLong(), equalTo((long) docsCount + deletesCount));
 
         var coordinatingOperationsCurrentSize = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.coordinating_operations.current.size"
         );
         assertThat(coordinatingOperationsCurrentSize.getLong(), equalTo(0L));
 
         var coordinatingOperationsCurrentTotal = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.coordinating_operations.current.total"
         );
         assertThat(coordinatingOperationsCurrentTotal.getLong(), equalTo(0L));
@@ -393,13 +391,13 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(primaryOperationsTotal.getLong(), equalTo((long) docsCount + deletesCount));
 
         var primaryOperationsCurrentSize = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.primary_operations.current.size"
         );
         assertThat(primaryOperationsCurrentSize.getLong(), equalTo(0L));
 
         var primaryOperationsCurrentTotal = getSingleRecordedMetric(
-            plugin::getLongGaugeMeasurement,
+            plugin::getLongAsyncGaugeMeasurement,
             "es.indexing.primary_operations.current.total"
         );
         assertThat(primaryOperationsCurrentTotal.getLong(), equalTo(0L));
@@ -945,5 +943,32 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
+    }
+
+    public void testTokenCountMetricsAreRecorded() {
+        final String dataNode = internalCluster().startNode();
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        assertAcked(prepareCreate("test").setMapping("message", "type=text").get());
+
+        // index a document with a text field that will be analyzed
+        var indexResponse = client(dataNode).index(new IndexRequest("test").id("doc_1").source(Map.of("message", "hello world test")))
+            .actionGet();
+        assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+
+        // verify token count histogram has recordings
+        var measurements = plugin.getLongHistogramMeasurement("es.indexing.field.token_count.histogram");
+        assertFalse("Expected token count metrics to be recorded after indexing a text field", measurements.isEmpty());
+        // "hello world test" produces 3 tokens with the standard analyzer
+        assertTrue(
+            "Expected at least one measurement with value 3 for the 'message' field",
+            measurements.stream().anyMatch(m -> m.getLong() == 3)
+        );
     }
 }

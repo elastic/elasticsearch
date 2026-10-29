@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -35,19 +36,19 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
  * The decision is made independently per leaf, so mixed indices benefit from the fast path where
  * available.
  */
-public final class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQuery {
+public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQuery {
 
     private final BytesRef term;
 
-    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, boolean arrayOrderInlineNull) {
-        super(fieldName, term::equals, arrayOrderInlineNull);
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, term::equals, binaryFormat);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
-            return new BinaryDocValuesLengthQuery(fieldName, 0, arrayOrderInlineNull);
+            return new BinaryDocValuesLengthQuery(fieldName, 0, binaryFormat);
         }
         return this;
     }
@@ -58,8 +59,7 @@ public final class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocVal
         if (values == null) {
             return null;
         }
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
         // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
         // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
         // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
@@ -92,11 +92,11 @@ public final class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocVal
             return false;
         }
         ScanningBinaryDocValuesTermQuery that = (ScanningBinaryDocValuesTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
+        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term) && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, term);
+        return Objects.hash(classHash(), fieldName, term, binaryFormat);
     }
 }

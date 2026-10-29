@@ -90,7 +90,9 @@ POST _reindex
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` ID you can use to [manage](#monitor-reindex-tasks) the operation.
 
-For long-running reindexes, prefer asynchronous reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
+::::{note}
+For long-running reindexes, prefer asynchronous requests. Synchronous requests keep the client waiting on the node that received the request and with a long-running request this will likely encounter transport-level timeouts. While the reindex will continue (after client timeout) as a task that's managed within the cluster, the client will not receive expected feedback as to ongoing status of completion.
+::::
 
 ## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 
@@ -817,7 +819,7 @@ Refer to [Reindex settings](/reference/elasticsearch/configuration-reference/ind
 
 ## Reindex in {{cps}} [reindex-cps]
 ```{applies_to}
-serverless: preview
+serverless: ga
 ```
 
 When [{{cps}}](docs-content://explore-analyze/cross-project-search.md) is enabled, the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-reindex) can pull documents from indices across linked {{serverless-short}} projects.
@@ -827,14 +829,14 @@ Documents are always written to the destination index on the origin project.
 
 There are two ways to use reindex to move data between {{serverless-short}} projects in {{cps-init}}:
 
-* [**Reindex across linked projects**](#reindex-cps-linked): reindex from the origin project and its [linked projects](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md).
+* [**Reindex across linked projects**](#reindex-cps-linked): reindex from the origin project and its [linked projects](docs-content://deploy-manage/cross-project-search-config/cps-config-link-and-manage.md).
 * [**Reindex from a remote project**](#reindex-cps-remote): reindex from another {{serverless-short}} project or an {{ech}} deployment by connecting over HTTP with `source.remote.host`.
 
 ### Reindex across linked projects [reindex-cps-linked]
 
 When not using [`source.remote`](#reindex-cps-remote), the Reindex API pulls documents from the origin project and its linked projects:
 
-* Only the origin project and projects [linked](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md) to it can be targeted.
+* Only the origin project and projects [linked](docs-content://deploy-manage/cross-project-search-config/cps-config-link-and-manage.md) to it can be targeted.
 * The `source.index` field resolves across the origin project and all linked projects.
 * You can use `project_routing` in the `source` section to limit which projects are included.
 * Qualified index expressions (for example, `project1:logs`) are supported.

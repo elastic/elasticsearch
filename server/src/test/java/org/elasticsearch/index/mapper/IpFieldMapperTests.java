@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -18,12 +19,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -36,8 +39,10 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -60,6 +65,9 @@ public class IpFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
@@ -103,7 +111,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultsColumnarMode() throws IOException {
-        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -304,6 +311,101 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
+    public void testTimeSeriesHonorsIndexAndDocValues() throws IOException {
+        final List<IndexVersion> indexVersions = List.of(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES, IndexVersion.current())
+        );
+        for (IndexVersion indexVersion : indexVersions) {
+            assertTimeSeriesIndexTypes(
+                indexVersion,
+                (indexed, docValues) -> indexed == false && docValues ? IndexType.skippers() : IndexType.points(indexed, docValues)
+            );
+        }
+    }
+
+    public void testTimeSeriesKeepsSkippersOnOlderIndices() throws IOException {
+        final IndexVersion lastBefore94Backport = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4
+        );
+        final IndexVersion lastBefore95Backport = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5
+        );
+        final IndexVersion lastBeforeFix = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES
+        );
+        final List<IndexVersion> indexVersions = List.of(
+            IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, lastBefore94Backport),
+            lastBefore94Backport,
+            IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES, lastBefore95Backport),
+            lastBefore95Backport,
+            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, lastBeforeFix),
+            lastBeforeFix
+        );
+        for (IndexVersion indexVersion : indexVersions) {
+            assertTimeSeriesIndexTypes(indexVersion, (indexed, docValues) -> IndexType.skippers());
+        }
+    }
+
+    private void assertTimeSeriesIndexTypes(IndexVersion indexVersion, BiFunction<Boolean, Boolean, IndexType> expectedIndexType)
+        throws IOException {
+        for (boolean dimension : new boolean[] { true, false }) {
+            for (boolean indexed : new boolean[] { true, false }) {
+                for (boolean docValues : new boolean[] { true, false }) {
+                    if (dimension && docValues == false) {
+                        continue;
+                    }
+                    assertTimeSeriesIndexType(indexVersion, dimension, indexed, docValues, expectedIndexType.apply(indexed, docValues));
+                }
+            }
+        }
+    }
+
+    private void assertTimeSeriesIndexType(
+        IndexVersion indexVersion,
+        boolean dimension,
+        boolean indexed,
+        boolean docValues,
+        IndexType expected
+    ) throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        final MapperService mapperService = createMapperService(indexVersion, settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", dimension);
+            b.field("index", indexed);
+            b.field("doc_values", docValues);
+        }));
+        final String description = indexVersion + ": dimension=" + dimension + ", index=" + indexed + ", doc_values=" + docValues;
+        assertThat(description, mapperService.fieldType("field").indexType(), equalTo(expected));
+
+        final ParsedDocument doc = mapperService.documentMapper().parse(source(null, b -> {
+            b.field("field", NetworkAddress.format(randomIp(randomBoolean())));
+            b.field("@timestamp", Instant.now());
+            b.field("dim", "foo");
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        final List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(description, fields.stream().anyMatch(f -> f.fieldType().pointDimensionCount() > 0), equalTo(expected.hasPoints()));
+        assertThat(
+            description,
+            fields.stream().anyMatch(f -> f.fieldType().docValuesType() != DocValuesType.NONE),
+            equalTo(expected.hasDocValues())
+        );
+        assertThat(
+            description,
+            fields.stream().anyMatch(f -> f.fieldType().docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE),
+            equalTo(expected.hasDocValuesSkipper())
+        );
+    }
+
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         return NetworkAddress.format(randomIp(randomBoolean()));
@@ -402,11 +504,10 @@ public class IpFieldMapperTests extends MapperTestCase {
                     .map(NetworkAddress::format)
                     .collect(Collectors.toCollection(ArrayList::new));
             }
-            values.stream()
-                .filter(v -> false == v.v2() instanceof InetAddress)
-                .map(Tuple::v2)
-                .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                .forEach(outList::add);
+            // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+            // non-columnar indices use the SORTED ._ignore_malformed column.
+            Stream<Object> malformedStream = values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(Tuple::v2);
+            (isColumnar ? malformedStream : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -445,9 +546,7 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b.field("ignore_malformed", true);
             }
             if (isColumnar && enforceSingleValue) {
-                b.startObject("doc_values");
                 b.field("multi_value", false);
-                b.endObject();
             }
         }
 
@@ -498,8 +597,18 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_SET;
+        return DocValuesType.BINARY;
     }
 
     /**
@@ -507,7 +616,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * the current index version.
      */
     public void testHighCardinalityDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "ip")));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
@@ -525,7 +633,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * SeparateCount output regardless of indexCreatedVersion so the read path can decode it.
      */
     public void testHighCardinalityDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(legacyVersion, columnarSettings, fieldMapping(b -> b.field("type", "ip")))
@@ -545,10 +652,9 @@ public class IpFieldMapperTests extends MapperTestCase {
      * fires, so enforcement does not trip.
      */
     public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         mapper.parse(source(b -> b.field("field", "not-an-ip")));
     }
@@ -558,10 +664,9 @@ public class IpFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -574,10 +679,9 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -595,10 +699,9 @@ public class IpFieldMapperTests extends MapperTestCase {
      * call.
      */
     public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -610,8 +713,24 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testHighCardinalityAllowedForIndexSortField() throws IOException {
+        // LOGSDB_COLUMNAR (strict columnar) defaults doc values to high cardinality; cardinality is not user-configurable.
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        // cardinality: high is now valid for index sort fields.
+        MapperService ms = createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "ip");
+            b.endObject();
+        }));
+        var ft = (IpFieldMapper.IpFieldType) ms.fieldType("field");
+        assertNotNull(ft);
+        assertTrue(ft.usesBinaryDocValues());
+    }
+
     public void testColumnarArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()))
             .documentMapper();
@@ -641,5 +760,10 @@ public class IpFieldMapperTests extends MapperTestCase {
             new SortShortcutSupport(this::minimalMapping, this::writeField, false),
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
         );
+    }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "192.168.0.1", "192.168.0.2", "192.168.0.3" };
     }
 }

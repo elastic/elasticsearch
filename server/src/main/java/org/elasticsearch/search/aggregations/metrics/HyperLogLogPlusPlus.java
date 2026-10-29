@@ -15,6 +15,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.LongArray;
@@ -95,7 +96,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         LongArray hllBuckets = null;
         boolean success = false;
         try {
-            hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
+            hll = new HyperLogLog(bigArrays, breaker, initialBucketCount, precision);
             lc = new LinearCounting(bigArrays, breaker, initialBucketCount, precision);
             hllBuckets = bigArrays.newLongArray(1);
             success = true;
@@ -111,6 +112,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     public long maxOrd() {
         return Math.max(hll.maxOrd(), lc.maxOrd());
+    }
+
+    /**
+     * Returns the number of buckets currently in HyperLogLog mode (as opposed to LinearCounting mode).
+     * Together with {@link #maxOrd()}, lets callers estimate serialized size.
+     */
+    public long hllBucketCount() {
+        return hll.totalBuckets;
     }
 
     @Override
@@ -156,12 +165,19 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         Releasables.close(hllBuckets, hll, lc);
     }
 
-    void addRunLen(long bucketOrd, int register, int runLen) {
-        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
-        if (hllBucket < 0) {
-            hllBucket = upgradeToHll(bucketOrd);
-        }
-        hll.addRunLen(hllBucket, register, runLen);
+    long ramBytesUsed() {
+        return hllBuckets.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
+    }
+
+    /** Reads the registers of a serialized HyperLogLog state into an empty bucket, upgrading it. */
+    void readRegisters(long bucketOrd, StreamInput in) throws IOException {
+        hll.readRegisters(upgradeToHll(bucketOrd), in);
+    }
+
+    /** Merges the {@code 2^precision} registers at {@code registers[offset]} into the bucket, upgrading it to HyperLogLog if needed. */
+    void mergeRegisters(long bucketOrd, byte[] registers, int offset) {
+        // This returns the existing HyperLogLog bucket if there is one.
+        hll.mergeRegisters(upgradeToHll(bucketOrd), registers, offset);
     }
 
     long upgradeToHll(long bucketOrd) {
@@ -180,7 +196,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         ByteArrayStreamInput in = new ByteArrayStreamInput(other.bytes);
         in.reset(other.bytes, other.offset, other.length);
         final int precision = in.readVInt();
+        assert precision == precision() : "precision [" + precision + "] differs from [" + precision() + "]";
         final boolean algorithm = in.readBoolean();
+        // this=LC, other=LC: insert each value, and upgrade this to HLL past the threshold.
         if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
             final int length = Math.toIntExact(in.readVLong());
             final long bytesUsed = (long) length * Integer.BYTES;
@@ -208,10 +226,19 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
             return;
         }
-        // fallback
-        in.reset(other.bytes, other.offset, other.length);
-        try (AbstractHyperLogLogPlusPlus otherHll = readFrom(in, hll.bigArrays)) {
-            merge(bucket, otherHll, 0);
+        // this=LC/HLL, other=HLL: merge the registers in bulk, upgrading this to HLL if needed.
+        if (algorithm == HYPERLOGLOG) {
+            final int registers = 1 << precision;
+            assert in.available() >= registers : "expected [" + registers + "] registers but only [" + in.available() + "] bytes remain";
+            // The registers follow the header, so merge them straight from the buffer.
+            mergeRegisters(bucket, other.bytes, in.getPosition());
+            return;
+        }
+        // this=HLL, other=LC: collect each value into the registers.
+        final int length = Math.toIntExact(in.readVLong());
+        final long hllBucket = hllBuckets.get(bucket) - 1;
+        for (int i = 0; i < length; i++) {
+            hll.collectEncoded(hllBucket, in.readInt());
         }
     }
 
@@ -221,6 +248,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
             merge(thisBucket, other.getLinearCounting(otherBucket));
+        } else if (other instanceof HyperLogLogPlusPlus otherHll) {
+            final long otherHllBucket = otherHll.hllBuckets.get(otherBucket) - 1;
+            hll.mergeRegisters(upgradeToHll(thisBucket), otherHll.hll, otherHllBucket);
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
         }
@@ -259,15 +289,34 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
+        /** The most registers that a bulk step moves. */
+        private static final int MAX_SCRATCH_SIZE = 4096;
+
         private final BigArrays bigArrays;
         // array for holding the runlens.
         private ByteArray runLens;
         private long totalBuckets = 0;
+        private final CircuitBreaker breaker;
 
-        HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
+        /** Scratch for bulk register moves, allocated on first use. It is charged to the breaker until this is closed. */
+        private byte[] scratch;
+        private final int scratchSize;
+
+        private byte[] scratch() {
+            if (scratch == null) {
+                final long bytes = RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + scratchSize);
+                breaker.addEstimateBytesAndMaybeBreak(bytes, "hll scratch");
+                scratch = new byte[scratchSize];
+            }
+            return scratch;
+        }
+
+        HyperLogLog(BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount, int precision) {
             super(precision);
             this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
+            this.breaker = breaker;
+            this.scratchSize = Math.min(m, MAX_SCRATCH_SIZE);
         }
 
         public long maxOrd() {
@@ -285,6 +334,63 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return new HyperLogLogIterator(this, bucketOrd);
         }
 
+        /** Merges the registers at {@code other[otherOffset]} into the bucket, keeping the larger of each pair. */
+        void mergeRegisters(long bucketOrd, byte[] other, int otherOffset) {
+            assert otherOffset >= 0 && otherOffset + m <= other.length;
+            final long start = bucketOrd << p;
+            final BytesRef thisSlice = new BytesRef();
+            for (int done = 0; done < m; done += scratchSize) {
+                final int length = Math.min(scratchSize, m - done);
+                mergeRange(thisSlice, start + done, other, otherOffset + done, length);
+            }
+        }
+
+        /** As {@link #mergeRegisters(long, byte[], int)}, from a bucket of another HyperLogLog of the same precision. */
+        void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
+            final long start = bucketOrd << p;
+            final long otherStart = otherBucketOrd << p;
+            final BytesRef thisSlice = new BytesRef();
+            final BytesRef otherSlice = new BytesRef();
+            for (int done = 0; done < m; done += scratchSize) {
+                final int length = Math.min(scratchSize, m - done);
+                other.runLens.get(otherStart + done, length, otherSlice);
+                assert otherSlice.length == length;
+                // If other is this structure, the slices are identical or disjoint, so reading a live page here is safe.
+                mergeRange(thisSlice, start + done, otherSlice.bytes, otherSlice.offset, length);
+            }
+        }
+
+        /**
+         * Merges {@code length} registers, at most the size of the scratch array, from {@code other[otherOffset]} into the registers
+         * at {@code start}. {@code thisSlice} is a reusable holder for the registers that it reads.
+         */
+        private void mergeRange(BytesRef thisSlice, long start, byte[] other, int otherOffset, int length) {
+            final byte[] scratch = scratch();
+            assert length <= scratchSize;
+            // get can return a live page, even the zero page that BigArrays shares, so only read it. set copies a shared page.
+            runLens.get(start, length, thisSlice);
+            assert thisSlice.length == length;
+            maxInto(scratch, thisSlice.bytes, thisSlice.offset, other, otherOffset, length);
+            runLens.set(start, scratch, 0, length);
+        }
+
+        /** Reads the registers of an empty bucket from the stream, one scratch array at a time. */
+        void readRegisters(long bucketOrd, StreamInput in) throws IOException {
+            final long start = bucketOrd << p;
+            final byte[] scratch = scratch();
+            for (int done = 0; done < m; done += scratchSize) {
+                final int length = Math.min(scratchSize, m - done);
+                in.readBytes(scratch, 0, length);
+                runLens.set(start + done, scratch, 0, length);
+            }
+        }
+
+        private static void maxInto(byte[] out, byte[] a, int aOffset, byte[] b, int bOffset, int length) {
+            for (int i = 0; i < length; i++) {
+                out[i] = (byte) Math.max(a[aOffset + i], b[bOffset + i]);
+            }
+        }
+
         protected long newBucket() {
             long bucket = totalBuckets++;
             runLens = bigArrays.grow(runLens, totalBuckets << p);
@@ -293,7 +399,15 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         @Override
         public void close() {
+            if (scratch != null) {
+                breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(scratch));
+                scratch = null;
+            }
             Releasables.close(runLens);
+        }
+
+        long ramBytesUsed() {
+            return runLens.ramBytesUsed();
         }
     }
 
@@ -514,6 +628,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         public void close() {
             breaker.addWithoutBreaking(-bytesUsed);
             Releasables.close(cells);
+        }
+
+        long ramBytesUsed() {
+            return cells.ramBytesUsed() + bytesUsed;
         }
     }
 }

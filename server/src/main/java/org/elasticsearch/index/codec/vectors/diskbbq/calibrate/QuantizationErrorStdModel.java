@@ -13,17 +13,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
  * Model for the standard deviation of quantization error after scalar quantization.
  * Uses OLS-predicted log(error_std) as a function of log(nDocsPerCluster) - log(sampleSize).
  */
-public final class QuantizationErrorStdModel {
-
-    private final Regression.OLSResult params;
-
-    public QuantizationErrorStdModel(Regression.OLSResult params) {
-        this.params = params;
-    }
-
-    public Regression.OLSResult params() {
-        return params;
-    }
+public record QuantizationErrorStdModel(Regression.OLSResult params) {
 
     /**
      * Predicted error std for quantized representation; used in the expected recall formula.

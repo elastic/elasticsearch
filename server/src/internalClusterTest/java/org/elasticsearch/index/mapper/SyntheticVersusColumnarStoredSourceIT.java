@@ -22,15 +22,14 @@ import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,17 +37,13 @@ import java.util.Map;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
  * Verifies that a {@code columnar_stored} source index and an equivalent {@code synthetic} source index
  * (both using {@code columnar} index mode) return identical {@code _source} for every document.
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
-
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -111,6 +106,172 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, document, randomBoolean());
     }
 
+    /**
+     * The mapping declares a single level of nesting ({@code n}), which columnar supports. An object sub-field
+     * that appears as an array of objects ({@code obj}) is materialized under {@code subobjects:false} as its own child
+     * documents, parented to the {@code n} child - a second <em>physical</em> level of documents in the Lucene block,
+     * even though no second {@code nested} field is declared.
+     */
+    public void testNestedWithObjectArraySubfield() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("obj")
+            .startObject("properties")
+            .startObject("val")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        var document = Map.of("n", List.of(Map.of("obj", List.of(Map.of("val", 1), Map.of("val", 2)))));
+        assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
+    /**
+     * With the time-series doc-values format disabled, a keyword sub-field of a nested field whose values exceed
+     * {@code ignore_above} keeps a copy of the ignored values in a per-document stored field so synthetic source can reconstruct
+     * them. Each nested array entry is a separate Lucene document, but columnar_stored reconstructs them all through one reused
+     * single-document reader that always reports the same doc id, and a reused stored-field loader skips re-reading on an unchanged
+     * doc id - so it used to return the first entry's stored values for every sibling. Verify every entry keeps its own values.
+     */
+    public void testNestedWithIgnoredKeywordPerEntry() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("ignore_above", 4)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // Every value exceeds ignore_above (length 4), so all are stored in the ignored-value fallback. The first entry is
+        // multi-valued to make first-entry-duplication observable if the reused stored-field loader is not read per entry.
+        var document = Map.of("n", List.of(Map.of("kw", List.of("aaaaa", "bbbbb")), Map.of("kw", "ccccc"), Map.of("kw", "ddddd")));
+        // The stored-field fallback (and thus this bug) only occurs with the time-series doc-values format disabled.
+        assertEqualSource(mappingXContent, document, false);
+    }
+
+    /**
+     * A {@code multi_value=false, on_failure=ignore} field redirects extra values to {@code ._on_failure}.
+     * Both source modes must reconstruct the same document from their respective storage mechanisms.
+     */
+    public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject();
+        // Two values: "a" is indexed normally, "b" is redirected to ._on_failure. Both must appear in _source.
+        var document = Map.of("kw", List.of("a", "b"));
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    /**
+     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is marked ignored rather than rejecting
+     * the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     * Note: an absent field writes nothing to {@code ._on_failure}, so the new read-side reconstruction wiring is not exercised here;
+     * this is a regression test for the existing nullability-tracking path.
+     */
+    public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("nullability", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject();
+        // field is absent — violation is ignored, field must be omitted from _source in both modes
+        var document = Map.<String, Object>of();
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    /**
+     * A {@code lowercase} normalizer keeps the field in NATIVE mode, so the primary column stores the normalized first value and
+     * {@code ._on_failure} stores raw subsequent values. Both source modes must reconstruct the mixed-case array and populate
+     * {@code _ignored} with the field name.
+     */
+    public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("normalizer", "lowercase")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject();
+        // "lowercase" sets normalizerSkipStoreOriginalValue=true → NATIVE mode. Primary = normalized; ._on_failure = raw.
+        var document = Map.of("kw", List.of("HELLO", "WORLD"));
+        var expectedSource = Map.of("kw", List.of("hello", "WORLD"));
+        assertEqualSource(mappingXContent, document, randomBoolean(), expectedSource);
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    public void testNumberFieldMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("num")
+            .field("type", "long")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject();
+        int val1 = randomIntBetween(1, 100);
+        int val2 = randomValueOtherThan(val1, () -> randomIntBetween(1, 100));
+        var document = Map.of("num", List.of(val1, val2));
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "num");
+            // val1 was indexed as a normal doc value and must be term-query searchable.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("num", val1)), 1);
+            // val2 was redirected to ._on_failure and must not appear in the regular doc values inverted index.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("num", val2)), 0);
+        }
+    }
+
+    private void assertIgnoredContains(String index, String fieldName) {
+        var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
+        try {
+            var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
+            assertNotNull(index + ": violation must populate _ignored", ignoredField);
+            assertTrue(index + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
+        } finally {
+            resp.decRef();
+        }
+    }
+
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();
@@ -123,6 +284,31 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     private void assertEqualSource(XContentBuilder mappingXContent, Map<String, ?> document, boolean useTimeSeriesDocValuesFormat) {
+        var sources = indexAndFetchSources(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        assertEquals(sources.get(0), sources.get(1));
+    }
+
+    /**
+     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but also asserts the reconstructed source equals
+     * {@code expectedSource}, not just that both modes agree with each other.
+     */
+    private void assertEqualSource(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat,
+        Map<String, ?> expectedSource
+    ) {
+        var sources = indexAndFetchSources(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        assertEquals(sources.get(0), sources.get(1));
+        assertEquals("synthetic source must match expected content", expectedSource, sources.get(0));
+        assertEquals("columnar stored source must match expected content", expectedSource, sources.get(1));
+    }
+
+    private List<Map<String, Object>> indexAndFetchSources(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat
+    ) {
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
@@ -142,8 +328,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
         var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
         var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
-
-        assertEquals(syntheticSource, columnarStoredSource);
+        return List.of(syntheticSource, columnarStoredSource);
     }
 
     private DataGeneratorSpecification buildSpec() {
@@ -184,30 +369,9 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                 // Randomly attach a string multi-field (text<->keyword) to string fields, exercising columnar source
                 // equivalence with multi-fields present. Only TEXT/KEYWORD are used since the other string types are
                 // filtered out above.
-                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT))),
-                new DefaultMappingParametersHandler() {
-                    @Override
-                    public DataSourceResponse.LeafMappingParametersGenerator handle(
-                        DataSourceRequest.LeafMappingParametersGenerator request
-                    ) {
-                        var delegated = super.handle(request);
-                        if (delegated == null) {
-                            return null;
-                        }
-                        return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                            var mapping = new HashMap<>(delegated.mappingGenerator().get());
-                            // synthetic_source_keep is not allowed in columnar index mode
-                            mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                            mapping.remove("store");
-                            mapping.remove("copy_to");
-                            // doc_values cannot be disabled in columnar modes: a field must be reconstructable from its
-                            // doc values, so let it fall back to the (enabled) default.
-                            mapping.remove("doc_values");
-                            return mapping;
-                        });
-                    }
-                }
+                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT)))
             ))
+            .withIndexMode(IndexMode.COLUMNAR)
             .build();
     }
 }

@@ -84,8 +84,8 @@ public class FlightFormatSpecIT extends EsqlSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/external-grpc.csv-spec");
-        return SpecReader.readScriptSpec(urls, CsvSpecReader.specParser());
+        List<URL> urls = classpathResources("/grpc-flight.csv-spec");
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
     @Override

@@ -80,6 +80,14 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
     }
 
+    /**
+     * The {@link DriverContext} of the driver running this operator. Subclasses that fetch results from another
+     * (possibly remote) driver use this to replay that driver's warnings into this driver's per-driver sink.
+     */
+    protected final DriverContext driverContext() {
+        return driverContext;
+    }
+
     @Override
     public boolean needsInput() {
         final long outstandingPages = checkpoint.getMaxSeqNo() - checkpoint.getPersistedCheckpoint();
@@ -134,7 +142,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     private void onSeqNoCompleted(long seqNo) {
         checkpoint.markSeqNoAsProcessed(seqNo);
-        if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
+        // a failure wakes the driver even while earlier results are still in flight, so it fails at once
+        if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint() || failureCollector.hasFailure()) {
             notifyIfBlocked();
         }
         if (closed || failureCollector.hasFailure()) {
@@ -222,19 +231,18 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    /**
+     * Blocks while requests are in flight and no result is ready, also once the input finished. Otherwise the driver of an
+     * operator whose input finished would call {@link #getOutput} in a loop until the last result arrives.
+     */
     @Override
     public IsBlockedResult isBlocked() {
         // TODO: Add an exchange service between async operation instead?
-        if (finished) {
-            return Operator.NOT_BLOCKED;
-        }
-        long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
-        if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+        if (canMakeProgress()) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (this) {
-            persistedCheckpoint = checkpoint.getPersistedCheckpoint();
-            if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+            if (canMakeProgress()) {
                 return Operator.NOT_BLOCKED;
             }
             if (blockedFuture == null) {
@@ -242,6 +250,17 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             }
             return new IsBlockedResult(blockedFuture, getClass().getSimpleName());
         }
+    }
+
+    /**
+     * Whether the driver has something to do with this operator: no request is in flight, a result is ready, or a
+     * request failed.
+     */
+    private boolean canMakeProgress() {
+        long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
+        return persistedCheckpoint == checkpoint.getMaxSeqNo()
+            || persistedCheckpoint < checkpoint.getProcessedCheckpoint()
+            || failureCollector.hasFailure();
     }
 
     @Override

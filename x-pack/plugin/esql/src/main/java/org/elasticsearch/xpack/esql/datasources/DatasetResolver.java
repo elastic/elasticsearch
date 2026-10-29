@@ -12,18 +12,35 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
@@ -42,27 +59,84 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *
  * <p>When no dataset is registered in cluster state, or no FROM pattern can match a registered dataset, the listener
  * completes synchronously and no request is sent.
+ *
+ * <p>A relation inside a view that stopped the caller's (or an enclosing view's) {@code wildcards_match_datasets=true} is not
+ * rewritten, but its wildcards are still sent as a probe with the setting on. The datasets the probe returns are only named in
+ * the warning that the setting did not reach the view; they are never read.
  */
 public class DatasetResolver {
+    private static final Logger logger = LogManager.getLogger(DatasetResolver.class);
 
     private final Client client;
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final boolean federationAvailable;
+    private final FederationLicense federationLicense;
 
-    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider) {
+    /**
+     * Federation availability is resolved once by the caller (see {@link Federation#isAvailable}) rather than per query:
+     * it is fixed for the lifetime of the node, since both of its levers are read at startup.
+     * The {@code federationLicense} is queried per query, once the resolver determines the query actually targets a
+     * dataset, so that the check always reflects the current license rather than the one at construction time.
+     */
+    public DatasetResolver(
+        Client client,
+        Executor executor,
+        CrossProjectModeDecider crossProjectModeDecider,
+        boolean federationAvailable,
+        FederationLicense federationLicense
+    ) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.federationAvailable = federationAvailable;
+        this.federationLicense = federationLicense;
     }
 
     /**
      * Completes {@code listener} with the rewritten plan (or the untouched plan when no relation qualifies).
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
      * dataset) propagate as-is.
+     *
+     * <p>When federation is not available (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
+     * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
+     * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
+     *
+     * <p><b>License check ordering:</b> The license check runs before the per-relation {@link EsqlResolveDatasetAction}
+     * read-authorization, so on a non-Enterprise cluster a user lacking read privilege on a matching dataset name receives
+     * the license error rather than {@code Unknown index}. This leaks the existence of the dataset, which the resolver
+     * otherwise hides (see {@link DatasetRewriter#rewrite}). The impact is low, as datasets only persist in cluster state
+     * after a downgrade from Enterprise or an expired trial. A query whose only lookups are probes reads no dataset, so on a
+     * non-Enterprise cluster it gets neither the license error nor the warning.
+     *
+     * @param wildcardsMatchDatasets the resolved {@code wildcards_match_datasets} query setting, carried from the coordinator's
+     *                         {@code Configuration} and applied to this coordinator's own dataset expansion. Only this
+     *                         coordinator's registry is expanded here; what a remote cluster does with its own datasets
+     *                         is decided by {@code EsqlResolveFieldsAction.clearDatasetResolution}, not by this setting.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
+     * @param indexViewOrigins the view chains each index pattern was read through, which tell a stopped view's own wildcards apart
+     *                         from those of views nested inside it.
      */
-    public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        // Cheap short-circuit: no datasets registered → the CRUD layer (gated by the external-datasources feature flag)
-        // never put any into cluster state, so no FROM can target one. No dispatch, no walk cost on the common path.
+    public void replaceDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
+        IndexViewOrigins indexViewOrigins,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
+        ActionListener<LogicalPlan> listener
+    ) {
+        // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
+        // that was never registered (the FROM <dataset> name resolves as an unknown index).
+        if (federationAvailable == false) {
+            listener.onResponse(parsed);
+            return;
+        }
+
+        // Cheap short-circuit: no datasets registered → no FROM can target one, so no dispatch and no walk cost on the
+        // common path.
         Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
         if (datasetNames.isEmpty()) {
             listener.onResponse(parsed);
@@ -71,26 +145,54 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
-        List<UnresolvedRelation> relations = new ArrayList<>();
-        parsed.forEachUp(UnresolvedRelation.class, r -> {
+        // Per relation: inside a view body, only the view definition's own SET makes wildcards match datasets
+        // (DatasetRewriter.forEachRelation).
+        // Separately, a relation in a view body that turned off an enclosing scope's wildcards_match_datasets=true is probed with
+        // the setting on, to tell the user which datasets the view's wildcards did not match. Probes change no resolution.
+        List<ScopedRelation> relations = new ArrayList<>();
+        List<StoppedRelation> stoppedRelations = new ArrayList<>();
+        DatasetRewriter.forEachRelation(parsed, wildcardsMatchDatasets, null, null, viewSettings, (r, relationWildcards, stop) -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
-            if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+            if (DatasetRewriter.hasRemotePattern(patterns)) {
                 return;
             }
-            relations.add(r);
+            if (DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards)) {
+                relations.add(new ScopedRelation(r, relationWildcards));
+            }
+            // TS never reads datasets, so the view's setting changes nothing there.
+            if (stop != null && r.indexMode() != IndexMode.TIME_SERIES) {
+                List<String> probePatterns = probePatterns(patterns, stop, indexViewOrigins);
+                if (wildcardCouldMatchUnnamedDataset(probePatterns, datasetNames)) {
+                    stoppedRelations.add(new StoppedRelation(probePatterns, stop));
+                }
+            }
         });
-        if (relations.isEmpty()) {
+        if (relations.isEmpty() && stoppedRelations.isEmpty()) {
             listener.onResponse(parsed);
             return;
         }
 
+        // Check license before the per-relation round-trips so non-Enterprise clusters receive a license error
+        // rather than Unknown index, which would otherwise leak that a matching dataset exists in cluster state.
+        // Usage is NOT recorded here; recording is deferred until resolution confirms at least one dataset matched,
+        // so the esql-federation telemetry timestamp reflects genuine federation queries rather than heuristic matches.
+        // A query that only has probes reads no dataset, so it gets no license error, and no warning either.
+        if (federationLicense.isAllowedWithoutTracking() == false) {
+            if (relations.isEmpty()) {
+                listener.onResponse(parsed);
+            } else {
+                listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(federationLicense.get()));
+            }
+            return;
+        }
+
         // One request per relation, chained sequentially via andThen so each result lands in the identity-keyed map
-        // before the next dispatches. (forEachUp may visit the same relation instance more than once in a degenerate
+        // before the next dispatches. (The walk may visit the same relation instance more than once in a degenerate
         // tree; the map dedups by identity.)
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
         SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
-        for (UnresolvedRelation relation : relations) {
+        for (ScopedRelation scoped : relations) {
+            UnresolvedRelation relation = scoped.relation();
             chain = chain.andThen((l, ignored) -> {
                 if (resolutions.containsKey(relation)) {
                     l.onResponse(null);
@@ -98,26 +200,137 @@ public class DatasetResolver {
                 }
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
-                    DatasetRewriter.patternsOf(relation).toArray(String[]::new)
+                    DatasetRewriter.patternsOf(relation).toArray(String[]::new),
+                    scoped.wildcardsMatchDatasets()
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
                     request,
-                    new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, response) -> {
-                        resolutions.put(
-                            relation,
-                            new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
-                        );
-                        delegate.onResponse(null);
-                    }))
+                    // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
+                    new ThreadedActionListener<>(
+                        executor,
+                        PlanningCpuTracker.inheritMeteredCpu(l.delegateFailureAndWrap((delegate, response) -> {
+                            resolutions.put(
+                                relation,
+                                new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
+                            );
+                            delegate.onResponse(null);
+                        }))
+                    )
                 );
             });
         }
-        // Remote-dataset detection rides the field-caps rail (EsqlResolveFieldsAction, surfaced as
-        // RemoteDatasetNotSupportedException). This resolver only does the LOCAL rewrite + read-authz; under CPS it
-        // additionally preserves the remote half of a matched dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true).
+        Map<WildcardsStop, Set<String>> stoppedMatches = new LinkedHashMap<>();
+        for (StoppedRelation stopped : stoppedRelations) {
+            chain = chain.andThen((l, ignored) -> probeStoppedWildcards(stopped, stoppedMatches, l));
+        }
+        // A dataset on another cluster is invisible rather than detected (see EsqlResolveFieldsAction). This resolver
+        // only does the LOCAL rewrite + read-authz; under CPS it additionally preserves the remote half of a matched
+        // dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true), which is how a remote INDEX of the same name
+        // still federates in.
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
-            .addListener(listener);
+        chain.andThenApply(ignored -> {
+            // Record federation usage only now that resolution has confirmed at least one dataset was matched.
+            boolean anyDatasetResolved = resolutions.values().stream().anyMatch(r -> r.resolvedExternalDatasets().isEmpty() == false);
+            if (anyDatasetResolved) {
+                federationLicense.isAllowed(); // records feature-usage telemetry; license already checked above
+            }
+            stoppedMatches.forEach(
+                (stop, matched) -> HeaderWarning.addWarning(
+                    "{}",
+                    ViewQuerySettings.wildcardsStoppedAtViewWarning(
+                        QuerySettings.WILDCARDS_MATCH_DATASETS.name(),
+                        stop,
+                        "dataset",
+                        List.copyOf(matched),
+                        List.of()
+                    )
+                )
+            );
+            return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, pragmas, flags);
+        }).addListener(listener);
     }
+
+    /**
+     * Asks which datasets {@code stopped}'s patterns would match with {@code wildcards_match_datasets=true}, and records
+     * those not named exactly under its stop. The request goes through the same authorization as resolution, so only
+     * datasets the user may read are reported. A failed lookup only loses the warning.
+     */
+    private void probeStoppedWildcards(
+        StoppedRelation stopped,
+        Map<WildcardsStop, Set<String>> stoppedMatches,
+        ActionListener<Void> listener
+    ) {
+        List<String> patterns = stopped.probePatterns();
+        var request = new EsqlResolveDatasetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, patterns.toArray(String[]::new), true);
+        client.execute(
+            EsqlResolveDatasetAction.TYPE,
+            request,
+            new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(ActionListener.wrap(response -> {
+                Set<String> named = DatasetRewriter.exactNames(patterns);
+                for (String dataset : response.datasets()) {
+                    if (named.contains(dataset) == false) {
+                        stoppedMatches.computeIfAbsent(stopped.stop(), k -> new TreeSet<>()).add(dataset);
+                    }
+                }
+                listener.onResponse(null);
+            }, e -> {
+                logger.debug(
+                    () -> Strings.format("could not look up datasets matched by wildcards in view [%s]", stopped.stop().viewName()),
+                    e
+                );
+                listener.onResponse(null);
+            })))
+        );
+    }
+
+    /**
+     * {@code patterns} without the wildcards of views nested inside {@code stop}'s view, which a view that does not keep nested
+     * views apart merges into its own relations. Those wildcards are the nested view's business: adding the {@code SET} to the
+     * stopped view would not widen them, so they are not probed. Exact names and exclusions stay, since they still decide which
+     * of the view's own matches are new and which are excluded. Origins are recorded per pattern string, so when a nested view
+     * reads the same wildcard as the stopped view itself, its relation is probed too, without the stopped view's exclusions.
+     */
+    private static List<String> probePatterns(List<String> patterns, WildcardsStop stop, IndexViewOrigins indexViewOrigins) {
+        List<String> probePatterns = new ArrayList<>(patterns.size());
+        for (String pattern : patterns) {
+            if (isPositiveWildcard(pattern) == false || indexViewOrigins.readDirectlyBy(pattern, stop.viewName())) {
+                probePatterns.add(pattern);
+            }
+        }
+        return probePatterns;
+    }
+
+    private static boolean isPositiveWildcard(String pattern) {
+        return pattern.isEmpty() == false && pattern.charAt(0) != '-' && Regex.isSimpleMatchPattern(pattern);
+    }
+
+    /**
+     * Whether a wildcard in {@code patterns} matches a registered dataset that the patterns do not also name exactly. Date math is
+     * evaluated first, as resolution does before expanding a wildcard.
+     */
+    private static boolean wildcardCouldMatchUnnamedDataset(List<String> patterns, Set<String> datasetNames) {
+        Set<String> named = DatasetRewriter.exactNames(patterns);
+        for (String pattern : patterns) {
+            if (isPositiveWildcard(pattern) == false) {
+                continue;
+            }
+            String expression = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
+            for (String dataset : datasetNames) {
+                if (named.contains(dataset) == false && Regex.simpleMatch(expression, dataset)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** A relation worth a dataset round-trip, with its effective {@code wildcards_match_datasets}. */
+    private record ScopedRelation(UnresolvedRelation relation, boolean wildcardsMatchDatasets) {}
+
+    /**
+     * The patterns of a relation in the body of {@code stop}'s view, whose definition kept an enclosing scope's
+     * {@code wildcards_match_datasets=true} off, to probe for the datasets they would have matched.
+     */
+    private record StoppedRelation(List<String> probePatterns, WildcardsStop stop) {}
 }

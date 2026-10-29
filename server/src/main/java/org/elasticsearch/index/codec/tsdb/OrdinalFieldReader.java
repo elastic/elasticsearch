@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
 import java.io.IOException;
 
@@ -37,11 +36,6 @@ public interface OrdinalFieldReader {
 
     /**
      * Returns the per-block decoder used to decode the field's ordinal blocks.
-     *
-     * <p>Ordinal encoding is always packed bits via {@link TSDBDocValuesEncoder}; only the block
-     * size varies per field, so {@code blockSize} is the only input needed to construct the
-     * decoder. Contrast with {@link NumericFieldReader#decoder(PipelineDescriptor)}, which
-     * requires the full pipeline description because numeric encoding varies per field.
      *
      * @param blockSize the block size the field was encoded with
      * @return the block decoder

@@ -1,5 +1,0 @@
-area: Searchable Snapshots
-issues: []
-pr: 151913
-summary: Azure event loop default threads
-type: enhancement

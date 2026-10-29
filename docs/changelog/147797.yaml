@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 147797
-summary: Return 400 for malformed OTLP protobuf
-type: bug

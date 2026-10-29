@@ -24,7 +24,6 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +45,7 @@ public class TransportCloneApiKeyActionTests extends ESTestCase {
     public void setupMocks() {
         apiKeyService = mock(ApiKeyService.class);
         TransportService transportService = mock(TransportService.class);
-        action = new TransportCloneApiKeyAction(transportService, new ActionFilters(Set.of()), apiKeyService);
+        action = new TransportCloneApiKeyAction(transportService, ActionFilters.EMPTY, apiKeyService);
     }
 
     public void testInvalidCredentialFormat() {

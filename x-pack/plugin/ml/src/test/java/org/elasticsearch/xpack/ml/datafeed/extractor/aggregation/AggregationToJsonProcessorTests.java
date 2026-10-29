@@ -49,6 +49,7 @@ import static org.mockito.Mockito.when;
 public class AggregationToJsonProcessorTests extends ESTestCase {
 
     private long keyValuePairsWritten = 0;
+    private long documentsWritten = 0;
     private String timeField = "time";
     private boolean includeDocCount = true;
     private long startTime = 0;
@@ -667,6 +668,20 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> aggToString(Sets.newHashSet("my_field"), histogramBuckets));
     }
 
+    public void testGeoCentroidAggShouldCountDocumentsNotKeyValues() throws IOException {
+        List<InternalHistogram.Bucket> histogramBuckets = Arrays.asList(
+            createHistogramBucket(1000L, 4, Arrays.asList(createMax("time", 1000), createGeoCentroid("geo_field", 4, 92.1, 93.1))),
+            createHistogramBucket(2000L, 7, Arrays.asList(createMax("time", 2000), createGeoCentroid("geo_field", 0, -1, -1)))
+        );
+        String json = aggToString(Sets.newHashSet("geo_field"), histogramBuckets);
+
+        assertThat(json, equalTo("""
+            {"time":1000,"geo_field":"92.1,93.1","doc_count":4} \
+            {"time":2000,"doc_count":7}"""));
+        assertThat(documentsWritten, equalTo(2L));
+        assertThat(keyValuePairsWritten, equalTo(5L));
+    }
+
     public void testGeoCentroidAgg() throws IOException {
         List<InternalHistogram.Bucket> histogramBuckets = Arrays.asList(
             createHistogramBucket(1000L, 4, Arrays.asList(createMax("time", 1000), createGeoCentroid("geo_field", 4, 92.1, 93.1))),
@@ -701,6 +716,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         processor.process(aggregations);
         processor.writeAllDocsCancellable(_timestamp -> false, outputStream);
         keyValuePairsWritten = processor.getKeyValueCount();
+        documentsWritten = processor.getWrittenDocumentCount();
         return outputStream.toString(StandardCharsets.UTF_8);
     }
 

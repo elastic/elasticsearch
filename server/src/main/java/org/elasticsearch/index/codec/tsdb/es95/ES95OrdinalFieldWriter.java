@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.tsdb.es95;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesConsumer;
 import org.elasticsearch.index.codec.tsdb.DocValueFieldCountStats;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
@@ -20,38 +19,24 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesBlockWriter;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.TsdbDocValuesProducer;
-import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
-import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 
 import java.io.IOException;
 
 /**
- * {@link OrdinalFieldWriter} implementation for the ES95 TSDB format.
- *
- * <p>{@link #writeFieldEntry} resolves the block size once per field via
- * {@link PipelineConfigResolver}, then writes a per-field {@code blockShift} byte to
- * metadata immediately after the block-layout marker. This lets {@link ES95OrdinalFieldReader}
- * reconstruct the exact block size the field was encoded with, so the ordinal decoder
- * is always sized correctly regardless of the format-level default.
+ * {@link OrdinalFieldWriter} for the ES95 TSDB format. Ordinals are encoded at the format-level
+ * block size and carry no per-field block metadata. Earlier binaries wrote a per-field
+ * {@code blockShift} byte here, removed at
+ * {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig#VERSION_REMOVE_ORDINAL_BLOCK_SHIFT};
+ * see {@link ES95OrdinalFieldReader} for the read side that still handles it.
  */
 final class ES95OrdinalFieldWriter implements OrdinalFieldWriter {
 
     private static final TSDBDocValuesBlockWriter BLOCK_WRITER = new TSDBDocValuesBlockWriter();
-    private static final FieldContextResolver NO_INFO_RESOLVER = (name, bs) -> new FieldContext(bs, name, null, null, null, false);
 
     private final NumericWriteContext ctx;
-    private final PipelineConfigResolver resolver;
-    private final FieldContextResolver fieldContextResolver;
 
-    ES95OrdinalFieldWriter(
-        final NumericWriteContext ctx,
-        final PipelineConfigResolver resolver,
-        @Nullable final FieldContextResolver fieldContextResolver
-    ) {
+    ES95OrdinalFieldWriter(final NumericWriteContext ctx) {
         this.ctx = ctx;
-        this.resolver = resolver;
-        this.fieldContextResolver = fieldContextResolver != null ? fieldContextResolver : NO_INFO_RESOLVER;
     }
 
     @Override
@@ -68,9 +53,7 @@ final class ES95OrdinalFieldWriter implements OrdinalFieldWriter {
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
-        final FieldContext context = fieldContextResolver.resolve(field.name, ctx.blockSize());
-        final int blockSize = resolver.resolve(context).blockSize();
-        final int blockShift = Integer.numberOfTrailingZeros(blockSize);
+        final int blockSize = ctx.blockSize();
         final int bitsPerOrd = PackedInts.bitsRequired(Math.max(maxOrd - 1, 0));
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(blockSize);
         return BLOCK_WRITER.writeFieldEntry(
@@ -81,7 +64,6 @@ final class ES95OrdinalFieldWriter implements OrdinalFieldWriter {
             docValueCountConsumer,
             sortedFieldObserver,
             (buffer, data) -> encoder.encodeOrdinals(buffer, data, bitsPerOrd),
-            () -> ctx.meta().writeByte((byte) blockShift),
             blockSize
         );
     }

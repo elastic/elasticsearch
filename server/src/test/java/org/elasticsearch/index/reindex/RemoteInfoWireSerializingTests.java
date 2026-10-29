@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 
 import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.matchAllQueryBytes;
@@ -204,10 +203,6 @@ public class RemoteInfoWireSerializingTests extends AbstractWireSerializingTestC
      */
     @Override
     protected void dispose(RemoteInfo remoteInfo) {
-        try {
-            remoteInfo.close();
-        } catch (IOException ioException) {
-            throw new UncheckedIOException(ioException);
-        }
+        remoteInfo.close();
     }
 }

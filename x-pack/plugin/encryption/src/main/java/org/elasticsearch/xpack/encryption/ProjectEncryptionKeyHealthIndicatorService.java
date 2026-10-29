@@ -39,7 +39,7 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
  */
 class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorService {
 
-    static final String NAME = "project_encryption_key";
+    static final String NAME = "cluster_state_encryption";
 
     // TODO add URL when available
     private static final String HELP_URL = null;
@@ -50,6 +50,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final String YELLOW_OPT_OUT = "Cluster state encryption is disabled; secrets are stored unencrypted.";
     static final String YELLOW_DECRYPTION_FAILED =
         "Cluster state encryption is degraded: the encryption key could not be decrypted on startup.";
+    static final String YELLOW_KEY_LOAD_FAILED =
+        "Cluster state encryption is degraded: the encryption key could not be loaded from cluster state on this node.";
     static final String YELLOW_MISSING_PASSWORD = "Cluster state encryption is degraded: no active password is configured on this node.";
 
     static final List<HealthIndicatorImpact> WRAP_FAILURE_IMPACTS = List.of(
@@ -57,7 +59,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             NAME,
             "encryption_key_not_persisted",
             2,
-            "The project encryption key cannot be persisted to disk. This node will fail to start after a restart.",
+            "The cluster state encryption key cannot be persisted to disk. This node will fail to start after a restart.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
@@ -83,7 +85,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final Diagnosis.Definition MISSING_WRAP_CREDENTIALS_DEFINITION = new Diagnosis.Definition(
         NAME,
         "missing_wrap_credentials",
-        "A project encryption key is installed but this node lacks the password material to wrap it for disk.",
+        "A cluster state encryption key is installed but this node lacks the password material to wrap it for disk.",
         "Provision cluster.state.encryption.active_password_id and the matching cluster.state.encryption.password.<id> in the keystore"
             + " (stateful) or operator file settings (serverless). If the password was added to the keystore call"
             + " POST /_nodes/reload_secure_settings (stateful).",
@@ -92,14 +94,22 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final Diagnosis.Definition DECRYPTION_FAILED_DEFINITION = new Diagnosis.Definition(
         NAME,
         "decryption_failed",
-        "The project encryption key could not be decrypted on startup, likely due to a wrong or missing password.",
+        "The cluster state encryption key could not be decrypted on startup, likely due to a wrong or missing password.",
         "Fix the password configuration and restart the node, or reset encryption via POST /_encryption/_reset?accept_data_loss=true.",
+        HELP_URL
+    );
+    static final Diagnosis.Definition KEY_LOAD_FAILED_DEFINITION = new Diagnosis.Definition(
+        NAME,
+        "key_load_failed",
+        "The cluster state encryption key could not be loaded from the cluster state on this node.",
+        "Check the node logs for the cause and restart the node. If the failure persists, reset encryption via"
+            + " POST /_encryption/_reset?accept_data_loss=true.",
         HELP_URL
     );
     static final Diagnosis.Definition MISSING_PASSWORD_DEFINITION = new Diagnosis.Definition(
         NAME,
         "missing_password",
-        "No active password is configured on this node; the project encryption key cannot be decrypted.",
+        "No active password is configured on this node; the cluster state encryption key cannot be decrypted.",
         "Provision cluster.state.encryption.active_password_id and the matching cluster.state.encryption.password.<id> in the keystore"
             + " (stateful) or operator file settings (serverless). If the password was added to the keystore call"
             + " POST /_nodes/reload_secure_settings (stateful).",
@@ -180,6 +190,13 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
                 detailsBuilder(metadata, serviceState),
                 ENCRYPTION_UNAVAILABLE_IMPACTS,
                 List.of(new Diagnosis(DECRYPTION_FAILED_DEFINITION, List.of()))
+            );
+            case UNAVAILABLE_KEY_LOAD_FAILED -> createIndicator(
+                YELLOW,
+                YELLOW_KEY_LOAD_FAILED,
+                detailsBuilder(metadata, serviceState),
+                ENCRYPTION_UNAVAILABLE_IMPACTS,
+                List.of(new Diagnosis(KEY_LOAD_FAILED_DEFINITION, List.of()))
             );
             case UNAVAILABLE_MISSING_PASSWORD -> createIndicator(
                 YELLOW,

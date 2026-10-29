@@ -56,7 +56,8 @@ setup:
   - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - match: { views.0.name: "dogs" }
   - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
@@ -81,10 +82,48 @@ setup:
         name: dogs
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - match: { views: [] }
   - length: { views: 0 }
+
+---
+"optional-description":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [view_description]
+      test_runner_features: capabilities
+      reason: "View description field introduced"
+
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          description: "All dogs"
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+  - match: { views.0.description: "All dogs" }
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.get_view:
+        name: cats
+
+  - match: { views.0.name: "cats" }
+  - not_exists: views.0.description
 
 ---
 "delete-multiple-views":
@@ -107,7 +146,8 @@ setup:
           query: 'FROM test | WHERE animal == "fox"'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 3 }
 
@@ -116,7 +156,8 @@ setup:
         name: dogs,cats
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 1 }
   - match: { views.0.name: "foxes" }
@@ -126,7 +167,8 @@ setup:
         name: foxes
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 0 }
 
@@ -151,7 +193,8 @@ setup:
           query: 'FROM test | WHERE animal == "office_appliance"'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 3 }
 
@@ -160,7 +203,8 @@ setup:
         name: animals-*
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 1 }
   - match: { views.0.name: "faxes" }
@@ -180,16 +224,18 @@ setup:
           query: 'FROM test | WHERE animal == "cat"'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 2 }
 
   - do:
       esql.delete_view:
-        name: _all
+        name: "*,-.*"
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 0 }
 
@@ -212,6 +258,16 @@ setup:
         name: dogs
 
   - match: { views.0.name: "dogs" }
+
+---
+"reserved-view-can-not-be-created-via-api":
+  - do:
+      catch: /\[view\] unknown field \[reserved\]/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          reserved: true
 
 ---
 "invalid-views":
@@ -278,7 +334,8 @@ setup:
           query: 'FROM test | WHERE animal == ?1'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - match: { views: [] }
 
@@ -600,9 +657,15 @@ setup:
           query: 'FROM bad_view | LIMIT 10'
 
 ---
-"view-with-wildcard-matching-view":
-  - skip:
-      features: warnings
+"query-with-wildcard-matching-view":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [views_match_wildcards]
+      test_runner_features: [capabilities, warnings]
+      reason: "wildcards_match_views query setting introduced"
 
   - do:
       esql.put_view:
@@ -622,7 +685,7 @@ setup:
         - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
-          query: 'FROM v_* | STATS count = COUNT() BY animal | SORT animal'
+          query: 'SET wildcards_match_views=true; FROM v_* | STATS count = COUNT() BY animal | SORT animal'
 
   - length: { values: 2 }
   - match: { values.0: [1, "cat"] }
@@ -648,3 +711,90 @@ setup:
   - match: { values.0: [2, "brown"] }
   - match: { values.1: [4, "brown"] }
   - match: { values.2: [6, "brown"] }
+
+---
+"validate-accepts-a-valid-query-without-warning":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "validate query parameter introduced"
+
+  - do:
+      esql.put_view:
+        name: checked_dogs
+        validate: true
+        body:
+          query: 'FROM test | WHERE animal == "dog" | KEEP id, color'
+
+  - do:
+      esql.get_view:
+        name: checked_dogs
+
+  - match: { views.0.name: "checked_dogs" }
+
+---
+"validate-warns-but-still-stores-the-view":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [views_put_validate]
+      test_runner_features: [capabilities, warnings_regex]
+      reason: "validate query parameter introduced"
+
+  - do:
+      warnings_regex:
+        - "(?s)view \\[unknown_index_view\\] query is not valid: .*Unknown index \\[nonexistent_index\\].*"
+      esql.put_view:
+        name: unknown_index_view
+        validate: true
+        body:
+          query: 'FROM nonexistent_index'
+
+  - do:
+      esql.get_view:
+        name: unknown_index_view
+
+  - match: { views.0.name: "unknown_index_view" }
+  - match: { views.0.query: 'FROM nonexistent_index' }
+
+  - do:
+      warnings_regex:
+        - "(?s)view \\[unknown_column_view\\] query is not valid: .*Unknown column \\[nonexistent_column\\].*"
+      esql.put_view:
+        name: unknown_column_view
+        validate: true
+        body:
+          query: 'FROM test | KEEP nonexistent_column'
+
+  - do:
+      esql.get_view:
+        name: unknown_column_view
+
+  - match: { views.0.name: "unknown_column_view" }
+
+---
+"validate-rejects-a-query-that-cannot-be-parsed":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "validate query parameter introduced"
+
+  - do:
+      catch: /mismatched input '<EOF>'/
+      esql.put_view:
+        name: unparsable_view
+        validate: true
+        body:
+          query: 'FROM test |'
+
+  - do:
+      catch: /view \[unparsable_view\] not found/
+      esql.get_view:
+        name: unparsable_view

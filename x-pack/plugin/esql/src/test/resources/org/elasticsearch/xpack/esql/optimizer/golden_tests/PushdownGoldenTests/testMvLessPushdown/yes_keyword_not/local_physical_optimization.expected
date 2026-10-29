@@ -1,0 +1,20 @@
+ProjectExec[[keyword{f}#0]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[keyword{f}#0],false]
+    \_ProjectExec[[keyword{f}#0]]
+      \_FieldExtractExec[[keyword{f}#0]<[],[],[]>,_doc{f}#1]
+        \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#1], limit[1000], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "range" : {
+          "keyword" : {
+            "lt" : "m",
+            "boost" : 0.0
+          }
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

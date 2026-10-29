@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
@@ -30,25 +33,29 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 
-public class RangeMin extends UnaryScalarFunction {
+public class RangeMin extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RangeMin", RangeMin::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeMin.class).unary(RangeMin::new).name("range_min");
 
     @FunctionInfo(
-        returnType = "date",
+        returnType = { "date", "double" },
+        signatures = {
+            @Signature(params = { "date_range" }, returnType = "date"),
+            @Signature(params = { "double_range" }, returnType = "double") },
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        briefSummary = "Returns the start value of a date range.",
-        description = "Returns the minimum (start) value of a date_range. For a date_range [x, y), it returns x.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        briefSummary = "Returns the start value of a range.",
+        description = "Returns the minimum (start) value of a range. For a range [x, y), it returns x.",
         examples = @Example(file = "date_range", tag = "range_min")
     )
     public RangeMin(
         Source source,
         @Param(
             name = "range",
-            type = { "date_range" },
-            description = "Date range expression. If `null`, the function returns `null`."
+            type = { "date_range", "double_range" },
+            description = "Range expression. If `null`, the function returns `null`."
         ) Expression field
     ) {
         super(source, field);
@@ -65,7 +72,11 @@ public class RangeMin extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return switch (field().dataType()) {
+            case DATE_RANGE -> DataType.DATETIME;
+            case DOUBLE_RANGE -> DataType.DOUBLE;
+            default -> DataType.NULL;
+        };
     }
 
     @Override
@@ -74,7 +85,7 @@ public class RangeMin extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field(), dt -> dt == DATE_RANGE, sourceText(), DEFAULT, "date_range");
+        return isType(field(), dt -> dt == DATE_RANGE || dt == DOUBLE_RANGE, sourceText(), DEFAULT, "date_range", "double_range");
     }
 
     @Override
@@ -92,8 +103,17 @@ public class RangeMin extends UnaryScalarFunction {
         return range.from();
     }
 
+    @Evaluator(extraName = "Double")
+    static double process(DoubleRangeBlockBuilder.DoubleRange range) {
+        return range.from();
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new RangeMinEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return switch (field().dataType()) {
+            case DATE_RANGE -> new RangeMinEvaluator.Factory(source(), toEvaluator.apply(field()));
+            case DOUBLE_RANGE -> new RangeMinDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));
+            default -> throw new IllegalArgumentException("unsupported data type [" + field().dataType() + "]");
+        };
     }
 }

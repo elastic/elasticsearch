@@ -7,7 +7,7 @@
 
 package org.elasticsearch.benchmark.esql;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -75,8 +75,8 @@ public class CsvBoundaryScanBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        Utils.configureBenchmarkLogging();
-        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        BenchmarkLogging.configure();
+        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         List<String> exts = List.of(".csv", ".tsv");
 
         // Current TSV reader. Both Layer 1 and Layer 2 applied.

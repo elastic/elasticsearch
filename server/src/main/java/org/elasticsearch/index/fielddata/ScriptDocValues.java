@@ -50,6 +50,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         T getInternal(int index);
 
         int size();
+
+        /** Stored bytes behind the value at {@code index}, or 0 when the supplier keeps none. Sizes a decode before it runs. */
+        default int byteLength(int index) {
+            return 0;
+        }
     }
 
     protected final Supplier<T> supplier;
@@ -415,11 +420,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class StringsSupplier implements Supplier<String> {
 
-        private final SortedBinaryDocValues in;
+        private final SortableBinaryDocValues in;
         private BytesRefBuilder[] values = new BytesRefBuilder[0];
         private int count;
 
-        public StringsSupplier(SortedBinaryDocValues in) {
+        public StringsSupplier(SortableBinaryDocValues in) {
             this.in = in;
         }
 
@@ -428,7 +433,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
+                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortableBinaryDocValues
                     // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                     // instance for all slots in the values array.
                     values[i].copyBytes(in.nextValue());
@@ -460,6 +465,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public String getInternal(int index) {
             return bytesToString(values[index].toBytesRef());
+        }
+
+        @Override
+        public int byteLength(int index) {
+            return values[index].length();
         }
 
         @Override

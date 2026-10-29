@@ -81,7 +81,7 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
 
         KMeansByteVectorValues vectors = KMeansByteVectorValues.build(vectorList, null, dims);
 
-        HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 10, nVectors, 512, 1.0f);
+        HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 10, nVectors, 512);
         var result = hkmeans.cluster(vectors, nVectors / nClusters);
 
         int[] assignments = result.assignments();
@@ -122,7 +122,7 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
 
         // Request more clusters than natural groups — some should end up empty and get removed
         int targetSize = nVectors / 10;
-        HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 5, nVectors, 512, -1f);
+        HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 5, nVectors, 512);
         var result = hkmeans.cluster(vectors, targetSize);
 
         // Should not throw ClassCastException

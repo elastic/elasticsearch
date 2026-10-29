@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -92,11 +93,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initAction() throws Exception {
         projectId = randomProjectIdOrDefault();
         indexShard = mock(IndexShard.class);
         when(indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
@@ -146,10 +144,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 
@@ -317,8 +313,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
             final String actionName = capturedRequest.action();
             if (actionName.startsWith(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
-                assertThat(capturedRequest.request(), instanceOf(ShardStateAction.FailedShardEntry.class));
-                String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request()).getAllocationId();
+                assertThat(capturedRequest.request(), instanceOf(FailedShardEntry.class));
+                String allocationId = ((FailedShardEntry) capturedRequest.request()).getAllocationId();
                 assertTrue(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
                 transport.handleResponse(capturedRequest.requestId(), ActionResponse.Empty.INSTANCE);
 

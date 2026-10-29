@@ -83,11 +83,13 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
 
         // simulate 1 small, 1 bigger node
+        long smallNodeMemory = randomLongBetween(0, memory / 2);
+        long largeNodeMemory = randomLongBetween(memory / 2 + 1, memory);
         this.<MlAutoscalingStats>assertAsync(
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of("ml-1", randomLongBetween(0, memory), "ml-2", randomLongBetween(0, memory)),
+                Map.of("ml-1", smallNodeMemory, "ml-2", largeNodeMemory),
                 memory / 2,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -110,7 +112,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of("ml-1", randomLongBetween(0, memory), "ml-2", randomLongBetween(0, memory)),
+                Map.of("ml-1", smallNodeMemory, "ml-2", largeNodeMemory),
                 memory / 2,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,

@@ -19,10 +19,38 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TestConfigurationTests extends ESTestCase {
+
+    public void testSlicedIvfIndexPathIncludesLayoutVersion() throws Exception {
+        String json = """
+            {
+              "dataset": {
+                "file": {
+                  "doc_vectors": ["/path/to/docs"],
+                  "query_vectors": "/path/to/queries",
+                  "num_partitions": 2,
+                  "slices": true
+                }
+              },
+              "dimensions": 128,
+              "index_type": "ivf",
+              "quantize_bits": 4
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertTrue(config.usesSlicedIvf());
+            assertThat(
+                KnnIndexTester.formatIndexPath(config, KnnIndexTester.getDirectoryTypeConfig("default")),
+                containsString("-slice-key-v1.index")
+            );
+        }
+    }
 
     public void testParameterParsing() throws Exception {
         String json = """
@@ -68,6 +96,41 @@ public class TestConfigurationTests extends ESTestCase {
 
             assertEquals(20, params.get(3).numCandidates());
             assertEquals(10, params.get(3).topK());
+        }
+    }
+
+    public void testExactSearchParsingDefaults() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1, config.searchParams().size());
+            assertFalse(config.searchParams().get(0).exact());
+            assertFalse(config.searchParams().get(0).exactQuantized());
+        }
+    }
+
+    public void testExactSearchParsing() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "quantize_bits": 4,
+              "exact": [true],
+              "exact_quantized": [true]
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1, config.searchParams().size());
+            assertTrue(config.searchParams().get(0).exact());
+            assertTrue(config.searchParams().get(0).exactQuantized());
         }
     }
 
@@ -348,6 +411,22 @@ public class TestConfigurationTests extends ESTestCase {
             DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) builder2.datasetConfig();
             assertThat(fd.docVectors(), contains("/data/docs.fvec"));
             assertEquals("/data/queries.fvec", fd.queryVectors());
+        }
+    }
+
+    public void testExactQuantizedRequiresQuantizedIndex() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "exact": [true],
+              "exact_quantized": [true]
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TestConfiguration.fromXContent(parser));
+            assertTrue(e.getMessage(), e.getMessage().contains("exact_quantized requires a quantized index"));
         }
     }
 

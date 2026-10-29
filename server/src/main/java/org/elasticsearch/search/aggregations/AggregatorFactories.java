@@ -9,11 +9,14 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -31,9 +34,11 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -57,12 +62,50 @@ import static java.util.stream.Collectors.toMap;
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
+    public static final int MAX_NESTED_DEPTH_HARD_LIMIT = 1000;
+
+    public static final Setting<Integer> MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
+        "search.aggs.max_nested_depth",
+        100,
+        1,
+        MAX_NESTED_DEPTH_HARD_LIMIT,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static volatile int maxNestedDepth = MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+
     /**
      * Parses the aggregation request recursively generating aggregator
      * factories in turn.
      */
     public static AggregatorFactories.Builder parseAggregators(XContentParser parser) throws IOException {
         return parseAggregators(parser, 0);
+    }
+
+    /**
+     * Set the maximum number of levels of aggregations that may be nested within one another. Called once per node at
+     * startup from {@link org.elasticsearch.search.SearchModule}, and again on every update of
+     * {@link #MAX_NESTED_DEPTH_SETTING} since it is {@link Setting.Property#Dynamic}; {@link #parseAggregators(XContentParser)}
+     * is static, so the limit has to live in a static too.
+     */
+    public static void setMaxNestedDepth(int maxNestedDepth) {
+        if (maxNestedDepth < 1) {
+            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
+        }
+        AggregatorFactories.maxNestedDepth = maxNestedDepth;
+    }
+
+    public static int getMaxNestedDepth() {
+        return maxNestedDepth;
+    }
+
+    private static String maxNestedDepthExceededMessage() {
+        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+            + maxNestedDepth
+            + "] set in ["
+            + MAX_NESTED_DEPTH_SETTING.getKey()
+            + "]";
     }
 
     private static AggregatorFactories.Builder parseAggregators(XContentParser parser, int level) throws IOException {
@@ -85,6 +128,10 @@ public class AggregatorFactories {
                         + aggregationName
                         + "]. Aggregation names can contain any character except '[', ']', and '>'"
                 );
+            }
+
+            if (level >= maxNestedDepth) {
+                throw new ParsingException(parser.getTokenLocation(), maxNestedDepthExceededMessage());
             }
 
             token = parser.nextToken();
@@ -407,6 +454,9 @@ public class AggregatorFactories {
          * Validate the root of the aggregation tree.
          */
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
+            if (exceedsMaxNestedDepth()) {
+                return ValidateActions.addValidationError(maxNestedDepthExceededMessage(), e);
+            }
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
                 e
@@ -443,7 +493,36 @@ public class AggregatorFactories {
             return e;
         }
 
+        private void checkMaxNestedDepth() {
+            if (exceedsMaxNestedDepth()) {
+                throw new IllegalArgumentException(maxNestedDepthExceededMessage());
+            }
+        }
+
+        private boolean exceedsMaxNestedDepth() {
+            final Deque<Builder> builders = new ArrayDeque<>();
+            final Deque<Integer> levels = new ArrayDeque<>();
+            builders.push(this);
+            levels.push(0);
+            while (builders.isEmpty() == false) {
+                final Builder current = builders.pop();
+                final int level = levels.pop();
+                if (level >= maxNestedDepth
+                    && (current.aggregationBuilders.isEmpty() == false || current.pipelineAggregatorBuilders.isEmpty() == false)) {
+                    return true;
+                }
+                for (AggregationBuilder aggBuilder : current.aggregationBuilders) {
+                    builders.push(aggBuilder.factoriesBuilder);
+                    levels.push(level + 1);
+                }
+            }
+            return false;
+        }
+
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
+            if (parent == null) {
+                checkMaxNestedDepth();
+            }
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return AggregatorFactories.EMPTY;
             }

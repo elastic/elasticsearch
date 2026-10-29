@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -147,15 +148,24 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
+        RecoverySource recoverySource = EmptyStoreRecoverySource.INSTANCE;
+
+        IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        if (indexMetadata.getReshardingMetadata() != null) {
+            assert indexMetadata.getReshardingMetadata().isSplit();
+            var split = indexMetadata.getReshardingMetadata().getSplit();
+
+            if (split.isTargetShard(shardId)) {
+                var sourceShard = new ShardId(shardRouting.index(), split.sourceShard(shardId));
+                recoverySource = new RecoverySource.ReshardSplitRecoverySource(sourceShard);
+            }
+        }
+
         UnassignedInfo unassignedInfoToUpdate = null;
         if (shardRouting.unassignedInfo().reason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
-            String unassignedInfoMessage = "force empty allocation from previous reason "
-                + shardRouting.unassignedInfo().reason()
-                + ", "
-                + shardRouting.unassignedInfo().message();
             unassignedInfoToUpdate = new UnassignedInfo(
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                unassignedInfoMessage,
+                unassignedInfoMessage(shardRouting.unassignedInfo(), recoverySource),
                 shardRouting.unassignedInfo().failure(),
                 0,
                 System.nanoTime(),
@@ -167,15 +177,19 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             );
         }
 
-        initializeUnassignedShard(
-            allocation,
-            routingNodes,
-            routingNode,
-            shardRouting,
-            unassignedInfoToUpdate,
-            EmptyStoreRecoverySource.INSTANCE
-        );
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, recoverySource);
 
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
+    }
+
+    private static String unassignedInfoMessage(UnassignedInfo currentUnassignedInfo, RecoverySource recoverySource) {
+        if (recoverySource.getType() == RecoverySource.Type.EMPTY_STORE) {
+            return "force empty allocation from previous reason " + currentUnassignedInfo.reason() + ", " + currentUnassignedInfo.message();
+        } else {
+            return "force empty allocation of a split target shard from previous reason "
+                + currentUnassignedInfo.reason()
+                + ", "
+                + currentUnassignedInfo.message();
+        }
     }
 }

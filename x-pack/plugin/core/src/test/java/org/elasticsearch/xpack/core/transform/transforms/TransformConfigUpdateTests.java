@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
@@ -48,7 +50,8 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE
+            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE,
+            randomBoolean()
         );
     }
 
@@ -80,9 +83,10 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             instance.getFrequency(),
             instance.getSyncConfig(),
             instance.getDescription(),
-            instance.getSettings(),
+            SettingsConfigTests.mutateForVersion(instance.getSettings(), version),
             instance.getMetadata(),
-            instance.getRetentionPolicyConfig()
+            instance.getRetentionPolicyConfig(),
+            version.supports(TransformConfig.TRANSFORM_FORCE_REKEYING) && instance.isForceRekeying()
         );
         if (instance.getHeaders() != null) {
             mutated.setHeaders(instance.getHeaders());
@@ -197,6 +201,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             .setDeduceMappings(true)
             .setNumFailureRetries(10)
             .setUnattended(true)
+            .setIndexerRequestTimeout(TimeValue.timeValueMinutes(5))
             .build();
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
@@ -298,6 +303,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(config.getSettings().getDocsPerSecond()));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
+        assertThat(updatedConfig.getSettings().getIndexerRequestTimeout(), equalTo(config.getSettings().getIndexerRequestTimeout()));
 
         update = new TransformConfigUpdate(
             null,
@@ -480,6 +486,9 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 builder.endObject();
             }
         }
+        if (update.isForceRekeying()) {
+            builder.field(TransformConfigUpdate.FORCE_REKEYING.getPreferredName(), true);
+        }
 
         builder.endObject();
     }
@@ -513,5 +522,23 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return null;
         }
+    }
+
+    public void testForceRekeyingParsing() throws IOException {
+        String json = """
+            {
+              "_force_rekeying": true
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            TransformConfigUpdate update = TransformConfigUpdate.fromXContent(parser, new TransformParsingContext(false));
+            assertThat(update.isForceRekeying(), equalTo(true));
+        }
+    }
+
+    public void testForceRekeyingOmittedOnOlderTransportVersion() {
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null, true);
+        TransformConfigUpdate mutated = mutateForVersion(update, TransportVersion.fromName("transform_cloud_credential_on_request"));
+        assertThat(mutated.isForceRekeying(), equalTo(false));
     }
 }

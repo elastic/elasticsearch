@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
@@ -32,11 +33,14 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
-    /** Calculates the dot product over {@code [offset, offset + length)}. */
-    float dotProduct(float[] a, float[] b, int offset, int length);
+    /** Calculates the dot product over {@code [[ab]Offset, [ab]Offset + length)}. */
+    float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
 
-    /** L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op. */
-    void l2Normalize(float[] v, int offset, int length);
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    float l2Normalize(float[] v, int offset, int length);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
@@ -62,6 +66,9 @@ public interface ESVectorUtilSupport {
     /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
     float squareDistance(byte[] a, byte[] b, int offset, int length);
 
+    /** Returns the sum of squared differences between a byte vector and a float vector. */
+    float squareDistance(byte[] a, float[] b);
+
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
@@ -70,43 +77,20 @@ public interface ESVectorUtilSupport {
 
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
 
     int ipByteBit(byte[] q, byte[] d);
 
-    float ipFloatBit(float[] q, byte[] d);
+    float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength);
 
     float ipFloatByte(float[] q, byte[] d);
-
-    float calculateOSQLoss(
-        float[] target,
-        float lowerInterval,
-        float upperInterval,
-        float step,
-        float invStep,
-        float norm2,
-        float lambda,
-        int[] quantize
-    );
-
-    void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts);
-
-    void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats);
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
     float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm);
-
-    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
     void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
@@ -162,25 +146,42 @@ public interface ESVectorUtilSupport {
         float[] distances
     );
 
-    void packAsBinary(int[] vector, byte[] packed);
+    void pack1BitValues(int[] vector, byte[] packed);
 
-    void packDibit(int[] vector, byte[] packed);
+    void stride2BitValues(int[] vector, byte[] packed);
 
-    void packDibitQuad(int[] vector, byte[] packed);
+    void pack2BitValues(int[] vector, byte[] packed);
 
-    void transposeHalfByte(int[] q, byte[] quantQueryByte);
+    void stride4BitValues(int[] vector, byte[] packed);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    /**
+     * See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfLineTerminatorLeadByte}. Specialized
+     * (rather than a general "index of any of N marker bytes" method) so implementations backed by
+     * fixed marker constants (e.g. SIMD broadcasts) can be built once rather than reconstructed on
+     * every call.
+     */
+    int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length);
 
     int codePointCount(BytesRef bytesRef);
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#mayContainIgnoringAsciiCase}. */
+    boolean mayContainIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfCandidateIgnoringAsciiCase}. */
+    int indexOfCandidateIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#anyNonAscii}. */
+    boolean anyNonAscii(byte[] value, int offset, int length);
+
     void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
 
-    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
 
-    void linearCombination(float scaleOther, float[] other, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length);
 
     void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
 
@@ -191,4 +192,12 @@ public interface ESVectorUtilSupport {
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor);
+
+    void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor);
+
+    void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
+
+    void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result);
 }

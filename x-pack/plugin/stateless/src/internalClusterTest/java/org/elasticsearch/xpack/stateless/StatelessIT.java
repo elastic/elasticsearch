@@ -125,7 +125,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1222,12 +1222,12 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         throws IOException {
         final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
             operationPurpose,
-            StatelessCompoundCommit.PREFIX
+            BatchedCompoundCommit.PREFIX
         )
             .values()
             .stream()
-            .filter(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
-            .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
+            .filter(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
+            .max(Comparator.comparingLong(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name())))
             .orElseThrow(() -> new AssertionError("retry with assertBusy"));
         final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
             latestUploadBccMetadata.name(),

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152328
-summary: Defer FFW footer reads when stats unneeded
-type: enhancement

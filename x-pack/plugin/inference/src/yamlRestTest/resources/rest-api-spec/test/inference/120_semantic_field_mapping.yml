@@ -122,3 +122,18 @@ setup:
   - exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.embeddings
   - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.start_offset
   - not_exists: hits.hits.0._source._inference_fields.my_field.inference.chunks.my_field.5.end_offset
+
+---
+"Field caps reports semantic field as an inference field":
+  - requires:
+      cluster_features: "field_caps.inference_field"
+      reason: "field_caps inference flag"
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-semantic-field-index
+        fields: "*"
+
+  - match: { indices: [ "test-semantic-field-index" ] }
+  - match: { fields.my_field.semantic.inference: true }

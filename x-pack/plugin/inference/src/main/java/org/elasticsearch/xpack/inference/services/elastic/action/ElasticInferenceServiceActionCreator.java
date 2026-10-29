@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -25,15 +26,18 @@ public class ElasticInferenceServiceActionCreator {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     public ElasticInferenceServiceActionCreator(
         Sender sender,
         ServiceComponents serviceComponents,
-        CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory
+        CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.ccmAuthenticationApplierFactory = Objects.requireNonNull(ccmAuthenticationApplierFactory);
+        this.inferencePreferencesCache = Objects.requireNonNull(inferencePreferencesCache);
     }
 
     public <T extends ElasticInferenceServiceModel> void create(
@@ -41,14 +45,22 @@ public class ElasticInferenceServiceActionCreator {
         TraceContext traceContext,
         ActionListener<ExecutableAction> listener
     ) {
-        var authListener = listener.<CCMAuthenticationApplierFactory.AuthApplier>delegateFailureAndWrap((delegate, applier) -> {
-            var strategy = ModelStrategyFactory.getStrategy(model);
-            var requestManager = strategy.createRequestManager(model, serviceComponents, traceContext, applier);
-            delegate.onResponse(
-                new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage(strategy.requestDescription()))
-            );
-        });
-
-        ccmAuthenticationApplierFactory.getAuthenticationApplier(authListener);
+        ccmAuthenticationApplierFactory.getAuthenticationApplier(
+            listener.delegateFailureAndWrap(
+                (applierListener, applier) -> inferencePreferencesCache.get(
+                    applierListener.delegateFailureAndWrap((preferencesListener, preferences) -> {
+                        var strategy = ModelStrategyFactory.getStrategy(model);
+                        var requestManager = strategy.createRequestManager(model, serviceComponents, traceContext, preferences, applier);
+                        preferencesListener.onResponse(
+                            new SenderExecutableAction(
+                                sender,
+                                requestManager,
+                                constructFailedToSendRequestMessage(strategy.requestDescription())
+                            )
+                        );
+                    })
+                )
+            )
+        );
     }
 }

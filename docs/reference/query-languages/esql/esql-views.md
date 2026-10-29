@@ -1,43 +1,35 @@
 ---
-navigation_title: "Define virtual indices using ES|QL views"
+navigation_title: "Views"
 applies_to:
-  serverless: unavailable
+  serverless: preview
   stack: preview 9.4.0
 products:
   - id: elasticsearch
 ---
 
-# {{esql}} Views [esql-views]
+# Define reusable queries with {{esql}} views [esql-views]
 
-A view is a virtual index with fields that are produced from the output of an ES|QL query.
-Each view has a name and a definition. The definition is a complete ES|QL query, with source commands and processing commands.
-The view name can be used within an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command of any normal ES|QL query, as well as within another view definition.
-When the main query is executed, all referenced views are also executed independently.
-This ensures up-to-date results from all source indexes referenced by both the main query and the view definitions themselves.
-The final output combines all these results into a single list, including any duplicate rows.
+A view is a virtual index defined by an ES|QL query. You reference a view by name in the [`FROM`](/reference/query-languages/esql/commands/from.md) command, just like an ordinary index. The query runs each time the view is referenced, so results always reflect the current state of the data.
 
-## When to use views
+A view has two components:
 
-Views are a good fit when you want to:
+* **Name**: unique within the index namespace, used anywhere an index name is accepted in `FROM`.
+* **Definition**: a complete ES|QL query that runs each time the view is referenced.
 
-* **Reuse a named query.** Wrap a frequently used ES|QL pipeline as a view and reference it by name, instead of repeating the same query in every request.
-* **Abstract common transformations.** Centralize renames, type conversions, or derived fields so consumers see a consistent set of columns without needing to know the underlying source structure.
-* **Combine pre-processed data sources.** Define one view per source, each with its own filters or aggregations, and query them together in a single `FROM` clause.
-* **Simplify queries for downstream tools.** Dashboards, alerts, or ad-hoc analysts can query `FROM my_view` without needing to know the indices or processing commands behind it.
+## Basic example
 
-## Defining views
+Here's how a view works in practice:
 
-Define a view using the REST API:
-* [Create or update an ES|QL View](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-put-view)
-* [Delete an ES|QL View](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-view)
-* [Get or list ES|QL Views](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view)
+:::::::{stepper}
 
-For example, consider the following ES|QL query:
+::::::{step} Start with a query
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_plain_addresses.md
 :::
 
-We can define a view called `country_addresses` using that query:
+::::::
+
+::::::{step} Save it as a view
 
 ```console
 PUT /_query/view/country_addresses
@@ -51,12 +43,57 @@ PUT /_query/view/country_addresses
 }
 ```
 
-Now a query like `FROM country_addresses` will produce the same output:
+::::::
+
+::::::{step} Reference it by name, just like an index
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_addresses.md
 :::
 
-## Using views
+::::::
+
+:::::::
+
+## When to use views
+
+Views are a good fit when you want to:
+
+* **Reuse a named query.** Wrap a frequently used ES|QL pipeline as a view and reference it by name, instead of repeating the same query in every request.
+* **Abstract common transformations.** Centralize renames, type conversions, or derived fields so consumers see a consistent set of columns without needing to know the underlying source structure.
+* **Combine pre-processed data sources.** Define one view per source, each with its own filters or aggregations, and query them together in a single `FROM` clause.
+* **Simplify queries for downstream tools.** Dashboards, alerts, or ad-hoc analysts can query `FROM my_view` without needing to know the indices or processing commands behind it.
+
+## Create and manage views
+
+Use the REST API to create, update, delete, and list views:
+
+* [Create or update a view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-put-view)
+* [Delete a view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-view)
+* [Get or list views](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view)
+
+### Query validation [esql-views-validation]
+`PUT /_query/view/<name>` rejects a query that cannot be parsed.
+
+{applies_to}`stack: ga 9.7+` To check the query without running it, set the `validate` query parameter to `true`. Validation is off by default.
+
+With `validate=true`:
+
+* If the query uses an index or column that does not exist, the response carries a `Warning` header.
+* A warning does not stop {{es}} from saving the view. The view is saved whether or not validation reports a problem, so you can create a view before the index it reads from.
+* The analysis uses your privileges. An index you cannot read is reported as unknown.
+* Failures unrelated to the query, such as an overloaded cluster, produce no warning.
+
+### Reserved views [esql-views-reserved]
+Some views are reserved. {{es}} or its components create them, not users. A reserved view is marked with `"reserved": true` in the [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response.
+
+You cannot modify or delete a reserved view through the REST API:
+
+* `PUT /_query/view/<name>` fails if a reserved view with that name exists. You also cannot set `reserved` in a request.
+* `DELETE /_query/view/<name>` fails with `cannot delete reserved view [<name>]`.
+
+You can query and read a reserved view like any other view, subject to the same [privileges](#esql-views-privileges).
+
+## Query a view
 
 Use views as if they were ordinary indices:
 
@@ -67,30 +104,61 @@ FROM index_pattern
 Where `index_pattern` is a comma-separated list of index or view names, including
 wildcards and date-math.
 
-Much like [subqueries](/reference/query-languages/esql/esql-subquery.md),
-views enable you to combine results from multiple independently processed
-data sources within a single query. Each view runs its own pipeline of
-processing commands (such as `WHERE`, `EVAL`, `STATS`, or `SORT`) and the
-results are combined together with results from other index patterns, views or subqueries
-in the `FROM` clause.
+### Wildcard patterns and views [esql-views-wildcards]
+By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
 
-Fields that exist in one source but not another are filled with `null` values.
+To include views in wildcard resolution, enable the `wildcards_match_views` setting:
 
-### Nesting and branching
+```esql
+SET wildcards_match_views = true;
+FROM my-view-*
+```
 
-If a view definition contains a reference to another view, that is called a nested view.
-ES|QL allows nesting to a depth of 10.
-When multiple views are referenced within the same index-pattern, this leads
-to a branched query plan where each view will be executed independently, in parallel
-if possible, similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md).
-There is a maximum allowed branching factor of 8, for the combination of views, subqueries and `FORK`.
-So, for example, a single index pattern could reference four views and four subqueries,
-but adding just one more view or subquery would exceed the allowed limit and the query will fail.
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
 
-Branching and nesting are allowed in combination as long as there is never more than one branch point.
-This means that nested branching has restrictions:
-* A view can contain subqueries, but that view cannot be used together with other views, and the subqueries can only reference nested views that contain no further branching.
-* A subquery can contain views, but those views must not introduce any additional branch points via subqueries or `FORK`
+## Privileges [esql-views-privileges]
+
+View operations use the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), applied to the view name.
+
+| Operation | Privilege (on the view name) |
+|---|---|
+| Query (`FROM my_view`) | `read`, `all` |
+| Create or update (`PUT /_query/view/<name>`) | `create_view`, `manage_view`, `manage`, `all` |
+| Read definition (`GET /_query/view/<name>`) | `read_view_metadata`, `manage_view`, `manage`, `all` |
+| Delete (`DELETE /_query/view/<name>`) | `delete_view`, `manage_view`, `manage`, `all` |
+
+### Views are not a security boundary
+
+`read` on a view name permits querying the view but does **not** grant access to the data behind it. The caller must also have `read` on every index or alias the view definition resolves to, including through nested views.
+
+Access is enforced at query time. Creating a view requires no privilege over the indices it references.
+
+If some underlying indices are unauthorized, the query fails with a `403`. If none are accessible, it fails with a `400 Unknown index`. Wildcard patterns (`FROM view-*`) silently exclude unauthorized views.
+
+Nested views are resolved under the calling user's credentials. Access to an outer view does not grant access to any inner view it references.
+
+### Document- and field-level security
+
+`read` on a view name must not carry DLS or FLS. If it does, the query fails with a `403` and the `views_with_dls_or_fls` error field lists the affected names. This applies at every nesting level.
+
+DLS or FLS on the **underlying indices** is applied normally.
+
+### Example role
+
+```json
+{
+  "indices": [
+    {
+      "names": ["country_addresses"],
+      "privileges": ["read", "create_view", "read_view_metadata", "delete_view"]
+    },
+    {
+      "names": ["addresses"],
+      "privileges": ["read"]
+    }
+  ]
+}
+```
 
 ## Examples
 
@@ -111,7 +179,11 @@ Now we can query these together with a query like:
 The same country might appear in multiple views, producing multiple rows.
 We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
-### Using wildcards
+### Use wildcards
+
+:::{note}
+This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
+:::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md
 :::
@@ -143,29 +215,73 @@ We could, for example, see how many airports are defined only in `airports` vers
 :::{include} _snippets/commands/examples/views.csv-spec/airports_mp_filtered_combined.md
 :::
 
-### Views with METADATA
+### Views with METADATA [views-with-metadata]
 
-The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a view, and
-follows the same rules as observed for [`METADATA` in Subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata).
-Inside the view it generates columns, just like other fields, and these can be used for filtering and as output columns.
+The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a view.
+Views follow the same rules as [subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
 
-Outside the view it generates `null` values.
-Note that this is a known limitation of the current tech-preview, and is anticipated to be addressed in a future update,
-at which point `METADATA _index` will contain the name of the view.
+Inside the view, the directive generates columns just like other fields. You can use them for filtering and as output columns.
 
-## Limitations [esql-views-limitations]
-
-:::{include} _snippets/common/view_limitations.md
+:::{include} _snippets/common/outer_metadata_rules.md
 :::
 
-## Comparing views, subqueries and FORK
+:::{warning}
+:applies_to: stack: preview =9.4
+`METADATA` on the outer `FROM` is not handled consistently.
 
-:::{include} _snippets/common/comparing_views_subqueries_fork.md
+If the `FROM` names only a view, the directive is ignored. For example, `FROM my_view METADATA _index` returns the view contents without an `_index` column.
+
+:::{include} _snippets/common/outer_metadata_9_4_warning.md
+:::
 :::
 
-## Query compaction
+{applies_to}`stack: ga 9.6+` `_class` and `_name` are the only metadata fields that work on a view without the view body declaring them. The outer query answers them for each view. `_class` is `view`. `_name` is the view name. You do not need the directive inside the view. If the view body also declares `_class` or `_name`, the outer values replace them.
 
-Consider two views, each defined as a pair of subqueries:
+:::{include} _snippets/generated/x-pack-esql/commands/examples/views.csv-spec/views_class_and_name.md
+:::
+
+## How views execute
+
+Views behave like inline subqueries at execution time and when you start combining multiple views, it helps to know how nesting works and where the limits are.
+
+### Execution model
+
+When a query references one or more views, each view's definition query executes independently at query time, in parallel where possible. This is the same execution model used by [`FROM` subqueries](/reference/query-languages/esql/esql-from-subquery.md) and [`FORK`](/reference/query-languages/esql/commands/fork.md).
+
+Results from all sources (indices, views, subqueries) are unioned into a single result set. Duplicate rows are preserved. Columns that exist in one source but not another are filled with `null`.
+
+### Nesting and branching
+
+A view definition can reference another view. This is called a nested view. ES|QL allows nesting to a depth of 10.
+
+When multiple views are referenced within the same index pattern, each view executes independently (in parallel if possible), similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md).
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+[Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 20 branches by default (`esql.query.max_branch_count`). If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. The same setting also caps the total number of leaf branches in the query.
+
+A query and the views and subqueries it references are limited to 500 commands in total (`esql.query.max_command_count`). The limit applies both to the query as written and to the expanded plan after every view and subquery body is inlined, so deeply nested or heavily repeated view references fail instead of consuming unbounded memory.
+:::
+
+:::{applies-item} stack: preview 9.4-9.5
+Views, subqueries, and `FORK` share a maximum branch count of 8. For example, a single index pattern could reference four views and four subqueries, but adding one more would exceed the limit and the query will fail.
+:::
+
+::::
+
+### Combining branching and nesting [combining-branching-and-nesting]
+
+Branching and nesting are allowed in combination as long as there is never more than one branch point. This means nested branching has restrictions:
+
+* A view can contain subqueries, but that view cannot be used together with other views, and the subqueries can only reference nested views that contain no further branching.
+* A subquery can contain views, but those views must not introduce any additional branch points via subqueries or `FORK`.
+
+### Query compaction
+
+When a view definition itself contains branches (subqueries or references to other views), those inner branches would normally create a second level of branching, which ES|QL does not allow. Query compaction solves this by flattening the inner branches into the outer branch set, producing a single-level plan when the flattened width is within `esql.query.max_branch_count` (20 by default). If flattening would exceed that cap, compaction is skipped and the nested plan is kept.
+
+The following example shows how compaction works. Two views are each defined as a pair of subqueries:
 
 ```console
 PUT /_query/view/view_x
@@ -193,14 +309,14 @@ PUT /_query/view/view_y
 }
 ```
 
-Used together in a single `FROM` clause:
+A query references both views alongside a regular index:
 
 ```esql
 FROM other-events, view_x, view_y
 | STATS count(msg) BY level
 ```
 
-This initially resolves to a plan with two levels of branching — three outer branches, two of which branch again inside their view definitions:
+Without compaction, this would create two levels of branching. Three outer branches exist, and two of them branch again inside their view definitions:
 
 ```mermaid
 flowchart TD
@@ -214,7 +330,7 @@ flowchart TD
     VY --> AP["apache-events-*"]
 ```
 
-ES|QL allows only one branch level per query, so the equivalent subquery-only form would fail. Views, however, apply **query compaction**: the inner view branches are flattened into the outer branch set, producing a single-level plan with five branches:
+Compaction flattens the inner view branches into the outer branch set, producing a single-level plan with five branches:
 
 ```mermaid
 flowchart TD
@@ -226,12 +342,21 @@ flowchart TD
     S --> AP["apache-events-*"]
 ```
 
-Compaction does **not** apply if the view definition contains any commands after its subqueries — those commands would need to run on the combined branch output, so the branch level cannot be collapsed and the query will fail.
+Compaction does **not** apply if the view definition contains any processing commands after its subqueries. Those commands need to run on the combined branch output, so the branch level cannot be collapsed and the query will fail.
+
+## Limitations [esql-views-limitations]
+
+ES|QL views have the following limitations:
+
+:::{include} _snippets/common/view_limitations.md
+:::
+
+## Compare views, subqueries, and FORK
+
+For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
 
 ## Related pages
 
-* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
-* [Combine result sets with subqueries](/reference/query-languages/esql/esql-subquery.md): the closest alternative to views, without a persisted definition.
+* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, in `FROM` or with `IN` / `NOT IN`.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
-* [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the branching limits described above.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

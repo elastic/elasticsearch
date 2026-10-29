@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -47,7 +45,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     // It might help to release cluster resources earlier if e.g.: someone
     // configures a transform that ends up checkpointing 100000
     // searchable snapshot indices that all have to be retrieved from blob storage.
-    protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
+    protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = MAX_GET_INDEX_CHECKPOINTS_TIMEOUT;
 
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
@@ -57,7 +55,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
-    private final CrossProjectModeDecider crossProjectModeDecider;
 
     DefaultCheckpointProvider(
         final Clock clock,
@@ -65,8 +62,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final Supplier<Client> clientSupplier,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
-        final TransformConfig transformConfig,
-        final CrossProjectModeDecider crossProjectModeDecider
+        final TransformConfig transformConfig
     ) {
         this.clock = clock;
         this.threadContextSupplier = threadContextSupplier;
@@ -74,7 +70,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.transformConfig = transformConfig;
-        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -84,10 +79,19 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     @Override
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
+        createNextCheckpoint(lastCheckpoint, INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, listener);
+    }
+
+    @Override
+    public void createNextCheckpoint(
+        final TransformCheckpoint lastCheckpoint,
+        final TimeValue timeout,
+        final ActionListener<TransformCheckpoint> listener
+    ) {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, listener.delegateFailureAndWrap((l, checkpointsByIndex) -> {
+        getIndexCheckpoints(timeout, listener.delegateFailureAndWrap((l, checkpointsByIndex) -> {
             reportSourceIndexChanges(
                 TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? Set.of() : lastCheckpoint.getIndicesCheckpoints().keySet(),
                 checkpointsByIndex.keySet()
@@ -97,22 +101,12 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         }));
     }
 
-    protected boolean crossProjectCheckpointingEnabled() {
-        return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
-    }
-
-    protected IndicesOptions checkpointIndicesOptions() {
-        if (crossProjectCheckpointingEnabled()) {
-            return IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
-                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                .build();
-        }
-        return IndicesOptions.LENIENT_EXPAND_OPEN;
-    }
-
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
         try {
-            var indicesOption = checkpointIndicesOptions();
+            // Cross-project resolution is only requested when the transform holds a minted cloud
+            // credential; getScopedIndicesOptions() drops CPS otherwise, so a credential-less
+            // transform resolves origin-only instead of failing closed in the auth layer.
+            var indicesOption = transformConfig.getScopedIndicesOptions();
 
             // Only use the query for shard filtering when there are no runtime mappings,
             // because SearchShardsRequest does not support runtime_mappings and the query
@@ -127,8 +121,10 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 queryForShardFiltering,
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 timeout,
-                transformConfig.getSource().getProjectRouting(),
-                crossProjectCheckpointingEnabled()
+                TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && indicesOption.resolveCrossProjectIndexExpression()
+                    ? transformConfig.getSource().getProjectRouting()
+                    : null,
+                indicesOption.resolveCrossProjectIndexExpression()
             );
 
             ClientHelper.executeWithHeadersAsync(

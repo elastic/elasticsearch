@@ -11,7 +11,13 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+
+import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -39,16 +45,104 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
                 () -> format(
-                    "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+                    "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s] "
+                        + "index [%s] index-mode [%s]",
                     index.id(),
                     index.seqNo(),
                     indexShard.routingEntry().allocationId(),
                     index.primaryTerm(),
                     indexShard.getOperationPrimaryTerm(),
-                    index.origin()
+                    index.origin(),
+                    indexShard.indexSettings().getIndex().getName(),
+                    indexShard.indexSettings().getMode()
                 ),
                 ex
             );
         }
+    }
+
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        // no pre-work; overridden to avoid the delegating to default
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)}: failed
+     * documents are logged from the batch's raw fields.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        if (LOGGER.isDebugEnabled()) {
+            for (int i = 0; i < results.size(); i++) {
+                Engine.IndexResult result = results.get(i);
+                if (result.getResultType() == Engine.Result.Type.FAILURE) {
+                    logBatchOpFailure(batch, i, result.getFailure());
+                }
+            }
+        }
+    }
+
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        if (LOGGER.isDebugEnabled()) {
+            logEntireBatchFailure(batch, ex);
+        }
+    }
+
+    private void logBatchOpFailure(IndexOperationBatch batch, int i, Exception ex) {
+        if (isUserError(ex)) {
+            LOGGER.trace(getMessageSupplier("index-fail", batch, i), ex);
+        } else {
+            LOGGER.debug(getMessageSupplier("real-index-fail", batch, i), ex);
+        }
+    }
+
+    private Supplier<Object> getMessageSupplier(String messagePrefix, IndexOperationBatch batch, int i) {
+        return () -> format(
+            "%s [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
+            messagePrefix,
+            batch.id(i),
+            batch.seqNo(i),
+            indexShard.routingEntry().allocationId(),
+            batch.primaryTerm(),
+            indexShard.getOperationPrimaryTerm(),
+            batch.origin(),
+            indexShard.indexSettings().getIndex().getName(),
+            indexShard.indexSettings().getMode()
+        );
+    }
+
+    /**
+     * Returns true if the exception is a user error, false otherwise.
+     * User errors are logged at trace level, while other errors such as codec issues or lucene errors are logged at debug level.
+     * @return true if the exception is a user error, false otherwise
+     */
+    private boolean isUserError(Exception ex) {
+        return switch (ex) {
+            case DocumentMissingException dme -> true;
+            case VersionConflictEngineException vcee -> true;
+            case IllegalArgumentException iae -> iae.getMessage() != null
+                && iae.getMessage().startsWith("Number of documents in the shard cannot exceed [");
+            default -> false;
+        };
+    }
+
+    private void logEntireBatchFailure(IndexOperationBatch batch, Exception ex) {
+        LOGGER.debug(
+            () -> format(
+                "index-fail batch docCount [%s] startingSeqNo [%s] allocation-id [%s] primaryTerm [%s] "
+                    + "operationPrimaryTerm [%s] origin [%s] index [%s] index-mode [%s]",
+                batch.docCount(),
+                batch.seqNo(0),
+                indexShard.routingEntry().allocationId(),
+                batch.primaryTerm(),
+                indexShard.getOperationPrimaryTerm(),
+                batch.origin(),
+                indexShard.indexSettings().getIndex().getName(),
+                indexShard.indexSettings().getMode()
+            ),
+            ex
+        );
     }
 }

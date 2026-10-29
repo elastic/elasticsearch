@@ -456,6 +456,32 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close(); // this triggers some assertions
     }
 
+    public void testCallbacksTolerateUnresolvedShard() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+
+        IndexSearcher s = new IndexSearcher(r);
+        s.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        s.setQueryCache(cache.getCache());
+
+        assertEquals(1, s.count(new DummyQuery(0)));
+        assertEquals(1, s.count(new DummyQuery(0)));
+
+        r.close();
+        dir.close();
+
+        cache.close(); // this triggers some assertions
+    }
+
     private static class DummyWeight extends Weight {
 
         private final Weight weight;

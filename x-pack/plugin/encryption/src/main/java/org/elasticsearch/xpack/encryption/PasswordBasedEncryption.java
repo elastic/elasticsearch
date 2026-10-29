@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.encryption.spi.AesGcm;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.security.GeneralSecurityException;

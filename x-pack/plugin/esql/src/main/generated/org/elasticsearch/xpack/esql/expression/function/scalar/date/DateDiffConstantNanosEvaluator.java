@@ -82,10 +82,11 @@ public final class DateDiffConstantNanosEvaluator implements ExpressionEvaluator
       LongBlock endTimestampBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (startTimestampBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startTimestampBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -93,10 +94,11 @@ public final class DateDiffConstantNanosEvaluator implements ExpressionEvaluator
               result.appendNull();
               continue position;
         }
+        if (endTimestampBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endTimestampBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -146,7 +148,7 @@ public final class DateDiffConstantNanosEvaluator implements ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

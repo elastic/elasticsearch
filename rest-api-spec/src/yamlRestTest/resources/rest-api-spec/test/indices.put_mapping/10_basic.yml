@@ -65,14 +65,13 @@
 ---
 "Put mappings with explicit _doc type":
   - requires:
-      cluster_features: ["gte_v8.0.0"]
-      reason: "deprecation message changed in 8.0"
+      cluster_features: ["indices.put_mapping.no_types_check"]
+      reason: "REST layer no longer rejects _doc-wrapped mapping sources"
   - do:
       indices.create:
         index: test_index
 
   - do:
-      catch: bad_request
       indices.put_mapping:
         index: test_index
         body:
@@ -81,8 +80,11 @@
               field:
                 type: keyword
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Types cannot be provided in put mapping requests" }
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.field.type: keyword }
 
 ---
 "Update per-field metadata":
@@ -272,5 +274,34 @@
               fields:
                 raw:
                   type: keyword
+
+  - is_true: acknowledged
+
+---
+"PUT mapping with duplicate dynamic template names emits a warning":
+  - requires:
+      cluster_features: [ "mapper.dynamic_template.warn_on_duplicate_names" ]
+      reason: duplicate dynamic template name warning was added
+      test_runner_features: warnings
+
+  - do:
+      indices.create:
+        index: test_dup_templates
+
+  - do:
+      warnings:
+        - "Dynamic template [my_template] in index [test_dup_templates] is defined more than once. It is not defined which of the duplicate definitions takes effect. Defining multiple dynamic templates with the same name will be rejected in a future version."
+      indices.put_mapping:
+        index: test_dup_templates
+        body:
+          dynamic_templates:
+            - my_template:
+                match: "foo_*"
+                mapping:
+                  type: keyword
+            - my_template:
+                match: "bar_*"
+                mapping:
+                  type: text
 
   - is_true: acknowledged

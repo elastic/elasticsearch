@@ -10,6 +10,10 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.MapMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -20,6 +24,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -42,9 +48,9 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -86,9 +92,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -105,7 +111,7 @@ public class RestControllerTests extends ESTestCase {
     private UsageService usageService;
     private TestThreadPool threadPool;
     private NodeClient client;
-    private Tracer tracer;
+    private HttpServerInstrumentation instrumentation;
     private LongCounter requestsCounter;
     private TelemetryProvider telemetryProvider;
     private List<RestRequest.Method> methodList;
@@ -129,11 +135,11 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
-        tracer = mock(Tracer.class);
+        instrumentation = mock(HttpServerInstrumentation.class);
         requestsCounter = mock(LongCounter.class);
         telemetryProvider = mock(TelemetryProvider.class);
         var mockMeterRegister = mock(MeterRegistry.class);
-        when(telemetryProvider.getTracer()).thenReturn(tracer);
+        when(telemetryProvider.getHttpServerInstrumentation()).thenReturn(instrumentation);
         when(telemetryProvider.getMeterRegistry()).thenReturn(mockMeterRegister);
         when(mockMeterRegister.registerLongCounter(eq(RestController.METRIC_REQUESTS_TOTAL), anyString(), anyString())).thenReturn(
             requestsCounter
@@ -318,29 +324,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(tracer).startTrace(
-            eq(threadContext),
-            eq(channel.request()),
-            eq("GET /"),
-            eq(
-                Map.of(
-                    "http.method",
-                    "GET",
-                    "http.request.method",
-                    "GET",
-                    "http.flavour",
-                    "1.1",
-                    "network.protocol.version",
-                    "1.1",
-                    "http.url",
-                    "/",
-                    "url.full",
-                    "/",
-                    "url.path",
-                    "/"
-                )
-            )
-        );
+        verify(instrumentation).start(eq(threadContext), eq(fakeRequest), isNull());
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -362,6 +346,58 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchExposesHandlerNameToChannel() {
+        final AtomicReference<String> observed = new AtomicReference<>();
+        restController.registerHandler(new Route(GET, "/handler_name"), new RestHandler() {
+            @Override
+            public String getName() {
+                return "test_handler_action";
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                observed.set(channel.handlerName());
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+        final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/handler_name").build();
+        final AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+
+        assertThat(observed.get(), equalTo("test_handler_action"));
+    }
+
+    public void testDispatchedFailureRecordsHandlerName() throws Exception {
+        final Logger suppressedLogger = LogManager.getLogger("rest.suppressed");
+        final MockAppender appender = new MockAppender("rest_controller_suppressed");
+        appender.start();
+        Loggers.addAppender(suppressedLogger, appender);
+        try {
+            restController.registerHandler(new Route(GET, "/failing_handler"), new RestHandler() {
+                @Override
+                public String getName() {
+                    return "failing_test_action";
+                }
+
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+                    channel.sendResponse(new RestResponse(channel, new ElasticsearchException("boom")));
+                }
+            });
+            final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/failing_handler").build();
+            final AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.INTERNAL_SERVER_ERROR);
+
+            restController.dispatchRequest(fakeRequest, channel, threadContext);
+
+            final MapMessage<?, ?> logged = (MapMessage<?, ?>) appender.getLastEventAndReset().getMessage();
+            assertEquals("failing_test_action", logged.getData().get("elasticsearch.rest.handler"));
+        } finally {
+            Loggers.removeAppender(suppressedLogger, appender);
+            appender.stop();
+        }
     }
 
     public void testRegisterAsDeprecatedHandler() {
@@ -891,6 +927,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public String getScheme() {
+                return "http";
+            }
+
+            @Override
             public HttpBody body() {
                 if (hasContent) {
                     return HttpBody.fromBytesReference(new BytesArray("test"));
@@ -973,8 +1014,8 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(tracer).startTrace(any(), any(RestRequest.class), anyString(), anyMap());
-        verify(tracer).addError(any(RestRequest.class), any(IllegalArgumentException.class));
+        verify(instrumentation).start(any(), any(RestRequest.class), isNull());
+        verify(instrumentation).recordException(any(RestRequest.class), any(IllegalArgumentException.class));
     }
 
     public void testDispatchCompatibleHandler() {

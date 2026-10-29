@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
@@ -272,7 +273,7 @@ public class AzureConfigurationTests extends ESTestCase {
         assertEquals(Set.of(), result.consumedKeys());
     }
 
-    public void testKeylessAuthWithAllFields() {
+    public void testFederatedAuthWithAllFields() {
         AzureConfiguration config = AzureConfiguration.fromMap(
             Map.of("tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "api://AzureADTokenExchange")
         );
@@ -281,34 +282,42 @@ public class AzureConfigurationTests extends ESTestCase {
         assertEquals("my-tenant", config.tenantId());
         assertEquals("my-client", config.clientId());
         assertEquals("api://AzureADTokenExchange", config.jwtAudience());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertFalse(config.hasCredentials());
     }
 
-    public void testKeylessAuthRequiresAllFields() {
+    public void testFederatedAuthRequiresClientId() {
         ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
-        assertThat(e.getMessage(), containsString("client_id is required when keyless authentication settings are configured"));
-        assertThat(e.getMessage(), containsString("jwt_audience is required when keyless authentication settings are configured"));
+        assertThat(e.getMessage(), containsString("client_id is required when federated authentication settings are configured"));
     }
 
-    public void testKeylessAuthConflictsWithExplicitCredentials() {
+    public void testFederatedAuthAllowsOmittingJwtAudience() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant", "client_id", "my-client"));
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertNull(config.jwtAudience());
+        assertTrue(config.hasFederatedAuth());
+    }
+
+    public void testFederatedAuthConflictsWithExplicitCredentials() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> AzureConfiguration.fromMap(
                 Map.of("account", "acc", "key", "k", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
             )
         );
-        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with federated authentication settings"));
     }
 
-    public void testKeylessAuthConflictsWithAuthAnonymous() {
+    public void testFederatedAuthConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> AzureConfiguration.fromMap(
                 Map.of("auth", "anonymous", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
             )
         );
-        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with federated authentication settings"));
     }
 
     public void testAuthFederatedIdentityExplicit() {
@@ -316,7 +325,7 @@ public class AzureConfigurationTests extends ESTestCase {
             Map.of("auth", "federated_identity", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
         );
         assertTrue(config.isFederatedIdentity());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("federated_identity", config.auth());
     }
 
@@ -349,5 +358,27 @@ public class AzureConfigurationTests extends ESTestCase {
         assertEquals("managed_identity", config.auth());
         assertTrue(config.isManagedIdentity());
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
+    }
+
+    public void testDataSourceAuditSettings() {
+        var configuration = AzureConfiguration.fromMap(Map.of("auth", "anonymous"));
+        var secretFields = AzureConfiguration.secretFieldNames();
+
+        for (var field : configuration.fieldNames()) {
+            var request = new PutDataSourceAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "datasource",
+                "azure",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                secretFields.contains(field) ? "::es_redacted::" : "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

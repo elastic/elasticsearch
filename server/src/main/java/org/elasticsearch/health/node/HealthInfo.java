@@ -10,6 +10,7 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,24 +26,53 @@ import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE
 /**
  * This class wraps all the data returned by the health node.
  *
- * @param diskInfoByNode         A Map of node id to DiskHealthInfo for that node
- * @param dslHealthInfo          The data stream lifecycle health information
- * @param repositoriesInfoByNode A Map of node id to RepositoriesHealthInfo for that node
- * @param fileSettingsHealthInfo The file-based settings health information
+ * @param diskInfoByNode                       A Map of node id to DiskHealthInfo for that node
+ * @param dslHealthInfo                        The data stream lifecycle health information
+ * @param repositoriesInfoByNode               A Map of node id to RepositoriesHealthInfo for that node
+ * @param fileSettingsHealthInfo               The file-based settings health information
+ * @param dlmFrozenTransitionsHealthInfo       The DLM frozen-tier transition health information
+ * @param dataRecoveryHealthInfo               The data recovery protection health information
+ * @param localRecoveryRetriesHealthInfoByNode A map of node id to LocalRecoveryRetriesHealthInfo for that node
  */
 public record HealthInfo(
     Map<String, DiskHealthInfo> diskInfoByNode,
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
     Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
-    FileSettingsHealthInfo fileSettingsHealthInfo
+    FileSettingsHealthInfo fileSettingsHealthInfo,
+    @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo,
+    @Nullable DataRecoveryHealthInfo dataRecoveryHealthInfo,
+    Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode
 ) implements Writeable {
 
     public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
 
-    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
+    static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
+    static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName("dlm_frozen_transitions_health_info");
+    static final TransportVersion DATA_RECOVERY_HEALTH_INFO = TransportVersion.fromName("data_recovery_health_info");
+    static final TransportVersion LOCAL_RECOVERY_RETRIES_HEALTH_INFO = TransportVersion.fromName("local_recovery_retries_health_info");
 
     public HealthInfo {
         requireNonNull(fileSettingsHealthInfo);
+        requireNonNull(localRecoveryRetriesHealthInfoByNode);
+    }
+
+    public HealthInfo(
+        Map<String, DiskHealthInfo> diskInfoByNode,
+        @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
+        Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
+        FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo
+    ) {
+        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, dlmFrozenTransitionsHealthInfo, null, Map.of());
+    }
+
+    public HealthInfo(
+        Map<String, DiskHealthInfo> diskInfoByNode,
+        @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
+        Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
+        FileSettingsHealthInfo fileSettingsHealthInfo
+    ) {
+        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, null, null, Map.of());
     }
 
     public HealthInfo(StreamInput input) throws IOException {
@@ -52,7 +82,16 @@ public record HealthInfo(
             input.readMap(RepositoriesHealthInfo::new),
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
-                : INDETERMINATE
+                : INDETERMINATE,
+            input.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)
+                ? input.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::readFrom)
+                : null,
+            input.getTransportVersion().supports(DATA_RECOVERY_HEALTH_INFO)
+                ? input.readOptionalWriteable(DataRecoveryHealthInfo::new)
+                : null,
+            input.getTransportVersion().supports(LOCAL_RECOVERY_RETRIES_HEALTH_INFO)
+                ? input.readMap(LocalRecoveryRetriesHealthInfo::new)
+                : Map.of()
         );
     }
 
@@ -63,6 +102,15 @@ public record HealthInfo(
         output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
             output.writeOptionalWriteable(fileSettingsHealthInfo);
+        }
+        if (output.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)) {
+            output.writeOptionalWriteable(dlmFrozenTransitionsHealthInfo);
+        }
+        if (output.getTransportVersion().supports(DATA_RECOVERY_HEALTH_INFO)) {
+            output.writeOptionalWriteable(dataRecoveryHealthInfo);
+        }
+        if (output.getTransportVersion().supports(LOCAL_RECOVERY_RETRIES_HEALTH_INFO)) {
+            output.writeMap(localRecoveryRetriesHealthInfoByNode, StreamOutput::writeWriteable);
         }
     }
 }

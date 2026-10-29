@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -22,6 +23,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.MultiValueMode;
@@ -43,6 +46,15 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
         /** Extract the competitive value from the {@link PointValues}  */
         long fromPointValues(PointValues pointValues) throws IOException;
+
+        /** Extract the competitive value from the segment-global {@link DocValuesSkipper} stats */
+        long fromSkipper(DocValuesSkipper skipper);
+
+        /**
+         * Return true if the skipper's segment-global bound cannot improve {@code currentResult},
+         * meaning the entire leaf can be skipped without scanning any documents.
+         */
+        boolean canSkipLeaf(DocValuesSkipper skipper, long currentResult);
 
         /** Wraps the provided {@link SortedNumericDocValues} with a {@link MultiValueMode} */
         LongValues multiValueMode(SortedNumericDocValues sortedNumericDocValues);
@@ -69,15 +81,16 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
     LuceneMinMaxOperator(
         IndexedByShardId<? extends RefCounted> shardRefCounters,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         LuceneSliceQueue sliceQueue,
         String fieldName,
         NumberType numberType,
         int limit,
         long initialResult,
-        java.util.function.LongSupplier directoryBytesRead
+        java.util.function.LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue, directoryBytesRead);
+        super(shardRefCounters, driverContext, PAGE_SIZE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;
@@ -106,6 +119,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 final LeafReader reader = scorer.leafReaderContext().reader();
                 final Query query = scorer.weight().getQuery();
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
                 if (query == null || query instanceof MatchAllDocsQuery) {
                     final PointValues pointValues = reader.getPointValues(fieldName);
                     // only apply shortcut if we are visiting all documents, otherwise we need to trigger the search
@@ -128,6 +142,23 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                             scorer.markAsDone();
                         }
                     }
+                    // Skipper fast path: covers fields with no points index, and the common no-limit case
+                    // where the PointValues path above does not fire (getDocCount() < Integer.MAX_VALUE).
+                    if (scorer.isDone() == false && skipper != null && skipper.docCount() > 0 && reader.getLiveDocs() == null) {
+                        if (scorer.position() == 0) {
+                            seen = true;
+                            result = numberType.evaluate(result, numberType.fromSkipper(skipper));
+                            if (remainingDocs != NO_LIMIT) {
+                                remainingDocs -= skipper.docCount();
+                            }
+                        }
+                        scorer.markAsDone();
+                    }
+                }
+                // Leaf pruning: once we have a result, skip any segment whose skipper bound
+                // cannot improve it, regardless of the query.
+                if (scorer.isDone() == false && seen && skipper != null && numberType.canSkipLeaf(skipper, result)) {
+                    scorer.markAsDone();
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search

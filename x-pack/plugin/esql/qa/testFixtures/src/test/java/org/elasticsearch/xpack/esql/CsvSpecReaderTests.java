@@ -11,6 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,6 +39,22 @@ public class CsvSpecReaderTests extends ESTestCase {
             parser.parse(line);
         }
         parser.parse("FROM foo;");
+        Object result = parser.parse(";");
+        assertThat(result, instanceOf(CsvTestCase.class));
+        return (CsvTestCase) result;
+    }
+
+    /**
+     * Feeds a query through a fresh parser, followed by any {@code warning:} or {@code warningRegex:}
+     * directives (which must appear in the result section, after the query), then closes the result
+     * section and returns the assembled test case.
+     */
+    private static CsvTestCase parseWithWarnings(String... resultSectionLines) {
+        SpecReader.Parser parser = CsvSpecReader.specParser();
+        parser.parse("FROM foo;");
+        for (String line : resultSectionLines) {
+            parser.parse(line);
+        }
         Object result = parser.parse(";");
         assertThat(result, instanceOf(CsvTestCase.class));
         return (CsvTestCase) result;
@@ -149,5 +167,55 @@ public class CsvSpecReaderTests extends ESTestCase {
             () -> CsvSpecReader.specParser().parse("dataset: c: bare")
         );
         assertThat(e.getMessage(), containsString("a name and a quoted resource are required"));
+    }
+
+    // makeWarningsOptional() tests
+
+    public void testMakeWarningsOptionalConvertsExactStringsToPatterns() {
+        CsvTestCase testCase = parseWithWarnings("warning: Column [x] is missing");
+        assertThat(testCase.assertWarnings(false), instanceOf(AssertWarnings.ExactStrings.class));
+
+        testCase.makeWarningsOptional();
+
+        assertThat(testCase.assertWarnings(false), instanceOf(AssertWarnings.AllowedRegexes.class));
+    }
+
+    public void testMakeWarningsOptionalAllowsExpectedWarningToBeAbsent() {
+        CsvTestCase testCase = parseWithWarnings("warning: Column [x] is missing");
+        testCase.makeWarningsOptional();
+        // no warnings returned → passes (optional)
+        testCase.assertWarnings(false).assertWarnings(List.of(), null);
+    }
+
+    public void testMakeWarningsOptionalStillAcceptsExpectedWarning() {
+        CsvTestCase testCase = parseWithWarnings("warning: Column [x] is missing");
+        testCase.makeWarningsOptional();
+        // exact expected warning returned → still passes
+        testCase.assertWarnings(false).assertWarnings(List.of("Column [x] is missing"), null);
+    }
+
+    public void testMakeWarningsOptionalStillRejectsUnexpectedWarning() {
+        CsvTestCase testCase = parseWithWarnings("warning: Column [x] is missing");
+        testCase.makeWarningsOptional();
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> testCase.assertWarnings(false).assertWarnings(List.of("Something completely unexpected"), null)
+        );
+        assertThat(e.getMessage(), containsString("Unexpected warning"));
+    }
+
+    public void testMakeWarningsOptionalIsNoOpWithNoExpectedWarnings() {
+        CsvTestCase testCase = parseWithWarnings();
+        assertThat(testCase.assertWarnings(false), instanceOf(AssertWarnings.NoWarnings.class));
+        testCase.makeWarningsOptional();
+        assertThat(testCase.assertWarnings(false), instanceOf(AssertWarnings.NoWarnings.class));
+    }
+
+    public void testMakeWarningsOptionalIsNoOpWithRegexWarnings() {
+        CsvTestCase testCase = parseWithWarnings("warningRegex: Column \\[.+\\] is missing");
+        assertThat(testCase.assertWarnings(false), instanceOf(AssertWarnings.AllowedRegexes.class));
+        testCase.makeWarningsOptional();
+        // regex warnings are already optional (AllowedRegexes doesn't require all patterns to match)
+        assertThat(testCase.assertWarnings(false), instanceOf(AssertWarnings.AllowedRegexes.class));
     }
 }

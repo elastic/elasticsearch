@@ -733,6 +733,6 @@ public class TopNBlockHashTests extends BlockHashTestCase {
     }
 
     private BlockHash.TopNDef topNDef(int order) {
-        return new BlockHash.TopNDef(order, asc, nullsFirst, limit);
+        return new BlockHash.TopNDef(List.of(new BlockHash.SortKey(order, asc, nullsFirst)), limit);
     }
 }

@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
@@ -98,7 +99,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         String blobName,
         long blobSize,
         BlobMultiPartInputStreamProvider provider,
-        boolean failIfAlreadyExists
+        boolean failIfAlreadyExists,
+        Executor executor
     ) throws IOException {
         blobStore.writeBlobAtomic(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists);
     }
@@ -136,8 +138,14 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
-        throws IOException {
+    public void copyBlob(
+        OperationPurpose purpose,
+        BlobContainer sourceBlobContainer,
+        String sourceBlobName,
+        String blobName,
+        long blobSize,
+        @Nullable Executor executor
+    ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         if (sourceBlobContainer instanceof AzureBlobContainer == false) {

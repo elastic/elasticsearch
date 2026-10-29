@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -75,6 +76,11 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
         this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
         this.client = client;
+    }
+
+    // visible for testing
+    IndicesOptions getIndicesOptions() {
+        return indicesOptions;
     }
 
     /**
@@ -140,7 +146,9 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse searchResponse = client.execute(TransportSearchAction.TYPE, searchRequest).actionGet();
             try {
-                Histogram histogram = searchResponse.getAggregations().get(DATE_BUCKETS);
+                // The aggregations are null when the search had no shard results to reduce
+                InternalAggregations aggregations = searchResponse.getAggregations();
+                Histogram histogram = aggregations == null ? null : aggregations.get(DATE_BUCKETS);
                 if (histogram == null) {
                     // We log search response here to get information about shards and hits which may be helpful while debugging.
                     // The size of the search response is small as we only log if the "date_buckets" aggregation is missing.

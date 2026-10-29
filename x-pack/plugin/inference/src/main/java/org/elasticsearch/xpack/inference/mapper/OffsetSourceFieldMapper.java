@@ -348,11 +348,6 @@ public class OffsetSourceFieldMapper extends FieldMapper {
             var offsetSource = OFFSET_SOURCE_PARSER.parse(parser, null);
 
             if (offsetSource.inputIndex() != null) {
-                // Temporary logic to ensure input index is not used in release builds
-                if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
-                    throw new UnsupportedOperationException("Input index is not supported yet");
-                }
-
                 if (context.indexSettings().getIndexVersionCreated().before(SEMANTIC_FIELD_TYPE)) {
                     throw new IllegalStateException(
                         "Input index cannot be set on indices with index version < "

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -129,12 +128,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_RESULT_WINDOW_SETTING,
                 IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
                 IndexSettings.MAX_TOKEN_COUNT_SETTING,
+                IndexSettings.MAX_ANALYZE_CHAR_COUNT_SETTING,
                 IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
                 IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
                 IndexSettings.MAX_NGRAM_DIFF_SETTING,
                 IndexSettings.MAX_SHINGLE_DIFF_SETTING,
                 IndexSettings.MAX_RESCORE_WINDOW_SETTING,
                 IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+                IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING,
                 IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
                 IndexSettings.MAX_TERMS_COUNT_SETTING,
                 IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
@@ -163,15 +164,20 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING,
                 IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT,
+                IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
                 IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
+                IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
+                FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING,
                 FieldMapper.COERCE_SETTING,
                 FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING,
+                FieldMapper.DOC_VALUES_NULLABILITY_SETTING,
+                FieldMapper.DOC_VALUES_ON_FAILURE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,
@@ -179,6 +185,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
+                MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING,
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
@@ -210,12 +217,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.SLICE_ENABLED,
+                IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
                 FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
+                IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE,
@@ -246,6 +255,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
+                IndexSettings.TIME_SERIES_BATCH_INDEXING,
+                IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
                 IndexSettings.SYNTHETIC_ID,
                 SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
@@ -270,16 +281,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
-        if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
-        }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
-        }
+        settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
+        settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
+        settings.add(IndexSettings.BATCH_INDEXING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };
 

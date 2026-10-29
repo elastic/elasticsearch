@@ -333,7 +333,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     presentValue.throughputLastPeriod(),
                     presentValue.avgInferenceTimeLastPeriod(),
                     presentValue.cacheHitCountLastPeriod(),
-                    presentValue.avgInferenceProcessMemoryRssBytes()
+                    presentValue.avgInferenceProcessMemoryRssBytes(),
+                    presentValue.maxInferenceProcessMemoryRssBytes()
                 )
             );
         } else {

@@ -1,0 +1,7 @@
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE salary IN (FROM employees | KEEP salary)
+      AND languages > 2
+    | KEEP emp_no
+  )

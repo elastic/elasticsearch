@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -20,6 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,7 +51,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MlJobIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return CLUSTER.getHttpAddresses();
+    }
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue(
         "x_pack_rest_user",
@@ -68,6 +82,8 @@ public class MlJobIT extends ESRestTestCase {
             ).equals(warnings) == false
         )
         .build();
+    private static final String SHARED_RESULTS_FIRST_INDEX = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+        + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 
     @Override
     protected Settings restClientSettings() {
@@ -85,8 +101,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"given-farequote-config-job\""));
         assertThat(responseAsString, containsString("\"results_index_name\":\"shared\""));
 
-        String mlIndicesResponseAsString = getMlResultsIndices();
-        assertThat(mlIndicesResponseAsString, containsString("green open .ml-anomalies-shared-000001"));
+        ensureGreen(SHARED_RESULTS_FIRST_INDEX);
 
         String aliasesResponseAsString = getAliases();
         LogManager.getLogger(MlRestTestStateCleaner.class).warn(aliasesResponseAsString);
@@ -527,13 +542,7 @@ public class MlJobIT extends ESRestTestCase {
 
         putJob(jobId1, Strings.format(jobTemplate, byFieldName1));
 
-        String mlIndicesResponseAsString = getMlResultsIndices();
-        assertThat(
-            mlIndicesResponseAsString,
-            containsString(
-                "green open " + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
-            )
-        );
+        ensureGreen(SHARED_RESULTS_FIRST_INDEX);
 
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(

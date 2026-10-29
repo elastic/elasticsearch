@@ -50,4 +50,18 @@ public class StatValueComparatorTests extends ESTestCase {
         assertThat(StatValueComparator.compare("abc", 1), equalTo(StatValueComparator.INCOMPARABLE));
         assertThat(StatValueComparator.compare(new BytesRef("abc"), 1), equalTo(StatValueComparator.INCOMPARABLE));
     }
+
+    public void testKeywordComparedInUtf8ByteOrderNotUtf16() {
+        // U+FFFD (BMP) vs U+1F600 (astral): String.compareTo (UTF-16) would order the emoji first, but the runtime
+        // keyword comparison uses UTF-8 byte order (BytesRef), where the replacement char sorts first. The classifier
+        // must match runtime order, or a filtered COUNT/MIN/MAX MATCH-vs-MISS diverges from a scan.
+        String bmp = "�";
+        String astral = "😀";
+        assertThat(StatValueComparator.compare(bmp, astral), lessThan(0));
+        assertThat(StatValueComparator.compare(astral, bmp), greaterThan(0));
+        // Both stat representations (parquet String, text BytesRef) and a mix must all use UTF-8 order.
+        assertThat(StatValueComparator.compare(new BytesRef(bmp), new BytesRef(astral)), lessThan(0));
+        assertThat(StatValueComparator.compare(bmp, new BytesRef(astral)), lessThan(0));
+        assertThat(StatValueComparator.compare(new BytesRef(bmp), astral), lessThan(0));
+    }
 }

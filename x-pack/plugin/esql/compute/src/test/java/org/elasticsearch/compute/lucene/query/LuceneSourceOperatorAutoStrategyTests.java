@@ -34,13 +34,14 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -212,18 +213,20 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
     }
 
     public void testAutoStrategyLimited() throws Exception {
-        Function<Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(
+        BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(
             between(1, LuceneOperator.NO_LIMIT - 1)
         );
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Query rewritten = searcher.rewrite(query);
-        assertThat(query.toString(), auto.apply(rewritten), equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
+        assertThat(query.toString(), auto.apply(null, rewritten), equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
     }
 
     public void testAutoStrategyUnlimited() throws Exception {
-        Function<Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(LuceneOperator.NO_LIMIT);
+        BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(
+            LuceneOperator.NO_LIMIT
+        );
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Query rewritten = searcher.rewrite(query);
-        assertThat(query.toString(), auto.apply(rewritten), equalTo(expectedUnlimited));
+        assertThat(query.toString(), auto.apply(null, rewritten), equalTo(expectedUnlimited));
     }
 }

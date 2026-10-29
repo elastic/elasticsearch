@@ -1,0 +1,1 @@
+FROM class_a METADATA _class, _name | KEEP emp_no, _class, _name

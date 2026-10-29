@@ -7,25 +7,20 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
-import org.apache.http.nio.conn.NoopIOSessionStrategy;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
-import org.apache.http.nio.reactor.IOReactorException;
-import org.apache.http.pool.PoolStats;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.pool.PoolStats;
+import org.apache.hc.core5.util.Timeout;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -33,7 +28,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
@@ -92,7 +86,7 @@ public class HttpClientManager implements Closeable {
     );
 
     private final ThreadPool threadPool;
-    private final PoolingNHttpClientConnectionManager connectionManager;
+    private final PoolingAsyncClientConnectionManager connectionManager;
     private IdleConnectionEvictor connectionEvictor;
     private final HttpClient httpClient;
 
@@ -103,9 +97,10 @@ public class HttpClientManager implements Closeable {
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
-        return create(settings, threadPool, clusterService, throttlerManager, null);
+        return create(settings, threadPool, clusterService, throttlerManager, circuitBreaker, null);
     }
 
     public static HttpClientManager create(
@@ -113,10 +108,16 @@ public class HttpClientManager implements Closeable {
         ThreadPool threadPool,
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker,
         @Nullable TimeValue connectionTtl
     ) {
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(connectionTtl);
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+        var connectionManager = createConnectionManager(
+            null,
+            connectionTtl,
+            HttpSettings.CONNECTION_TIMEOUT.get(settings),
+            HttpSettings.SOCKET_TIMEOUT.get(settings)
+        );
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
     public static HttpClientManager create(
@@ -125,22 +126,28 @@ public class HttpClientManager implements Closeable {
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
         SSLService sslService,
-        TimeValue connectionTtl
+        TimeValue connectionTtl,
+        CircuitBreaker circuitBreaker
     ) {
-        // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
-        final SSLIOSessionStrategy sslioSessionStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
-            .ioSessionStrategy();
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+        // Set the TLS strategy to ensure an encrypted connection, as Elastic Inference Service requires it.
+        var tlsStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX).clientTlsStrategy();
+        var connectionManager = createConnectionManager(
+            tlsStrategy,
+            connectionTtl,
+            HttpSettings.CONNECTION_TIMEOUT.get(settings),
+            HttpSettings.SOCKET_TIMEOUT.get(settings)
+        );
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
     // Default for testing
     HttpClientManager(
         Settings settings,
-        PoolingNHttpClientConnectionManager connectionManager,
+        PoolingAsyncClientConnectionManager connectionManager,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
         this.threadPool = threadPool;
 
@@ -148,7 +155,13 @@ public class HttpClientManager implements Closeable {
         setMaxConnections(MAX_TOTAL_CONNECTIONS.get(settings));
         setMaxRouteConnections(MAX_ROUTE_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
+        this.httpClient = HttpClient.create(
+            new HttpSettings(settings, clusterService),
+            threadPool,
+            connectionManager,
+            throttlerManager,
+            circuitBreaker
+        );
 
         this.evictionInterval = CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.get(settings);
         this.connectionMaxIdle = CONNECTION_MAX_IDLE_TIME_SETTING.get(settings);
@@ -157,65 +170,35 @@ public class HttpClientManager implements Closeable {
         this.addSettingsUpdateConsumers(clusterService);
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy, TimeValue connectionTtl) {
-        ConnectingIOReactor ioReactor;
-        try {
-            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
-            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
-        } catch (IOReactorException e) {
-            var message = "Failed to initialize HTTP client manager with SSL.";
-            logger.error(message, e);
-            throw new ElasticsearchException(message, e);
-        }
-
-        Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-            .register("http", NoopIOSessionStrategy.INSTANCE)
-            .register("https", sslStrategy)
-            .build();
-
-        return new PoolingNHttpClientConnectionManager(
-            ioReactor,
-            null,
-            registry,
-            null,
-            null,
-            Math.toIntExact(connectionTtl.getMillis()),
-            TimeUnit.MILLISECONDS
-        );
-    }
-
-    private static PoolingNHttpClientConnectionManager createConnectionManager(@Nullable TimeValue connectionTtl) {
-        ConnectingIOReactor ioReactor;
-        try {
-            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
-            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
-        } catch (IOReactorException e) {
-            var message = "Failed to initialize the inference http client manager";
-            logger.error(message, e);
-            throw new ElasticsearchException(message, e);
-        }
-
-        var registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-            .register("http", NoopIOSessionStrategy.INSTANCE)
-            .register("https", SSLIOSessionStrategy.getDefaultStrategy())
-            .build();
-
-        // -1 is used as the default within the PoolingNHttpClientConnectionManager to indicate no TTL
-        var connectionTtlMillis = connectionTtl == null ? -1 : connectionTtl.getMillis();
+    // The connect timeout moved from the 4.x RequestConfig to the connection manager's ConnectionConfig (the 5.x RequestConfig
+    // variant is deprecated), and the EIS TLS strategy now comes from SslProfile.clientTlsStrategy() instead of ioSessionStrategy().
+    private static PoolingAsyncClientConnectionManager createConnectionManager(
+        @Nullable TlsStrategy tlsStrategy,
+        @Nullable TimeValue connectionTtl,
+        TimeValue connectTimeout,
+        TimeValue socketTimeout
+    ) {
+        var connectionConfig = ConnectionConfig.custom()
+            .setConnectTimeout(Timeout.ofMilliseconds(connectTimeout.millis()))
+            .setSocketTimeout(Timeout.ofMilliseconds(socketTimeout.millis()));
 
         /*
           If the connection TTL is not set, the TTL will be controlled using the IdleConnectionEvictor and keep-alive strategy.
           The max idle time cluster setting will dictate how much time an open connection can be unused for before it can be closed.
          */
-        return new PoolingNHttpClientConnectionManager(
-            ioReactor,
-            null,
-            registry,
-            null,
-            null,
-            Math.toIntExact(connectionTtlMillis),
-            TimeUnit.MILLISECONDS
-        );
+        if (connectionTtl != null) {
+            connectionConfig.setTimeToLive(org.apache.hc.core5.util.TimeValue.ofMilliseconds(connectionTtl.millis()));
+        }
+
+        var builder = PoolingAsyncClientConnectionManagerBuilder.create().setDefaultConnectionConfig(connectionConfig.build());
+
+        // When no TLS strategy is provided the builder installs the default one, which uses the JVM's default SSL context,
+        // matching the 4.x client's default SSL session strategy.
+        if (tlsStrategy != null) {
+            builder.setTlsStrategy(tlsStrategy);
+        }
+
+        return builder.build();
     }
 
     private void addSettingsUpdateConsumers(ClusterService clusterService) {

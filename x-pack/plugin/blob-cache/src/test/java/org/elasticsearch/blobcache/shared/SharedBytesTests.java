@@ -18,6 +18,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
@@ -124,9 +126,9 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
-    // Verifies that byteBufferSlice returns a read-only buffer with correct content when mmap
+    // Verifies that memorySegmentSlice returns a segment with correct content when mmap
     // is enabled. Randomized region count (1-4) and region size (1-16 pages).
-    public void testByteBufferSliceMmap() throws Exception {
+    public void testMemorySegmentSliceMmap() throws Exception {
         int regions = randomIntBetween(1, 4);
         int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
         var nodeSettings = Settings.builder()
@@ -151,15 +153,15 @@ public class SharedBytesTests extends ESTestCase {
 
             SharedBytes.IO io = sharedBytes.getFileChannel(region);
 
-            // byteBufferSlice returns a non-null read-only buffer with correct data
+            // memorySegmentSlice returns a non-null read-only segment with correct data
             int sliceOffset = randomIntBetween(0, regionSize / 2);
             int sliceLength = randomIntBetween(1, regionSize - sliceOffset);
-            ByteBuffer slice = io.byteBufferSlice(sliceOffset, sliceLength);
+            MemorySegment slice = io.memorySegmentSlice(sliceOffset, sliceLength);
             assertNotNull(slice);
             assertTrue(slice.isReadOnly());
-            assertEquals(sliceLength, slice.remaining());
+            assertEquals(sliceLength, slice.byteSize());
             byte[] sliceData = new byte[sliceLength];
-            slice.get(sliceData);
+            MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLength);
             for (int i = 0; i < sliceLength; i++) {
                 assertEquals(randomData[sliceOffset + i], sliceData[i]);
             }
@@ -170,9 +172,9 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
-    // Verifies that byteBufferSlice returns null when mmap is disabled.
+    // Verifies that memorySegmentSlice returns null when mmap is disabled.
     // Randomized region count (1-4) and region size (1-16 pages), mmap=false.
-    public void testByteBufferSliceNoMmap() throws Exception {
+    public void testMemorySegmentSliceNoMmap() throws Exception {
         int regions = randomIntBetween(1, 4);
         int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
         var nodeSettings = Settings.builder()
@@ -187,8 +189,8 @@ public class SharedBytesTests extends ESTestCase {
             int region = randomIntBetween(0, regions - 1);
             SharedBytes.IO io = sharedBytes.getFileChannel(region);
 
-            // byteBufferSlice returns null when not mmap'd
-            assertThat(io.byteBufferSlice(0, regionSize), nullValue());
+            // memorySegmentSlice returns null when not mmap'd
+            assertThat(io.memorySegmentSlice(0, regionSize), nullValue());
         } finally {
             if (sharedBytes != null) {
                 sharedBytes.decRef();
@@ -196,9 +198,9 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
-    // Verifies that byteBufferSlice rejects out-of-bounds requests: offset+length exceeding
+    // Verifies that memorySegmentSlice rejects out-of-bounds requests offset+length exceeding
     // region size, and negative offset. Single region of 4 pages, mmap=true.
-    public void testByteBufferSliceBoundsCheck() throws Exception {
+    public void testMemorySegmentSliceBoundsCheck() throws Exception {
         int regions = 1;
         int regionSize = 4 * SharedBytes.PAGE_SIZE;
         var nodeSettings = Settings.builder()
@@ -212,10 +214,8 @@ public class SharedBytesTests extends ESTestCase {
             SharedBytes.IO io = sharedBytes.getFileChannel(0);
 
             var expectedType = Assertions.ENABLED ? AssertionError.class : IllegalArgumentException.class;
-            // position + length exceeds region size
-            expectThrows(expectedType, () -> io.byteBufferSlice(regionSize - 10, 20));
-            // negative position
-            expectThrows(expectedType, () -> io.byteBufferSlice(-1, 10));
+            expectThrows(expectedType, () -> io.memorySegmentSlice(regionSize - 10, 20));
+            expectThrows(expectedType, () -> io.memorySegmentSlice(-1, 10));
         } finally {
             if (sharedBytes != null) {
                 sharedBytes.decRef();

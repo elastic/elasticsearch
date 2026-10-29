@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public abstract class ValuesReader implements ReleasableIterator<Block[]> {
     protected final ValuesSourceReaderOperator operator;
@@ -93,6 +94,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
 
         final List<CurrentWork> columnAtATime;
         final List<CurrentWork> rowStride;
+        int sourceBackedRowStrideFields;
         int currentShard = -1;
         BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -125,6 +127,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 assert r.columnAtATime == null;
                 r.rowStride.read(doc, storedFields, r.builder);
             }
+            operator.trackSourceFieldReads(sourceBackedRowStrideFields);
             operator.trackSourceBytesAndRelease(storedFields);
         }
 
@@ -161,14 +164,23 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                     rowStride.add(field);
                 }
             }
+            sourceBackedRowStrideFields = 0;
+            for (CurrentWork field : rowStride) {
+                if (field.field.loader.rowStrideStoredFieldSpec().requiresSource()) {
+                    sourceBackedRowStrideFields++;
+                }
+            }
             SourceLoader sourceLoader = null;
+            // Read before merging in the source loader's stored fields below, which resets the paths to "the whole document".
+            Set<String> sourcePaths = storedFieldsSpec.sourcePaths();
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = operator.shardContexts.get(shard).newSourceLoader().apply(storedFieldsSpec.sourcePaths());
+                sourceLoader = operator.sourceLoader(shard, sourcePaths);
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx, null) : null,
+                sourcePaths
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);

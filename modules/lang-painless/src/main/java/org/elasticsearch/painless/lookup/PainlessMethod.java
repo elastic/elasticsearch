@@ -23,7 +23,9 @@ public record PainlessMethod(
     List<Class<?>> typeParameters,
     MethodHandle methodHandle,
     MethodType methodType,
-    Map<Class<?>, Object> annotations
+    Map<Class<?>, Object> annotations,
+    // Resolved @allocates estimator, or null. Derived (like methodHandle) — excluded from equals/hashCode.
+    Method allocationEstimator
 ) {
 
     public PainlessMethod(
@@ -33,7 +35,8 @@ public record PainlessMethod(
         List<Class<?>> typeParameters,
         MethodHandle methodHandle,
         MethodType methodType,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Method allocationEstimator
     ) {
         this.javaMethod = javaMethod;
         this.targetClass = targetClass;
@@ -42,6 +45,12 @@ public record PainlessMethod(
         this.methodHandle = methodHandle;
         this.methodType = methodType;
         this.annotations = Map.copyOf(annotations);
+        this.allocationEstimator = allocationEstimator;
+    }
+
+    /** Returns this method's annotation of the given type, or {@code null}. */
+    public <T> T annotation(Class<T> type) {
+        return type.cast(annotations.get(type));
     }
 
     @Override

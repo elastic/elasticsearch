@@ -1,0 +1,3 @@
+FROM employees
+, (ROW x = 1)
+, (FROM languages | WHERE language_code > 1)

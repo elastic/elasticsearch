@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -154,5 +155,22 @@ public class SearchContextIdTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, id));
         assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
+    }
+
+    public void testDecodingWithForgedOversizedAliasFilterMapThrows() {
+        byte[] payload = new byte[] {
+            (byte) 0xa7,
+            (byte) 0xc7,
+            (byte) 0xba,
+            0x04,        // transport version
+            0x00,        // empty shards map
+            (byte) 0x80,
+            (byte) 0xa8,
+            (byte) 0xd6,
+            (byte) 0xb9,
+            0x07         // alias-filter map size ~1e9
+        };
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, new BytesArray(payload)));
     }
 }

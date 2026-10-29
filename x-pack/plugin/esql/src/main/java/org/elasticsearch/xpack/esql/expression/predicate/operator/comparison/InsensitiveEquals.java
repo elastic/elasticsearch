@@ -13,14 +13,15 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -37,7 +38,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper {
+public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper, AnyNullIsNull, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "InsensitiveEquals",
@@ -88,11 +89,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
     }
 
     public static Automaton automaton(BytesRef val) {
-        if (val.length == 0) {
-            // toCaseInsensitiveString doesn't match empty strings properly so let's do it ourselves
-            return Automata.makeEmptyString();
-        }
-        return AutomatonQueries.toCaseInsensitiveString(val.utf8ToString());
+        return Automata.makeCaseInsensitiveString(val.utf8ToString());
     }
 
     @Override
@@ -155,5 +152,10 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
             return new InsensitiveEqualsEvaluator.Factory(source(), leftEval, rightEval);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + this + "] but didn't implement mapping");
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        return NullMisuseSuggestion.equalsNullToIsNull(left(), right(), false);
     }
 }

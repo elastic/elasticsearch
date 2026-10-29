@@ -235,6 +235,14 @@ EOF
 
 <summary>Agent information from gobld</summary>
 EOF
+
+  if [[ "${JACOCO_REPORTING_ENABLED:-}" == "true" ]]; then
+    cat << EOF | buildkite-agent annotate --context "jacoco-reports" --style "info"
+<details>
+
+<summary>JaCoCo coverage reports</summary>
+EOF
+  fi
 fi
 
 # =============================================================================

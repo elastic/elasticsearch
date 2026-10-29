@@ -1,0 +1,3 @@
+FROM employees
+| INLINE STATS k = COUNT(languages), m = MAX(salary) BY languages
+| WHERE m > 70000

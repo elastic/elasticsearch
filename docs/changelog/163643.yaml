@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163643
+summary: Emit partial non-rate time-series aggs periodically
+type: bug

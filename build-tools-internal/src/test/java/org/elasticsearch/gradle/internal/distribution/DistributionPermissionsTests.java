@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -87,12 +87,13 @@ public class DistributionPermissionsTests {
         private boolean excluded;
         private final FileCopyDetails details;
 
+        @SuppressWarnings("unchecked")
         PermissionProbe(String... segments) {
             String name = segments[segments.length - 1];
 
             ConfigurableFilePermissions permissions = mock(ConfigurableFilePermissions.class);
             doAnswer(invocation -> {
-                mode.set(invocation.getArgument(0));
+                mode.set((Integer) invocation.getArguments()[0]);
                 return null;
             }).when(permissions).unix(anyInt());
 
@@ -104,7 +105,7 @@ public class DistributionPermissionsTests {
                 return null;
             }).when(details).exclude();
             doAnswer(invocation -> {
-                Action<ConfigurableFilePermissions> configure = invocation.getArgument(0);
+                Action<ConfigurableFilePermissions> configure = (Action<ConfigurableFilePermissions>) invocation.getArguments()[0];
                 configure.execute(permissions);
                 return null;
             }).when(details).permissions(any());

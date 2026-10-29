@@ -17,7 +17,8 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Adds the scores produced by a score {@link ExpressionEvaluator} (an evaluator yielding a {@link DoubleBlock}
- * of per-row scores) to the existing scores in the input page.
+ * of per-row scores) to the existing scores in the input page. A row whose existing score is {@code null} has
+ * nothing to add onto and stays {@code null}.
  */
 public class ScoreOperator extends AbstractPageMappingOperator {
 
@@ -47,15 +48,6 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         assert page.getBlockCount() > scoreBlockPosition : "Expected to get a score block in position " + scoreBlockPosition;
-        if (page.getBlock(scoreBlockPosition).asVector() == null) {
-            // A federated relation's _score can arrive without a real per-row baseline (null, or a mix of null
-            // and real values merged by an upstream TopN) from a cluster node that predates runtime scoring
-            // support for that relation. There's nothing sound to add a per-row score onto in that case.
-            throw new IllegalStateException(
-                "runtime score computation received a score baseline containing null values, "
-                    + "likely from a cluster node that predates federated runtime scoring support"
-            );
-        }
 
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {
@@ -73,11 +65,27 @@ public class ScoreOperator extends AbstractPageMappingOperator {
         try (DoubleBlock evalScores = (DoubleBlock) scorer.eval(page); DoubleBlock existingScores = page.getBlock(scoreBlockPosition)) {
             // TODO Optimize for constant scores?
             int rowCount = page.getPositionCount();
-            DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
-            for (int i = 0; i < rowCount; i++) {
-                builder.appendDouble(existingScores.getDouble(i) + evalScores.getDouble(i));
+            DoubleVector existingVector = existingScores.asVector();
+            if (existingVector != null) {
+                DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
+                for (int i = 0; i < rowCount; i++) {
+                    builder.appendDouble(existingVector.getDouble(i) + evalScores.getDouble(i));
+                }
+                return builder.build().asBlock();
             }
-            return builder.build().asBlock();
+            // A row can arrive without a score baseline: a subquery union branch that did not ask for METADATA _score
+            // null-fills the column, as does a federated relation answered by a node that predates runtime scoring for
+            // it. Such a row has no score to add onto, so it stays null rather than starting from zero.
+            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (existingScores.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(existingScores.getDouble(existingScores.getFirstValueIndex(i)) + evalScores.getDouble(i));
+                    }
+                }
+                return builder.build();
+            }
         }
     }
 

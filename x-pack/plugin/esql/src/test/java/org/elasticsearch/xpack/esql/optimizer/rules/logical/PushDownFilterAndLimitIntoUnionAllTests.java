@@ -1048,8 +1048,8 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * a limit is appended to the subquery to make sure the implicitK is preserved.
      *
      * EsqlProject[[color{r}#27, rgb_vector{r}#32, language_name{r}#35]]
-     * \_TopN[[Order[_score{r}#33,DESC,FIRST], Order[color{r}#27,ASC,LAST]],10[INTEGER],false]
-     *   \_UnionAll[[color{r}#27, hex_code{r}#28, id{r}#29, primary{r}#30, rgb_byte_vector{r}#31, rgb_vector{r}#32, _score{r}#33,
+     * \_TopN[[Order[_score{m}#33,DESC,FIRST], Order[color{r}#27,ASC,LAST]],10[INTEGER],false]
+     *   \_UnionAll[[color{r}#27, hex_code{r}#28, id{r}#29, primary{r}#30, rgb_byte_vector{r}#31, rgb_vector{r}#32, _score{m}#33,
      *                      language_code{r}#34, language_name{r}#35]]
      *     |_EsqlProject[[color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#13, rgb_byte_vector{f}#15, rgb_vector{f}#14, _score{m}#3,
      *                             language_code{r}#18, language_name{r}#19]]

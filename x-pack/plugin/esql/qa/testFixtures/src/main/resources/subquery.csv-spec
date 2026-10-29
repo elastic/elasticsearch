@@ -1002,6 +1002,219 @@ book_no:keyword | title:text                                | author:text       
 1463            | Realms of Tolkien: Images of Middle-earth | J. R. R. Tolkien  | 0.02          | null
 ;
 
+// A runtime MATCH after the union adds its score to the rows of the branch that asked for _score; the rows of the
+// branch that did not have no score to add onto and stay null.
+subqueryInFromWithScoreInOneBranchThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score), (FROM books)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+6760            | 1.0
+6760            | null
+;
+
+// Same as above with the scored branch second: which branch asked for _score does not matter.
+subqueryInFromWithScoreInSecondBranchThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM books, (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+6760            | 1.0
+6760            | null
+;
+
+subqueryInFromWithScoreInAllBranchesThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score), (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | 1.0
+6760            | 1.0
+6760            | 1.0
+;
+
+// A branch that computed its own _score keeps the merged column out of scoring, as it does for a single source:
+// neither its 100.0 nor the sibling's 0.0 baseline gets the runtime match score added.
+subqueryInFromWithUserDefinedScoreInOneBranchThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score | EVAL _score = 100.0), (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score
+;
+
+book_no:keyword | _score:double
+5469            | 0.0
+5469            | 100.0
+6760            | 0.0
+6760            | 100.0
+;
+
+// Same as subqueryInFromWithUserDefinedScoreInOneBranchThenRuntimeMatch, but 2nd branch has a non-zero score.
+subqueryInFromWithUserDefinedScoreInOneBranchNonZeroScoreInOtherThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _id | EVAL _score = 100.0), (FROM books METADATA _score | WHERE MATCH(author, "Tolkien"))
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score
+;
+
+book_no:keyword | _score:double
+5469            | 1.5629040002822876
+5469            | 100.0
+6760            | 1.097223162651062
+6760            | 100.0
+;
+
+// An explicit null _score is as empty as the null the union fills in for a branch without one: the sibling's
+// rows are still scored and these stay null.
+subqueryInFromWithExplicitNullScoreInOneBranchThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score), (FROM books | EVAL _score = null::double)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+6760            | 1.0
+6760            | null
+;
+
+// The _score predicate sees the score the runtime match adds; the null rows of the unscored branch do not pass it.
+subqueryInFromWithScoreInOneBranchThenRuntimeMatchAndScorePredicate
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: runtime_score_fix
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score), (FROM books)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand") AND _score > 0.5
+| KEEP book_no, _score
+| SORT book_no
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+6760            | 1.0
+;
+
+// No branch asked for _score, so the outer METADATA clause null-fills it everywhere and there is nothing to add onto.
+subqueryInFromWithOuterScoreOnlyThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: outer_metadata_null_injection
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books), (FROM books) METADATA _score
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+6760            | null
+6760            | null
+;
+
+// A nested union whose branches all null-fill _score leaves the scored sibling in charge: the runtime match still adds
+// its score to the sibling's rows, and the nested union's rows stay null.
+subqueryInFromWithNestedNullScoreUnionThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: outer_metadata_null_injection
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM (FROM books), (FROM books) METADATA _score), (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+5469            | null
+6760            | 1.0
+6760            | null
+6760            | null
+;
+
+// A null column renamed to _score is as empty as one null-filled under that name.
+subqueryInFromWithRenamedNullScoreThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _score), (FROM books | EVAL s = null::double | RENAME s AS _score)
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+5469            | 1.0
+5469            | null
+6760            | 1.0
+6760            | null
+;
+
 subqueryInFromWithUnionTypesWithCommonTypes
 required_capability: subquery_in_from_command
 

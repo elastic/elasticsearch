@@ -87,7 +87,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -2215,6 +2217,92 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      */
     private static LogicalPlan analyzeMaybeNullify(TestAnalyzer analyzer, String query) {
         return randomBoolean() ? analyzer.statement("SET unmapped_fields=\"nullify\";\n" + query) : analyzer.query(query);
+    }
+
+    /**
+     * The union merges {@code _score} as the live {@link MetadataAttribute}, so that a scoring search after it keeps adding
+     * to it, when a branch asked for {@code METADATA _score} and the others leave the column null - whichever branch it is,
+     * and whether the null was filled in by alignment or written as an explicit typed null.
+     */
+    public void testUnionAllMergesScoreAsMetadataWhenABranchScoresAndTheOthersAreNull() {
+        for (String from : List.of(
+            "FROM (FROM test METADATA _score), (FROM test)",
+            "FROM test, (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double), (FROM test | KEEP emp_no)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | RENAME s AS _score)",
+            "FROM (FROM test | EVAL s = null::double | RENAME s AS _score), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | EVAL _score = s)",
+            "FROM (FROM test | EVAL s = null::double | EVAL _score = s), (FROM test METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * A branch that computed its own {@code _score} makes the merged column a plain reference, which later scoring leaves
+     * alone, as it does for a single source.
+     */
+    public void testUnionAllMergesScoreAsReferenceWhenABranchComputesIt() {
+        for (String from : List.of(
+            "FROM (FROM test METADATA _score | EVAL _score = 1.0), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = salary::double)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /** With no branch scoring there is nothing for a later search to add onto, so the merged column stays a reference. */
+    public void testUnionAllMergesScoreAsReferenceWhenNoBranchScores() {
+        for (String from : List.of(
+            "FROM (FROM test), (FROM test) METADATA _score",
+            "FROM (FROM test | EVAL _score = null::double), (FROM test)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * Test null-only {@code _score} branch in a nested UnionAll is recognized correctly.
+     * For the test queries below, the analyzer injects null-filled _score columns in the nested UnionAll. The output _score attribute
+     * of nested UnionAll should be correctly recognized as null-only _score branches and since other branch of
+     * outer UnionAll has {@code METADATA _score}, the merged _score column should be a MetadataAttribute.
+     */
+    public void testUnionAllMergesScoreAsMetadataWhenTheOtherBranchesAreNullThroughNesting() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test), (FROM test) METADATA _score | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM (FROM test), (FROM test) METADATA _score), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test) METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /** The {@code _score} column of the {@link UnionAll} that {@code from} resolves to, with every branch aligned to it. */
+    private Attribute mergedScore(String from) {
+        LogicalPlan plan = analyzer().addEmployees("test").query(from);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        Attribute score = null;
+        for (Attribute attr : unionAll.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                score = attr;
+            }
+        }
+        assertNotNull(from, score);
+        for (LogicalPlan branch : unionAll.children()) {
+            assertThat(from, branch.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.SCORE));
+        }
+        return score;
     }
 
     @Override

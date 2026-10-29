@@ -2282,15 +2282,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return mergePlan;
             }
 
-            return mergePlan.replaceSubPlansAndOutput(
-                newSubPlans,
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
-            );
+            List<Attribute> newOutput = toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                newOutput = keepExistingUnsupportedAttributes(newOutput, mergePlan.output());
+            }
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, mergePlan.withScoreAttributeFromChildren(newSubPlans, newOutput));
         }
 
         /*

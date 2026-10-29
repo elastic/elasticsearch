@@ -220,6 +220,7 @@ public class DiskUsageTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomMillisUpToYear9999(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),

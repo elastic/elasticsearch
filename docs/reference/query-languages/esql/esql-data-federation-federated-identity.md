@@ -51,11 +51,12 @@ To delete these resources later, you also need the matching `Delete*` permission
 Both setup methods start in Elastic:
 
 1. Go to **Data management** > **{{esql}} Data Federation**.
-2. Select the **Data sources** tab.
-3. Click **Connect data source**.
-4. Set **Data source type** to **Amazon S3**.
-5. Enter a **Name** for the data source.
-6. Under **Authentication**, keep **Federated Identity** selected as the **Preferred method**.
+2. Open the **Connect external data source** flyout in one of these ways:
+   - On the **Data sources** tab, click **Connect data source**.
+   - On the **Datasets** tab, click **Add dataset**, then select **Connect new data source** in the **Data source** menu.
+3. Set **Data source type** to **Amazon S3**.
+4. Enter a **Name** for the data source.
+5. Under **Authentication**, keep **Federated Identity** selected as the **Preferred method**.
 
 Keep the flyout open while you create the AWS resources.
 
@@ -294,6 +295,8 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
 If federated identity isn't available for your project or deployment, connecting fails with an error. Refer to [Before you begin](#before-you-begin).
 
 ### Create a dataset
+
+If you connected the data source from the **Add dataset** wizard, the wizard selects it for you, so continue with the wizard.
 
 [Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 

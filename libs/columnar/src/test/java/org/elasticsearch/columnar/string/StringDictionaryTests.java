@@ -184,6 +184,43 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * The survey's term table cannot hold a value longer than 32766 bytes, so such a value is never given an ordinal. It has to
+     * escape and read back whole. That is the longest value the table takes and the shortest it cannot.
+     */
+    public void testValuesLongerThanTheTermTableCanHoldEscape() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final int longestTerm = 32_766;
+        final BytesRef atLimit = new BytesRef("a".repeat(longestTerm));
+        final BytesRef justOver = new BytesRef("b".repeat(longestTerm + 1));
+        final BytesRef wellOver = new BytesRef("c".repeat(40_000));
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = new BytesRef[] { switch (d % 11) {
+                case 3 -> atLimit;
+                case 5 -> justOver;
+                case 7 -> wellOver;
+                default -> new BytesRef(terms[d % terms.length]);
+            } };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final StringColumnMetadata.Dictionary dictionary = dictionaryOf(metadata);
+            final DictionaryStringColumnReader column = (DictionaryStringColumnReader) reader;
+            assertTrue("expected the long values to have escaped", dictionary.hasEscapes());
+            for (int d = 0; d < docSlots.length; d++) {
+                final BytesRef value = reader.valueAt(reader.firstValueAddress(d));
+                assertEquals("doc [" + d + "]", docSlots[d][0], value);
+                if (docSlots[d][0].length > longestTerm) {
+                    assertEquals(
+                        "doc [" + d + "] is too long for the table, so it escapes",
+                        dictionary.escapeOrdinal(),
+                        column.ordinalAt(reader.firstValueAddress(d))
+                    );
+                }
+            }
+        });
+    }
+
     /** Nothing repeats, so there is no vocabulary and the values are stored as they are. */
     public void testAllDistinctValuesStayPlain() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 1500)];
@@ -377,9 +414,11 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         // it, which then leaves no room for the other. The cap is larger so the survey holds both.
         final StringColumnOptions options = new StringColumnOptions(
             new DictionaryPolicy(4096, 0.5, 0.01),
-            new SummaryPolicy(200),
+            SummaryPolicy.sized(200),
             ChunkCodec.ZSTD,
-            StringColumnOptions.DEFAULT_SIZES
+            StringColumnOptions.DEFAULT_SIZES,
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
         withColumn(singleValued(docValues), options, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
@@ -463,7 +502,6 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
-    /** A column with nothing worth naming records no summary. */
     // NOTE: a column whose values are all distinct names none of them, and still summarises them: whether they
     // repeat is a question about the other segments, which only the merge can answer.
     public void testAllDistinctValuesKeepASummary() throws IOException {
@@ -471,7 +509,28 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef("id-" + d);
         }
-        withDictionary(docValues, (metadata, reader) -> assertTrue("summarised for the merge", reader.hasSummary()));
+        withDictionary(docValues, (metadata, reader) -> {
+            assertTrue("summarised for the merge", reader.hasSummary());
+            assertTrue("with its terms", reader.hasSummaryTerms());
+        });
+    }
+
+    public void testTermsPastTheCapAreStillRecorded() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(200, 800)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("id-" + d);
+        }
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            new DictionaryPolicy(64, 0.5, 0.2),
+            (metadata, reader) -> {
+                assertTrue("recorded what a dictionary could reach", reader.hasSummary());
+                assertTrue("and the terms a later merge would read", reader.hasSummaryTerms());
+            }
+        );
     }
 
     /** What a column recorded of its survey survives the round trip through its metadata. */
@@ -786,7 +845,9 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 escapeRankBlockSize,
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                 ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-            )
+            ),
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
     }
 
@@ -808,7 +869,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         final long[] counts = new long[terms.size()];
         Arrays.fill(counts, docValues.length / terms.size());
         // What a merge would hand over: every term of the column, covering all of it.
-        final Vocabulary.Terms known = Vocabulary.known(terms, columnBytes(docValues), 1.0, counts);
+        final Vocabulary.Terms known = Vocabulary.known(
+            terms,
+            columnBytes(docValues),
+            1.0,
+            docValues.length,
+            BestCoverage.of(docValues.length, docValues.length, 512 * 1024),
+            counts
+        );
 
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
@@ -833,12 +901,15 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                             ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-                        )
+                        ),
+                        StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                        StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
                     ),
                     known,
                     dir,
                     IOContext.DEFAULT,
-                    out.outputs()
+                    out.outputs(),
+                    out.skipIndex()
                 );
             }
             assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());

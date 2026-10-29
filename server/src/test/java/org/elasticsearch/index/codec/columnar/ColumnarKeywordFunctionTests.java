@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -26,7 +27,10 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -59,7 +63,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordFunctionTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     /**
      * The extreme value of each document, which a dictionary column decides over ordinals rather than by comparing
@@ -155,6 +159,43 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 expected
             );
         }
+    }
+
+    /**
+     * Every function over a {@code multi_value: false} column, whose documents hold their value's own bytes rather than a
+     * payload. A document without the field reads as null; every other holds exactly one value, so each function answers.
+     */
+    public void testFunctionsOverSingleValuedColumn() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 5) {
+                case 0 -> null;
+                case 1 -> new String[] { "éè" };
+                case 2 -> new String[] { "" };
+                default -> new String[] { "term-" + (d % 7) };
+            };
+        }
+        final List<Object> bytes = new ArrayList<>();
+        final List<Object> codePoints = new ArrayList<>();
+        final List<Object> values = new ArrayList<>();
+        for (String[] slots : docs) {
+            bytes.add(slots == null ? null : new BytesRef(slots[0]).length);
+            codePoints.add(slots == null ? null : slots[0].codePointCount(0, slots[0].length()));
+            values.add(slots == null ? null : new BytesRef(slots[0]));
+        }
+        final BinaryDocValuesFormat plain = BinaryDocValuesFormat.PLAIN;
+        assertSingleValuedLoaderMatches(
+            docs,
+            fieldName -> new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), fieldName, plain),
+            bytes
+        );
+        assertSingleValuedLoaderMatches(
+            docs,
+            fieldName -> new Utf8CodePointsFromOrdsBlockLoader(new MockWarnings(), fieldName, ByteSizeValue.ofKb(1), plain),
+            codePoints
+        );
+        assertSingleValuedLoaderMatches(docs, fieldName -> new MvMaxBytesRefsFromBinaryBlockLoader(fieldName, plain), values);
+        assertSingleValuedLoaderMatches(docs, fieldName -> new MvMinBytesRefsFromBinaryBlockLoader(fieldName, plain), values);
     }
 
     /** BYTE_LENGTH over documents without the field among every other shape, which read as null. */
@@ -293,7 +334,7 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     ) throws IOException {
         final FieldType type = columnarBinaryFieldType();
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(false)))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
                     if (slots != null) {
@@ -321,7 +362,7 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     ) throws IOException {
         final FieldType type = columnarBinaryFieldType();
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(false)))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
                     // A null entry is a document without the field at all.
@@ -340,6 +381,39 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 assertEquals("positions", docs.length, block.size());
                 for (int d = 0; d < docs.length; d++) {
                     assertEquals("document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
+                }
+            }
+        }
+    }
+
+    /**
+     * As {@link #assertLoaderMatches}, but each document holds its one value's own bytes, written through a codec told
+     * the column is single-valued, as the mapper's options tell it for a {@code multi_value: false} field.
+     */
+    private void assertSingleValuedLoaderMatches(
+        String[][] docs,
+        Function<String, BlockDocValuesReader.DocValuesBlockLoader> loaders,
+        List<Object> expected
+    ) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(true)))) {
+                for (String[] slots : docs) {
+                    final Document doc = new Document();
+                    if (slots != null) {
+                        doc.add(new BinaryDocValuesField(FIELD, new BytesRef(slots[0])));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
+                final var loader = loaders.apply(FIELD);
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, docs.length), 0, false);
+                assertEquals("positions", docs.length, block.size());
+                for (int d = 0; d < docs.length; d++) {
+                    assertEquals(loader + " document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
                 }
             }
         }
@@ -365,9 +439,14 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     }
 
     /** Every doc-values field through the columnar format, which is what makes the field a column. */
-    private static Codec columnarCodec() {
+    private static Codec columnarCodec(boolean singleValued) {
         final Codec base = TestUtil.getDefaultCodec();
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat(field -> ColumnarFieldType.STRING);
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat(
+            (fieldName, type) -> NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued))
+        );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
                 @Override

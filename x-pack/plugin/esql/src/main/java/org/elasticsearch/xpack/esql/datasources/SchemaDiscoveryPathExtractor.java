@@ -89,7 +89,7 @@ public final class SchemaDiscoveryPathExtractor {
     }
 
     /**
-     * Path-key derivation kept in lockstep with {@code PreAnalyzer#icebergPaths} and
+     * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
      * {@code EsqlSession#extractExternalConfigs}. Returns {@code null} for a non-literal
      * {@code tablePath} so detection never throws; that path is then absent from the set and
      * resolves as a reading query.

@@ -88,7 +88,12 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
                     var stringsReader = stringsLoader.reader(breaker, ctx);
                     var codePointsReader = codePointsLoader.reader(breaker, ctx);
                 ) {
-                    assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
+                    if (multiValues) {
+                        assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
+                    } else {
+                        // Every count is one, so the counts are skipped and each blob read as the value.
+                        assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.SingleValuedBinary"));
+                    }
                     try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                         checkBlocks(strings, codePoints);
                     }

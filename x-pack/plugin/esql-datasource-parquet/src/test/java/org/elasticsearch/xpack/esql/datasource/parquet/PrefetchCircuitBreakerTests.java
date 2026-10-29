@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -65,6 +66,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -129,8 +131,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     public void testPrefetchWithTightBreakerLimit() throws Exception {
         MessageType wideSchema = buildWideSchema(10);
         byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
-        // Cover the clamped window (file length, or 4 MiB if the object is larger) and leave ~2 MB
-        // so decode or prefetch allocations may still trip the breaker.
+        // The budget is that clamped size plus ~2 MiB so decode or prefetch may still trip; it is
+        // not a claim that the sliding window stays reserved for the read.
         long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(windowCharge + 2 * 1024 * 1024));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
@@ -212,8 +214,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         }
         assertTrue("Should have read rows", totalRows > 0);
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
-        // Peak includes the clamped window (file length when the object fits, else 4 MiB) plus
-        // prefetch/decode. Bound against that window, not the historical 4 MiB floor.
+        // The bound has room for a clamped window plus prefetch and decode; it does not require
+        // the window to have been charged.
         long windowCharge = Math.min(parquetData.length, ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         assertTrue(
             "Peak prefetch breaker usage should be bounded (was " + breaker.peakUsed + " bytes)",
@@ -318,7 +320,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         assertTrue("Prefetch should have reserved breaker bytes before early close", pipeline.breaker.peakUsed.get() > 0);
     }
 
-    public void testFallbackWaitsForSkippedInFlightPrefetchRelease() throws Exception {
+    public void testRetryAfterMissDoesNotJoinSkippedInFlightPrefetch() throws Exception {
         byte[] parquetData = createTwoLargeRowGroupFile();
         var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(128));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
@@ -329,9 +331,9 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         try {
             try (
                 threshold;
-                ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(
-                    threshold
-                );
+                ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withIoWatermark(
+                    new ParquetIoWatermark(ByteSizeValue.ofMb(256).getBytes())
+                ).withDynamicThreshold(threshold);
                 CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))
             ) {
                 OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iter;
@@ -343,7 +345,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
                 // The descending bound drops row group 0 (id=0) but keeps row group 1 (id=1000).
                 // Both were queued before the bound existed, so ordinal 0 becomes stale while
-                // ordinal 1 supplies the expected failed prefetch that forces synchronous fallback.
+                // ordinal 1 fails and is re-ticketed. Close of the staged stale entry must not
+                // wait for that reservation before the retry GET starts.
                 channel.offer(500L);
                 storage.checkFallbackBarrier.set(true);
                 CountDownLatch advanceStarted = new CountDownLatch(1);
@@ -352,14 +355,14 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                     return iter.hasNext();
                 });
                 assertTrue(advanceStarted.await(10, TimeUnit.SECONDS));
-                assertFalse("row-group advance must wait at the release barrier", advance.isDone());
+                assertTrue(advance.get(10, TimeUnit.SECONDS));
+                assertEquals(1, storage.allowStaleCompletion.getCount());
+                assertFalse(
+                    "async miss must re-ticket instead of fetchSync",
+                    storage.syncFallbackStarted.await(100, TimeUnit.MILLISECONDS)
+                );
 
                 storage.allowStaleCompletion.countDown();
-                assertTrue(advance.get(10, TimeUnit.SECONDS));
-                assertTrue(storage.syncFallbackStarted.await(10, TimeUnit.SECONDS));
-                assertFalse("synchronous fallback started before the stale reservation was released", storage.fallbackBeforeRelease.get());
-                assertTrue(storage.staleReleasedAt.get() > 0);
-                assertTrue(storage.fallbackReadAt.get() > storage.staleReleasedAt.get());
             }
         } finally {
             storage.allowStaleCompletion.countDown();
@@ -400,14 +403,10 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
                 Future<Boolean> advance = executor.submit(iter::hasNext);
                 assertTrue(storage.phaseTwoFailureDelivered.await(10, TimeUnit.SECONDS));
+                assertFalse("async Phase-2 miss must not fetchSync", storage.syncFallbackStarted.await(100, TimeUnit.MILLISECONDS));
                 storage.allowPendingPhaseOneCompletion.countDown();
-
-                assertTrue(advance.get(10, TimeUnit.SECONDS));
-                assertTrue(storage.syncFallbackStarted.await(10, TimeUnit.SECONDS));
-                assertTrue(storage.pendingPhaseOneReleasedAt.get() > 0);
-                assertTrue(storage.fallbackReadAt.get() > storage.pendingPhaseOneReleasedAt.get());
-                Page page = iter.next();
-                page.releaseBlocks();
+                ExecutionException thrown = expectThrows(ExecutionException.class, () -> advance.get(10, TimeUnit.SECONDS));
+                assertNotNull(thrown.getCause());
             }
         } finally {
             storage.allowPendingPhaseOneCompletion.countDown();
@@ -574,6 +573,14 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     private StorageObject createAsyncStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -638,6 +645,14 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
      */
     private StorageObject createFailingAsyncStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1082,11 +1097,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(
-                    new InMemoryStorageObject(parquetData),
-                    footerByteCache,
-                    new NoopCircuitBreaker("phase-two-barrier-ranges")
-                ),
+                new ParquetStorageObjectAdapter(new InMemoryStorageObject(parquetData), footerByteCache, NoopCircuitBreaker.INSTANCE),
                 PlainParquetReadOptions.builder(codecFactory).build()
             )
         ) {

@@ -14,23 +14,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.DriverSleeps;
-import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests that the backwards-compatibility branch in {@link BatchExchangeStatusResponse}
@@ -90,115 +84,37 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
         assertThat(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()), empty());
     }
 
-    public void testProfileRoundTrip() throws IOException {
-        BatchExchangeStatusResponse.Profile profile = new BatchExchangeStatusResponse.Profile(
-            101L,
-            102L,
-            103L,
-            104L,
-            105L,
-            106L,
-            107L,
-            108L,
-            109L,
-            110L,
-            111L
-        );
-        BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of("warning"), profile);
-
-        BytesReference bytes = serialize(original, TransportVersion.current());
-        BatchExchangeStatusResponse deserialized = deserialize(bytes, TransportVersion.current(), new ThreadContext(Settings.EMPTY));
-
-        assertThat(deserialized.bytesRead(), equalTo(108L));
-        assertThat(deserialized.warnings(), contains("warning"));
-        assertThat(deserialized.profile(), equalTo(profile));
-    }
-
-    public void testProfileIsOmittedForOldVersions() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE);
-        BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(
-            108L,
-            List.of(),
-            new BatchExchangeStatusResponse.Profile(101L, 102L, 103L, 104L, 105L, 106L, 107L)
-        );
-
-        BytesReference bytes = serialize(original, oldVersion);
-        BatchExchangeStatusResponse deserialized = deserialize(bytes, oldVersion, new ThreadContext(Settings.EMPTY));
-
-        assertThat(deserialized.profile(), nullValue());
-    }
-
-    public void testGranularProfileIsOmittedBeforeGranularVersion() throws IOException {
-        BatchExchangeStatusResponse.Profile profile = new BatchExchangeStatusResponse.Profile(
-            101L,
-            102L,
-            103L,
-            104L,
-            105L,
-            106L,
-            107L,
-            108L,
-            109L,
-            110L,
-            111L
-        );
-        BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of(), profile);
-
-        BytesReference bytes = serialize(original, BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE);
-        BatchExchangeStatusResponse deserialized = deserialize(
-            bytes,
+    /**
+     * Nodes that still had the profiling of the server driver could send a profile. This node leaves the slot of the
+     * profile empty, and reads past a profile it receives so the response still reads in full.
+     */
+    public void testReadsPastAProfile() throws IOException {
+        TransportVersion version = randomFrom(
             BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE,
-            new ThreadContext(Settings.EMPTY)
+            BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE
         );
+        BytesReference withoutProfile = serialize(new BatchExchangeStatusResponse(123L, List.of("warn1")), version);
+        assertThat("the response ends with an empty profile slot", withoutProfile.get(withoutProfile.length() - 1), equalTo((byte) 0));
 
-        assertThat(deserialized.profile(), equalTo(new BatchExchangeStatusResponse.Profile(101L, 102L, 103L, 104L, 105L, 106L, 107L)));
-    }
+        BytesReference withProfile;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            withoutProfile.slice(0, withoutProfile.length() - 1).writeTo(out);
+            out.writeBoolean(true);
+            int fields = version.supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? 11 : 7;
+            for (int i = 0; i < fields; i++) {
+                out.writeVLong(randomNonNegativeLong());
+            }
+            withProfile = out.bytes();
+        }
 
-    public void testProfileSummarizesDriverAndFieldLoading() {
-        ValuesSourceReaderOperatorStatus readerStatus = new ValuesSourceReaderOperatorStatus(
-            Map.of("DocValuesReader", 1),
-            Map.of(),
-            104L,
-            1,
-            1,
-            5L,
-            5L,
-            103L,
-            0L,
-            105L,
-            106L,
-            107L
-        );
-        DriverProfile driverProfile = new DriverProfile(
-            "remote fetch",
-            "cluster",
-            "node",
-            1L,
-            2L,
-            999L,
-            102L,
-            1L,
-            List.of(
-                new OperatorStatus("ExchangeSourceOperator[]", new ExchangeSourceOperator.Status(0, 8, 111L)),
-                new OperatorStatus("values reader", readerStatus),
-                new OperatorStatus("ExchangeSinkOperator", new ExchangeSinkOperator.Status(9, 112L))
-            ),
-            new DriverSleeps(Map.of(), List.of(), List.of())
-        );
-
-        BatchExchangeStatusResponse.Profile profile = BatchExchangeStatusResponse.Profile.from(driverProfile, 101L);
-
-        assertThat(profile.driverTookNanos(), equalTo(101L));
-        assertThat(profile.driverCpuNanos(), equalTo(102L));
-        assertThat(profile.valuesLoaded(), equalTo(103L));
-        assertThat(profile.fieldLoadNanos(), equalTo(104L));
-        assertThat(profile.sourceDocsLoaded(), equalTo(105L));
-        assertThat(profile.sourceFieldReads(), equalTo(106L));
-        assertThat(profile.sourceBytesLoaded(), equalTo(107L));
-        assertThat(profile.requestPages(), equalTo(8L));
-        assertThat(profile.requestRows(), equalTo(111L));
-        assertThat(profile.responsePages(), equalTo(9L));
-        assertThat(profile.responseRows(), equalTo(112L));
+        try (StreamInput in = withProfile.streamInput()) {
+            in.setTransportVersion(version);
+            BatchExchangeStatusResponse response = new BatchExchangeStatusResponse(in, new ThreadContext(Settings.EMPTY));
+            assertThat(response.bytesRead(), equalTo(123L));
+            assertThat(response.warnings(), contains("warn1"));
+            assertThat("the profile is read in full", in.available(), equalTo(0));
+        }
     }
 
     private static BytesReference serialize(BatchExchangeStatusResponse response, TransportVersion version) throws IOException {

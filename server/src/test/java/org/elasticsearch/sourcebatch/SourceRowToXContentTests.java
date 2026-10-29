@@ -170,6 +170,34 @@ public class SourceRowToXContentTests extends ESTestCase {
         }
     }
 
+    /**
+     * Objects in arrays that contain arrays of objects, several levels deep, with a sibling element whose
+     * {@code id} is a scalar and another whose {@code id} is an array. Each array element must keep owning its own
+     * values: flattening would collapse this to a single {@code path.to.some.id = [10, 1, 3, 2]}.
+     */
+    public void testArrayOfObjectsContainingArraysOfObjects() throws IOException {
+        assertRoundTrips("""
+            {"path": [{"to": [{"some": [{"id": 10}, {"id": [1, 3, 2]}]}]}]}""");
+    }
+
+    public void testArrayOfObjectsContainingArraysOfObjectsWithSiblingElements() throws IOException {
+        assertRoundTrips("""
+            {"path": [
+              {"to": [{"some": [{"id": 1}, {"id": [2, 3]}]}, {"some": [{"id": 4}]}], "tag": "first"},
+              {"to": [{"some": []}], "tag": "second"},
+              {"other": {"nested": [{"k": [[1], [2, 3]]}]}}
+            ], "after": "x"}""");
+    }
+
+    /** Encodes {@code json} with the production encoder, decodes it with {@code writeRow}, and expects the original back. */
+    private static void assertRoundTrips(String json) throws IOException {
+        BytesReference source = new BytesArray(json);
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            Map<String, Object> expected = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+            assertEquals(expected, rowAsMap(batch, 0));
+        }
+    }
+
     public void testNullValueInArray() throws IOException {
         BytesReference source = new BytesArray("""
             {"vals": [1, null, 3]}""");

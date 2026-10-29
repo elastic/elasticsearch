@@ -25,6 +25,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -242,7 +244,42 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
         dateTruncCases(suppliers);
+        includeEmptyBucketsCases(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    /**
+     * Adds a copy of every non-histogram range case ({@code field, buckets, from, to}) that also passes the
+     * {@code include_empty_buckets} option. The option doesn't change the bucket of a single row,
+     * so the expected results are the same. These cases make the options param show up in the docs.
+     */
+    private static void includeEmptyBucketsCases(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> rangeCases = suppliers.stream()
+            .filter(s -> s.types().size() == 4 && s.types().getFirst().isHistogram() == false && s.types().getFirst() != DataType.NULL)
+            .toList();
+        suppliers.addAll(TestCaseSupplier.mapTestCases(rangeCases, tc -> {
+            List<TestCaseSupplier.TypedData> data = new ArrayList<>(tc.getData());
+            data.add(includeEmptyBucketsOption(randomBoolean()));
+            return tc.withData(data);
+        }, s -> {
+            List<DataType> types = new ArrayList<>(s.types());
+            types.add(DataType.OBJECT);
+            return types;
+        }));
+    }
+
+    static TestCaseSupplier.TypedData includeEmptyBucketsOption(boolean includeEmptyBuckets) {
+        return new TestCaseSupplier.TypedData(
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, Bucket.INCLUDE_EMPTY_BUCKETS),
+                    new Literal(Source.EMPTY, includeEmptyBuckets, DataType.BOOLEAN)
+                )
+            ),
+            DataType.OBJECT,
+            "options"
+        ).forceLiteral();
     }
 
     // TODO once we cast above the functions we can drop these
@@ -841,7 +878,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         td,
                         range,
                         null,
-                        new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("noop"))
+                        new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE)
                     );
                     default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
                 };
@@ -887,11 +924,15 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         Expression from = null;
         Expression to = null;
+        Expression options = null;
         if (args.size() > 2) {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to, null, configuration);
+        if (args.size() > 4) {
+            options = args.get(4);
+        }
+        return new Bucket(source, args.get(0), args.get(1), from, to, options, configuration);
     }
 
     /**
@@ -982,6 +1023,10 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
      * And all of those listed versions *are* required.
      */
     public static EsqlFunctionRegistry.ArgSignature patchKibanaSignature(EsqlFunctionRegistry.ArgSignature arg) {
+        if (arg instanceof EsqlFunctionRegistry.MapArgSignature) {
+            // The options are really optional, and the map params must be kept.
+            return arg;
+        }
         return new EsqlFunctionRegistry.ArgSignature(
             arg.name(),
             arg.type(),

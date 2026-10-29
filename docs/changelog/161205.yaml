@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 161205
+summary: Release ES|QL KNN on runtime fields in Technical Preview
+type: feature

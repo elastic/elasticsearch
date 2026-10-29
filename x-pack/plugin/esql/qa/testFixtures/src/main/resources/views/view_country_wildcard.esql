@@ -1,0 +1,1 @@
+FROM country_a* | STATS c = COUNT(*)

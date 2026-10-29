@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162180
+summary: DEDUP ignores synthetic union attrs
+type: bug

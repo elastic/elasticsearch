@@ -1,8 +1,17 @@
 import { describe, expect, test } from "vitest";
 
-import type { SkippedTest } from "../domain.ts";
+import { BLOCK_ALL_PRS, BLOCKING_LABELS, type SkippedTest } from "../domain.ts";
 
-import { allTargetTasksSkipped, buildFailedPayload, isPrecompileFailure, notApplicablePayload } from "./analyze.ts";
+import {
+  allTargetTasksSkipped,
+  buildFailedPayload,
+  isPullRequestBuild,
+  notApplicablePayload,
+  parseReportInputs,
+  provenFlakinessJobs,
+  reportErrorPayload,
+  shouldBlock,
+} from "./analyze.ts";
 
 describe("notApplicablePayload", () => {
   test("maps a skipped javaRestTest to a zeroed not_applicable record carrying the resolver's reason", () => {
@@ -76,25 +85,192 @@ describe("buildFailedPayload", () => {
   });
 });
 
-describe("isPrecompileFailure", () => {
-  test("true for the marker the gate writes on failure", () => {
-    expect(isPrecompileFailure('{"outcome":"build_failed","reason":"precompile"}')).toBe(true);
-    // reason is not part of the decision - only the outcome is
-    expect(isPrecompileFailure('{"outcome":"build_failed"}')).toBe(true);
+describe("parseReportInputs", () => {
+  const SKIP = '[{"gradleProject":":qa","kind":"javaRestTest","sourceSet":"javaRestTest","fqcn":"org.foo.SomeIT"}]';
+  const env = (compileFailed: string | undefined, skippedCount: string | undefined) => ({
+    FLAKINESS_COMPILE_FAILED: compileFailed,
+    FLAKINESS_SKIPPED_COUNT: skippedCount,
   });
 
-  test("false when the marker is absent (gate passed or never ran)", () => {
-    expect(isPrecompileFailure(null)).toBe(false);
+  /** The regression: the compile failure used to come from a marker file a failed download turned into "compiled". */
+  test("a compile failure comes from the env alone, with no file involved", () => {
+    expect(parseReportInputs(env("true", "0"), null)).toEqual({ compileFailed: true, skipped: [], problems: [] });
   });
 
-  test("false for any other outcome", () => {
-    expect(isPrecompileFailure('{"outcome":"clean_pass"}')).toBe(false);
-    expect(isPrecompileFailure("{}")).toBe(false);
+  test("with nothing skipped the skip list is not consulted", () => {
+    expect(parseReportInputs(env("false", "0"), null)).toEqual({ compileFailed: false, skipped: [], problems: [] });
   });
 
-  test("false for malformed or empty marker content", () => {
-    expect(isPrecompileFailure("not json")).toBe(false);
-    expect(isPrecompileFailure("")).toBe(false);
+  test("a skip list holding the declared count is read", () => {
+    const r = parseReportInputs(env("false", "1"), SKIP);
+    expect(r.problems).toEqual([]);
+    expect(r.skipped).toHaveLength(1);
+  });
+
+  test.each([
+    ["absent", null, /did not reach this step, but the generate step declared 1/],
+    ["not JSON", "[", /not valid JSON/],
+    ["not an array", "{}", /not a JSON array/],
+    ["shorter than declared", "[]", /has 0 entries, but the generate step declared 1/],
+    ["longer than declared", `[${SKIP.slice(1, -1)},${SKIP.slice(1, -1)}]`, /has 2 entries, but the generate step declared 1/],
+  ])("a skip list that is %s is a problem, not an empty list", (_, text, problem) => {
+    const r = parseReportInputs(env("false", "1"), text);
+    expect(r.problems).toEqual([expect.stringMatching(problem)]);
+  });
+
+  test("a missing or malformed declaration is a problem, never a default", () => {
+    const r = parseReportInputs(env(undefined, "x"), null);
+    expect(r.problems).toEqual([
+      expect.stringContaining("FLAKINESS_COMPILE_FAILED is undefined"),
+      expect.stringContaining('FLAKINESS_SKIPPED_COUNT is "x"'),
+      "flakiness-skipped.json did not reach this step",
+    ]);
+  });
+});
+
+describe("reportErrorPayload", () => {
+  test("is an infra_fail record keyed under flakiness-orchestration (not a test batch)", () => {
+    const payload = reportErrorPayload();
+    expect(payload.stepKey.startsWith("flakiness-detection:")).toBe(false);
+    expect(payload).toEqual(
+      expect.objectContaining({ jobId: "report-error:inputs", outcome: "infra_fail", infraSubtype: "report_error" })
+    );
+  });
+});
+
+describe("provenFlakinessJobs", () => {
+  test("counts only the jobs where a test actually failed on a re-run", () => {
+    const payloads = [
+      { outcome: "clean_pass" },
+      { outcome: "flaky_detected" },
+      { outcome: "flaky_detected" },
+    ];
+    expect(provenFlakinessJobs(payloads)).toHaveLength(2);
+  });
+
+  test("no other outcome qualifies, including a timeout with no failing test", () => {
+    const payloads = [
+      { outcome: "timeout" },
+      { outcome: "infra_fail" },
+      { outcome: "hang" },
+      { outcome: "not_applicable" },
+      { outcome: "clean_pass" },
+    ];
+    expect(provenFlakinessJobs(payloads)).toEqual([]);
+  });
+
+  test("a build_failed PR is not blocked here - its own main build is already red", () => {
+    expect(provenFlakinessJobs([buildFailedPayload()])).toEqual([]);
+  });
+
+  test("a proven failure alongside an unrelated timeout still counts", () => {
+    expect(provenFlakinessJobs([{ outcome: "timeout" }, { outcome: "flaky_detected" }])).toHaveLength(1);
+  });
+
+  test("nothing to report when no job ran", () => {
+    expect(provenFlakinessJobs([])).toEqual([]);
+  });
+});
+
+describe("isPullRequestBuild", () => {
+  test("a PR number is a PR build", () => {
+    expect(isPullRequestBuild("12345")).toBe(true);
+  });
+
+  test('"false" is what Buildkite sets on every non-PR build, such as the manual pipeline', () => {
+    expect(isPullRequestBuild("false")).toBe(false);
+  });
+
+  test("an unset value is not a PR build, so proven flakiness fails it", () => {
+    expect(isPullRequestBuild("")).toBe(false);
+    expect(isPullRequestBuild("  ")).toBe(false);
+  });
+});
+
+describe("shouldBlock", () => {
+  const OPTED_IN = BLOCKING_LABELS[0];
+  const OTHER_LABELS = ">bug,Team:NotIncludedTeam";
+  const PR = "12345";
+  const NOT_A_PR = "false";
+  const PROVEN = [{ outcome: "clean_pass" }, { outcome: "flaky_detected" }];
+  const CLEAN = [{ outcome: "clean_pass" }, { outcome: "timeout" }];
+
+  describe("on a PR build with blocking for all PRs off", () => {
+    const pr = (labels: string) => ({ pullRequest: PR, labels, blockAllPrs: false });
+
+    test("blocks when flakiness was proven AND the PR opted in, naming the label", () => {
+      expect(shouldBlock(PROVEN, pr(`>bug,${OPTED_IN}`))).toEqual({ block: true, reason: `PR labelled ${OPTED_IN}` });
+    });
+
+    test("a proven failure on a PR that did not opt in is reported, not blocked", () => {
+      expect(shouldBlock(PROVEN, pr(OTHER_LABELS))).toEqual({
+        block: false,
+        reason: "this PR carries no blocking label",
+      });
+      expect(shouldBlock(PROVEN, pr("")).block).toBe(false);
+    });
+
+    test("an opted-in PR with nothing proven still passes", () => {
+      expect(shouldBlock(CLEAN, pr(OPTED_IN)).block).toBe(false);
+      expect(shouldBlock([], pr(OPTED_IN)).block).toBe(false);
+    });
+  });
+
+  describe("on a PR build with blocking for all PRs on", () => {
+    const pr = (labels: string) => ({ pullRequest: PR, labels, blockAllPrs: true });
+
+    test("a proven failure blocks without any label", () => {
+      expect(shouldBlock(PROVEN, pr(""))).toEqual({ block: true, reason: "blocking is enabled for all PRs" });
+      expect(shouldBlock(PROVEN, pr(OTHER_LABELS)).block).toBe(true);
+    });
+
+    test("the labels are a no-op, so the reason names the switch rather than the label", () => {
+      expect(shouldBlock(PROVEN, pr(OPTED_IN))).toEqual({ block: true, reason: "blocking is enabled for all PRs" });
+    });
+
+    test("nothing proven still passes", () => {
+      expect(shouldBlock(CLEAN, pr(OPTED_IN)).block).toBe(false);
+      expect(shouldBlock([], pr("")).block).toBe(false);
+    });
+  });
+
+  describe("on a non-PR build, i.e. the manual pipeline", () => {
+    test("a proven failure blocks regardless of the labels and the all-PRs switch", () => {
+      for (const pullRequest of [NOT_A_PR, ""]) {
+        for (const labels of ["", OPTED_IN, OTHER_LABELS]) {
+          for (const blockAllPrs of [false, true]) {
+            expect(shouldBlock(PROVEN, { pullRequest, labels, blockAllPrs }).block).toBe(true);
+          }
+        }
+      }
+    });
+
+    test("the reason shows the raw value, so a PR build missing its PR number is easy to spot", () => {
+      expect(shouldBlock(PROVEN, { pullRequest: NOT_A_PR, labels: "" }).reason).toBe(
+        'this is not a PR build (BUILDKITE_PULL_REQUEST="false")'
+      );
+      expect(shouldBlock(PROVEN, { pullRequest: "", labels: "" }).reason).toBe(
+        'this is not a PR build (BUILDKITE_PULL_REQUEST="")'
+      );
+    });
+
+    test("nothing proven still passes", () => {
+      expect(shouldBlock(CLEAN, { pullRequest: NOT_A_PR, labels: "" }).block).toBe(false);
+      expect(shouldBlock([], { pullRequest: NOT_A_PR, labels: "" }).block).toBe(false);
+    });
+  });
+
+  test("a build that did not compile is never blocked here, under any rule", () => {
+    // Its own main build is already red for the same compile error.
+    for (const pullRequest of [PR, NOT_A_PR]) {
+      for (const blockAllPrs of [false, true]) {
+        expect(shouldBlock([buildFailedPayload()], { pullRequest, labels: OPTED_IN, blockAllPrs }).block).toBe(false);
+      }
+    }
+  });
+
+  test("the all-PRs switch defaults to BLOCK_ALL_PRS", () => {
+    expect(shouldBlock(PROVEN, { pullRequest: PR, labels: "" }).block).toBe(BLOCK_ALL_PRS);
   });
 });
 

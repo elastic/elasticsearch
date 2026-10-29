@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -71,7 +72,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /** Lenient reads emit response-header warnings; drop them so the parent {@code ensureNoWarnings} passes. */
@@ -93,7 +94,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -105,7 +106,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -117,7 +118,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -137,7 +138,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "Row [1] of [mem://csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
+            "Row [1] of [csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
                 + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
@@ -388,7 +389,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     public void testQuotedEmbeddedNewline() throws IOException {
         String csv = "a:keyword,b:keyword\n\"line1\nline2\",tail\n";
-        List<List<Object>> rows = read(false, Map.of(), csv);
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), csv);
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
@@ -429,12 +430,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * The blank must read the same on both sides of the prefetch boundary. An inferred schema is sampled twice
-     * -- {@code schema_sample_size} rows to infer, then another {@code schema_sample_size} as the widening
-     * window ({@code collectWideningWindowAndPrefetch}) -- and every prefetched row is replayed through the
-     * shared conversion before the direct walkers see anything. So with {@code schema_sample_size: 2} the
-     * boundary sits after row 4: the blank in row 2 is decided by the replay and the one in row 5 by the direct
-     * loop. Six rows rather than four is what puts a row past the boundary at all.
+     * The blank must read the same on both sides of the prefetch boundary. An inferred schema samples
+     * {@code schema_sample_size} rows to infer, and every one of those sampled rows is replayed through
+     * the shared conversion before the direct walkers see anything past it. So with
+     * {@code schema_sample_size: 2} the boundary sits after row 2: the blank in row 2 is decided by the
+     * replay and the one in row 5 by the direct loop. Six rows rather than two is what puts a row past
+     * the boundary at all.
      * Both blanks in {@code phrase} read {@code ""} (string column); the trailing blank in {@code tail} also
      * reads {@code ""} because tail infers as keyword too.
      */
@@ -622,7 +623,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch() throws IOException {
         long epoch = 1609459200000L; // 2021-01-01T00:00:00Z; 13 digits, no match for yyyy-MM-dd HH:mm:ss
         assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n"));
-        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n"));
+        assertEquals(
+            List.of(row(epoch * 1_000_000L)),
+            read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n")
+        );
         // Negative epoch is numeric and unmatchable by the pattern; it stays epoch.
         assertEquals(List.of(row(-1000L)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n-1000\n"));
         // With no file-level pattern at all, the shortcut is untouched.
@@ -757,7 +761,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "Row [1] of [mem://csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
+        String expected = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
@@ -1374,17 +1378,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testEscapedNewlineUnquotedStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\\nb\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\na\\\nb\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testEscapedNewlineInQuotesStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n\"a\\\nb\"\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\n\"a\\\nb\"\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testTrailingLoneEscapeDropped() throws IOException {
-        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\nab\\\n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true, "multiline_fields", true), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
     }
 
@@ -1696,6 +1700,19 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
+     * Under {@code null_field} a bracket element that does not parse is removed from its cell and the rest kept, on
+     * both bracket walkers: the fused projected one and the full-split ALL-scope one. {@link #valueAt} reads a cell's
+     * first value, so a leading bad element is what tells removal (the next element) from nulling (null).
+     */
+    public void testBracketElementFailureRemovesElementOnBothWalkers() throws IOException {
+        Map<String, Object> config = Map.of("multi_value_syntax", "brackets", "error_mode", "null_field", "max_errors", 100);
+        String content = "a:long,b:long\n1,[oops,2]\n2,[x,y]\n";
+        List<List<Object>> expected = List.of(row(1L, 2L), row(2L, null));
+        assertEquals(expected, read(false, config, nullField(), List.of("a", "b"), content));
+        assertEquals(expected, readAllScope(config, content));
+    }
+
+    /**
      * Reads with an ALL stats scope bound to a throwaway sink, which routes bracket parsing through the
      * full-split walker rather than the fused one. Only the direct-block arm is exercised (bracket mode is
      * not direct-eligible, so both arms parse identically); the golden assertion pins the value.
@@ -1875,6 +1892,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     private record InMemoryStorageObject(byte[] bytes) implements StorageObject {
         @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(bytes);
         }
@@ -1901,7 +1921,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
         @Override
         public StoragePath path() {
-            return StoragePath.of("mem://csv-direct-block-parity-tests");
+            return StoragePath.of("mem://host/csv-direct-block-parity-tests");
         }
 
         @Override

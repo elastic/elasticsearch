@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.runner;
 
+import org.gradle.tooling.BuildException;
 import org.gradle.tooling.BuildLauncher;
 import org.gradle.tooling.CancellationTokenSource;
 import org.gradle.tooling.GradleConnectionException;
@@ -109,7 +110,13 @@ public class GradleRunner {
                 .addProgressListener(problemsTracker, OperationType.PROBLEMS);
 
             launcher.run();
+        } catch (BuildException e) {
+            // The build itself failed; Gradle already reported the failure on the build output.
+            exitCode = EXIT_BUILD_FAILURE;
         } catch (GradleConnectionException e) {
+            // The build could not be run at all, e.g. because of an argument the Tooling API does not
+            // support (such as --no-daemon). Gradle prints nothing in this case, so report the cause.
+            System.err.println("Gradle runner failed: " + e.getMessage());
             exitCode = EXIT_BUILD_FAILURE;
         } catch (Exception e) {
             System.err.println("Gradle runner failed: " + e.getMessage());

@@ -35,6 +35,8 @@ public abstract class RegexExtract extends UnaryPlan
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 
+    private List<Attribute> lazyOutput;
+
     protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Attribute> extracted) {
         super(source, child);
         this.input = input;
@@ -48,7 +50,10 @@ public abstract class RegexExtract extends UnaryPlan
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(extractedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(extractedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

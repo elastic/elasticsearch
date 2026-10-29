@@ -311,7 +311,7 @@ public class RestBulkActionTests extends ESTestCase {
                 )
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                    .withParams(Map.of("slice", "s1"))
+                    .withParams(Map.of("_slice", "s1"))
                     .withContent(new BytesArray("""
                         {"index":{"_id":"1"}}
                         {"field1":"val1"}
@@ -353,9 +353,9 @@ public class RestBulkActionTests extends ESTestCase {
                     mock(ThreadPool.class)
                 )
             ).handleRequest(new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withContent(new BytesArray("""
-                {"index":{"_id":"1","slice":"s1"}}
+                {"index":{"_id":"1","_slice":"s1"}}
                 {"field1":"val1"}
-                {"index":{"_id":"2","slice":"s2"}}
+                {"index":{"_id":"2","_slice":"s2"}}
                 {"field1":"val2"}
                 """), XContentType.JSON).withMethod(RestRequest.Method.POST).build(), mock(RestChannel.class), verifyingClient);
             assertThat(bulkCalled.get(), equalTo(true));
@@ -367,7 +367,7 @@ public class RestBulkActionTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                .withParams(Map.of("slice", "s1"))
+                .withParams(Map.of("_slice", "s1"))
                 .withContent(new BytesArray("""
                     {"index":{"_id":"1","routing":"r1"}}
                     {"field1":"val1"}
@@ -388,7 +388,7 @@ public class RestBulkActionTests extends ESTestCase {
             ).handleRequest(request, channel, client);
             try (var response = channel.capturedResponse()) {
                 assertThat(response.status().getStatus(), equalTo(400));
-                assertThat(response.content().utf8ToString(), containsString("contains both [routing] and [slice]"));
+                assertThat(response.content().utf8ToString(), containsString("contains both [routing] and [_slice]"));
             }
         }
     }
@@ -398,7 +398,7 @@ public class RestBulkActionTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                .withParams(Map.of("slice", "s1", "routing", "r1"))
+                .withParams(Map.of("_slice", "s1", "routing", "r1"))
                 .withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
                     {"field1":"val1"}
@@ -420,7 +420,7 @@ public class RestBulkActionTests extends ESTestCase {
                     )
                 ).handleRequest(request, channel, client)
             );
-            assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [slice]"));
+            assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
         }
     }
 
@@ -429,7 +429,7 @@ public class RestBulkActionTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                .withParams(Map.of("slice", "_all"))
+                .withParams(Map.of("_slice", "_all"))
                 .withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
                     {"field1":"val1"}
@@ -451,7 +451,7 @@ public class RestBulkActionTests extends ESTestCase {
                     )
                 ).handleRequest(request, channel, client)
             );
-            assertThat(ex.getMessage(), containsString("invalid [slice] value"));
+            assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
         }
     }
 

@@ -8,8 +8,10 @@ dependencies {
   javaRestTestImplementation testArtifact(project(':x-pack:plugin:security'))
 }
 
+// Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+def isSnapshotBuild = buildParams.snapshotBuild
 tasks.named('javaRestTest') {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  it.onlyIf("snapshot build") { isSnapshotBuild }
 }
 
 tasks.withType(Test).configureEach {

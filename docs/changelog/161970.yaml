@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161970
+summary: "ES|QL|DS: key external footers by object version"
+type: bug

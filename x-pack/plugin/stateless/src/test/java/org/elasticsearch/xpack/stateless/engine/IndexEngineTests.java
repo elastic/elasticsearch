@@ -39,15 +39,20 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -437,7 +442,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             Engine.IndexResult result = engine.index(index);
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             verify(documentSizeReporter).onParsingCompleted(eq(index.parsedDoc()));
-            verify(documentSizeReporter).onIndexingCompleted(eq(index.parsedDoc()));
+            verify(documentSizeReporter).onIndexingCompleted(eq(index.parsedDoc()), eq(PRIMARY));
 
             Engine.Index newIndex = randomDoc("id");
             var failIndex = versionConflictingIndexOperation(newIndex);
@@ -445,7 +450,81 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
             verify(documentSizeReporter).onParsingCompleted(eq(index.parsedDoc())); // we report parsing before indexing
-            verify(documentSizeReporter, times(0)).onIndexingCompleted(eq(newIndex.parsedDoc()));
+            verify(documentSizeReporter, times(0)).onIndexingCompleted(eq(newIndex.parsedDoc()), any(Engine.Operation.Origin.class));
+        }
+    }
+
+    public void testDocSizeOfReplayedOperationIsReportedWithItsOrigin() throws IOException {
+        TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
+        StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        EngineConfig indexConfig = indexConfig(mapperService);
+        DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+        when(
+            documentParsingProvider.newDocumentSizeReporter(
+                eq(indexConfig.getShardId().getIndex()),
+                eq(mapperService),
+                any(DocumentSizeAccumulator.class)
+            )
+        ).thenReturn(documentSizeReporter);
+        try (
+            var engine = newIndexEngine(
+                indexConfig,
+                mockTranslogReplicator,
+                mock(ObjectStoreService.class),
+                mockCommitService,
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                documentParsingProvider,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
+            )
+        ) {
+            Engine.Index source = randomDoc("id");
+            // an operation that is re-applied from the translog, it has an assigned seqNo and no version type
+            Engine.Index replayed = new Engine.Index(
+                newUid(source.parsedDoc()),
+                source.parsedDoc(),
+                0,
+                1,
+                1,
+                null,
+                Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                0,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0
+            );
+
+            Engine.IndexResult result = engine.index(replayed);
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            // the document is reported to allow recording its size, the origin allows reporters to not report it as new ingest
+            verify(documentSizeReporter).onParsingCompleted(eq(replayed.parsedDoc()));
+            verify(documentSizeReporter).onIndexingCompleted(eq(replayed.parsedDoc()), eq(Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
+        }
+    }
+
+    public void testMeteringParserDecoratorIsProvidedByDocumentParsingProvider() throws IOException {
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
+        XContentMeteringParserDecorator meteringDecorator = mock(XContentMeteringParserDecorator.class);
+        when(documentParsingProvider.newMeteringParserDecorator()).thenReturn(meteringDecorator);
+        try (
+            var engine = newIndexEngine(
+                indexConfig(),
+                mock(TranslogReplicator.class),
+                mock(ObjectStoreService.class),
+                mockCommitService(Settings.EMPTY),
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                documentParsingProvider,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
+            )
+        ) {
+            assertSame(meteringDecorator, engine.newMeteringParserDecorator());
         }
     }
 
@@ -490,7 +569,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 final String id = ops.get(i).id();
                 assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 verify(documentSizeReporter).onParsingCompleted(argThat(doc -> doc.id().equals(id)));
-                verify(documentSizeReporter).onIndexingCompleted(argThat(doc -> doc.id().equals(id)));
+                verify(documentSizeReporter).onIndexingCompleted(argThat(doc -> doc.id().equals(id)), eq(PRIMARY));
             }
 
             // Failure case: a version-conflicting op is parsed but never gets onIndexingCompleted. It reuses
@@ -501,7 +580,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             List<Engine.IndexResult> failResults = engine.indexBatch(engineBatch(failOps, encodeAsEscfBatch(failOps)));
             assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
             verify(documentSizeReporter, times(2)).onParsingCompleted(argThat(doc -> doc.id().equals("id1")));
-            verify(documentSizeReporter, times(1)).onIndexingCompleted(argThat(doc -> doc.id().equals("id1")));
+            verify(documentSizeReporter, times(1)).onIndexingCompleted(argThat(doc -> doc.id().equals("id1")), eq(PRIMARY));
         }
     }
 
@@ -707,6 +786,46 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    /**
+     * Hollow commit user data is snapshotted from the internal searcher. Documents buffered in the
+     * {@code IndexWriter} since the last refresh must still be included in both doc stats and shard field stats.
+     */
+    public void testHollowCommitStatsIncludeUnrefreshedDocuments() throws Exception {
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, Settings.EMPTY, () -> 1L, NoMergePolicy.INSTANCE))) {
+            engine.index(randomDoc("0"));
+            engine.refresh("test");
+            assertThat(engine.docStats().getCount(), equalTo(1L));
+            final ShardFieldStats staleShardFieldStats = engine.shardFieldStats();
+
+            engine.index(randomDoc("1"));
+            // The new document is buffered in the IndexWriter and not yet visible to the internal searcher.
+            assertThat(engine.docStats().getCount(), equalTo(1L));
+            assertThat(engine.shardFieldStats(), equalTo(staleShardFieldStats));
+
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+
+            try (Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(false)) {
+                final Map<String, String> userData = commitRef.getIndexCommit().getUserData();
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, userData.get(IndexEngine.DOC_STATS))
+                ) {
+                    assertThat(DocsStats.PARSER.parse(parser, null).getCount(), equalTo(2L));
+                }
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, userData.get(IndexEngine.SHARD_FIELD_STATS))
+                ) {
+                    final ShardFieldStats committedShardFieldStats = ShardFieldStats.PARSER.parse(parser, null);
+                    assertThat(committedShardFieldStats.numSegments(), greaterThan(staleShardFieldStats.numSegments()));
+                    assertThat(committedShardFieldStats, equalTo(engine.shardFieldStats()));
+                }
+            }
+        }
+    }
+
     public void testHollowEngineCannotIngest() throws Exception {
         try (var engine = newIndexEngine(indexConfig())) {
             var indexedDoc = randomDoc(String.valueOf(0));
@@ -772,10 +891,10 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
                 @Override
                 protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-                    firstFlushGettingUserDataLatch.countDown();
                     int flushNumber = flushesInitiated.get();
+                    firstFlushGettingUserDataLatch.countDown();
                     logger.debug("flush {} trying to get user data", flushNumber);
-                    if (flushesInitiated.get() > 1) {
+                    if (flushNumber > 1) {
                         safeAwait(hollowFlushProceedToGetUserDataLatch);
                     } else {
                         safeAwait(firstFlushProceedToGetUserDataLatch);

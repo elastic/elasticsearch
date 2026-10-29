@@ -127,14 +127,23 @@ static inline void multiply_group(__m512i (&acc)[ROWS][TILE_VECS], const __m512i
 }
 
 // Adds ROWS rows x TILE_COLS columns of A @ panel to c. aRows are the starts (already offset to lStart) of the A rows.
+// Only the B cols set in colMask are read from and written to c.
 template <int ROWS>
-static inline void multiply_panel(const int8_t* const (&aRows)[ROWS], const uint8_t* panel, const int lCount, int32_t* c, const int ldc) {
+static inline void multiply_panel(
+    const int8_t* const (&aRows)[ROWS],
+    const uint8_t* panel,
+    const int lCount,
+    int32_t* c,
+    const int ldc,
+    const __mmask32 colMask
+) {
     // starting from c - correction leaves the plain product added to c when the accumulators are written back
     __m512i acc[ROWS][TILE_VECS];
     apply_indexed<ROWS>([&](auto R) {
         const __m512i correction = _mm512_set1_epi32(row_correction(aRows[R], lCount));
         apply_indexed<TILE_VECS>([&](auto Q) {
-            acc[R][Q] = _mm512_sub_epi32(_mm512_loadu_si512(c + (int64_t)R * ldc + Q * LANES), correction);
+            const __mmask16 mask = (__mmask16)(colMask >> (Q * LANES));
+            acc[R][Q] = _mm512_sub_epi32(_mm512_maskz_loadu_epi32(mask, c + (int64_t)R * ldc + Q * LANES), correction);
         });
     });
 
@@ -163,7 +172,8 @@ static inline void multiply_panel(const int8_t* const (&aRows)[ROWS], const uint
     // write back accumulators
     apply_indexed<ROWS>([&](auto R) {
         apply_indexed<TILE_VECS>([&](auto Q) {
-            _mm512_storeu_si512(c + (int64_t)R * ldc + Q * LANES, acc[R][Q]);
+            const __mmask16 mask = (__mmask16)(colMask >> (Q * LANES));
+            _mm512_mask_storeu_epi32(c + (int64_t)R * ldc + Q * LANES, mask, acc[R][Q]);
         });
     });
 }
@@ -187,20 +197,9 @@ static inline void multiply_rows(
         aRows[R] = a + (int64_t)(i + R) * k + lStart;
     });
 
-    if (cols == TILE_COLS) {
-        multiply_panel<ROWS>(aRows, panel, lCount, c + (int64_t)i * n + j, n);
-    } else {
-        // use a separate array of the full width, leaving zeros in unallocated columns,
-        // so we don't access C out-of-bounds
-        int32_t tail[ROWS * TILE_COLS] = {};
-        for (int r = 0; r < ROWS; ++r) {
-            std::copy_n(c + (int64_t)(i + r) * n + j, cols, tail + r * TILE_COLS);
-        }
-        multiply_panel<ROWS>(aRows, panel, lCount, tail, TILE_COLS);
-        for (int r = 0; r < ROWS; ++r) {
-            std::copy_n(tail + r * TILE_COLS, cols, c + (int64_t)(i + r) * n + j);
-        }
-    }
+    // masked accesses leave the B cols past cols alone, as they can be past the end of C or in another task's range.
+    const __mmask32 colMask = (__mmask32)_bzhi_u32(0xFFFFFFFFu, cols);
+    multiply_panel<ROWS>(aRows, panel, lCount, c + (int64_t)i * n + j, n, colMask);
 }
 
 // Adds A @ B to columns [colStart, colEnd) of C, where A is m x k, B is k x n and C is m x n, all row-major.

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -3039,6 +3041,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static StorageObject bytesStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -3430,7 +3437,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubMultiFileStorageObject implements StorageObject {
+    private static class StubMultiFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubMultiFileStorageObject(StoragePath path) {
@@ -3706,7 +3713,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class LargeStorageObject implements StorageObject {
+    private static class LargeStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long size;
 

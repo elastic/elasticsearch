@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -33,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 public final class HttpStorageProvider implements StorageProvider {
     private final HttpClient httpClient;
     private final HttpConfiguration config;
+    private final StorageIdentity storageIdentity;
 
     /**
      * Creates an HttpStorageProvider with configuration and executor.
@@ -49,6 +51,7 @@ public final class HttpStorageProvider implements StorageProvider {
         }
 
         this.config = config;
+        this.storageIdentity = HttpConfigIdentity.of(config);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(config.connectTimeout())
             .followRedirects(config.followRedirects() ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER)
@@ -59,19 +62,19 @@ public final class HttpStorageProvider implements StorageProvider {
     @Override
     public StorageObject newObject(StoragePath path) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config);
+        return new HttpStorageObject(storageIdentity, httpClient, path, config);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, length);
+        return new HttpStorageObject(storageIdentity, httpClient, path, config, length);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, length, lastModified);
+        return new HttpStorageObject(storageIdentity, httpClient, path, config, length, lastModified);
     }
 
     @Override

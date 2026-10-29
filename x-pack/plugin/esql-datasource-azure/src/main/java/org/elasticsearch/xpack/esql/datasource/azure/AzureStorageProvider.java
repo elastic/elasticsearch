@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -128,6 +129,7 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     private volatile ConnectionProvider connectionProvider;
     private final AzureConfiguration config;
+    private final StorageIdentity storageIdentity;
     private final Environment environment;
 
     /**
@@ -157,6 +159,7 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor, int maxConnections) {
         this.config = config;
+        this.storageIdentity = config == null ? StorageIdentity.unique() : AzureCredentialIdentity.of(config);
         this.environment = environment;
         this.executor = executor;
         this.maxConnections = maxConnections;
@@ -174,6 +177,7 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     public AzureStorageProvider(BlobServiceClient blobServiceClient) {
         this.config = null;
+        this.storageIdentity = StorageIdentity.unique();
         this.environment = null;
         this.executor = null;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
@@ -452,7 +456,7 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients(account);
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
-        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path);
+        return new AzureStorageObject(storageIdentity, blobClient, blobAsyncClient, parsed.container, parsed.blobName, path);
     }
 
     @Override
@@ -463,7 +467,7 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients(account);
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
-        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
+        return new AzureStorageObject(storageIdentity, blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
     }
 
     @Override
@@ -474,7 +478,16 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients(account);
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
-        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length, lastModified);
+        return new AzureStorageObject(
+            storageIdentity,
+            blobClient,
+            blobAsyncClient,
+            parsed.container,
+            parsed.blobName,
+            path,
+            length,
+            lastModified
+        );
     }
 
     private static BlobAsyncClient resolveAsyncClient(Clients c, ParsedPath parsed) {

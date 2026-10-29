@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -107,6 +108,7 @@ public class S3StorageProvider implements StorageProvider {
      */
     private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
     private final S3Configuration config;
+    private final StorageIdentity storageIdentity;
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
@@ -140,6 +142,7 @@ public class S3StorageProvider implements StorageProvider {
         int maxConnections
     ) {
         this.config = config;
+        this.storageIdentity = identityOf(config);
         // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
         // the MANAGED_IDENTITY path) can read it.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
@@ -186,6 +189,10 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
+    private static StorageIdentity identityOf(S3Configuration config) {
+        return config == null ? StorageIdentity.unique() : S3CredentialIdentity.of(config);
+    }
+
     /**
      * Adapts a (possibly {@code null}) AWS SDK {@link SdkAutoCloseable} client to a {@link Closeable} so it can be
      * handed to {@link IOUtils}.
@@ -208,6 +215,7 @@ public class S3StorageProvider implements StorageProvider {
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
     ) {
         this.config = null;
+        this.storageIdentity = StorageIdentity.unique();
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
         this.s3Client = s3Client;
@@ -442,7 +450,7 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, bucket, key, path);
+        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, storageIdentity, bucket, key, path);
     }
 
     @Override
@@ -450,7 +458,7 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, bucket, key, path, length);
+        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length);
     }
 
     @Override
@@ -458,7 +466,17 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, bucket, key, path, length, lastModified);
+        return new S3StorageObject(
+            s3Client,
+            s3AsyncClient,
+            asyncReadRetryStrategy,
+            storageIdentity,
+            bucket,
+            key,
+            path,
+            length,
+            lastModified
+        );
     }
 
     @Override
@@ -651,4 +669,5 @@ public class S3StorageProvider implements StorageProvider {
             }
         }
     }
+
 }

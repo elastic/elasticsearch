@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -901,6 +903,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger asyncReadCount = new AtomicInteger();
         try {
             StorageObject asyncObject = new StorageObject() {
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() {
                     return new ByteArrayInputStream(parquetData);
@@ -4987,6 +4994,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -5061,6 +5073,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger readIndex = new AtomicInteger();
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -5128,6 +5145,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

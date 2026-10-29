@@ -85,10 +85,10 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         return true;
     }
 
-    // The local cluster receives the request and could be older than the test runner.
+    // All patterns in this test are remote ones.
     @Override
     protected boolean detectsMissingIndexDuringResolution() {
-        return Clusters.localClusterVersion().equals(Version.CURRENT);
+        return Clusters.detectsMissingRemoteIndexDuringResolution();
     }
 
     @Override

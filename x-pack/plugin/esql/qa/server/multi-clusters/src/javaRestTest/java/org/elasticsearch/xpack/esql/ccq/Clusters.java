@@ -187,6 +187,16 @@ public class Clusters {
         return version.onOrAfter(org.elasticsearch.Version.V_9_5_0);
     }
 
+    /**
+     * Whether a missing remote index is reported during index resolution. That needs a current coordinator and a
+     * remote that returns the resolved index expressions in field caps, which it does as of 9.3.0. Otherwise the
+     * missing index is only reported by the remote while executing the plan.
+     */
+    public static boolean detectsMissingRemoteIndexDuringResolution() {
+        return localClusterVersion().equals(org.elasticsearch.Version.CURRENT)
+            && remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_3_0);
+    }
+
     public static org.elasticsearch.Version bwcVersion() {
         org.elasticsearch.Version local = localClusterVersion();
         org.elasticsearch.Version remote = remoteClusterVersion();

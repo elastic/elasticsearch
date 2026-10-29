@@ -211,8 +211,8 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         var isPartial = result.get("is_partial");
         assertThat(isPartial, is(true));
         // The coordinator detects the missing index during index resolution, before the plan is analyzed.
-        // Older coordinators only learn about it from the remote cluster while executing the plan.
-        boolean detectedDuringResolution = detectsMissingIndexDuringResolution();
+        // Older coordinators and remotes only report it while executing the plan.
+        boolean detectedDuringResolution = Clusters.detectsMissingRemoteIndexDuringResolution();
         var expectedReason = detectedDuringResolution ? "Unknown index [remote_cluster:foo]" : "no such index [foo]";
         assertThat(
             result,

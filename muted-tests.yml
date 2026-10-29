@@ -498,11 +498,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
-- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
-  issue: https://github.com/elastic/elasticsearch/issues/163583
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest

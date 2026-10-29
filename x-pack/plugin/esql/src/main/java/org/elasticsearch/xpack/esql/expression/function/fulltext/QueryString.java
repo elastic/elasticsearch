@@ -376,8 +376,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     /**
      * The {@code fields} option with its boosts, e.g. {@code ["title^2", "body"]} gives {@code {title=2.0, body=1.0}}, or an
      * empty map if it isn't set. It is read from the option literal directly because {@link Options#populateMap} would flatten
-     * a list into one string. Boosts that Lucene's {@code BoostQuery} rejects (non-finite or negative) fail here, at
-     * verification, instead of on the shard.
+     * a list into one string. A boost that is itself non-finite or negative fails here, at verification, rather than
+     * when Lucene's {@code BoostQuery} rejects it on the shard.
      */
     public Map<String, Float> fields() throws InvalidArgumentException {
         if (options() instanceof MapExpression map
@@ -418,7 +418,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
      * {@code default_field} aren't both set, which the query_string query rejects.
      */
     private void verifyOptions(Map<String, Object> options) throws InvalidArgumentException {
-        if (fields().isEmpty() == false && options.containsKey(DEFAULT_FIELD_FIELD.getPreferredName())) {
+        if (fields().isEmpty() == false && options.get(DEFAULT_FIELD_FIELD.getPreferredName()) != null) {
             throw new InvalidArgumentException(
                 format(
                     null,

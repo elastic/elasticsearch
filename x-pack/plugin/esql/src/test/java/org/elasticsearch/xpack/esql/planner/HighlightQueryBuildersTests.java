@@ -204,6 +204,14 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
         HighlightQueryBuilders.verify(queryString("fox", options("fields", keywords("ti*"))), TITLE_STANDARD, true, false, null);
+        HighlightQueryBuilders.verify(queryString("fox", options("default_field", "ti*")), TITLE_STANDARD, true, false, null);
+        for (MapExpression options : List.of(options("fields", keywords("bo*")), options("default_field", "bo*"))) {
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> HighlightQueryBuilders.verify(queryString("fox", options), TITLE_STANDARD, true, false, null)
+            );
+            assertThat(e.getMessage(), containsString("HIGHLIGHT query field pattern [bo*] matches none of the ON fields [title]"));
+        }
     }
 
     public void testVerifyImplicitQueryFieldOutsideOnIsLenient() {

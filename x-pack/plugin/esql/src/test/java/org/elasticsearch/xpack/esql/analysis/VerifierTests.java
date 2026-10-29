@@ -3743,6 +3743,8 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\", \"body\"]})");
         fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": \"title\"})");
         fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^2\", \"bo*\"], \"default_operator\": \"AND\"})");
+        // a null default_field is the same as none, as in the query_string query
+        fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\"], \"default_field\": null})");
 
         fullText().error(
             "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\"], \"default_field\": \"body\"})",
@@ -5783,8 +5785,17 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"body\", \"title^2\"]}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
-        // a wildcard in the fields option is resolved against the ON fields
+        // a wildcard in default_field or fields must match an ON field, which is what translation resolves it against
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"ti*\"]}) ON title");
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"ti*\"}) ON title");
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"bo*\"]}) ON title",
+            containsString("HIGHLIGHT query field pattern [bo*] matches none of the ON fields [title]")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"bo*\"}) ON title",
+            containsString("HIGHLIGHT query field pattern [bo*] matches none of the ON fields [title]")
+        );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"title:fox\" ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))

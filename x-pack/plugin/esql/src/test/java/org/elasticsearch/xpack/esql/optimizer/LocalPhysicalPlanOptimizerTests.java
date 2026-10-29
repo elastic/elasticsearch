@@ -1968,6 +1968,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testQStrFieldsOptionPushDown() {
         assertQStrFields("{\"fields\": [\"first_name^2\", \"last_*\"]}", Map.of("first_name", 2.0f, "last_*", 1.0f));
         assertQStrFields("{\"fields\": \"first_name\"}", Map.of("first_name", 1.0f));
+        // a repeated field keeps the last boost, as in the query_string query
+        assertQStrFields("{\"fields\": [\"first_name\", \"first_name^2\"]}", Map.of("first_name", 2.0f));
     }
 
     private void assertQStrFields(String options, Map<String, Float> expectedFields) {

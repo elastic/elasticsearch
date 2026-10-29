@@ -100,23 +100,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
-    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of(
-        // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
-        "missing references \\[.*\\]",
-        // https://github.com/elastic/elasticsearch/issues/142026
-        "column \\[.*\\] already resolved",
-        // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
-        // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
-        "is not supported with unmapped_fields",
-        "does not support full-text search function",
-        "type \\[null\\] .* not supported",
-        // https://github.com/elastic/elasticsearch/issues/145555
-        "Multiple index patterns should be disabled with unmapped fields",
-        // https://github.com/elastic/elasticsearch/issues/146036
-        "argument of \\[.*\\] must be \\[unsupported\\], found value",
-        // https://github.com/elastic/elasticsearch/issues/146074
-        "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
-    );
+    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of();
 
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
         GenerativeFeature.SUBQUERIES,

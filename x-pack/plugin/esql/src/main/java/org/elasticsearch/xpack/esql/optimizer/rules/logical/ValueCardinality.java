@@ -92,7 +92,7 @@ enum ValueCardinality {
     static ValueCardinality ofWrittenIn(Expression expression, LogicalPlan node) {
         if (node instanceof Eval || node instanceof Row) {
             // These nodes can read their own earlier fields, so the expression is evaluated over the node itself.
-            // FROM test | EVAL a = MV_MAX(languages), k = a the field k = a reads a, which this EVAL defines
+            // Example: FROM test | EVAL a = MV_MAX(languages), k = a -> the field k = a reads a, which this EVAL defines
             return of(expression, node);
         }
         if (node instanceof Aggregate
@@ -102,7 +102,7 @@ enum ValueCardinality {
             || node instanceof Limit
             || node instanceof TopN) {
             // These nodes read the columns that their child outputs.
-            // FROM test | EVAL a = MV_MIN(languages) | STATS BY a + 1 the grouping a + 1 reads a, from the EVAL below
+            // Example: FROM test | EVAL a = MV_MIN(languages) | STATS BY a + 1 -> the grouping a + 1 reads a, from the EVAL below
             return of(expression, node.children().get(0));
         }
         return MAYBE_MULTI;
@@ -121,59 +121,77 @@ enum ValueCardinality {
         // listed may rewrite columns, so they end the search.
         if (plan instanceof Eval eval) {
             // EVAL: the attribute is either a field that this EVAL defines, or a column that passes through it.
-            // FROM test | EVAL a = MV_MAX(languages), k = a | STATS BY k
-            // For k, this EVAL defines k = a, so we go on and ask about the expression "a". For a column that this EVAL does not
-            // define, such as languages in "EVAL a = 1 | STATS BY languages", we ask the child.
             Alias definition = definitionOf(attribute, eval.fields());
-            // A field may read the fields before it in the same Eval (k = a above), so its definition is resolved against this Eval, not
-            // its child.
-            return definition != null ? ofExpression(definition.child(), eval, depth + 1) : ofAttribute(attribute, eval.child(), depth + 1);
+            if (definition != null) {
+                // The attribute is defined in this EVAL, so look into the defining expression (definition.child()).
+                // Pass the whole `eval`, because the expression may read earlier fields of this same EVAL.
+                // Example: FROM test | EVAL a = MV_MAX(languages), k = a | STATS BY k
+                return ofExpression(definition.child(), eval, depth + 1);
+            } else {
+                // The attribute passes through this EVAL from the previous stage, so ask the child.
+                // Example: FROM test | EVAL a = 1 | STATS BY languages
+                return ofAttribute(attribute, eval.child(), depth + 1);
+            }
         }
         if (plan instanceof Row row) {
             // ROW: the attribute is a field of the row. Nothing is below a ROW, so a column that it does not define is unknown.
-            // ROW x = 1 | STATS BY x -> the definition is the constant 1, so SINGLE
-            // ROW x = [1, 2] | STATS BY x -> the definition is a multi-valued literal, so unknown
             Alias definition = definitionOf(attribute, row.fields());
-            return definition != null ? ofExpression(definition.child(), plan, depth + 1) : MAYBE_MULTI;
+            if (definition != null) {
+                // The attribute is defined in this ROW, so look into the defining expression.
+                // Example: ROW x = 1 | STATS BY x -> the definition is the constant 1, so SINGLE
+                // Example: ROW x = [1, 2] | STATS BY x -> the definition is a multi-valued literal, so unknown
+                return ofExpression(definition.child(), plan, depth + 1);
+            } else {
+                // The ROW does not define the attribute, and nothing is below it, so nothing is known.
+                return MAYBE_MULTI;
+            }
         }
         if (plan instanceof Project project) {
             // KEEP, DROP and RENAME produce a Project, a list of kept columns and renamed columns.
-            // FROM test | EVAL a = MV_MAX(languages) | RENAME a AS k | STATS BY k
-            // A rename is an Alias with a new id (k = a). Its source is a column of the child, so it is resolved against the child. The
-            // projections do not read each other (RENAME a AS b, b AS a swaps two columns), so never against this node.
-            // A kept column keeps its id, so the child is asked about it.
             for (NamedExpression projection : project.projections()) {
                 if (projection.id().equals(attribute.id())) {
-                    return projection instanceof Alias alias
-                        ? ofExpression(alias.child(), project.child(), depth + 1)
-                        : ofAttribute(attribute, project.child(), depth + 1);
+                    if (projection instanceof Alias alias) {
+                        // A rename is an Alias with a new id (k = a). Its source is a column of the child, so it is resolved against the
+                        // child. The projections do not read each other (RENAME a AS b, b AS a swaps two columns), so never against
+                        // this node.
+                        // Example: FROM test | EVAL a = MV_MAX(languages) | RENAME a AS k | STATS BY k
+                        return ofExpression(alias.child(), project.child(), depth + 1);
+                    } else {
+                        // A kept column keeps its id, so ask the child about it.
+                        // Example: FROM test | EVAL k = MV_MIN(languages) | KEEP k | STATS BY k
+                        return ofAttribute(attribute, project.child(), depth + 1);
+                    }
                 }
             }
             // The attribute is not an output of this node.
             return MAYBE_MULTI;
         }
         if (plan instanceof MvExpand mvExpand) {
-            // MV_EXPAND puts each value of a multi-valued column on a row of its own, so the expanded column holds one value per row.
-            // FROM test | MV_EXPAND languages | STATS BY languages -> SINGLE
-            // Any other column is a column of the child, so the child is asked about it:
-            // FROM test | MV_EXPAND languages | STATS BY salary
-            return mvExpand.expanded().id().equals(attribute.id()) ? SINGLE : ofAttribute(attribute, mvExpand.child(), depth + 1);
+            if (mvExpand.expanded().id().equals(attribute.id())) {
+                // MV_EXPAND puts each value of a multi-valued column on a row of its own, so the expanded column holds one value per row.
+                // Example: FROM test | MV_EXPAND languages | STATS BY languages -> SINGLE
+                return SINGLE;
+            } else {
+                // Any other column is a column of the child, so ask the child about it.
+                // Example: FROM test | MV_EXPAND languages | STATS BY salary
+                return ofAttribute(attribute, mvExpand.child(), depth + 1);
+            }
         }
         if (plan instanceof Aggregate aggregate) {
             // An earlier STATS: the attribute is one of its output columns. See ofAggregateOutput.
-            // FROM test | STATS c = COUNT(*) BY first_name | STATS n = COUNT(*) BY c
+            // Example: FROM test | STATS c = COUNT(*) BY first_name | STATS n = COUNT(*) BY c
             return ofAggregateOutput(attribute, aggregate);
         }
         if (plan instanceof EsRelation) {
             // FROM: the search reached the source. A field is single-valued only if the mapping of every resolved index says so. A field
             // that may be read from _source or converted is not a plain mapped field, so its EsField never carries the flag.
-            // FROM test | STATS BY languages
+            // Example: FROM test | STATS BY languages
             return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
         }
         if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy || plan instanceof TopN) {
-            // WHERE, LIMIT and SORT keep, drop or reorder rows and do not change columns, so the child is asked. The optimizer turns
+            // WHERE, LIMIT and SORT keep, drop or reorder rows and do not change columns, so ask the child. The optimizer turns
             // SORT followed by LIMIT into one TopN, which does the same.
-            // FROM test | EVAL k = MV_MIN(languages) | WHERE k > 1 | SORT k | LIMIT 5 | STATS BY k
+            // Example: FROM test | EVAL k = MV_MIN(languages) | WHERE k > 1 | SORT k | LIMIT 5 | STATS BY k
             return ofAttribute(attribute, plan.children().get(0), depth + 1);
         }
         // Any other node, such as LOOKUP JOIN or GROK, may rewrite columns, so nothing is known.
@@ -190,8 +208,8 @@ enum ValueCardinality {
         }
         if (isScalarFoldable(expression)) {
             // A constant: it folds to null or to one value, but not to a list.
-            // FROM test | EVAL k = 1 | STATS BY k -> SINGLE
-            // FROM test | EVAL k = [1, 2] | STATS BY k -> a multi-valued literal folds to a list, so unknown
+            // Example: FROM test | EVAL k = 1 | STATS BY k -> SINGLE
+            // Example: FROM test | EVAL k = [1, 2] | STATS BY k -> a multi-valued literal folds to a list, so unknown
             return SINGLE;
         }
         if (expression instanceof Alias alias) {
@@ -200,7 +218,7 @@ enum ValueCardinality {
         }
         if (expression instanceof Attribute attribute) {
             // A copy of another column: ask about that column.
-            // FROM test | EVAL a = MV_MAX(languages) | EVAL k = a | STATS BY k
+            // Example: FROM test | EVAL a = MV_MAX(languages) | EVAL k = a | STATS BY k
             return ofAttribute(attribute, plan, depth + 1);
         }
         if (expression instanceof MvMin
@@ -209,12 +227,12 @@ enum ValueCardinality {
             || expression instanceof MvLast
             || expression instanceof MvCount) {
             // These functions turn any input, even a list, into at most one value.
-            // FROM test | EVAL k = MV_MAX(languages) | STATS BY k
+            // Example: FROM test | EVAL k = MV_MAX(languages) | STATS BY k
             return SINGLE;
         }
         // Any other function is unknown. A function of a single value is not assumed single: SPLIT returns a list from one input.
-        // FROM test | EVAL k = languages + 1 | STATS BY k
-        // FROM test | EVAL k = SPLIT(first_name, "a") | STATS BY k
+        // Example: FROM test | EVAL k = languages + 1 | STATS BY k
+        // Example: FROM test | EVAL k = SPLIT(first_name, "a") | STATS BY k
         return MAYBE_MULTI;
     }
 
@@ -225,20 +243,20 @@ enum ValueCardinality {
     private static ValueCardinality ofAggregateOutput(Attribute attribute, Aggregate aggregate) {
         for (NamedExpression output : aggregate.aggregates()) {
             if (output.id().equals(attribute.id()) == false) {
-                // skip columns that aren't the attribute we are looking for
+                // Skip columns that aren't the attribute we are looking for.
                 continue;
             }
             Expression unwrapped = Alias.unwrap(output);
             if (unwrapped instanceof Count) {
                 // COUNT returns one number per group.
-                // FROM test | STATS c = COUNT(*) BY first_name | STATS n = COUNT(*) BY c
+                // Example: FROM test | STATS c = COUNT(*) BY first_name | STATS n = COUNT(*) BY c
                 return SINGLE;
             }
             // Other aggregate functions can return a list (VALUES, TOP, ...), so only the key itself is proven. A grouping
             // key holds one value per group even when the input column was a list, because the aggregation unrolls the list.
-            // FROM test | STATS c = COUNT(*) BY languages | STATS n = COUNT(*) BY languages
+            // Example: FROM test | STATS c = COUNT(*) BY languages | STATS n = COUNT(*) BY languages
             // -> languages is a key: SINGLE
-            // FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v
+            // Example: FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v
             // -> VALUES returns a list: unknown
             return isGroupKey(aggregate, output) ? SINGLE : MAYBE_MULTI;
         }

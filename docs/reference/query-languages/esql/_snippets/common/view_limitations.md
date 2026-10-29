@@ -95,7 +95,7 @@ destination index as the source in the view definition.
 
 #### Datasets
 ```yaml {applies_to}
-stack: experimental 9.5+
+stack: preview 9.6+, experimental =9.5
 serverless: unavailable
 ```
 

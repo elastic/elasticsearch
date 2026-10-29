@@ -443,3 +443,8 @@ tests:
   - :server:internalClusterTest
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/163874
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
+  method: test {csv-spec:null.nullLiteralArgInMultiInputAggs}
+  issue: https://github.com/elastic/elasticsearch/issues/163927

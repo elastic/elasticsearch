@@ -15,12 +15,16 @@ import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.RelativePath;
 import org.junit.Test;
 
-import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DistributionPermissionsTests {
 
@@ -67,60 +71,43 @@ public class DistributionPermissionsTests {
 
     private static PermissionProbe apply(Action<FileCopyDetails> action, String... segments) {
         PermissionProbe probe = new PermissionProbe(segments);
-        action.execute(probe.details());
+        action.execute(probe.details);
         return probe;
     }
 
-    private static class PermissionProbe {
-        private final String[] segments;
-        private final String name;
+    /**
+     * Captures the permission mode and exclusion a {@link DistributionPermissions} action applies to a single file.
+     *
+     * <p>{@link FileCopyDetails} and {@link ConfigurableFilePermissions} belong to Gradle's copy pipeline and cannot
+     * be instantiated directly in a unit test, so per the AGENTS.md testing guidance they are Mockito mocks rather
+     * than hand-rolled proxies. The real copy behaviour is exercised end to end by {@code DistributionLayoutPluginFuncTest}.
+     */
+    private static final class PermissionProbe {
         private final AtomicInteger mode = new AtomicInteger(-1);
         private boolean excluded;
+        private final FileCopyDetails details;
 
         PermissionProbe(String... segments) {
-            this.segments = segments;
-            this.name = segments[segments.length - 1];
-        }
+            String name = segments[segments.length - 1];
 
-        @SuppressWarnings("unchecked")
-        FileCopyDetails details() {
-            return (FileCopyDetails) Proxy.newProxyInstance(
-                FileCopyDetails.class.getClassLoader(),
-                new Class[] { FileCopyDetails.class },
-                (proxy, method, args) -> switch (method.getName()) {
-                    case "getRelativePath" -> new RelativePath(true, segments);
-                    case "getName" -> name;
-                    case "exclude" -> {
-                        excluded = true;
-                        yield null;
-                    }
-                    case "permissions" -> {
-                        Action<ConfigurableFilePermissions> action = (Action<ConfigurableFilePermissions>) args[0];
-                        action.execute(permissions());
-                        yield null;
-                    }
-                    case "toString" -> "PermissionProbe(" + String.join("/", segments) + ")";
-                    default -> throw new UnsupportedOperationException(method.getName());
-                }
-            );
-        }
+            ConfigurableFilePermissions permissions = mock(ConfigurableFilePermissions.class);
+            doAnswer(invocation -> {
+                mode.set(invocation.getArgument(0));
+                return null;
+            }).when(permissions).unix(anyInt());
 
-        @SuppressWarnings("unchecked")
-        private ConfigurableFilePermissions permissions() {
-            return (ConfigurableFilePermissions) Proxy.newProxyInstance(
-                ConfigurableFilePermissions.class.getClassLoader(),
-                new Class[] { ConfigurableFilePermissions.class },
-                (proxy, method, args) -> switch (method.getName()) {
-                    case "unix" -> {
-                        if (args.length == 1 && args[0] instanceof Integer unixMode) {
-                            mode.set(unixMode);
-                        }
-                        yield null;
-                    }
-                    case "toString" -> "Permissions(" + mode.get() + ")";
-                    default -> null;
-                }
-            );
+            details = mock(FileCopyDetails.class);
+            when(details.getRelativePath()).thenReturn(new RelativePath(true, segments));
+            when(details.getName()).thenReturn(name);
+            doAnswer(invocation -> {
+                excluded = true;
+                return null;
+            }).when(details).exclude();
+            doAnswer(invocation -> {
+                Action<ConfigurableFilePermissions> configure = invocation.getArgument(0);
+                configure.execute(permissions);
+                return null;
+            }).when(details).permissions(any());
         }
     }
 }

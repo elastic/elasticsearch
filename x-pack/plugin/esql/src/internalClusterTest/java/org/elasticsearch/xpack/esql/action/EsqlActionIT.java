@@ -872,6 +872,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 )
         );
         ensureYellow(indexName);
+        Index index = resolveIndex(indexName);
+        List<IndexShard> shards = new ArrayList<>();
+        for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService != null) {
+                indexService.forEach(shards::add);
+            }
+        }
+        assertThat(shards, hasSize(numShards));
         AtomicLong totalValues = new AtomicLong();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean stopped = new AtomicBoolean();
@@ -899,25 +908,21 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         indexingThread.start();
         try {
             logger.info("--> waiting for shards to have pending refresh");
-            Index index = resolveIndex(indexName);
             latch.countDown();
             assertBusy(() -> {
-                int pendingRefreshes = 0;
-                for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-                    IndexService indexService = indicesService.indexService(index);
-                    if (indexService != null) {
-                        for (IndexShard shard : indexService) {
-                            if (shard.hasRefreshPending()) {
-                                pendingRefreshes++;
-                            }
-                        }
-                    }
+                for (IndexShard shard : shards) {
+                    assertTrue("shard " + shard.shardId() + " doesn't have a pending refresh", shard.hasRefreshPending());
                 }
-                assertThat("shards don't have any pending refresh", pendingRefreshes, equalTo(numShards));
             }, 30, TimeUnit.SECONDS);
         } finally {
             stopped.set(true);
             indexingThread.join();
+        }
+        // A scheduled refresh that ran while a write was in flight may have recorded a pending location that does not
+        // cover that write, so record the pending location again now that every write has been acknowledged.
+        for (IndexShard shard : shards) {
+            assertFalse(safeAwait(shard::scheduledRefresh));
+            assertTrue(shard.hasRefreshPending());
         }
         try (EsqlQueryResponse results = run("from test_refresh | stats s = sum(value)")) {
             logger.info(results);

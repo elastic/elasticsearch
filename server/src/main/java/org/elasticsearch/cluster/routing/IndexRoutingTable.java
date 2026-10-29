@@ -645,7 +645,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 assert existing != null;
                 // If the shard already has an active replica then the new replica just adds capacity
                 final ShardRouting.RecoveryPriority recoveryPriority = existing.hasActiveReplica()
-                    ? ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING
+                    ? ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
                     : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
                 // version 0, will get updated when reroute will happen
                 existing.addShard(

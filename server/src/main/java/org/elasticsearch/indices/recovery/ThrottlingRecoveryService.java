@@ -48,10 +48,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
@@ -60,8 +58,9 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes. The max number of concurrent recovery slots is controlled
 /// by the [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
-/// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] then
-/// controls the max proportion of those concurrent recovery slots that may be used for relocation recoveries.
+/// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
+/// controls the max proportion of those concurrent recovery slots that may be used for non-critical recoveries (see
+/// [PendingRecovery#isCritical()]), so that some slots are always kept free for critical ones.
 ///
 /// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
@@ -86,7 +85,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         // (If there are multiple queue entries with the same recovery priority for the same index, execution order will be arbitrary.)
         Comparator.<PendingRecovery, Integer>comparing(recovery -> recovery.recoveryState().getRecoveryPriority().ordinal())
             .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
-    private final PendingRecoveries pendingRecoveries = new PendingRecoveries();
+    private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
 
     // If non-null, this field caches the value for PendingRecovery.enqueuedTimeAbsoluteMillis() for any queued recovery, or Long.MAX_VALUE
     // if the queue is empty. If null, the value should be computed on demand and cached.
@@ -222,14 +221,16 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
             // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
             cancelledAllocationIds.putAll(cancellations);
-            final List<PendingRecovery> matchingRecoveries = pendingRecoveries.removeMatching(
-                candidate -> cancellations.containsKey(candidate.allocationId())
-            );
-            for (PendingRecovery pendingRecovery : matchingRecoveries) {
-                assert cancellations.get(pendingRecovery.allocationId()).equals(pendingRecovery.recoveryState().getShardId());
-                onDequeued(pendingRecovery);
-                recoveriesToCancel.add(pendingRecovery);
-                pendingRecovery.stats().targetQueuedRecoveryDiscarded(pendingRecovery.recoveryState().getRecoverySource().getType());
+            final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
+            while (it.hasNext()) {
+                final PendingRecovery candidate = it.next();
+                if (cancellations.containsKey(candidate.allocationId())) {
+                    assert cancellations.get(candidate.allocationId()).equals(candidate.recoveryState().getShardId());
+                    onDequeued(candidate);
+                    it.remove();
+                    recoveriesToCancel.add(candidate);
+                    candidate.stats().targetQueuedRecoveryDiscarded(candidate.recoveryState().getRecoverySource().getType());
+                }
             }
         }
         final Set<String> cancelledInQueue = new HashSet<>(recoveriesToCancel.size());
@@ -270,16 +271,19 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
             cancelledAllocationIds.entrySet()
                 .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
-            final List<PendingRecovery> outdatedRecoveries = pendingRecoveries.removeMatching(
-                pending -> allocationIdIsOutdated(localNode, pending.recoveryState().getShardId(), pending.allocationId())
-            );
-            for (PendingRecovery pending : outdatedRecoveries) {
-                onDequeued(pending);
-                staleRecoveries.add(pending);
-                // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
-                // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
-                // became `null`, the old IndexShard object those stats belong to would have already been closed.
-                pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
+            final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
+            while (it.hasNext()) {
+                final PendingRecovery pending = it.next();
+                final RecoveryState recoveryState = pending.recoveryState();
+                if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
+                    onDequeued(pending);
+                    it.remove();
+                    staleRecoveries.add(pending);
+                    // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
+                    // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
+                    // became `null`, the old IndexShard object those stats belong to would have already been closed.
+                    pending.stats().targetQueuedRecoveryDiscarded(recoveryState.getRecoverySource().getType());
+                }
             }
         }
         for (PendingRecovery stale : staleRecoveries) {
@@ -359,7 +363,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         assert isClosed(); // state change happens-before this line: all recoveries are discarded here or rejected during enqueue, no leaks
         final List<PendingRecovery> recoveriesToAbort;
         synchronized (this) {
-            recoveriesToAbort = pendingRecoveries.stream().toList();
+            recoveriesToAbort = new ArrayList<>(pendingRecoveries);
             cachedEarliestEnqueuedTimeAbsoluteMillis = null;
             pendingRecoveries.clear();
             cancelledAllocationIds.clear();
@@ -423,27 +427,30 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return;
             }
-            // Pull pending recoveries from the queue in priority order for as long as the RecoveriesThrottle will allow
-            // us to. Note that this may skip over a relocation which is throttled by the relocation limit to start a
-            // lower priority recovery from unassigned (e.g. UNASSIGNED_RESHARDING is below RELOCATION_CAN_REMAIN_NO),
-            // since the latter is only subject to the overall limit.
-            PendingRecovery recovery;
-            while ((recovery = pendingRecoveries.pollNextRecovery(recoveriesThrottle::canStart)) != null) {
+            // Pull pending recoveries from the priority queue up for as long as the RecoveriesThrottle will allow us to.
+            // Note that we just peek at the item at the head of the queue here. This relies on these two facts:
+            // 1. Critical recoveries will always appear in the queue ahead of non-critical ones
+            // 2. We will never throttle critical recoveries more tightly than non-critical ones.
+            // This means that the recoveriesThrottle.shouldStartNextPendingRecovery() will never return false for the
+            // item at the head of the queue when it might have returned true for an item lower down the queue.
+            while (pendingRecoveries.isEmpty() == false && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
+                final PendingRecovery recovery = pendingRecoveries.poll();
+                assert recovery != null;
                 onDequeued(recovery);
                 recoveriesToDispatch.add(recovery);
                 recoveriesThrottle.incrementRunning(recovery);
                 recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
-            // Assert that we have started every queued recovery that the RecoveriesThrottle allows. pollNextRecovery only checks the
-            // head of each queue, so this relies on all the recoveries in the same queue being throttled in the same way:
-            assert pendingRecoveries.stream().noneMatch(recoveriesThrottle::canStart)
+            // Assert on the postcondition described above:
+            assert pendingRecoveries.stream().noneMatch(recoveriesThrottle::shouldStartNextPendingRecovery)
                 : Strings.format(
                     """
-                        Stopped starting recoveries while some queued recoveries could still start: %s. Highest priority
-                        queued recovery: %s.
+                        The recovery at the head of the queue was throttled, but at least one recovery elsewhere in the queue would not have
+                        been. This violates the expectation that we will never have a category of recovery which is prioritized more highly
+                        but throttled more tightly than another. Highest priority recovery: %s. Non-throttled recoveries: %s.
                         """,
-                    pendingRecoveries.stream().filter(recoveriesThrottle::canStart).toList(),
-                    pendingRecoveries.stream().min(RECOVERY_ORDERING).orElse(null)
+                    pendingRecoveries.peek(),
+                    pendingRecoveries.stream().filter(recoveriesThrottle::shouldStartNextPendingRecovery).toList()
                 );
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
@@ -573,12 +580,19 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return routingAllocation.getId();
         }
 
-        boolean isUnassigned() {
+        /// Returns whether this is a critical recovery, i.e. one which may be needed for the shard to be readable or writable,
+        /// rather than one that only improves performance or balance. Non-critical recoveries are additionally limited by
+        /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING], so
+        /// that the node can always immediately start work on at least one new critical recovery.
+        ///
+        /// All the critical priorities rank above all the non-critical ones in [ShardRouting.RecoveryPriority], which
+        /// [#doFillSlots] relies on.
+        boolean isCritical() {
             RecoveryState state = recoveryState();
             return switch (state.getRecoveryPriority()) {
-                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING,
-                    UNASSIGNED_RESHARDING -> true;
-                case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> false;
+                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
+                case RELOCATION_CAN_REMAIN_NO, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+                    RELOCATE_REBALANCING -> false;
                 case UNKNOWN -> {
                     assert false : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
                     yield false; // fall back to false, as we treat this as the lowest priority, so it is ordered more like a relocation
@@ -587,74 +601,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
 
         RecoverySchedulingListener.PriorityGroup priorityGroup() {
-            return isUnassigned()
-                ? RecoverySchedulingListener.PriorityGroup.UNASSIGNED
-                : RecoverySchedulingListener.PriorityGroup.RELOCATION;
-        }
-    }
-
-    /// The queue of pending recoveries, ordered by [#RECOVERY_ORDERING]. Recoveries from unassigned and relocations are
-    /// held in separate heaps because [RecoveriesThrottle] limits them differently. This lets a recovery from unassigned
-    /// with a lower priority than a relocation start while that relocation is throttled by the relocation limit, without
-    /// searching the whole queue.
-    /// Not thread-safe. All access must be performed while holding the enclosing [ThrottlingRecoveryService] instance lock.
-    private static class PendingRecoveries {
-
-        private final PriorityQueue<PendingRecovery> unassigned = new PriorityQueue<>(RECOVERY_ORDERING);
-        private final PriorityQueue<PendingRecovery> relocations = new PriorityQueue<>(RECOVERY_ORDERING);
-
-        private void add(PendingRecovery recovery) {
-            (recovery.isUnassigned() ? unassigned : relocations).add(recovery);
-        }
-
-        /// Removes and returns the highest priority recovery for which `canStart` returns true, or `null` if there is none.
-        @Nullable
-        private PendingRecovery pollNextRecovery(Predicate<PendingRecovery> canStart) {
-            final PendingRecovery unassignedHead = unassigned.peek();
-            final PendingRecovery relocationHead = relocations.peek();
-            final boolean unassignedCanStart = unassignedHead != null && canStart.test(unassignedHead);
-            final boolean relocationCanStart = relocationHead != null && canStart.test(relocationHead);
-            if (unassignedCanStart && (relocationCanStart == false || RECOVERY_ORDERING.compare(unassignedHead, relocationHead) <= 0)) {
-                return unassigned.poll();
-            } else if (relocationCanStart) {
-                return relocations.poll();
-            } else {
-                return null;
-            }
-        }
-
-        /// Removes all the recoveries matching `predicate` and returns them.
-        private List<PendingRecovery> removeMatching(Predicate<PendingRecovery> predicate) {
-            final List<PendingRecovery> removed = new ArrayList<>();
-            for (PriorityQueue<PendingRecovery> queue : List.of(unassigned, relocations)) {
-                final Iterator<PendingRecovery> it = queue.iterator();
-                while (it.hasNext()) {
-                    final PendingRecovery recovery = it.next();
-                    if (predicate.test(recovery)) {
-                        it.remove();
-                        removed.add(recovery);
-                    }
-                }
-            }
-            return removed;
-        }
-
-        private void clear() {
-            unassigned.clear();
-            relocations.clear();
-        }
-
-        private boolean isEmpty() {
-            return unassigned.isEmpty() && relocations.isEmpty();
-        }
-
-        private int size() {
-            return unassigned.size() + relocations.size();
-        }
-
-        /// Returns a stream of the pending recoveries, in no particular order.
-        private Stream<PendingRecovery> stream() {
-            return Stream.concat(unassigned.stream(), relocations.stream());
+            return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
     }
 
@@ -665,32 +612,33 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// The effective limits on running recoveries.
         private IncomingRecoveryLimits limits;
 
-        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations.
+        /// The number of concurrent recoveries currently running, including critical and non-critical recoveries.
         private int runningRecoveries = 0;
 
-        /// The number of concurrent relocation recoveries currently running.
-        private int runningRelocationRecoveries = 0;
+        /// The number of concurrent non-critical recoveries currently running.
+        private int runningNonCriticalRecoveries = 0;
 
         private void incrementRunning(PendingRecovery recoveryNowRunning) {
             runningRecoveries++;
-            if (!recoveryNowRunning.isUnassigned()) {
-                runningRelocationRecoveries++;
+            if (recoveryNowRunning.isCritical() == false) {
+                runningNonCriticalRecoveries++;
             }
         }
 
         private void decrementRunning(PendingRecovery recoveryNowFinished) {
             runningRecoveries--;
             assert runningRecoveries >= 0 : "negative number of running unassigned recoveries " + runningRecoveries;
-            if (!recoveryNowFinished.isUnassigned()) {
-                runningRelocationRecoveries--;
-                assert runningRelocationRecoveries >= 0 : "negative number of running relocation recoveries " + runningRelocationRecoveries;
+            if (recoveryNowFinished.isCritical() == false) {
+                runningNonCriticalRecoveries--;
+                assert runningNonCriticalRecoveries >= 0
+                    : "negative number of running non-critical recoveries " + runningNonCriticalRecoveries;
             }
         }
 
-        private boolean canStart(PendingRecovery recovery) {
+        private boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
             assert limits != null : "recovery limits are set when the service starts";
             return runningRecoveries < limits.maxConcurrentRecoveries()
-                && (recovery.isUnassigned() || (runningRelocationRecoveries < limits.maxConcurrentRelocationRecoveries()));
+                && (nextPendingRecovery.isCritical() || (runningNonCriticalRecoveries < limits.maxConcurrentNonCriticalRecoveries()));
         }
     }
 

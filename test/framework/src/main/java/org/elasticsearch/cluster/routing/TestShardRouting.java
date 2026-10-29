@@ -270,8 +270,7 @@ public class TestShardRouting {
             ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
             ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
             ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
-            ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING,
-            ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING
+            ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
         );
     }
 

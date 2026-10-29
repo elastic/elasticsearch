@@ -19,12 +19,13 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 /// they care about.
 public interface RecoverySchedulingListener {
 
-    /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we can throttle relocations more tightly
-    /// than recoveries from unassigned shards. Applies only to incoming recoveries, recorded on the target, not to outgoing peer
-    /// recoveries.
+    /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we throttle non-critical recoveries
+    /// more tightly than critical ones. Applies only to incoming recoveries, recorded on the target, not to outgoing peer recoveries.
+    /// Critical recoveries may be needed for the shard to be readable or writable, whereas non-critical ones are relocations, or
+    /// recoveries of unassigned shards which only improve performance.
     enum PriorityGroup {
-        UNASSIGNED,
-        RELOCATION,
+        CRITICAL,
+        NON_CRITICAL,
     }
 
     /// Listener that ignores every lifecycle event.

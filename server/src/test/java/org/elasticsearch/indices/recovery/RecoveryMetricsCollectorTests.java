@@ -24,8 +24,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_RECOVERIES_LIMIT_METRIC;
-import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.OUTGOING_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC;
@@ -258,7 +258,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             equalTo(expectedMaxConcurrentRecoveries)
         );
         assertThat(
-            telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
+            telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
             equalTo(expectedMaxConcurrentRelocationRecoveries)
         );
     }

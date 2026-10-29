@@ -105,7 +105,7 @@ public class SearchRecoveryTimeoutCalculationService {
             clusterSettings,
             nodeSettings,
             maxHeap,
-            limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentRelocationRecoveries()
+            limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentNonCriticalRecoveries()
         );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,

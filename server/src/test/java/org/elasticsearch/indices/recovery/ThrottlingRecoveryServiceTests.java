@@ -69,14 +69,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.counting;
-import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
@@ -84,7 +84,6 @@ import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECO
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -444,119 +443,77 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         runningRecoveries.values().forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
     }
 
-    public void testUnassignedRecoveriesStartBehindThrottledRelocation() {
+    /// Non-critical recoveries of unassigned shards ([ShardRouting.RecoveryPriority#UNASSIGNED_RESTORING] and
+    /// [ShardRouting.RecoveryPriority#UNASSIGNED_PERFORMANCE_SCALING]) share the non-critical limit with relocations, and
+    /// rank below [ShardRouting.RecoveryPriority#RELOCATION_CAN_REMAIN_NO] within it, while critical recoveries can still
+    /// use the remaining slots.
+    public void testNonCriticalUnassignedRecoveriesShareNonCriticalLimitWithRelocations() {
         final var taskQueue = new DeterministicTaskQueue();
         // Power-of-two limit to keep the derived proportion exactly representable through RatioValue's percent conversion.
         final int maxConcurrentRecoveries = randomFrom(8, 16);
-        final int maxConcurrentRelocationRecoveries = between(1, maxConcurrentRecoveries - 2);
-        final double relocationProportion = (double) maxConcurrentRelocationRecoveries / maxConcurrentRecoveries;
+        // Ensure that there is at least one slot for any recovery and at least two slots for critical recoveries only.
+        final int maxConcurrentNonCriticalRecoveries = between(1, maxConcurrentRecoveries - 2);
+        final double nonCriticalProportion = (double) maxConcurrentNonCriticalRecoveries / maxConcurrentRecoveries;
         final Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
-            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), relocationProportion)
+            .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), nonCriticalProportion)
             .build();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(settings));
-
         final Map<String, RecoveryListener> runningRecoveries = new HashMap<>();
-        final Map<String, ShardRouting.RecoveryPriority> priorities = new HashMap<>();
-        // Use up all the relocation slots
-        for (int i = 0; i < maxConcurrentRelocationRecoveries; i++) {
-            final var id = "relocation-" + i;
-            priorities.put(id, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
-            service.enqueue(
-                ProjectId.DEFAULT,
-                noopRecoveryListener(),
-                mockIndexShard(newRecoveryState(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO), UUIDs.randomBase64UUID(), stats),
-                newIndexMetadata(),
-                listener -> runningRecoveries.put(id, listener)
-            );
-        }
-        taskQueue.runAllRunnableTasks();
-        assertThat(runningRecoveries.size(), equalTo(maxConcurrentRelocationRecoveries));
-
-        // Enqueue a relocation which will be at the head of the queue, but throttled
-        priorities.put("blocked-relocation", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
-        service.enqueue(
+        final BiConsumer<String, ShardRouting.RecoveryPriority> enqueue = (id, priority) -> service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
-            mockIndexShard(newRecoveryState(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO), UUIDs.randomBase64UUID(), stats),
+            mockIndexShard(newRecoveryState(priority), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            listener -> runningRecoveries.put("blocked-relocation", listener)
+            listener -> runningRecoveries.put(id, listener)
         );
 
-        // Enqueue more recoveries from unassigned with lower priority in random order. There are fewer UNASSIGNED_RESTORING
-        // than free slots, so the remaining slots should go to UNASSIGNED_REPLICA_SCALING, of which there are more than
-        // enough, and none to UNASSIGNED_RESHARDING:
-        final int freeSlots = maxConcurrentRecoveries - maxConcurrentRelocationRecoveries;
-        final Map<ShardRouting.RecoveryPriority, Integer> counts = Map.of(
-            ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
-            between(1, freeSlots - 1),
-            ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING,
-            freeSlots + between(1, 4),
-            ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING,
-            between(1, 4)
-        );
+        // Use up all the non-critical slots with relocations
+        for (int i = 0; i < maxConcurrentNonCriticalRecoveries; i++) {
+            enqueue.accept("relocation-" + i, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(maxConcurrentNonCriticalRecoveries));
+
+        // Enqueue a relocation and non-critical recoveries of unassigned shards in random order: none of them start, even though
+        // there are free slots, because the non-critical limit is reached
         final List<Runnable> enqueueActions = new ArrayList<>();
-        counts.forEach((priority, count) -> {
-            for (int i = 0; i < count; i++) {
-                final var id = priority + "-" + i;
-                priorities.put(id, priority);
-                enqueueActions.add(
-                    () -> service.enqueue(
-                        ProjectId.DEFAULT,
-                        noopRecoveryListener(),
-                        mockIndexShard(newRecoveryState(priority), UUIDs.randomBase64UUID(), stats),
-                        newIndexMetadata(),
-                        listener -> runningRecoveries.put(id, listener)
-                    )
-                );
-            }
-        });
+        enqueueActions.add(() -> enqueue.accept("queued-relocation", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
+        enqueueActions.add(() -> enqueue.accept("restoring", ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING));
+        enqueueActions.add(() -> enqueue.accept("performance-scaling", ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
         Collections.shuffle(enqueueActions, random());
         enqueueActions.forEach(Runnable::run);
         taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(maxConcurrentNonCriticalRecoveries));
 
-        // The free slots are filled with the highest priority recoveries from unassigned, and the relocation remains blocked
-        final int runningRestoring = counts.get(ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING);
-        assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
-        final var runningByPriority = runningRecoveries.keySet().stream().collect(groupingBy(priorities::get, counting()));
-        assertThat(runningByPriority.get(ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING), equalTo((long) runningRestoring));
-        assertThat(
-            runningByPriority.get(ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING),
-            equalTo((long) (freeSlots - runningRestoring))
-        );
-        assertThat(runningByPriority, not(hasKey(ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING)));
-
-        // Complete one of the recoveries from unassigned, and assert that another UNASSIGNED_REPLICA_SCALING one starts
-        final var completed = randomFrom(
-            runningRecoveries.keySet()
-                .stream()
-                .filter(id -> priorities.get(id) != ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
-                .toList()
-        );
-        runningRecoveries.remove(completed).onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-        taskQueue.runAllRunnableTasks();
-        assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
-        final var runningByPriorityAfterCompletion = runningRecoveries.keySet().stream().collect(groupingBy(priorities::get, counting()));
-        assertThat(
-            runningByPriorityAfterCompletion.getOrDefault(ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING, 0L)
-                + runningByPriorityAfterCompletion.get(ShardRouting.RecoveryPriority.UNASSIGNED_REPLICA_SCALING),
-            equalTo((long) freeSlots)
-        );
-        assertThat(runningByPriorityAfterCompletion, not(hasKey(ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING)));
-
-        // Complete one of the relocations, and assert that the blocked relocation starts as soon as a slot is available
-        runningRecoveries.remove("relocation-0").onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-        taskQueue.runAllRunnableTasks();
-        assertThat(runningRecoveries.keySet(), hasItem("blocked-relocation"));
-
-        // Drain everything
-        while (runningRecoveries.isEmpty() == false) {
-            for (final var id : List.copyOf(runningRecoveries.keySet())) {
-                runningRecoveries.remove(id).onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            }
-            taskQueue.runAllRunnableTasks();
+        // Critical recoveries can still use all the remaining slots
+        final int criticalRecoveries = maxConcurrentRecoveries - maxConcurrentNonCriticalRecoveries;
+        for (int i = 0; i < criticalRecoveries; i++) {
+            enqueue.accept("critical-" + i, newUnassignedRecoveryState().getRecoveryPriority());
         }
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(maxConcurrentRecoveries));
+        assertThat(service.currentQueueSize(), equalTo(enqueueActions.size()));
+
+        // Completing a critical recovery does not free a non-critical slot, so nothing else starts
+        runningRecoveries.remove("critical-" + between(0, criticalRecoveries - 1))
+            .onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(enqueueActions.size()));
+
+        // Each completed non-critical recovery frees a slot for the highest priority queued non-critical recovery
+        for (final var expectedNext : List.of("queued-relocation", "restoring", "performance-scaling")) {
+            final var completed = randomFrom(
+                runningRecoveries.keySet().stream().filter(id -> id.startsWith("critical-") == false).toList()
+            );
+            runningRecoveries.remove(completed).onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            taskQueue.runAllRunnableTasks();
+            assertThat(runningRecoveries.keySet(), hasItem(expectedNext));
+        }
+
+        // The queue is now empty, just complete all the remaining recoveries to clean up:
         assertThat(service.currentQueueSize(), equalTo(0));
+        runningRecoveries.values().forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
     }
 
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
@@ -2574,6 +2531,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             Set.of(
                 INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                 INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
+                INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
             )
         );
@@ -2645,8 +2603,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static RecoveryState newRecoveryState(ShardId shardId, ShardRouting.RecoveryPriority recoveryPriority) {
         String relocatingNodeId = switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_REPLICA_SCALING,
-                UNASSIGNED_RESHARDING -> null;
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING ->
+                null;
             case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
             case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");
         };

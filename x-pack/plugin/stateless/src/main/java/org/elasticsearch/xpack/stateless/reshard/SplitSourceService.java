@@ -1142,9 +1142,7 @@ public class SplitSourceService {
                         new ClusterStateObserver.Listener() {
                             @Override
                             public void onNewClusterState(ClusterState state) {
-                                // The shard is closed before the state machine is cancelled (that happens once the close has completed),
-                                // so check both. This runs on the applier thread, after the shard has been closed for a restore.
-                                if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
+                                if (cancelled.get()) {
                                     return;
                                 }
 

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownConjunctions
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLimitIntoUnionAll;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterIntoInlineJoinAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoMergePlan;
@@ -130,6 +131,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        new Batch<>("Push Filters Into Inline Stats", Limiter.ONCE, new PushDownFilterIntoInlineJoinAggregate()),
         // After operators() has pushed the filters down to the relations, and before the relations are wrapped below.
         selectSlices(),
         // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll

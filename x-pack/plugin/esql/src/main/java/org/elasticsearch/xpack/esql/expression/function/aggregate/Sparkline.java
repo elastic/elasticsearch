@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggregate;
 
@@ -104,6 +105,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @FunctionInfo(
         returnType = { "integer", "long", "double" },
+        signatures = { @Signature(params = { "integer|long|double", "date", "integer", "date|STRING", "date|STRING" }, returnType = "$0") },
         briefSummary = "Computes y-axis values of a sparkline graph for an aggregation over time.",
         description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,

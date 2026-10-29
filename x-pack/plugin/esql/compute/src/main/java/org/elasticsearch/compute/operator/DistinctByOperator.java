@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -53,6 +54,35 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
                 + keyChannel()
                 + ", failOnDuplicate="
                 + failOnDuplicate()
+                + ", factory="
+                + this.getClass().getSimpleName()
+                + "]";
+        }
+    }
+
+    /**
+     * Builds a {@link DistinctByOperator} for a {@code BYTES_REF} key whose equal values in different shards are distinct
+     * keys, like the {@code _tsid} of a time series that was written to several backing indices.
+     * <p>
+     * It only remembers the keys of the shard that the latest row came from, so it never holds more than one shard's keys.
+     * When rows of a shard come back after rows of another shard, their keys pass again. That bounds memory at the cost of
+     * occasional repeats, which suits callers that dedup to save work rather than for correctness.
+     *
+     * @param docChannel channel of the doc block that names the shard of each row
+     * @param keyChannel channel of the key
+     */
+    public record BytesRefKeyPerShardFactory(int docChannel, int keyChannel) implements OperatorFactory {
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new DistinctByOperator(keyChannel, new BytesRefPerShardProcessor(docChannel, keyChannel, driverContext.blockFactory()));
+        }
+
+        @Override
+        public String describe() {
+            return "DistinctByOperator[docChannel="
+                + docChannel
+                + ", keyChannel="
+                + keyChannel
                 + ", factory="
                 + this.getClass().getSimpleName()
                 + "]";
@@ -111,8 +141,8 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
         Releasables.close(processor, super::close);
     }
 
-    private sealed interface Processor extends Releasable permits BytesRefProcessor, BytesRefFailOnDuplicateProcessor, IntOrdinalProcessor,
-        IntOrdinalFailOnDuplicateProcessor {
+    private sealed interface Processor extends Releasable permits BytesRefProcessor, BytesRefPerShardProcessor,
+        BytesRefFailOnDuplicateProcessor, IntOrdinalProcessor, IntOrdinalFailOnDuplicateProcessor {
 
         Page process(Page page);
 
@@ -360,6 +390,72 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
         @Override
         public void close() {
             Releasables.close(seenKeys, pageLocalSeenOrdinals);
+        }
+    }
+
+    /**
+     * Drops repeats of a key among consecutive rows of one shard, and starts over with no keys when the shard changes.
+     */
+    private static final class BytesRefPerShardProcessor implements Processor {
+        private final int docChannel;
+        private final int keyChannel;
+        private final BlockFactory blockFactory;
+        private final BytesRef scratch = new BytesRef();
+        private int shard = -1;
+        /** The keys of {@link #shard}, or {@code null} before the first row. */
+        private BytesRefProcessor shardKeys;
+
+        BytesRefPerShardProcessor(int docChannel, int keyChannel, BlockFactory blockFactory) {
+            this.docChannel = docChannel;
+            this.keyChannel = keyChannel;
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public Page process(Page page) {
+            DocBlock docBlock = page.getBlock(docChannel);
+            IntVector shards = docBlock.asVector().shards();
+            if (shards.isConstant()) {
+                startShard(shards.getInt(0));
+                return shardKeys.process(page);
+            }
+            return processMixedShards(page, shards);
+        }
+
+        /** Sources emit pages from a single shard, so this path for pages that mix shards favors simplicity over speed. */
+        private Page processMixedShards(Page page, IntVector shards) {
+            BytesRefBlock keyBlock = page.getBlock(keyChannel);
+            int positionCount = page.getPositionCount();
+            int[] positions = new int[positionCount];
+            int selectedCount = 0;
+            for (int p = 0; p < positionCount; p++) {
+                startShard(shards.getInt(p));
+                if (keyBlock.isNull(p) == false
+                    && shardKeys.seenKeys.add(keyBlock.getBytesRef(keyBlock.getFirstValueIndex(p), scratch)) >= 0) {
+                    positions[selectedCount++] = p;
+                }
+            }
+            return Processor.finish(page, positions, selectedCount);
+        }
+
+        private void startShard(int newShard) {
+            if (shardKeys != null && shard == newShard) {
+                return;
+            }
+            BytesRefProcessor newShardKeys = new BytesRefProcessor(keyChannel, blockFactory);
+            Releasables.close(shardKeys);
+            shardKeys = newShardKeys;
+            shard = newShard;
+        }
+
+        @Override
+        public String toString() {
+            return "BytesRefPerShardProcessor[shard=" + shard + ", seenKeys=" + (shardKeys == null ? 0 : shardKeys.seenKeys.size()) + "]";
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(shardKeys);
         }
     }
 

@@ -2157,8 +2157,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// Builds a cluster state where shard 0 relocates from the healthy `healthy-source` to `target-node`, while `pendingShards` other search
-    /// shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE since `shutdownStartedAtMillis`.
+    /// Builds a cluster state where shard 0 relocates from the healthy `healthy-source` to `target-node`, while `pendingShards` other
+    /// search shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE since `shutdownStartedAtMillis`.
     private static ClusterState clusterStateRelocationWithOtherNodeShuttingDown(
         int pendingShards,
         Index index,

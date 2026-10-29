@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetricExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,9 +40,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * Plain numeric inputs are returned unchanged (idempotent).
  * {@code aggregate_metric_double} inputs are also returned unchanged (idempotent).
  * No values are modified; this is a pure type-annotation change.
- * The result is explicitly declared to be a metric for time-series null filtering, even for non-metric inputs.
  */
-public class ToGauge extends AbstractConvertFunction implements MetricExpression {
+public class ToGauge extends AbstractConvertFunction implements MetricPreservingConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGauge", ToGauge::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGauge.class).unary(ToGauge::new).name("to_gauge");
 
@@ -106,14 +104,6 @@ public class ToGauge extends AbstractConvertFunction implements MetricExpression
     @Override
     protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
-    }
-
-    /**
-     * Explicit counter and gauge casts declare their input to be a metric, including ordinary fields and computed values.
-     */
-    @Override
-    public boolean isMetric() {
-        return true;
     }
 
     /**

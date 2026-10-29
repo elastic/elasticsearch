@@ -172,7 +172,9 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         for (String computed : new String[] {
             "coalesce(metric_2, 0)::double",
             "coalesce(metric_2::double, 0)",
-            "(metric_2 + 1)::double" }) {
+            "(metric_2 + 1)::double",
+            "(metric_2 + 1)::gauge",
+            "(metric_2 + 1)::counter::long" }) {
             LogicalPlan actual = metrics().localPlan(Strings.format("""
                 TS test
                 | EVAL converted = metric_1::double::long, computed = %s
@@ -194,18 +196,6 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
                 | STATS max(max_over_time(converted)) BY BUCKET(@timestamp, 1 min)
                 | LIMIT 10
                 """, eval));
-            assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
-        }
-    }
-
-    public void testExplicitCastsDeclareComputedMetrics() {
-        for (String declaration : new String[] { "gauge", "counter::long" }) {
-            LogicalPlan actual = metrics().localPlan(Strings.format("""
-                TS test
-                | EVAL declared = (metric_2 + 1)::%s
-                | STATS max(max_over_time(declared)) BY BUCKET(@timestamp, 1 min)
-                | LIMIT 10
-                """, declaration));
             assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
         }
     }
@@ -233,8 +223,8 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
                     Map.entry("value::double", fieldType == EsField.TimeSeriesFieldType.METRIC),
                     Map.entry("value::string::double", false),
                     Map.entry("to_degrees(value)", false),
-                    Map.entry("value::double::gauge", true),
-                    Map.entry("value::double::counter::double", true)
+                    Map.entry("value::double::gauge", fieldType == EsField.TimeSeriesFieldType.METRIC),
+                    Map.entry("value::double::counter::double", fieldType == EsField.TimeSeriesFieldType.METRIC)
                 );
                 for (var conversion : conversions.entrySet()) {
                     LogicalPlan actual = EsqlTestUtils.optimizer()
@@ -248,22 +238,6 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
                             """, conversion.getKey()));
                     assertEquals(conversion.getKey() + "\n" + actual, conversion.getValue(), actual.anyMatch(Filter.class::isInstance));
                 }
-            }
-        }
-    }
-
-    public void testGaugeDeclaresAggregateMetricDoubleUnion() {
-        assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
-        EsIndex index = unionIndex(DataType.LONG, DataType.AGGREGATE_METRIC_DOUBLE, EsField.TimeSeriesFieldType.NONE);
-        LogicalPlan actual = EsqlTestUtils.optimizer().addIndex(index).localPlan("""
-            TS test-1,test-2
-            | STATS avg(avg_over_time(value::gauge)) BY BUCKET(@timestamp, 1 min)
-            | LIMIT 10
-            """);
-        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
-        for (LogicalPlan plan : actual.collect(Filter.class::isInstance)) {
-            for (var attribute : as(plan, Filter.class).condition().references()) {
-                assertTrue(attribute.toString(), attribute.isMetric());
             }
         }
     }

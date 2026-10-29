@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetricExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -4240,17 +4239,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
                 }
-                // TO_GAUGE is a no-op when the field is already a metric and every branch is a non-counter type (including
-                // aggregate_metric_double). Otherwise, keep the cast so it can establish metric identity.
+                // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
                 // Strip it so union resolution can defer to implicit aggregate_metric_double casting in aggregations.
                 if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(tcf)) {
-                    if (fa.isMetric()) {
-                        return fa;
-                    }
-                    if (tcf.types().contains(AGGREGATE_METRIC_DOUBLE)) {
-                        // Defer the declaration until implicit aggregate_metric_double conversion has selected its submetrics.
-                        return convertExpression;
-                    }
+                    return fa;
                 }
                 tcf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
@@ -4283,7 +4275,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
                     if (convert.isNoop()
-                        && MetricExpression.isMetric(convertExpression) == fa.isMetric()
                         && (unionTypeEsField.getUnmappedConversionExpression() == null || convert.supportedTypes().contains(KEYWORD))) {
                         return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
                     }
@@ -5068,11 +5059,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields,
             AnalyzerContext context
         ) {
-            Expression originalField = field;
-            boolean declareMetric = field instanceof ToGauge;
-            if (field instanceof ToGauge gauge) {
-                field = gauge.field();
-            }
             if (field instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 // A bare PUNK is a single mapped type, not a multi-type conflict: leave it so UnionTypesCleanup replaces it with the plain
                 // mapped field and native aggregation applies. (Count's AMD surrogate COALESCEs an empty group to 0, unlike the bare
@@ -5089,22 +5075,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (aggFunc instanceof Avg avg) {
                     return new Div(
                         aggFunc.source(),
-                        new Sum(aggFunc.source(), originalField, aggFunc.filter(), aggFunc.window(), avg.summationMode()),
-                        new Count(aggFunc.source(), originalField, aggFunc.filter(), aggFunc.window())
+                        new Sum(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avg.summationMode()),
+                        new Count(aggFunc.source(), field, aggFunc.filter(), aggFunc.window())
                     );
                 }
                 if (aggFunc instanceof AvgOverTime avgOT) {
                     return new Div(
                         aggFunc.source(),
-                        new SumOverTime(aggFunc.source(), originalField, avgOT.timestamp(), aggFunc.filter(), aggFunc.window()),
-                        new CountOverTime(aggFunc.source(), originalField, avgOT.timestamp(), aggFunc.filter(), aggFunc.window())
+                        new SumOverTime(aggFunc.source(), field, avgOT.timestamp(), aggFunc.filter(), aggFunc.window()),
+                        new CountOverTime(aggFunc.source(), field, avgOT.timestamp(), aggFunc.filter(), aggFunc.window())
                     );
                 }
 
                 Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, tcf);
-                if (declareMetric) {
-                    typeConverters.replaceAll((type, conversion) -> new ToGauge(aggFunc.source(), conversion));
-                }
                 var newField = unionFields.computeIfAbsent(
                     Attribute.rawTemporaryName(fa.name(), aggFunc.functionName(), aggFunc.sourceText()),
                     newName -> new FieldAttribute(

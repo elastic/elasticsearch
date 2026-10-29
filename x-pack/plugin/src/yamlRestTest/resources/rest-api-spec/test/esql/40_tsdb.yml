@@ -1839,15 +1839,13 @@ TS null filtering through metric casts:
               b:
                 type: long
                 time_series_metric: gauge
-              value:
-                type: long
   - do:
       bulk:
         refresh: true
         index: test-metric-casts
         body:
           - '{"create": {}}'
-          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1, "value": 3}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1}'
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2}'
 
@@ -1855,7 +1853,7 @@ TS null filtering through metric casts:
   - do:
       esql.query:
         body:
-          query: 'TS test-metric-casts | EVAL converted = a::double | STATS a = max(converted::long) BY host | SORT host'
+          query: 'TS test-metric-casts | EVAL converted = a::gauge::counter::long::double | STATS a = max(converted::long) BY host | SORT host'
   - length: {values: 1}
   - match: {values.0: [1, "h1"]}
 
@@ -1876,31 +1874,6 @@ TS null filtering through metric casts:
   - length: {values: 2}
   - match: {values.0: [1.0, true, false, "h1"]}
   - match: {values.1: [null, false, true, "h2"]}
-
-  # A plain numeric input retains h2's group even though its value is null.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | STATS maximum = max(value) BY host | SORT host'
-  - length: {values: 2}
-  - match: {values.0: [3, "h1"]}
-  - match: {values.1: [null, "h2"]}
-
-  # Declaring the same input as a gauge enables metric null filtering, removing h2's null-only group.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL declared = value::gauge | STATS maximum = max(declared) BY host | SORT host'
-  - length: {values: 1}
-  - match: {values.0: [3, "h1"]}
-
-  # Both declarations make computed values eligible for metric null filtering.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL gauge = (b + 1)::gauge, counter = (b + 1)::counter::long | STATS gauge = max(gauge), counter = max(counter) BY host | SORT host'
-  - length: {values: 1}
-  - match: {values.0: [3, 3, "h2"]}
 
   # Casting back to a numeric type does not restore identity lost through a string conversion.
   - do:

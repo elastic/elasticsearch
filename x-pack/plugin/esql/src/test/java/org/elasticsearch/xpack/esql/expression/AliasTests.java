@@ -55,6 +55,7 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
     public void testMetricIdentityThroughCastChainsAndAliases() throws IOException {
         FieldAttribute counter = metricField(DataType.COUNTER_LONG);
         assertTrue(MetricExpression.isMetric(new ToLongSurrogate(Source.EMPTY, counter, null)));
+        assertTrue(MetricExpression.isMetric(new ToGauge(Source.EMPTY, counter)));
         Alias numeric = new Alias(Source.EMPTY, "numeric", new ToLong(Source.EMPTY, counter));
         Alias copy = copyInstance(numeric);
         assertTrue(copy.toAttribute().isMetric());
@@ -65,7 +66,7 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         assertEquals(DataType.DOUBLE, converted.dataType());
     }
 
-    public void testExplicitCastsDeclareNonMetricInputs() throws IOException {
+    public void testCastsDoNotDeclareMetrics() {
         Expression ordinary = new FieldAttribute(
             Source.EMPTY,
             "value",
@@ -73,12 +74,12 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         );
         Expression computed = new Coalesce(Source.EMPTY, metricField(DataType.LONG), List.of(new Literal(Source.EMPTY, 0L, DataType.LONG)));
         for (Expression input : List.of(ordinary, computed)) {
-            assertFalse(MetricExpression.isMetric(new ToDouble(Source.EMPTY, input)));
-            for (Expression declaration : List.of(new ToGauge(Source.EMPTY, input), new ToCounter(Source.EMPTY, input))) {
-                Alias copy = copyInstance(new Alias(Source.EMPTY, "declared", declaration));
-                assertTrue(copy.toAttribute().isMetric());
-                assertEquals(declaration instanceof ToGauge ? DataType.LONG : DataType.COUNTER_LONG, copy.dataType());
-                assertTrue(MetricExpression.isMetric(new ToDouble(Source.EMPTY, copy.toAttribute())));
+            for (Expression conversion : List.of(
+                new ToDouble(Source.EMPTY, input),
+                new ToGauge(Source.EMPTY, input),
+                new ToCounter(Source.EMPTY, input)
+            )) {
+                assertFalse(conversion.toString(), new Alias(Source.EMPTY, "converted", conversion).toAttribute().isMetric());
             }
         }
     }
@@ -90,7 +91,9 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
             new ToInteger(Source.EMPTY, metric),
             new ToLong(Source.EMPTY, metric),
             new ToUnsignedLong(Source.EMPTY, metric),
-            new ToAggregateMetricDouble(Source.EMPTY, metric)
+            new ToAggregateMetricDouble(Source.EMPTY, metric),
+            new ToGauge(Source.EMPTY, metric),
+            new ToCounter(Source.EMPTY, metric)
         )) {
             assertTrue(conversion.toString(), new Alias(Source.EMPTY, "converted", conversion).toAttribute().isMetric());
         }

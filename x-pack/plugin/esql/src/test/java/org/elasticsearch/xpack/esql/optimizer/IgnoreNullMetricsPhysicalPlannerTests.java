@@ -139,20 +139,6 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         assertThat(actualPlan.toString(), actualPlan.collect(node -> node instanceof FilterExec), not(empty()));
     }
 
-    public void testComputedGaugeRetainsNullFilter() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        PhysicalPlan actualPlan = mixedPlanner(
-            Map.of("long", Set.of("k8s-downsampled"), "double", Set.of("k8s")),
-            EsField.TimeSeriesFieldType.NONE
-        ).plan("""
-            TS k8s,k8s-downsampled
-            | EVAL declared = (network.eth0.rx::double + 1)::gauge
-            | STATS max(max_over_time(declared)) BY Bucket(@timestamp, 1 hour)
-            | LIMIT 10
-            """);
-        assertThat(actualPlan.toString(), actualPlan.collect(node -> node instanceof FilterExec), not(empty()));
-    }
-
     public void testPushdownOfAggregateMetricDoubleMetric() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());

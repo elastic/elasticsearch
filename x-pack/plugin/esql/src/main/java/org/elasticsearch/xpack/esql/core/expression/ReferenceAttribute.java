@@ -86,7 +86,7 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
     /**
      * Creates a reference retaining expression metadata across aliasing and transport boundaries.
      *
-     * @param metric whether the referenced expression represents a mapped or explicitly declared time-series metric
+     * @param metric whether the referenced expression represents a mapped time-series metric
      */
     public ReferenceAttribute(
         Source source,

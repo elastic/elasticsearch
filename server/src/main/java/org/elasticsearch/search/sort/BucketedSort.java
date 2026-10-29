@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
@@ -116,11 +117,28 @@ public abstract class BucketedSort implements Releasable {
         }
     };
 
+    /**
+     * An {@link ExtraData} that also decides which of two entries wins when their sort values are equal. Without one, which
+     * of several tied entries stays in a full bucket is arbitrary, because it depends on where they sit in the heap.
+     */
+    public interface TieBreakingExtraData extends ExtraData {
+        /**
+         * {@code true} if the entry at index {@code lhs} beats the entry at index {@code rhs} when their sort values are equal.
+         */
+        boolean betterOnTie(long lhs, long rhs);
+    }
+
     protected final BigArrays bigArrays;
     private final SortOrder order;
     private final DocValueFormat format;
     private final int bucketSize;
     protected final ExtraData extra;
+    /**
+     * The {@link #extra} if it breaks ties, or {@code null} if it does not, which is the case for every sort but a {@code top_hits}.
+     * It is worked out once here so that comparing two equal values only has to check for {@code null}.
+     */
+    @Nullable
+    private final TieBreakingExtraData tieBreaker;
     /**
      * {@code true} if the bucket is in heap mode, {@code false} if
      * it is still gathering.
@@ -133,6 +151,7 @@ public abstract class BucketedSort implements Releasable {
         this.format = format;
         this.bucketSize = bucketSize;
         this.extra = extra;
+        this.tieBreaker = extra instanceof TieBreakingExtraData tieBreaking ? tieBreaking : null;
         heapMode = new BitArray(1, bigArrays);
     }
 
@@ -249,6 +268,14 @@ public abstract class BucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     protected abstract boolean betterThan(long lhs, long rhs);
+
+    /**
+     * Break a tie between two entries with equal sort values. Only does anything if the {@link ExtraData} is a
+     * {@link TieBreakingExtraData}.
+     */
+    protected final boolean tieBreak(long lhs, long rhs) {
+        return tieBreaker != null && tieBreaker.betterOnTie(lhs, rhs);
+    }
 
     /**
      * Swap the data at two indices.
@@ -485,7 +512,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Double.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Double.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override
@@ -588,7 +616,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Float.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Float.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override
@@ -677,7 +706,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Long.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Long.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override
@@ -766,7 +796,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Integer.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Integer.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override

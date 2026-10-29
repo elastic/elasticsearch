@@ -61,6 +61,7 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private final float projectedDimsFraction;
+    private final int maxProjectedDims;
     private final Method method;
     private final int bitsPerDim;
     private final int nTrainingIterations;
@@ -102,6 +103,7 @@ public final class AsymmetricHashingQuantizer {
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
+     * @param maxProjectedDims maximum number of projected dims
      * @param bitsPerDim bits per projected dimension in the body
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations refining the rotation of the PCA subspace (for LEARNED);
@@ -114,6 +116,7 @@ public final class AsymmetricHashingQuantizer {
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
+        int maxProjectedDims,
         int bitsPerDim,
         Method method,
         int nTrainingIterations,
@@ -124,11 +127,15 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
+        if (maxProjectedDims <= 0) {
+            throw new IllegalArgumentException("maxProjectedDims must be > 0");
+        }
         IvfSegmentConfig.AshConfig.validateBitsPerDim(bitsPerDim);
         if (nTrainingIterations < 0) {
             throw new IllegalArgumentException("nTrainingIterations must not be negative");
         }
         this.projectedDimsFraction = projectedDimsFraction;
+        this.maxProjectedDims = maxProjectedDims;
         this.method = method;
         this.bitsPerDim = bitsPerDim;
         this.nTrainingIterations = nTrainingIterations;
@@ -145,7 +152,7 @@ public final class AsymmetricHashingQuantizer {
      * @return the number of projected dimensions
      */
     public int nDims(int originalDim) {
-        return (int) (originalDim * projectedDimsFraction);
+        return Math.min(maxProjectedDims, (int) (originalDim * projectedDimsFraction));
     }
 
     /**

@@ -498,11 +498,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
-- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
-  issue: https://github.com/elastic/elasticsearch/issues/163583
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -536,21 +531,11 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163831
-- class: org.elasticsearch.xpack.inference.SemanticTextEISDefaultIT
-  tasks:
-  - :x-pack:plugin:inference:qa:inference-service-tests:javaRestTest
-  method: testDefaultInferenceIdForSemanticText
-  issue: https://github.com/elastic/elasticsearch/issues/163865
 - class: org.elasticsearch.index.mapper.UnmappedFieldsTests
   tasks:
   - :server:test
   method: testAllFieldsLoaderReleasesItsReservationWhenItFails
   issue: https://github.com/elastic/elasticsearch/issues/163868
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<random tdigest> with random bucket count and long/double bounds}
-  issue: https://github.com/elastic/elasticsearch/issues/163887
 - class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

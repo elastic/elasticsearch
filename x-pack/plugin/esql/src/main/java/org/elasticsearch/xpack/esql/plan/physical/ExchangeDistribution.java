@@ -7,8 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+
 /** Describes how rows cross a stage boundary. */
 public enum ExchangeDistribution {
     GATHER,
-    HASH
+    HASH,
+    /** Copies each producer page to every consumer lane. */
+    BROADCAST;
+
+    /** Transport version that introduced multi-producer stages and broadcast shuffle joins. */
+    public static final TransportVersion ESQL_SHUFFLE_STAGE_EXECUTION = TransportVersion.fromName("esql_shuffle_stage_execution");
 }

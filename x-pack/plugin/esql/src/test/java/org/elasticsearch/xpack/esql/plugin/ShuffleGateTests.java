@@ -66,9 +66,9 @@ public class ShuffleGateTests extends ESTestCase {
 
         assertTrue(ShuffleGate.allowed(ENABLED, relation));
         assertFalse(ShuffleGate.allowed(ENABLED, fork));
-        assertFalse(ShuffleGate.allowed(ENABLED, union));
+        assertTrue(ShuffleGate.allowed(ENABLED, union));
         assertTrue(ShuffleGate.allowed(ENABLED, external));
-        assertFalse(ShuffleGate.allowed(ENABLED, new UnionAll(Source.EMPTY, List.of(externalRelation(), externalRelation()), List.of())));
+        assertTrue(ShuffleGate.allowed(ENABLED, new UnionAll(Source.EMPTY, List.of(externalRelation(), externalRelation()), List.of())));
         assertFalse(ShuffleGate.allowed(ENABLED, timeSeries));
         assertFalse(ShuffleGate.allowed(ENABLED, crossCluster));
     }
@@ -92,7 +92,13 @@ public class ShuffleGateTests extends ESTestCase {
     public void testPhysicalGateRejectsUnsupportedShapes() {
         LogicalPlan relation = EsqlTestUtils.relation();
         PhysicalPlan fragment = new FragmentExec(relation);
-        PhysicalPlan merge = new MergeExec(Source.EMPTY, List.of(), List.of(), MergeExec.Kind.FORK);
+        PhysicalPlan fork = new MergeExec(Source.EMPTY, List.of(), List.of(), MergeExec.Kind.FORK);
+        PhysicalPlan union = new MergeExec(
+            Source.EMPTY,
+            List.of(fragment, new FragmentExec(relation)),
+            fragment.output(),
+            MergeExec.Kind.UNION
+        );
         PhysicalPlan externalSource = new ExternalSourceExec(
             Source.EMPTY,
             "file:///events.csv",
@@ -107,7 +113,8 @@ public class ShuffleGateTests extends ESTestCase {
         );
 
         assertTrue(ShuffleGate.allowed(ENABLED, fragment));
-        assertFalse(ShuffleGate.allowed(ENABLED, merge));
+        assertFalse(ShuffleGate.allowed(ENABLED, fork));
+        assertTrue(ShuffleGate.allowed(ENABLED, union));
         assertTrue(ShuffleGate.allowed(ENABLED, externalSource));
         assertTrue(ShuffleGate.allowed(ENABLED, new FragmentExec(externalRelation())));
         assertFalse(ShuffleGate.allowed(ENABLED, unsupportedFragment));

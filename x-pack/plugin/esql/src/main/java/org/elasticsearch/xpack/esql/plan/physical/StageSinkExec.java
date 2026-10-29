@@ -65,6 +65,12 @@ public class StageSinkExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (distribution == ExchangeDistribution.BROADCAST
+            && out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
+            throw new IllegalStateException(
+                "broadcast shuffle edges require transport version [" + ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION + "]"
+            );
+        }
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteableCollection(output);
         out.writeBoolean(intermediateAgg);

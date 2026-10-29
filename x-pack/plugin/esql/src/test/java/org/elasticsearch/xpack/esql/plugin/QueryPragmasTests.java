@@ -67,6 +67,7 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(defaults.shufflePartitionsPerNode(), equalTo(0));
         assertFalse(defaults.shuffleAgg());
         assertFalse(defaults.shuffleJoin());
+        assertThat(defaults.shuffleJoinStrategy(), equalTo("partitioned"));
         assertFalse(defaults.shuffleEnabled());
 
         QueryPragmas pragmas = new QueryPragmas(
@@ -74,15 +75,18 @@ public class QueryPragmasTests extends ESTestCase {
                 .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 3)
                 .put(QueryPragmas.SHUFFLE_AGG.getKey(), true)
                 .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
+                .put(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey(), "broadcast")
                 .build()
         );
         assertThat(pragmas.shufflePartitionsPerNode(), equalTo(3));
         assertTrue(pragmas.shuffleAgg());
         assertTrue(pragmas.shuffleJoin());
+        assertThat(pragmas.shuffleJoinStrategy(), equalTo("broadcast"));
         assertTrue(pragmas.shuffleEnabled());
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey()));
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_AGG.getKey()));
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_JOIN.getKey()));
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey()));
     }
 
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {

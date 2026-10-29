@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -63,6 +64,9 @@ public final class PruneShuffleFragmentColumns extends Rule<PhysicalPlan, Physic
                 .combine(AttributeSet.of(join.rightFields()))
                 .combine(AttributeSet.of(join.addedFields()).subtract(joinMarkers));
             return join.replaceChildren(prune(join.left(), leftRequired), prune(join.right(), rightRequired));
+        }
+        if (plan instanceof MergeExec merge && merge.kind() == MergeExec.Kind.UNION) {
+            return merge;
         }
         if (plan instanceof BinaryExec || plan instanceof LeafExec) {
             return plan;

@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -172,6 +173,7 @@ public class PlanWritables {
             LimitByExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
+            LookupJoinExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RemoteFetchBoundaryExec.ENTRY,

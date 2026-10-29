@@ -123,6 +123,9 @@ public final class QueryPragmas implements Writeable {
     /** Enables hash-shuffle joins when shuffle planning is enabled. */
     public static final Setting<Boolean> SHUFFLE_JOIN = Setting.boolSetting("shuffle_join", false);
 
+    /** Selects the exchange strategy for eligible subquery joins when shuffle planning is enabled. */
+    public static final Setting<String> SHUFFLE_JOIN_STRATEGY = Setting.simpleString("shuffle_join_strategy", "partitioned");
+
     /**
      * Query-level override for the IN subquery hash join threshold.
      * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
@@ -273,6 +276,7 @@ public final class QueryPragmas implements Writeable {
         SHUFFLE_PARTITIONS_PER_NODE,
         SHUFFLE_AGG,
         SHUFFLE_JOIN,
+        SHUFFLE_JOIN_STRATEGY,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
@@ -440,6 +444,11 @@ public final class QueryPragmas implements Writeable {
 
     public boolean shuffleJoin() {
         return SHUFFLE_JOIN.get(settings);
+    }
+
+    /** Returns the exchange strategy for eligible subquery joins. */
+    public String shuffleJoinStrategy() {
+        return SHUFFLE_JOIN_STRATEGY.get(settings);
     }
 
     public boolean shuffleEnabled() {

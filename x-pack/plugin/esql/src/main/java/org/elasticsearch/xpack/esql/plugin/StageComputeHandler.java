@@ -78,7 +78,13 @@ final class StageComputeHandler {
         List<ExchangeSinkHandler> outputHandlers = new ArrayList<>(output.consumerLanes());
         try {
             for (int consumerLane = 0; consumerLane < output.consumerLanes(); consumerLane++) {
-                String exchangeId = StageWiring.exchangeId(wiring.rootSessionId(), output.edgeKey(), consumerLane);
+                String exchangeId = StageWiring.exchangeId(
+                    wiring.rootSessionId(),
+                    output.edgeKey(),
+                    wiring.stageId(),
+                    consumerLane,
+                    wiring.stageQualifiedExchangeIds()
+                );
                 outputIds.add(exchangeId);
                 outputHandlers.add(exchangeService.getSinkHandler(exchangeId));
             }
@@ -113,25 +119,33 @@ final class StageComputeHandler {
                     for (StageWiring.Input input : wiring.inputs()) {
                         ExchangeSourceHandler source = new ExchangeSourceHandler(request.pragmas().exchangeBufferSize(), searchExecutor);
                         try (Releasable hold = source.addEmptySink()) {
-                            for (String producerNodeId : input.producerNodeIds()) {
-                                DiscoveryNode producerNode = clusterService.state().nodes().get(producerNodeId);
-                                if (producerNode == null) {
-                                    throw new IllegalStateException(
-                                        "producer node [" + producerNodeId + "] for exchange [" + input.edgeKey() + "] is missing"
+                            for (StageWiring.Producer producer : input.producers()) {
+                                for (String producerNodeId : producer.nodeIds()) {
+                                    DiscoveryNode producerNode = clusterService.state().nodes().get(producerNodeId);
+                                    if (producerNode == null) {
+                                        throw new IllegalStateException(
+                                            "producer node [" + producerNodeId + "] for exchange [" + input.edgeKey() + "] is missing"
+                                        );
+                                    }
+                                    source.addRemoteSink(
+                                        exchangeService.newRemoteSink(
+                                            task,
+                                            StageWiring.exchangeId(
+                                                wiring.rootSessionId(),
+                                                input.edgeKey(),
+                                                producer.stageId(),
+                                                lane,
+                                                wiring.stageQualifiedExchangeIds()
+                                            ),
+                                            transportService,
+                                            transportService.getConnection(producerNode)
+                                        ),
+                                        true,
+                                        () -> {},
+                                        request.pragmas().concurrentExchangeClients(),
+                                        computeListener.acquireAvoid()
                                     );
                                 }
-                                source.addRemoteSink(
-                                    exchangeService.newRemoteSink(
-                                        task,
-                                        StageWiring.exchangeId(wiring.rootSessionId(), input.edgeKey(), lane),
-                                        transportService,
-                                        transportService.getConnection(producerNode)
-                                    ),
-                                    true,
-                                    () -> {},
-                                    request.pragmas().concurrentExchangeClients(),
-                                    computeListener.acquireAvoid()
-                                );
                             }
                         }
                         if (sourcesByEdge.put(input.edgeKey(), source::createExchangeSource) != null) {

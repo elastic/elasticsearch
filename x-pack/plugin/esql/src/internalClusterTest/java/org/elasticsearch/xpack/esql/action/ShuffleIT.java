@@ -314,13 +314,13 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
     public void testSubqueryJoinShuffle() throws Exception {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         setupJoinIndices();
-        assertShuffleJoinMatches("""
+        assertShuffleSubqueryJoinMatches("""
             FROM events
             | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
             | STATS s = SUM(total) BY dept
             | SORT dept
             """, randomIntBetween(1, 4), false);
-        assertShuffleJoinMatches("""
+        assertShuffleSubqueryJoinMatches("""
             FROM events
             | INNER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
             | STATS s = SUM(total) BY dept
@@ -328,10 +328,124 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
             """, randomIntBetween(1, 4), false);
     }
 
-    public void testShuffleAggAndJoin() throws Exception {
+    public void testBroadcastSubqueryJoinShuffle() throws Exception {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         setupJoinIndices();
         assertShuffleJoinMatches("""
+            FROM events
+            | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
+            | STATS s = SUM(total) BY dept
+            | SORT dept
+            """, randomIntBetween(1, 4), false, false, "broadcast");
+    }
+
+    public void testBroadcastJoinWithEmptyBuild() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setupJoinIndices();
+        for (String joinType : List.of("LEFT OUTER", "INNER")) {
+            assertShuffleJoinMatches(
+                "FROM events | "
+                    + joinType
+                    + " JOIN (FROM salaries | WHERE amount > 1000) ON user_id | STATS c = COUNT(*) BY dept | SORT dept",
+                randomIntBetween(1, 4),
+                false,
+                false,
+                "broadcast"
+            );
+        }
+    }
+
+    public void testJoinChainsAndBushyJoinShuffle() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setupJoinIndices();
+        assertShuffleSubqueryJoinMatches("""
+            FROM events
+            | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
+            | LEFT OUTER JOIN (FROM salaries | STATS n = COUNT(*) BY user_id) ON user_id
+            | STATS s = SUM(total), c = SUM(n) BY dept
+            | SORT dept
+            """, randomIntBetween(1, 4), randomBoolean());
+        assertShuffleSubqueryJoinMatches("""
+            FROM events
+            | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
+            | LEFT OUTER JOIN (FROM events | STATS hosts = COUNT_DISTINCT(host) BY dept) ON dept
+            | STATS s = SUM(total), h = MAX(hosts) BY dept
+            | SORT dept
+            """, randomIntBetween(1, 4), randomBoolean());
+        assertShuffleSubqueryJoinMatches("""
+            FROM events
+            | LEFT OUTER JOIN (
+                FROM salaries
+                | LEFT OUTER JOIN (FROM events | STATS hosts = COUNT_DISTINCT(host) BY user_id) ON user_id
+                | STATS total = SUM(amount), h = MAX(hosts) BY user_id
+            ) ON user_id
+            | STATS s = SUM(total) BY dept
+            | SORT dept
+            """, randomIntBetween(1, 4), randomBoolean());
+    }
+
+    public void testAggregatedInputsAndPostJoinAggregationsShuffle() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setupJoinIndices();
+        assertShuffleSubqueryJoinMatches("""
+            FROM events
+            | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
+            | STATS c = COUNT(*), s = SUM(total) BY user_id
+            | SORT user_id
+            | LIMIT 200
+            """, randomIntBetween(1, 4), true);
+        for (boolean shuffleAgg : List.of(false, true)) {
+            assertShuffleSubqueryJoinMatches("""
+                FROM events
+                | STATS b = SUM(bytes) BY user_id
+                | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
+                | SORT user_id
+                | LIMIT 200
+                """, randomIntBetween(1, 4), shuffleAgg);
+        }
+        assertShuffleJoinMatches("""
+            FROM events
+            | STATS c = COUNT(*) BY user_id
+            | LOOKUP JOIN users_lookup ON user_id
+            | STATS n = SUM(c) BY segment
+            | SORT segment
+            """, randomIntBetween(1, 4), true);
+    }
+
+    public void testUnionShuffleOnEitherJoinSideAndForAggregation() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("subquery in FROM required", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupJoinIndices();
+        assertShuffleSubqueryJoinMatches("""
+            FROM events
+            | LEFT OUTER JOIN (FROM salaries, (FROM salaries | WHERE amount > 500)) ON user_id
+            | STATS total = SUM(amount) BY dept
+            | SORT dept
+            | LIMIT 200
+            """, randomIntBetween(1, 4), true);
+        assertShuffleSubqueryJoinMatches("""
+            FROM events, (FROM events | WHERE bytes > 100)
+            | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
+            | STATS total_amount = SUM(total) BY dept
+            | SORT dept
+            | LIMIT 200
+            """, randomIntBetween(1, 4), true);
+        assertShuffleJoinMatches("""
+            FROM events, (FROM events | WHERE bytes > 100)
+            | STATS c = COUNT(*) BY dept
+            | SORT dept
+            """, randomIntBetween(1, 4), true);
+        assertShuffleJoinMatches("""
+            FROM events, (FROM events | WHERE bytes > 100)
+            | SORT user_id, dept, host, bytes
+            | LIMIT 20
+            """, randomIntBetween(1, 4), false, false);
+    }
+
+    public void testShuffleAggAndJoin() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setupJoinIndices();
+        assertShuffleSubqueryJoinMatches("""
             FROM events
             | LEFT OUTER JOIN (FROM salaries | STATS total = SUM(amount) BY user_id) ON user_id
             | STATS s = SUM(total) BY dept
@@ -392,29 +506,52 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
         assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, true);
     }
 
+    private void assertShuffleSubqueryJoinMatches(String query, int partitionsPerNode, boolean shuffleAgg) throws InterruptedException {
+        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, true, "partitioned");
+        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, shuffleAgg, "broadcast");
+    }
+
     private void assertShuffleJoinMatches(String query, int partitionsPerNode, boolean shuffleAgg, boolean expectHashShuffle)
         throws InterruptedException {
+        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, expectHashShuffle, "partitioned");
+    }
+
+    private void assertShuffleJoinMatches(
+        String query,
+        int partitionsPerNode,
+        boolean shuffleAgg,
+        boolean expectHashShuffle,
+        String joinStrategy
+    ) throws InterruptedException {
         QueryResult baseline = runWithWarnings(query, Settings.EMPTY);
-        QueryResult shuffled = runWithWarnings(query, shuffleJoinPragmas(partitionsPerNode, shuffleAgg));
+        QueryResult shuffled = runWithWarnings(query, shuffleJoinPragmas(partitionsPerNode, shuffleAgg, joinStrategy));
+        assertThat("result columns differ", shuffled.columns(), equalTo(baseline.columns()));
         assertThat("result rows differ", shuffled.rows(), equalTo(baseline.rows()));
         assertThat("warning messages differ", shuffled.warnings(), equalTo(baseline.warnings()));
         assertNotNull("baseline query profile missing", baseline.profile());
         assertNotNull("shuffle query profile missing", shuffled.profile());
         assertFalse("baseline unexpectedly ran a HASH shuffle stage", hasHashShufflePlan(baseline.profile()));
-        if (expectHashShuffle) {
-            assertTrue("shuffle query profile did not include a HASH stage sink", hasHashShufflePlan(shuffled.profile()));
+        assertEquals("unexpected HASH stage sink presence", expectHashShuffle, hasHashShufflePlan(shuffled.profile()));
+        if ((expectHashShuffle || joinStrategy.equals("broadcast")) && shuffled.rows().isEmpty() == false) {
             assertTrue("shuffle query profile did not report rows sent to an exchange sink", hasStageExchangeSinkRows(shuffled.profile()));
             assertTrue(
                 "shuffle query profile did not report rows emitted from an exchange source",
                 hasStageExchangeSourceRows(shuffled.profile())
             );
-        } else {
-            assertFalse("unsupported join unexpectedly ran a HASH shuffle stage", hasHashShufflePlan(shuffled.profile()));
+        }
+        if (joinStrategy.equals("broadcast")) {
+            assertTrue("shuffle query profile did not include a BROADCAST stage sink", hasBroadcastShufflePlan(shuffled.profile()));
         }
     }
 
     private static boolean hasHashShufflePlan(EsqlQueryResponse.Profile profile) {
         return profile.plans().stream().anyMatch(plan -> plan.planTree().contains("StageSinkExec") && plan.planTree().contains("HASH"));
+    }
+
+    private static boolean hasBroadcastShufflePlan(EsqlQueryResponse.Profile profile) {
+        return profile.plans()
+            .stream()
+            .anyMatch(plan -> plan.planTree().contains("StageSinkExec") && plan.planTree().contains("BROADCAST"));
     }
 
     private static boolean hasStageExchangeSinkRows(EsqlQueryResponse.Profile profile) {
@@ -452,9 +589,14 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
     }
 
     private Settings shuffleJoinPragmas(int partitionsPerNode, boolean shuffleAgg) {
+        return shuffleJoinPragmas(partitionsPerNode, shuffleAgg, "partitioned");
+    }
+
+    private Settings shuffleJoinPragmas(int partitionsPerNode, boolean shuffleAgg, String joinStrategy) {
         return Settings.builder()
             .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), partitionsPerNode)
             .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
+            .put(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey(), joinStrategy)
             .put(QueryPragmas.SHUFFLE_AGG.getKey(), shuffleAgg)
             .put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), randomIntBetween(1, 10))
             .put(QueryPragmas.TASK_CONCURRENCY.getKey(), randomIntBetween(1, 4))
@@ -483,6 +625,7 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
             try {
                 List<List<Object>> rows = new ArrayList<>(getValuesList(response));
                 rows.sort(Comparator.comparing(Object::toString));
+                List<String> columns = response.columns().stream().map(column -> column.name()).toList();
                 // Ignore node-setting deprecations and compare the query's warning headers only.
                 Set<String> warnings = coordinatorThreadContext.getResponseHeaders()
                     .getOrDefault("Warning", List.of())
@@ -491,7 +634,7 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
                     .map(warning -> HeaderWarning.extractWarningValueFromWarningHeader(warning, false))
                     .map(ShuffleIT::normalizeJoinWarning)
                     .collect(Collectors.toSet());
-                resultRef.set(new QueryResult(rows, Set.copyOf(warnings), response.profile()));
+                resultRef.set(new QueryResult(rows, columns, Set.copyOf(warnings), response.profile()));
             } catch (RuntimeException e) {
                 failureRef.set(e);
             } finally {
@@ -523,5 +666,5 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
         return message;
     }
 
-    private record QueryResult(List<List<Object>> rows, Set<String> warnings, EsqlQueryResponse.Profile profile) {}
+    private record QueryResult(List<List<Object>> rows, List<String> columns, Set<String> warnings, EsqlQueryResponse.Profile profile) {}
 }

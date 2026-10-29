@@ -72,6 +72,7 @@ import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.UnpackDimsOperator;
+import org.elasticsearch.compute.operator.exchange.BroadcastExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
@@ -1138,6 +1139,9 @@ public class LocalExecutionPlanner {
                     new HashPartitioner(keyChannels, types, handlers.size())
                 );
             }
+            case BROADCAST -> () -> new BroadcastExchangeSink(
+                handlers.stream().map(handler -> handler.createExchangeSink(() -> {})).toList()
+            );
         };
         return op.withSink(new ExchangeSinkOperatorFactory(sink), op.layout);
     }

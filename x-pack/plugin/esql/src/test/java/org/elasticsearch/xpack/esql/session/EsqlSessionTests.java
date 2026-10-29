@@ -127,11 +127,14 @@ public class EsqlSessionTests extends ESTestCase {
         EsRelation left = new EsRelation(EMPTY, "left", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(key));
         EsRelation right = new EsRelation(EMPTY, "right", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(key));
         SubqueryLookupJoin join = new SubqueryLookupJoin(EMPTY, left, right, List.of(key));
+        Aggregate aggregatedLeft = new Aggregate(EMPTY, left, List.of(key), List.of(key));
+        SubqueryLookupJoin joinAfterAggregation = new SubqueryLookupJoin(EMPTY, aggregatedLeft, right, List.of(key));
         Set<LocalRelation> processed = Collections.newSetFromMap(new IdentityHashMap<>());
         Mapper shuffleMapper = new Mapper(true);
         Mapper broadcastMapper = new Mapper();
 
         assertNull(EsqlSession.findFirstSubPlanJoin(join, processed, shuffleMapper::shouldDistribute));
+        assertNull(EsqlSession.findFirstSubPlanJoin(joinAfterAggregation, processed, shuffleMapper::shouldDistribute));
         assertSame(join, EsqlSession.findFirstSubPlanJoin(join, processed, broadcastMapper::shouldDistribute));
         assertSame(join, EsqlSession.findFirstSubPlanJoin(join, processed));
     }

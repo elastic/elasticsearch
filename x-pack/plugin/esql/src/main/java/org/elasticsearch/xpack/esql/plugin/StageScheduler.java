@@ -131,9 +131,9 @@ final class StageScheduler {
             if (exchangeSinkSupplier != null) {
                 throw new IllegalStateException("shuffle stages cannot run with an external exchange sink");
             }
-            if (clusterService.state().getMinTransportVersion().supports(DataNodeRequest.ESQL_SHUFFLE_STAGE_WIRING) == false) {
+            if (clusterService.state().getMinTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
                 throw new IllegalStateException(
-                    "shuffle stages require transport version [" + DataNodeRequest.ESQL_SHUFFLE_STAGE_WIRING + "]"
+                    "shuffle stages require transport version [" + ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION + "]"
                 );
             }
             ComputeService.updateShardCountForCoordinatorOnlyQuery(execInfo);
@@ -474,8 +474,11 @@ final class StageScheduler {
             }
             for (String edgeKey : stage.inputEdges()) {
                 StagedPlanner.Edge edge = stagedPlan.edge(edgeKey);
-                if (edge.distribution() != ExchangeDistribution.HASH) {
-                    throw new IllegalStateException("bug: WORKERS stage [" + stage.id() + "] has a non-HASH input edge");
+                if (edge.distribution() != ExchangeDistribution.HASH && edge.distribution() != ExchangeDistribution.BROADCAST) {
+                    throw new IllegalStateException("bug: WORKERS stage [" + stage.id() + "] has an unsupported input edge");
+                }
+                if (edge.distribution() == ExchangeDistribution.BROADCAST) {
+                    continue;
                 }
                 int consumerLanes = stageLocation(topology, edge.consumerStage()).laneCount();
                 if (consumerLanes != topology.partitionCount()) {
@@ -502,13 +505,18 @@ final class StageScheduler {
     ) {
         List<OpenExchange> exchangesToOpen = new ArrayList<>();
         for (StagedPlanner.Edge edge : stagedPlan.edges()) {
-            StageLocation producer = stageLocation(topology, edge.producerStage());
             int consumerLanes = stageLocation(topology, edge.consumerStage()).laneCount();
-            for (DiscoveryNode producerNode : sortedNodes(producer.lanesByNode().keySet())) {
-                for (int consumerLane = 0; consumerLane < consumerLanes; consumerLane++) {
-                    exchangesToOpen.add(
-                        new OpenExchange(producerNode, StageWiring.exchangeId(rootSessionId, edge.edgeKey(), consumerLane))
-                    );
+            for (int producerStageId : edge.producerStages()) {
+                StageLocation producer = stageLocation(topology, producerStageId);
+                for (DiscoveryNode producerNode : sortedNodes(producer.lanesByNode().keySet())) {
+                    for (int consumerLane = 0; consumerLane < consumerLanes; consumerLane++) {
+                        exchangesToOpen.add(
+                            new OpenExchange(
+                                producerNode,
+                                StageWiring.exchangeId(rootSessionId, edge.edgeKey(), producerStageId, consumerLane)
+                            )
+                        );
+                    }
                 }
             }
         }
@@ -687,23 +695,27 @@ final class StageScheduler {
             StagedPlanner.Edge edge = stagedPlan.edge(edgeKey);
             ExchangeSourceHandler source = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
             try (Releasable hold = source.addEmptySink()) {
-                for (String producerNodeId : nodeIds(topology, edge.producerStage())) {
-                    DiscoveryNode producerNode = clusterService.state().nodes().get(producerNodeId);
-                    if (producerNode == null) {
-                        throw new IllegalStateException("producer node [" + producerNodeId + "] for exchange [" + edgeKey + "] is missing");
+                for (int producerStageId : edge.producerStages()) {
+                    for (String producerNodeId : nodeIds(topology, producerStageId)) {
+                        DiscoveryNode producerNode = clusterService.state().nodes().get(producerNodeId);
+                        if (producerNode == null) {
+                            throw new IllegalStateException(
+                                "producer node [" + producerNodeId + "] for exchange [" + edgeKey + "] is missing"
+                            );
+                        }
+                        source.addRemoteSink(
+                            exchangeService.newRemoteSink(
+                                rootTask,
+                                StageWiring.exchangeId(rootSessionId, edgeKey, producerStageId, 0),
+                                transportService,
+                                transportService.getConnection(producerNode)
+                            ),
+                            true,
+                            () -> {},
+                            configuration.pragmas().concurrentExchangeClients(),
+                            computeListener.acquireAvoid()
+                        );
                     }
-                    source.addRemoteSink(
-                        exchangeService.newRemoteSink(
-                            rootTask,
-                            StageWiring.exchangeId(rootSessionId, edgeKey, 0),
-                            transportService,
-                            transportService.getConnection(producerNode)
-                        ),
-                        true,
-                        () -> {},
-                        configuration.pragmas().concurrentExchangeClients(),
-                        computeListener.acquireAvoid()
-                    );
                 }
             }
             if (sources.put(edgeKey, source::createExchangeSource) != null) {
@@ -723,7 +735,15 @@ final class StageScheduler {
         List<StageWiring.Input> inputs = new ArrayList<>(stage.inputEdges().size());
         for (String edgeKey : stage.inputEdges()) {
             StagedPlanner.Edge edge = stagedPlan.edge(edgeKey);
-            inputs.add(new StageWiring.Input(edgeKey, nodeIds(topology, edge.producerStage())));
+            inputs.add(
+                new StageWiring.Input(
+                    edgeKey,
+                    edge.producerStages()
+                        .stream()
+                        .map(producerStageId -> new StageWiring.Producer(producerStageId, nodeIds(topology, producerStageId)))
+                        .toList()
+                )
+            );
         }
         if (stage.outputEdge() == null) {
             throw new IllegalStateException("bug: non-coordinator stage [" + stage.id() + "] has no output edge");

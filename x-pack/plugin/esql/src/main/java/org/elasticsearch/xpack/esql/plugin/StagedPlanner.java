@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
@@ -44,7 +45,11 @@ final class StagedPlanner {
     }
 
     /** Directed data flow between producer and consumer stages. */
-    record Edge(String edgeKey, int producerStage, int consumerStage, ExchangeDistribution distribution) {}
+    record Edge(String edgeKey, List<Integer> producerStages, int consumerStage, ExchangeDistribution distribution) {
+        Edge {
+            producerStages = List.copyOf(producerStages);
+        }
+    }
 
     /** Physical plan assigned to one scheduler placement and its exchange dependencies. */
     record Stage(int id, StagePlacement placement, PhysicalPlan plan, List<String> inputEdges, @Nullable String outputEdge) {
@@ -201,12 +206,51 @@ final class StagedPlanner {
         if (ignored.contains(plan)) {
             return plan;
         }
+        if (plan instanceof MergeExec merge && merge.kind() == MergeExec.Kind.UNION) {
+            String edgeKey = "e" + edges.size();
+            int edgeSlot = edges.size();
+            edges.add(null);
+            List<Integer> producerStages = new ArrayList<>(merge.children().size());
+            ExchangeDistribution distribution = null;
+            for (PhysicalPlan branch : merge.children()) {
+                if (branch instanceof ShuffleExchangeExec == false) {
+                    throw new IllegalStateException("bug: union branch must be a shuffle exchange");
+                }
+                ShuffleExchangeExec exchange = (ShuffleExchangeExec) branch;
+                if (exchange.inBetweenAggs()) {
+                    throw new IllegalStateException("bug: union branch must carry rows, not intermediate states");
+                }
+                if (distribution != null && distribution != exchange.distribution()) {
+                    throw new IllegalStateException("bug: union branches have different distributions");
+                }
+                distribution = exchange.distribution();
+                StageBuilder producer = new StageBuilder(stages.size(), false, edgeKey);
+                stages.add(producer);
+                producerStages.add(producer.id);
+                PhysicalPlan producerPlan = cut(exchange.child(), producer, ignored, stages, edges);
+                producer.plan = new StageSinkExec(
+                    exchange.source(),
+                    exchange.output(),
+                    false,
+                    edgeKey,
+                    exchange.distribution(),
+                    exchange.keys(),
+                    producerPlan
+                );
+            }
+            if (distribution == null) {
+                throw new IllegalStateException("bug: union has no producer branches");
+            }
+            consumer.inputEdges.add(edgeKey);
+            edges.set(edgeSlot, new Edge(edgeKey, producerStages, consumer.id, distribution));
+            return new StageSourceExec(merge.source(), merge.output(), false, edgeKey);
+        }
         if (plan instanceof ShuffleExchangeExec exchange) {
             String edgeKey = "e" + edges.size();
             StageBuilder producer = new StageBuilder(stages.size(), false, edgeKey);
             stages.add(producer);
             consumer.inputEdges.add(edgeKey);
-            edges.add(new Edge(edgeKey, producer.id, consumer.id, exchange.distribution()));
+            edges.add(new Edge(edgeKey, List.of(producer.id), consumer.id, exchange.distribution()));
 
             PhysicalPlan producerPlan = cut(exchange.child(), producer, ignored, stages, edges);
             producer.plan = new StageSinkExec(
@@ -282,6 +326,9 @@ final class StagedPlanner {
             ExchangeDistribution inputDistribution = null;
             for (String edgeKey : stage.inputEdges()) {
                 ExchangeDistribution distribution = edge(edges, edgeKey).distribution();
+                if (distribution == ExchangeDistribution.BROADCAST) {
+                    continue;
+                }
                 if (inputDistribution != null && inputDistribution != distribution) {
                     throw new IllegalStateException("bug: stage [" + stage.id() + "] has mixed input exchange distributions");
                 }
@@ -289,16 +336,26 @@ final class StagedPlanner {
             }
 
             if (stage.placement() == StagePlacement.SHARDS) {
-                if (stage.inputEdges().isEmpty() == false) {
-                    throw new IllegalStateException("bug: SHARDS stage [" + stage.id() + "] has input edges");
+                if (stage.inputEdges()
+                    .stream()
+                    .anyMatch(edgeKey -> edge(edges, edgeKey).distribution() != ExchangeDistribution.BROADCAST)) {
+                    throw new IllegalStateException("bug: SHARDS stage [" + stage.id() + "] has a non-BROADCAST input edge");
                 }
-                if (stage.plan().anyMatch(BinaryExec.class::isInstance)) {
-                    throw new IllegalStateException("bug: SHARDS stage [" + stage.id() + "] contains a binary operator");
+                if (shardsDataDriverPlan(stage).anyMatch(BinaryExec.class::isInstance)) {
+                    throw new IllegalStateException("bug: SHARDS stage [" + stage.id() + "] data-driver plan contains a binary operator");
                 }
             }
         }
 
         for (Edge edge : edges) {
+            for (int producerStageId : edge.producerStages()) {
+                Stage producer = stages.get(producerStageId);
+                if (edge.edgeKey().equals(producer.outputEdge()) == false) {
+                    throw new IllegalStateException(
+                        "bug: producer stage [" + producerStageId + "] does not output edge [" + edge.edgeKey() + "]"
+                    );
+                }
+            }
             Stage consumer = stages.get(edge.consumerStage());
             switch (edge.distribution()) {
                 case GATHER -> {
@@ -321,8 +378,40 @@ final class StagedPlanner {
                         );
                     }
                 }
+                case BROADCAST -> {
+                }
             }
         }
+    }
+
+    private static PhysicalPlan shardsDataDriverPlan(Stage stage) {
+        Set<PhysicalPlan> ignored = ignoredPlans(stage.plan());
+        List<FragmentExec> fragments = stage.plan()
+            .collect(FragmentExec.class)
+            .stream()
+            .filter(fragment -> ignored.contains(fragment) == false)
+            .toList();
+        if (fragments.size() == 1) {
+            if (stage.plan() instanceof StageSinkExec stageSink) {
+                return splitShardsStage(stageSink).v1();
+            }
+            return fragments.getFirst();
+        }
+        List<ExternalSourceExec> externalSources = stage.plan()
+            .collect(ExternalSourceExec.class)
+            .stream()
+            .filter(source -> ignored.contains(source) == false)
+            .toList();
+        if (fragments.isEmpty() && externalSources.size() == 1) {
+            return externalSources.getFirst();
+        }
+        throw new IllegalStateException(
+            "bug: expected one data driver in SHARDS stage ["
+                + stage.id()
+                + "] but found ["
+                + (fragments.size() + externalSources.size())
+                + "]"
+        );
     }
 
     private static Edge edge(List<Edge> edges, String edgeKey) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -24,6 +26,28 @@ public class DistributedHashJoinExecSerializationTests extends AbstractPhysicalP
         return new DistributedHashJoinExec(source, left, right, leftFields, rightFields, addedFields);
     }
 
+    public void testBroadcastModeRequiresItsTransportVersion() throws IOException {
+        DistributedHashJoinExec join = randomDistributedHashJoinExec(0);
+        DistributedHashJoinExec broadcastJoin = new DistributedHashJoinExec(
+            join.source(),
+            join.left(),
+            join.right(),
+            join.leftFields(),
+            join.rightFields(),
+            join.addedFields(),
+            DistributedHashJoinExec.Mode.BROADCAST
+        );
+
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
+        assertEquals(broadcastJoin, copyInstance(broadcastJoin, ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION));
+        assertEquals(
+            "older transport versions decode the legacy join format as partitioned",
+            DistributedHashJoinExec.Mode.PARTITIONED,
+            copyInstance(join, oldVersion).mode()
+        );
+        expectThrows(IllegalStateException.class, () -> copyInstance(broadcastJoin, oldVersion));
+    }
+
     @Override
     protected DistributedHashJoinExec createTestInstance() {
         return randomDistributedHashJoinExec(0);
@@ -36,15 +60,17 @@ public class DistributedHashJoinExecSerializationTests extends AbstractPhysicalP
         List<Attribute> leftFields = instance.leftFields();
         List<Attribute> rightFields = instance.rightFields();
         List<Attribute> addedFields = instance.addedFields();
-        switch (between(0, 4)) {
+        DistributedHashJoinExec.Mode mode = instance.mode();
+        switch (between(0, 5)) {
             case 0 -> left = randomValueOtherThan(left, () -> randomChild(0));
             case 1 -> right = randomValueOtherThan(right, () -> randomChild(0));
             case 2 -> leftFields = randomValueOtherThan(leftFields, () -> randomFieldAttributes(1, 5, false));
             case 3 -> rightFields = randomValueOtherThan(rightFields, () -> randomFieldAttributes(1, 5, false));
             case 4 -> addedFields = randomValueOtherThan(addedFields, () -> randomFieldAttributes(1, 5, false));
+            case 5 -> mode = randomValueOtherThan(mode, () -> randomFrom(DistributedHashJoinExec.Mode.values()));
             default -> throw new AssertionError();
         }
-        return new DistributedHashJoinExec(instance.source(), left, right, leftFields, rightFields, addedFields);
+        return new DistributedHashJoinExec(instance.source(), left, right, leftFields, rightFields, addedFields, mode);
     }
 
     @Override

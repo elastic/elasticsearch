@@ -26,10 +26,12 @@ import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -99,8 +101,8 @@ public class StagedPlannerTests extends ESTestCase {
         assertNull(root.outputEdge());
         assertEquals("e0", workers.outputEdge());
         assertEquals("e1", shards.outputEdge());
-        assertEquals(new Edge("e0", 1, 0, ExchangeDistribution.GATHER), stagedPlan.edge("e0"));
-        assertEquals(new Edge("e1", 2, 1, ExchangeDistribution.HASH), stagedPlan.edge("e1"));
+        assertEquals(new Edge("e0", List.of(1), 0, ExchangeDistribution.GATHER), stagedPlan.edge("e0"));
+        assertEquals(new Edge("e1", List.of(2), 1, ExchangeDistribution.HASH), stagedPlan.edge("e1"));
         assertEquals("e0", root.plan().collect(StageSourceExec.class).getFirst().edgeKey());
         assertEquals("e1", workers.plan().collect(StageSourceExec.class).getFirst().edgeKey());
 
@@ -157,6 +159,13 @@ public class StagedPlannerTests extends ESTestCase {
         );
         assertEquals(ExchangeDistribution.GATHER, stagedPlan.edge("e0").distribution());
         assertEquals(ExchangeDistribution.HASH, stagedPlan.edge("e1").distribution());
+        assertEquals("""
+            S0 COORDINATOR in=[e0]
+            S1 WORKERS in=[e1] out=e0
+            S2 SHARDS out=e1
+            e0 [S1] -> S0 GATHER
+            e1 [S2] -> S1 HASH
+            """, StagedPlanShape.of(stagedPlan));
     }
 
     public void testLookupJoinStagesAndLookupFilterStripping() {
@@ -167,7 +176,13 @@ public class StagedPlannerTests extends ESTestCase {
         StagedPlan stagedPlan = StagedPlanner.split(filteredPlan);
 
         assertEquals(
-            List.of(StagePlacement.COORDINATOR, StagePlacement.WORKERS, StagePlacement.SHARDS, StagePlacement.SHARDS),
+            List.of(
+                StagePlacement.COORDINATOR,
+                StagePlacement.WORKERS,
+                StagePlacement.WORKERS,
+                StagePlacement.SHARDS,
+                StagePlacement.SHARDS
+            ),
             stagedPlan.stages().stream().map(Stage::placement).toList()
         );
         List<FragmentExec> fragments = stagedPlan.stages()
@@ -257,7 +272,54 @@ public class StagedPlannerTests extends ESTestCase {
         assertEquals(StagePlacement.SHARDS, stagedPlan.stages().get(2).placement());
     }
 
-    public void testRejectsMultipleShardFragments() {
+    public void testUnionBranchesShareOneEdge() {
+        FragmentExec fragment = baseFragment();
+        PhysicalPlan union = new MergeExec(
+            fragment.source(),
+            List.of(exchange(ExchangeDistribution.HASH, fragment), exchange(ExchangeDistribution.HASH, copyFragment(fragment))),
+            fragment.output(),
+            MergeExec.Kind.UNION
+        );
+        StagedPlan stagedPlan = StagedPlanner.split(exchange(ExchangeDistribution.GATHER, union));
+
+        assertEquals(List.of(2, 3), stagedPlan.edge("e1").producerStages());
+        assertEquals(ExchangeDistribution.HASH, stagedPlan.edge("e1").distribution());
+        assertEquals("""
+            S0 COORDINATOR in=[e0]
+            S1 WORKERS in=[e1] out=e0
+            S2 SHARDS out=e1
+            S3 SHARDS out=e1
+            e0 [S1] -> S0 GATHER
+            e1 [S2, S3] -> S1 HASH
+            """, StagedPlanShape.of(stagedPlan));
+    }
+
+    public void testUnionBranchReservesItsEdgeBeforeCuttingBranchInputs() {
+        FragmentExec fragment = baseFragment();
+        PhysicalPlan union = new MergeExec(
+            fragment.source(),
+            List.of(
+                exchange(ExchangeDistribution.HASH, exchange(ExchangeDistribution.GATHER, fragment)),
+                exchange(ExchangeDistribution.HASH, copyFragment(fragment))
+            ),
+            fragment.output(),
+            MergeExec.Kind.UNION
+        );
+        StagedPlan stagedPlan = StagedPlanner.split(exchange(ExchangeDistribution.GATHER, union));
+
+        assertEquals("""
+            S0 COORDINATOR in=[e0]
+            S1 WORKERS in=[e1] out=e0
+            S2 SINGLE in=[e2] out=e1
+            S3 SHARDS out=e2
+            S4 SHARDS out=e1
+            e0 [S1] -> S0 GATHER
+            e1 [S2, S4] -> S1 HASH
+            e2 [S3] -> S2 GATHER
+            """, StagedPlanShape.of(stagedPlan));
+    }
+
+    public void testRejectsUnexchangedUnionBranches() {
         FragmentExec fragment = baseFragment();
         PhysicalPlan plan = new MergeExec(
             fragment.source(),
@@ -267,10 +329,10 @@ public class StagedPlannerTests extends ESTestCase {
         );
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> StagedPlanner.split(plan));
-        assertThat(e.getMessage(), containsString("multiple non-ignored fragments"));
+        assertThat(e.getMessage(), containsString("union branch must be a shuffle exchange"));
     }
 
-    public void testRejectsBinaryOperatorInShardsStage() {
+    public void testAllowsNodeLevelLookupJoinInShardsStage() {
         FragmentExec left = baseFragment();
         FragmentExec right = copyFragment(left);
         LookupJoinExec plan = new LookupJoinExec(
@@ -283,17 +345,86 @@ public class StagedPlannerTests extends ESTestCase {
             null
         );
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> StagedPlanner.split(plan));
-        assertThat(e.getMessage(), containsString("contains a binary operator"));
+        StagedPlan stagedPlan = StagedPlanner.split(plan);
+
+        assertEquals(StagePlacement.SHARDS, stagedPlan.root().placement());
+        assertEquals(1, stagedPlan.stages().size());
+        assertEquals(1, stagedPlan.root().plan().collect(LookupJoinExec.class).size());
+    }
+
+    public void testShardsStageAcceptsBroadcastInput() {
+        FragmentExec left = baseFragment();
+        DistributedHashJoinExec plan = new DistributedHashJoinExec(
+            left.source(),
+            left,
+            exchange(ExchangeDistribution.BROADCAST, copyFragment(left)),
+            List.of(left.output().getFirst()),
+            List.of(left.output().getFirst()),
+            List.of(),
+            DistributedHashJoinExec.Mode.BROADCAST
+        );
+
+        StagedPlan stagedPlan = StagedPlanner.split(plan);
+
+        assertEquals(StagePlacement.SHARDS, stagedPlan.root().placement());
+        assertEquals(List.of("e0"), stagedPlan.root().inputEdges());
+        assertEquals(ExchangeDistribution.BROADCAST, stagedPlan.edge("e0").distribution());
+    }
+
+    public void testWorkersStageCanMixHashAndBroadcastInputs() {
+        FragmentExec fragment = baseFragment();
+        DistributedHashJoinExec plan = new DistributedHashJoinExec(
+            fragment.source(),
+            exchange(ExchangeDistribution.HASH, fragment),
+            exchange(ExchangeDistribution.BROADCAST, copyFragment(fragment)),
+            List.of(fragment.output().getFirst()),
+            List.of(fragment.output().getFirst()),
+            List.of(),
+            DistributedHashJoinExec.Mode.BROADCAST
+        );
+
+        StagedPlan stagedPlan = StagedPlanner.split(exchange(ExchangeDistribution.GATHER, plan));
+        Stage workers = stagedPlan.stages().get(1);
+
+        assertEquals(StagePlacement.WORKERS, workers.placement());
+        assertEquals(List.of("e1", "e2"), workers.inputEdges());
+        assertEquals(ExchangeDistribution.HASH, stagedPlan.edge("e1").distribution());
+        assertEquals(ExchangeDistribution.BROADCAST, stagedPlan.edge("e2").distribution());
+    }
+
+    public void testGatheredProbeAcceptsBroadcastInput() {
+        FragmentExec fragment = baseFragment();
+        DistributedHashJoinExec join = new DistributedHashJoinExec(
+            fragment.source(),
+            exchange(ExchangeDistribution.GATHER, fragment),
+            exchange(ExchangeDistribution.BROADCAST, copyFragment(fragment)),
+            List.of(fragment.output().getFirst()),
+            List.of(fragment.output().getFirst()),
+            List.of(),
+            DistributedHashJoinExec.Mode.BROADCAST
+        );
+
+        for (boolean coordinator : List.of(true, false)) {
+            StagedPlan stagedPlan = StagedPlanner.split(coordinator ? join : exchange(ExchangeDistribution.GATHER, join));
+            Stage stage = coordinator ? stagedPlan.root() : stagedPlan.stages().get(1);
+
+            assertEquals(coordinator ? StagePlacement.COORDINATOR : StagePlacement.SINGLE, stage.placement());
+            assertEquals(
+                List.of(ExchangeDistribution.GATHER, ExchangeDistribution.BROADCAST),
+                stage.inputEdges().stream().map(key -> stagedPlan.edge(key).distribution()).toList()
+            );
+        }
     }
 
     public void testRejectsShardsStageWithInputEdges() {
         FragmentExec fragment = baseFragment();
-        PhysicalPlan plan = new MergeExec(
+        PhysicalPlan plan = new HashJoinExec(
             fragment.source(),
-            List.of(fragment, exchange(ExchangeDistribution.GATHER, copyFragment(fragment))),
-            fragment.output(),
-            MergeExec.Kind.UNION
+            fragment,
+            exchange(ExchangeDistribution.GATHER, copyFragment(fragment)),
+            List.of(fragment.output().getFirst()),
+            List.of(fragment.output().getFirst()),
+            List.of()
         );
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> StagedPlanner.split(plan));
@@ -310,7 +441,7 @@ public class StagedPlannerTests extends ESTestCase {
         );
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> StagedPlanner.split(plan));
-        assertThat(e.getMessage(), containsString("mixed input exchange distributions"));
+        assertThat(e.getMessage(), containsString("union branches have different distributions"));
     }
 
     public void testRejectsHashEdgeIntoCoordinatorStage() {

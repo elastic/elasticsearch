@@ -57,7 +57,7 @@ public class TestPlannerOptimizer {
         this.logicalOptimizer = logicalOptimizer;
 
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
-        mapper = new Mapper(config.pragmas().shuffleJoin());
+        mapper = new Mapper(config.pragmas());
 
     }
 

@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -1155,7 +1156,9 @@ public class ComputeService {
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
         try {
-            executionPlan = PlannerUtils.buildSubPlan(physicalPlan);
+            executionPlan = StagedPlanner.hasShuffle(physicalPlan)
+                ? new SubPlan.Leaf(physicalPlan)
+                : PlannerUtils.buildSubPlan(physicalPlan);
             // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
             // and it will be checked before executing data node plan on remote clusters
             initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
@@ -1463,9 +1466,9 @@ public class ComputeService {
             if (exchangeSinkSupplier != null) {
                 throw new IllegalStateException("shuffle stages cannot run as a branch with an external exchange sink");
             }
-            if (clusterService.state().getMinTransportVersion().supports(DataNodeRequest.ESQL_SHUFFLE_STAGE_WIRING) == false) {
+            if (clusterService.state().getMinTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
                 throw new IllegalStateException(
-                    "shuffle stages require transport version [" + DataNodeRequest.ESQL_SHUFFLE_STAGE_WIRING + "]"
+                    "shuffle stages require transport version [" + ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION + "]"
                 );
             }
             stageScheduler.execute(

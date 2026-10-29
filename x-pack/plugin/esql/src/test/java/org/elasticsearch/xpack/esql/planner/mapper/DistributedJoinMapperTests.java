@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
@@ -43,6 +44,11 @@ public class DistributedJoinMapperTests extends ESTestCase {
         .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2)
         .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
         .build();
+    private static final Settings BROADCAST_SHUFFLE_JOIN_SETTINGS = Settings.builder()
+        .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2)
+        .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
+        .put(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey(), "broadcast")
+        .build();
 
     private static final String DISTRIBUTED_QUERY = """
         FROM test
@@ -53,13 +59,10 @@ public class DistributedJoinMapperTests extends ESTestCase {
         """;
 
     public void testDistributesLookupJoinToLookupIndex() {
-        PhysicalPlan plan = distributedPlan(DISTRIBUTED_QUERY, SHUFFLE_JOIN_SETTINGS);
+        PhysicalPlan plan = distributedPlan(DISTRIBUTED_QUERY, BROADCAST_SHUFFLE_JOIN_SETTINGS);
 
-        AggregateExec aggregate = plan.collect(AggregateExec.class).getFirst();
-        ShuffleExchangeExec gather = as(aggregate.child(), ShuffleExchangeExec.class);
-        assertEquals(ExchangeDistribution.GATHER, gather.distribution());
-
-        DistributedHashJoinExec join = as(gather.child(), DistributedHashJoinExec.class);
+        DistributedHashJoinExec join = plan.collect(DistributedHashJoinExec.class).getFirst();
+        assertEquals(DistributedHashJoinExec.Mode.PARTITIONED, join.mode());
         ShuffleExchangeExec leftHash = as(join.left(), ShuffleExchangeExec.class);
         ShuffleExchangeExec rightHash = as(join.right(), ShuffleExchangeExec.class);
         assertEquals(ExchangeDistribution.HASH, leftHash.distribution());
@@ -69,10 +72,26 @@ public class DistributedJoinMapperTests extends ESTestCase {
         assertTrue(leftHash.child() instanceof FragmentExec);
 
         FragmentExec lookupFragment = as(rightHash.child(), FragmentExec.class);
-        EsRelation lookupRelation = as(lookupFragment.fragment(), EsRelation.class);
+        EsRelation lookupRelation = lookupFragment.fragment().collect(EsRelation.class).getFirst();
         assertEquals("languages_lookup", lookupRelation.indexPattern());
         assertEquals(IndexMode.STANDARD, lookupRelation.indexMode());
         assertEquals(Map.of("", List.of("languages_lookup")), lookupRelation.originalIndices());
+    }
+
+    public void testBroadcastsEligibleSubqueryJoinBuildSide() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        PhysicalPlan plan = distributedPlan("""
+            FROM test
+            | RENAME emp_no AS language_code
+            | LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+            | STATS c = COUNT(*) BY language_name
+            | LIMIT 1000
+            """, BROADCAST_SHUFFLE_JOIN_SETTINGS);
+
+        DistributedHashJoinExec join = plan.collect(DistributedHashJoinExec.class).getFirst();
+        assertEquals(DistributedHashJoinExec.Mode.BROADCAST, join.mode());
+        assertTrue(join.left() instanceof FragmentExec);
+        assertEquals(ExchangeDistribution.BROADCAST, as(join.right(), ShuffleExchangeExec.class).distribution());
     }
 
     public void testDistributesLeftOuterSubqueryJoin() {
@@ -90,6 +109,36 @@ public class DistributedJoinMapperTests extends ESTestCase {
         assertTrue(join.addedFields().stream().anyMatch(attribute -> attribute.name().equals("language_name")));
     }
 
+    public void testDistributesSubqueryJoinAfterStats() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        PhysicalPlan plan = distributedPlan("""
+            FROM test
+            | STATS total = SUM(salary) BY emp_no
+            | LEFT OUTER JOIN (FROM test | STATS total2 = SUM(salary) BY emp_no) ON emp_no
+            | LIMIT 1000
+            """, SHUFFLE_JOIN_SETTINGS);
+
+        DistributedHashJoinExec join = plan.collect(DistributedHashJoinExec.class).getFirst();
+        assertTrue(join.left() instanceof ShuffleExchangeExec);
+        assertTrue(join.right() instanceof ShuffleExchangeExec);
+        assertTrue(join.left().anyMatch(AggregateExec.class::isInstance));
+        assertTrue(join.right().anyMatch(AggregateExec.class::isInstance));
+        assertEquals(List.of("total", "total2", "emp_no"), join.output().stream().map(attribute -> attribute.name()).toList());
+    }
+
+    public void testLookupJoinAfterStatsRemainsLookupJoin() {
+        PhysicalPlan plan = distributedPlan("""
+            FROM test
+            | STATS total = SUM(salary) BY emp_no
+            | RENAME emp_no AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | LIMIT 1000
+            """, SHUFFLE_JOIN_SETTINGS);
+
+        assertTrue(plan.anyMatch(LookupJoinExec.class::isInstance));
+        assertFalse(plan.anyMatch(DistributedHashJoinExec.class::isInstance));
+    }
+
     public void testDistributesInnerSubqueryJoinWithMarkerFilter() {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         PhysicalPlan plan = distributedPlan("""
@@ -100,13 +149,20 @@ public class DistributedJoinMapperTests extends ESTestCase {
             | LIMIT 1000
             """, SHUFFLE_JOIN_SETTINGS);
 
-        AggregateExec aggregate = plan.collect(AggregateExec.class).getFirst();
-        ShuffleExchangeExec gather = as(aggregate.child(), ShuffleExchangeExec.class);
-        ProjectExec project = as(gather.child(), ProjectExec.class);
-        FilterExec filter = as(project.child(), FilterExec.class);
+        DistributedHashJoinExec join = plan.collect(DistributedHashJoinExec.class).getFirst();
+        FilterExec filter = plan.collect(FilterExec.class)
+            .stream()
+            .filter(candidate -> candidate.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
         assertTrue(filter.condition() instanceof IsNotNull);
-
-        DistributedHashJoinExec join = as(filter.child(), DistributedHashJoinExec.class);
+        assertSame(join, filter.child());
+        ProjectExec project = plan.collect(ProjectExec.class)
+            .stream()
+            .filter(candidate -> candidate.child() == filter)
+            .findFirst()
+            .orElseThrow();
+        assertNotNull(project);
         assertTrue(join.addedFields().stream().anyMatch(Mapper::isJoinMarker));
     }
 
@@ -164,9 +220,7 @@ public class DistributedJoinMapperTests extends ESTestCase {
     }
 
     private static DistributedHashJoinExec distributedJoinUnderAggregate(PhysicalPlan plan) {
-        AggregateExec aggregate = plan.collect(AggregateExec.class).getFirst();
-        ShuffleExchangeExec gather = as(aggregate.child(), ShuffleExchangeExec.class);
-        return as(gather.child(), DistributedHashJoinExec.class);
+        return plan.collect(DistributedHashJoinExec.class).getFirst();
     }
 
     private static PhysicalPlan distributedPlan(String query, Settings settings) {

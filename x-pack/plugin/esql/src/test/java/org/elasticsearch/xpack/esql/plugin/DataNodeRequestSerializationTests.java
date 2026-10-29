@@ -151,6 +151,76 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertFalse(downgraded.retainSearchContexts());
     }
 
+    public void testMultiProducerStageWiringRoundTrips() throws IOException {
+        StageWiring wiring = new StageWiring(
+            "root",
+            7,
+            StagedPlanner.StagePlacement.WORKERS,
+            List.of(0, 1),
+            List.of(
+                new StageWiring.Input(
+                    "edge",
+                    List.of(new StageWiring.Producer(2, List.of("node-a", "node-b")), new StageWiring.Producer(3, List.of("node-c")))
+                )
+            ),
+            new StageWiring.Output("output", ExchangeDistribution.HASH, 2)
+        );
+
+        StageWiring copy = copyWriteable(wiring, new NamedWriteableRegistry(List.of()), StageWiring::new);
+
+        assertThat(copy, equalTo(wiring));
+    }
+
+    public void testBroadcastStageWiringRequiresItsTransportVersion() throws IOException {
+        StageWiring wiring = new StageWiring(
+            "root",
+            7,
+            StagedPlanner.StagePlacement.WORKERS,
+            List.of(0, 1),
+            List.of(new StageWiring.Input("edge", List.of(new StageWiring.Producer(2, List.of("node-a", "node-b"))))),
+            new StageWiring.Output("output", ExchangeDistribution.BROADCAST, 2)
+        );
+
+        StageWiring copy = copyWriteable(
+            wiring,
+            new NamedWriteableRegistry(List.of()),
+            StageWiring::new,
+            ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION
+        );
+        assertThat(copy, equalTo(wiring));
+        expectThrows(
+            IllegalStateException.class,
+            () -> copyWriteable(
+                wiring,
+                new NamedWriteableRegistry(List.of()),
+                StageWiring::new,
+                TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)
+            )
+        );
+    }
+
+    public void testStageWiringUsesLegacyWireFormatForOlderTransportVersions() throws IOException {
+        StageWiring wiring = new StageWiring(
+            "root",
+            7,
+            StagedPlanner.StagePlacement.WORKERS,
+            List.of(0, 1),
+            List.of(new StageWiring.Input("edge", List.of(new StageWiring.Producer(2, List.of("node-a", "node-b"))))),
+            new StageWiring.Output("output", ExchangeDistribution.HASH, 2)
+        );
+        TransportVersion legacyVersion = TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
+
+        StageWiring copy = copyWriteable(wiring, new NamedWriteableRegistry(List.of()), StageWiring::new, legacyVersion);
+
+        assertEquals(wiring.rootSessionId(), copy.rootSessionId());
+        assertEquals(wiring.stageId(), copy.stageId());
+        assertEquals(wiring.placement(), copy.placement());
+        assertEquals(wiring.localLanes(), copy.localLanes());
+        assertEquals(List.of(new StageWiring.Producer(0, List.of("node-a", "node-b"))), copy.inputs().getFirst().producers());
+        assertFalse(copy.stageQualifiedExchangeIds());
+        assertEquals("root/stage/edge/0", StageWiring.exchangeId("root", "edge", 2, 0, copy.stageQualifiedExchangeIds()));
+    }
+
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
         assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
 
@@ -297,8 +367,23 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomIntBetween(0, 100),
             randomFrom(StagedPlanner.StagePlacement.values()),
             randomList(0, 10, () -> randomIntBetween(0, 10)),
-            randomList(0, 3, () -> new StageWiring.Input(randomAlphaOfLength(10), randomList(0, 3, () -> randomAlphaOfLength(10)))),
-            new StageWiring.Output(randomAlphaOfLength(10), randomFrom(ExchangeDistribution.values()), randomIntBetween(0, 10))
+            randomList(
+                1,
+                3,
+                () -> new StageWiring.Input(
+                    randomAlphaOfLength(10),
+                    randomList(
+                        2,
+                        3,
+                        () -> new StageWiring.Producer(randomIntBetween(0, 10), randomList(1, 3, () -> randomAlphaOfLength(10)))
+                    )
+                )
+            ),
+            new StageWiring.Output(
+                randomAlphaOfLength(10),
+                randomFrom(ExchangeDistribution.GATHER, ExchangeDistribution.HASH),
+                randomIntBetween(0, 10)
+            )
         );
     }
 

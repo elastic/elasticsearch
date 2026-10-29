@@ -65,7 +65,6 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
         entries.add(LongRangeBlockBuilder.LongRange.ENTRY);
         entries.add(DoubleRangeBlockBuilder.DoubleRange.ENTRY);
-        entries.add(LookupJoinExec.ENTRY);
         entries.add(WriteableExponentialHistogram.ENTRY);
         entries.add(TDigestHolder.ENTRY);
         entries.add(FileSplit.ENTRY);

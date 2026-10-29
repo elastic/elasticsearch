@@ -10,16 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.CollapseStackedShuffleExchanges;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.EnsureDistribution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.NormalizeExchangesForShuffle;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.PlanRemoteFetch;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.PruneShuffleFragmentColumns;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.PushDownPastShuffleGather;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.ShuffleFinalAggregate;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.SplitSingleAggOverShuffleGather;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -69,16 +65,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 new InsertPartialWindowAggregates()
             ),
             new Batch<>("Plan Remote Fetch", Limiter.ONCE, new PlanRemoteFetch()),
-            new Batch<>(
-                "Distribution",
-                Limiter.ONCE,
-                new ShuffleFinalAggregate(),
-                new NormalizeExchangesForShuffle(),
-                new PushDownPastShuffleGather(),
-                new SplitSingleAggOverShuffleGather(),
-                new CollapseStackedShuffleExchanges(),
-                new PruneShuffleFragmentColumns()
-            )
+            new Batch<>("Distribution", Limiter.ONCE, new EnsureDistribution(), new PruneShuffleFragmentColumns())
         );
     }
 }

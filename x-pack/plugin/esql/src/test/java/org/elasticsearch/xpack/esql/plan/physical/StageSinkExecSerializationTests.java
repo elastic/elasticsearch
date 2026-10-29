@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -19,10 +20,29 @@ public class StageSinkExecSerializationTests extends AbstractPhysicalPlanSeriali
         List<Attribute> output = randomFieldAttributes(1, 5, false);
         boolean intermediateAgg = randomBoolean();
         String edgeKey = randomAlphaOfLength(5);
-        ExchangeDistribution distribution = randomFrom(ExchangeDistribution.values());
+        ExchangeDistribution distribution = randomLegacyDistribution();
         List<Attribute> keys = distribution == ExchangeDistribution.HASH ? randomFieldAttributes(1, 5, false) : List.of();
         PhysicalPlan child = randomChild(depth);
         return new StageSinkExec(source, output, intermediateAgg, edgeKey, distribution, keys, child);
+    }
+
+    public void testBroadcastEdgeRequiresItsTransportVersion() throws IOException {
+        StageSinkExec stageSink = randomStageSinkExec(0);
+        StageSinkExec broadcastSink = new StageSinkExec(
+            stageSink.source(),
+            stageSink.output(),
+            stageSink.isIntermediateAgg(),
+            stageSink.edgeKey(),
+            ExchangeDistribution.BROADCAST,
+            List.of(),
+            stageSink.child()
+        );
+
+        assertEquals(broadcastSink, copyInstance(broadcastSink, ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION));
+        expectThrows(
+            IllegalStateException.class,
+            () -> copyInstance(broadcastSink, TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION))
+        );
     }
 
     @Override
@@ -43,7 +63,7 @@ public class StageSinkExecSerializationTests extends AbstractPhysicalPlanSeriali
             case 1 -> intermediateAgg = intermediateAgg == false;
             case 2 -> edgeKey = randomValueOtherThan(edgeKey, () -> randomAlphaOfLength(5));
             case 3 -> {
-                distribution = randomValueOtherThan(distribution, () -> randomFrom(ExchangeDistribution.values()));
+                distribution = randomValueOtherThan(distribution, StageSinkExecSerializationTests::randomLegacyDistribution);
                 keys = distribution == ExchangeDistribution.HASH ? randomFieldAttributes(1, 5, false) : List.of();
             }
             case 4 -> child = randomValueOtherThan(child, () -> randomChild(0));
@@ -55,5 +75,9 @@ public class StageSinkExecSerializationTests extends AbstractPhysicalPlanSeriali
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    private static ExchangeDistribution randomLegacyDistribution() {
+        return randomFrom(ExchangeDistribution.GATHER, ExchangeDistribution.HASH);
     }
 }

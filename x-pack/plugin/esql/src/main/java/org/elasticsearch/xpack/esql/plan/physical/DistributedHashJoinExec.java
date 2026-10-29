@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
 /**
  * Joins probe and build inputs that have been partitioned by the same key.
  */
@@ -35,7 +37,16 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
+    private final Mode mode;
     private List<Attribute> lazyOutput;
+
+    /** Describes how probe and build rows are distributed before the join. */
+    public enum Mode {
+        /** Both inputs are hash partitioned by their join keys. */
+        PARTITIONED,
+        /** Build rows are copied to every probe partition. */
+        BROADCAST
+    }
 
     /**
      * Creates a join over co-partitioned probe and build inputs.
@@ -48,10 +59,26 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
         List<Attribute> rightFields,
         List<Attribute> addedFields
     ) {
+        this(source, left, right, leftFields, rightFields, addedFields, Mode.PARTITIONED);
+    }
+
+    /**
+     * Creates a distributed hash join using either co-partitioned inputs or a broadcast build input.
+     */
+    public DistributedHashJoinExec(
+        Source source,
+        PhysicalPlan left,
+        PhysicalPlan right,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields,
+        List<Attribute> addedFields,
+        Mode mode
+    ) {
         super(source, left, right);
         this.leftFields = leftFields;
         this.rightFields = rightFields;
         this.addedFields = addedFields;
+        this.mode = Objects.requireNonNull(mode);
     }
 
     private DistributedHashJoinExec(StreamInput in) throws IOException {
@@ -59,14 +86,25 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.mode = in.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)
+            ? in.readEnum(Mode.class)
+            : Mode.PARTITIONED;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (mode == Mode.BROADCAST && out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
+            throw new IllegalStateException(
+                "broadcast shuffle joins require transport version [" + ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION + "]"
+            );
+        }
         super.writeTo(out);
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
+        if (out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
+            out.writeEnum(mode);
+        }
     }
 
     @Override
@@ -86,13 +124,27 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
         return addedFields;
     }
 
+    /** Returns the exchange strategy required by this join. */
+    public Mode mode() {
+        return mode;
+    }
+
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = new ArrayList<>(left().output());
-            List<String> addedFieldNames = addedFields.stream().map(Attribute::name).toList();
-            lazyOutput.removeIf(attribute -> addedFieldNames.contains(attribute.name()));
-            lazyOutput.addAll(addedFields);
+            List<Attribute> leftOutputWithoutKeys = left().output()
+                .stream()
+                .filter(attribute -> leftFields.contains(attribute) == false)
+                .toList();
+            List<Attribute> rightWithAppendedKeys = new ArrayList<>(right().output());
+            rightWithAppendedKeys.removeAll(rightFields);
+            rightWithAppendedKeys.addAll(leftFields);
+            for (Attribute field : addedFields) {
+                if (right().outputSet().contains(field) == false) {
+                    rightWithAppendedKeys.add(field);
+                }
+            }
+            lazyOutput = mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys);
         }
         return lazyOutput;
     }
@@ -125,12 +177,12 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
 
     @Override
     public DistributedHashJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new DistributedHashJoinExec(source(), left, right, leftFields, rightFields, addedFields);
+        return new DistributedHashJoinExec(source(), left, right, leftFields, rightFields, addedFields, mode);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, DistributedHashJoinExec::new, left(), right(), leftFields, rightFields, addedFields);
+        return NodeInfo.create(this, DistributedHashJoinExec::new, left(), right(), leftFields, rightFields, addedFields, mode);
     }
 
     @Override
@@ -142,11 +194,14 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
             return false;
         }
         DistributedHashJoinExec other = (DistributedHashJoinExec) obj;
-        return leftFields.equals(other.leftFields) && rightFields.equals(other.rightFields) && addedFields.equals(other.addedFields);
+        return leftFields.equals(other.leftFields)
+            && rightFields.equals(other.rightFields)
+            && addedFields.equals(other.addedFields)
+            && mode == other.mode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields, mode);
     }
 }

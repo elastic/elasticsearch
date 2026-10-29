@@ -1038,7 +1038,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         queryMapper = configuration.pragmas().shuffleJoin() && ShuffleGate.allowed(configuration, optimizedPlan)
-            ? new Mapper(true)
+            ? new Mapper(configuration.pragmas())
             : mapper;
         Set<LocalRelation> subPlansResults = Collections.newSetFromMap(new IdentityHashMap<>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
@@ -3003,7 +3003,7 @@ public class EsqlSession {
         Mapper currentMapper = queryMapper;
         if (currentMapper == null) {
             currentMapper = configuration.pragmas().shuffleJoin() && ShuffleGate.allowed(configuration, logicalPlan)
-                ? new Mapper(true)
+                ? new Mapper(configuration.pragmas())
                 : mapper;
             queryMapper = currentMapper;
         }

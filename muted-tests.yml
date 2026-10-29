@@ -226,6 +226,11 @@ tests:
   - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=data_stream/150_tsdb/multi value dimensions}
   issue: https://github.com/elastic/elasticsearch/issues/163800
+- class: org.elasticsearch.persistent.PersistentTasksExecutorShutdownIT
+  tasks:
+  - :server:internalClusterTest
+  method: testOptOutTaskIsNotReassignedOnShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/163857
 
 # Examples:
 #

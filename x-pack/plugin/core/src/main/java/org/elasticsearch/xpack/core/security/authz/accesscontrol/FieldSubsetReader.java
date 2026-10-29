@@ -45,6 +45,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -269,6 +270,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         if (fieldName.endsWith(onFailure)) {
             return stripSuffix(fieldName, onFailure);
+        }
+
+        // A columnar geo_shape field stores its normalized geometries in a <field>.source_geometry companion so synthetic source
+        // can be rebuilt
+        if (fieldName.endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)) {
+            return stripSuffix(fieldName, AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX);
         }
 
         return fieldName;

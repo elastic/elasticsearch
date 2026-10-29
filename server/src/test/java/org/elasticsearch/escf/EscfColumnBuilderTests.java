@@ -10,6 +10,8 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
 import org.elasticsearch.sourcebatch.ArrayReader;
@@ -836,6 +838,368 @@ public class EscfColumnBuilderTests extends ESTestCase {
             out.add(r.type() == SourceValueType.INT ? (long) r.intValue() : r.longValue());
         }
         return out;
+    }
+
+    public void testRepeatLastRowLong() {
+        EscfColumnBuilder b = builder();
+        b.addLong(7);
+        b.addLong(42);
+        b.repeatLastRow(98);
+        EscfColumnData data = b.finish(100);
+        assertEquals(EscfColumnKind.LONG, data.kind());
+        assertNull("repeating a present row keeps the column dense", data.validity());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(7L, col.getLongValue(0));
+        for (int r = 1; r < 100; r++) {
+            assertEquals("row " + r, 42L, col.getLongValue(r));
+        }
+    }
+
+    public void testRepeatLastRowStringAfterAbsent() {
+        EscfColumnBuilder b = builder();
+        b.addAbsent();
+        b.addString(utf8("alpha"));
+        b.repeatLastRow(3);
+        EscfColumnData data = b.finish(5);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertTrue(col.isAbsent(0));
+        for (int r = 1; r < 5; r++) {
+            assertFalse("row " + r, col.isAbsent(r));
+            assertEquals("row " + r, "alpha", col.getStringValue(r).string());
+        }
+    }
+
+    public void testRepeatLastRowBool() {
+        EscfColumnBuilder b = builder();
+        b.addBoolean(false);
+        b.addBoolean(true);
+        b.repeatLastRow(2);
+        b.addBoolean(false);
+        b.repeatLastRow(2);
+        EscfColumnData data = b.finish(8);
+        assertEquals(EscfColumnKind.BOOL, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        boolean[] expected = { false, true, true, true, false, false, false, false };
+        for (int r = 0; r < expected.length; r++) {
+            assertEquals("row " + r, expected[r], col.getBooleanValue(r));
+        }
+    }
+
+    /**
+     * A bool column only grows its value bitset up to the last {@code true}, so a long tail of {@code false} can
+     * leave the bitset shorter than the column. Repeating such a row must not read past its end.
+     */
+    public void testRepeatLastRowBoolFalseTail() {
+        EscfColumnBuilder b = builder();
+        b.addBoolean(true);
+        for (int r = 1; r < 100; r++) {
+            b.addBoolean(false);
+        }
+        b.repeatLastRow(50);
+        EscfColumnData data = b.finish(150);
+        EscfColumn col = EscfColumn.from(data);
+        assertTrue(col.getBooleanValue(0));
+        for (int r = 1; r < 150; r++) {
+            assertFalse("row " + r, col.getBooleanValue(r));
+        }
+    }
+
+    public void testRepeatLastRowArray() {
+        EscfColumnBuilder b = builder();
+        b.beginArray(0);
+        b.appendString(utf8("a"));
+        b.appendString(utf8("bb"));
+        b.endArray();
+        b.repeatLastRow(2);
+        b.beginArray(3); // the repeat must have advanced the row cursor past the copies
+        b.appendString(utf8("ccc"));
+        b.endArray();
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(EscfColumnKind.STRING, data.child().kind());
+        for (int r = 0; r < 3; r++) {
+            assertEquals("row " + r, 2, elemCount(data, r));
+            assertEquals("row " + r, "a", readArrayElem(data, r, 0));
+            assertEquals("row " + r, "bb", readArrayElem(data, r, 1));
+        }
+        assertEquals(1, elemCount(data, 3));
+        assertEquals("ccc", readArrayElem(data, 3, 0));
+    }
+
+    public void testRepeatLastRowUnion() {
+        EscfColumnBuilder b = builder();
+        b.addLong(1);
+        b.addNull(); // promotes to union
+        b.repeatLastRow(2);
+        b.addString(utf8("tail"));
+        b.repeatLastRow(1);
+        EscfColumnData data = b.finish(6);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(SourceValueType.LONG, col.getTypeByte(0));
+        assertEquals(1L, col.getLongValue(0));
+        for (int r = 1; r < 4; r++) {
+            assertEquals("row " + r, SourceValueType.NULL, col.getTypeByte(r));
+        }
+        for (int r = 4; r < 6; r++) {
+            assertEquals("row " + r, SourceValueType.STRING, col.getTypeByte(r));
+            assertEquals("row " + r, "tail", col.getStringValue(r).string());
+        }
+    }
+
+    /** A repeat whose copies span several recycler pages exercises the page-crossing self-copy. */
+    public void testRepeatLastRowAcrossPages() {
+        String value = randomAlphaOfLength(3000);
+        EscfColumnBuilder b = builder();
+        b.addString(utf8(value));
+        b.repeatLastRow(49); // 150 kB of payload, far beyond a single 16 kB page
+        EscfColumnData data = b.finish(50);
+        EscfColumn col = EscfColumn.from(data);
+        for (int r = 0; r < 50; r++) {
+            assertEquals("row " + r, value, col.getStringValue(r).string());
+        }
+    }
+
+    /**
+     * Repeating a row of a column that was promoted from a scalar to an ARRAY, where the array child adopted
+     * the scalar's value buffer and its element offsets.
+     */
+    public void testRepeatLastRowAfterPromotionToArray() {
+        EscfColumnBuilder longs = mergeBuilder();
+        longs.setLong(0, 1);
+        longs.setLong(0, 2); // same row -> promoteToArray
+        longs.repeatLastRow(2);
+        EscfColumnData longData = longs.finish(3);
+        assertEquals(EscfColumnKind.LONG, longData.child().kind());
+        for (int r = 0; r < 3; r++) {
+            assertEquals("row " + r, 2, elemCount(longData, r));
+            assertEquals("row " + r, 1L, readArrayLong(longData, r, 0));
+            assertEquals("row " + r, 2L, readArrayLong(longData, r, 1));
+        }
+
+        EscfColumnBuilder strings = mergeBuilder();
+        strings.setString(0, utf8("a"));
+        strings.setString(0, utf8("bb"));
+        strings.repeatLastRow(2);
+        EscfColumnData stringData = strings.finish(3);
+        assertEquals(EscfColumnKind.STRING, stringData.child().kind());
+        for (int r = 0; r < 3; r++) {
+            assertEquals("row " + r, 2, elemCount(stringData, r));
+            assertEquals("row " + r, "a", readArrayElem(stringData, r, 0));
+            assertEquals("row " + r, "bb", readArrayElem(stringData, r, 1));
+        }
+    }
+
+    /** Repeating an absent row adds absent rows; there is no payload to replicate. */
+    public void testRepeatLastRowAbsent() {
+        EscfColumnBuilder b = builder();
+        b.addLong(7);
+        b.addAbsent();
+        b.repeatLastRow(3);
+        b.addLong(9);
+        EscfColumnData data = b.finish(6);
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(7L, col.getLongValue(0));
+        for (int r = 1; r < 5; r++) {
+            assertTrue("row " + r, col.isAbsent(r));
+        }
+        assertFalse(col.isAbsent(5));
+        assertEquals(9L, col.getLongValue(5));
+    }
+
+    /** The same, before any value has been written, where the absent rows are still only a leading count. */
+    public void testRepeatLastRowLeadingAbsent() {
+        EscfColumnBuilder b = builder();
+        b.addAbsent();
+        b.repeatLastRow(2);
+        b.addLong(5);
+        EscfColumnData data = b.finish(4);
+        EscfColumn col = EscfColumn.from(data);
+        for (int r = 0; r < 3; r++) {
+            assertTrue("row " + r, col.isAbsent(r));
+        }
+        assertEquals(5L, col.getLongValue(3));
+    }
+
+    public void testRepeatLastRowZeroTimesIsNoop() {
+        EscfColumnBuilder b = builder();
+        b.addLong(5);
+        b.repeatLastRow(0);
+        EscfColumnData data = b.finish(1);
+        assertEquals(1, data.docCount());
+        assertEquals(5L, EscfColumn.from(data).getLongValue(0));
+    }
+
+    /**
+     * The byte-level repeat must produce exactly the column an equivalent run of per-row writes produces,
+     * for every internal builder kind and both collision policies. Compares the finished columns factor by
+     * factor so that encoding drift (offsets, type vector, payload) is caught, not just the decoded values.
+     */
+    public void testRepeatLastRowMatchesExplicitWrites() {
+        for (CollisionPolicy policy : CollisionPolicy.values()) {
+            for (int flavor = 0; flavor < ROW_FLAVORS; flavor++) {
+                List<RepeatStep> steps = new ArrayList<>();
+                int docCount = 0;
+                for (int s = 0, stepCount = between(1, 6); s < stepCount; s++) {
+                    int absentsBefore = rarely() ? between(1, 3) : 0;
+                    RepeatStep step = new RepeatStep(
+                        absentsBefore,
+                        randomRowWriter(flavor),
+                        between(0, 20),
+                        absentsBefore > 0 && randomBoolean()
+                    );
+                    steps.add(step);
+                    docCount += step.rows();
+                }
+                docCount += rarely() ? between(1, 3) : 0; // trailing absents, filled by finish()
+
+                final String description = policy + " flavor " + flavor;
+                try (EscfColumnBuilder expected = new EscfColumnBuilder(policy); EscfColumnBuilder actual = new EscfColumnBuilder(policy)) {
+                    int row = 0;
+                    for (RepeatStep step : steps) {
+                        if (step.repeatTheGap()) {
+                            // The repeat lands on the absent gap rather than on the value that follows it.
+                            expected.addAbsents(step.absentsBefore() + step.repeat());
+                            actual.addAbsents(step.absentsBefore());
+                            actual.repeatLastRow(step.repeat());
+                            row += step.absentsBefore() + step.repeat();
+                            step.writeRow().write(expected, row);
+                            step.writeRow().write(actual, row);
+                            row++;
+                        } else {
+                            expected.addAbsents(step.absentsBefore());
+                            actual.addAbsents(step.absentsBefore());
+                            row += step.absentsBefore();
+                            for (int i = 0; i <= step.repeat(); i++) {
+                                step.writeRow().write(expected, row + i);
+                            }
+                            step.writeRow().write(actual, row);
+                            actual.repeatLastRow(step.repeat());
+                            row += step.repeat() + 1;
+                        }
+                    }
+                    try (EscfColumnData a = expected.finish(docCount); EscfColumnData c = actual.finish(docCount)) {
+                        assertSameColumnData(description, a, c);
+                    }
+                }
+            }
+        }
+    }
+
+    private static final int ROW_FLAVORS = 8;
+
+    /**
+     * One step of a generated column: a gap of absent rows, a row to write, and how often to repeat. The repeat
+     * applies to the written row, or to the absent gap when {@code repeatTheGap} is set; either way the step
+     * contributes the same number of rows.
+     */
+    private record RepeatStep(int absentsBefore, RowWriter writeRow, int repeat, boolean repeatTheGap) {
+        int rows() {
+            return absentsBefore + 1 + repeat;
+        }
+    }
+
+    /** Writes a single row, at {@code row} for the positional surface; append-surface writers ignore it. */
+    @FunctionalInterface
+    private interface RowWriter {
+        void write(EscfColumnBuilder builder, int row);
+    }
+
+    /**
+     * A writer for one row of column flavor {@code flavor}. The values are drawn once, up front, so that
+     * applying the writer repeatedly produces byte-identical rows.
+     */
+    private static RowWriter randomRowWriter(int flavor) {
+        switch (flavor) {
+            case 0 -> {
+                long v = randomLong();
+                return (b, row) -> b.addLong(v);
+            }
+            case 1 -> {
+                double v = randomDouble();
+                return (b, row) -> b.addDouble(v);
+            }
+            case 2 -> {
+                // Occasionally long enough that a repeat crosses recycler pages.
+                String v = randomAlphaOfLength(randomBoolean() ? between(0, 20) : between(1000, 3000));
+                return (b, row) -> b.addString(utf8(v));
+            }
+            case 3 -> {
+                boolean v = randomBoolean();
+                return (b, row) -> b.addBoolean(v);
+            }
+            case 4 -> {
+                long[] v = randomLongArray();
+                return (b, row) -> b.addLongArray(v, v.length);
+            }
+            case 5 -> {
+                String[] v = new String[between(0, 4)];
+                for (int i = 0; i < v.length; i++) {
+                    v[i] = randomAlphaOfLength(between(0, 30));
+                }
+                return (b, row) -> {
+                    b.beginArray(row);
+                    for (String s : v) {
+                        b.appendString(utf8(s));
+                    }
+                    b.endArray();
+                };
+            }
+            case 6 -> {
+                // Heterogeneous rows: whichever kind comes second promotes the column to a union.
+                return switch (between(0, 3)) {
+                    case 0 -> randomRowWriter(0);
+                    case 1 -> randomRowWriter(2);
+                    case 2 -> randomRowWriter(3);
+                    default -> (b, row) -> b.addNull();
+                };
+            }
+            case 7 -> {
+                // Scalar and array rows in one column: merged into an ARRAY under MERGE, a union under SPLIT.
+                return randomBoolean() ? randomRowWriter(0) : randomRowWriter(4);
+            }
+            default -> throw new AssertionError("no such row flavor: " + flavor);
+        }
+    }
+
+    private static long[] randomLongArray() {
+        long[] values = new long[between(0, 4)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomLong();
+        }
+        return values;
+    }
+
+    private static void assertSameColumnData(String description, EscfColumnData expected, EscfColumnData actual) {
+        assertEquals(description + ": kind", expected.kind(), actual.kind());
+        assertEquals(description + ": docCount", expected.docCount(), actual.docCount());
+        assertEquals(description + ": type vector", expected.typeVector(), actual.typeVector());
+        assertArrayEquals(description + ": offsets", expected.offsets(), actual.offsets());
+        for (int r = 0; r < expected.docCount(); r++) {
+            assertEquals(description + ": present at " + r, isPresent(expected.validity(), r), isPresent(actual.validity(), r));
+            assertEquals(description + ": value at " + r, isTrue(expected.values(), r), isTrue(actual.values(), r));
+        }
+        if (expected.data() == null || actual.data() == null) {
+            assertEquals(description + ": data", expected.data(), actual.data());
+        } else {
+            assertArrayEquals(description + ": data", BytesReference.toBytes(expected.data()), BytesReference.toBytes(actual.data()));
+        }
+        if (expected.child() == null || actual.child() == null) {
+            assertEquals(description + ": child", expected.child(), actual.child());
+        } else {
+            assertSameColumnData(description + ": child", expected.child(), actual.child());
+        }
+    }
+
+    /** A {@code null} validity bitset means every row is present. */
+    private static boolean isPresent(FixedBitSet validity, int row) {
+        return validity == null || validity.get(row);
+    }
+
+    /** The BOOL value bitset is only grown up to its last {@code true}, so rows beyond its length are {@code false}. */
+    private static boolean isTrue(FixedBitSet values, int row) {
+        return values != null && row < values.length() && values.get(row);
     }
 
     /**

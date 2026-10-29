@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveScore;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -646,7 +647,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 directoryBytesRead,
                 context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
                 singleValueQueryWarnings,
-                planMinCompetitive(context.luceneMinCompetitivePilot().get())
+                planMinCompetitive(context.luceneMinCompetitivePilot().get()),
+                planMinCompetitiveScore(context.luceneMinCompetitiveScore().get(), scoring, limit)
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -729,6 +731,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return q.rewrite(executionContext.searcher());
         };
         return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery);
+    }
+
+    /**
+     * The {@link MinCompetitiveScore.Factory} feeding a {@code SORT _score DESC} TopN's bound back to
+     * Lucene, or {@code null}. The planner checked the preconditions when it built {@code scoreTopN}.
+     * If they don't hold here, drop the optimisation instead of letting
+     * {@link LuceneSourceOperator.Factory} fail the query.
+     */
+    @Nullable
+    private static MinCompetitiveScore.Factory planMinCompetitiveScore(
+        @Nullable LuceneMinCompetitiveScoreTopN scoreTopN,
+        boolean scoring,
+        int limit
+    ) {
+        if (scoreTopN == null) {
+            return null;
+        }
+        if (scoring == false || limit != NO_LIMIT) {
+            assert false : "min competitive score planned for a source with scoring=" + scoring + " and limit=" + limit;
+            return null;
+        }
+        return scoreTopN.minCompetitiveScoreFactory();
     }
 
     /**

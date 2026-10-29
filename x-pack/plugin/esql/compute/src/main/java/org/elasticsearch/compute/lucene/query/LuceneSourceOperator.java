@@ -23,6 +23,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -58,6 +59,7 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.search.ScoreMode.COMPLETE;
 import static org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+import static org.apache.lucene.search.ScoreMode.TOP_SCORES;
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.DOC;
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.SEGMENT;
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.SHARD;
@@ -78,8 +80,13 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
     private final int minPageSize;
 
+    private int minCompetitiveScoreUpdates;
+
     @Nullable
     private final MinCompetitiveQuery minCompetitiveQuery;
+
+    @Nullable
+    private final MinCompetitiveScore minCompetitiveScore;
 
     public static class Factory extends LuceneOperator.Factory {
         protected final IndexedByShardId<? extends RefCounted> refCounteds;
@@ -87,6 +94,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         protected final Limiter limiter;
         @Nullable
         private final MinCompetitiveQuery.Factory minCompetitive;
+        @Nullable
+        private final MinCompetitiveScore.Factory minCompetitiveScore;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> shardContexts,
@@ -134,6 +143,50 @@ public class LuceneSourceOperator extends LuceneOperator {
             QueryWarnings singleValueQueryWarnings,
             @Nullable MinCompetitiveQuery.Factory minCompetitive
         ) {
+            this(
+                shardContexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                maxPageSize,
+                limit,
+                needsScore,
+                directoryBytesRead,
+                minDocsPerSlice,
+                singleValueQueryWarnings,
+                minCompetitive,
+                null
+            );
+        }
+
+        /**
+         * @param minCompetitive if non-null, skip documents whose sort <strong>field</strong> can't beat
+         *                       the downstream TopN via {@link LeafCollector#competitiveIterator}
+         * @param minCompetitiveScore if non-null, skip documents whose <strong>score</strong> can't beat the
+         *                            downstream {@code SORT _score DESC} TopN. This builds the weight with
+         *                            {@link ScoreMode#TOP_SCORES} which lets Lucene skip matching documents,
+         *                            so the caller must guarantee that the TopN is the only consumer of the
+         *                            rows. It requires {@code needsScore} and no {@code limit}: a limit
+         *                            counts emitted documents, and skipping would change which ones count.
+         */
+        public Factory(
+            IndexedByShardId<? extends ShardContext> shardContexts,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int maxPageSize,
+            int limit,
+            boolean needsScore,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings,
+            @Nullable MinCompetitiveQuery.Factory minCompetitive,
+            @Nullable MinCompetitiveScore.Factory minCompetitiveScore
+        ) {
             super(
                 shardContexts,
                 queryFunction,
@@ -145,7 +198,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
+                scoreMode(needsScore, limit, minCompetitive, minCompetitiveScore),
                 directoryBytesRead,
                 minDocsPerSlice,
                 singleValueQueryWarnings
@@ -155,6 +208,34 @@ public class LuceneSourceOperator extends LuceneOperator {
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
             this.minCompetitive = minCompetitive;
+            this.minCompetitiveScore = minCompetitiveScore;
+        }
+
+        /**
+         * The {@link ScoreMode} for the weights. {@link ScoreMode#TOP_SCORES} lets Lucene skip matching
+         * documents so it is only used when a {@link MinCompetitiveScore} is attached. Also validates
+         * {@code minCompetitiveScore}'s preconditions: the constructor has to pass the score mode to
+         * {@code super} before it can check anything itself.
+         */
+        private static Function<ShardContext, ScoreMode> scoreMode(
+            boolean needsScore,
+            int limit,
+            @Nullable MinCompetitiveQuery.Factory minCompetitive,
+            @Nullable MinCompetitiveScore.Factory minCompetitiveScore
+        ) {
+            if (minCompetitiveScore == null) {
+                return shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES;
+            }
+            if (needsScore == false) {
+                throw new IllegalArgumentException("min competitive score requires scoring");
+            }
+            if (limit != NO_LIMIT) {
+                throw new IllegalArgumentException("min competitive score doesn't support a limit but got [" + limit + "]");
+            }
+            if (minCompetitive != null) {
+                throw new IllegalArgumentException("min competitive score and min competitive query are mutually exclusive");
+            }
+            return shardContext -> TOP_SCORES;
         }
 
         @Override
@@ -169,7 +250,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 needsScore,
                 directoryBytesRead,
                 singleValueQueryWarnings,
-                minCompetitive
+                minCompetitive,
+                minCompetitiveScore
             );
         }
 
@@ -187,6 +269,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 + limit
                 + ", needsScore = "
                 + needsScore
+                + (minCompetitiveScore == null ? "" : ", minCompetitiveScore = true")
                 + "]";
         }
 
@@ -393,7 +476,6 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
-    @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
         DriverContext driverContext,
@@ -406,22 +488,58 @@ public class LuceneSourceOperator extends LuceneOperator {
         QueryWarnings singleValueQueryWarnings,
         @Nullable MinCompetitiveQuery.Factory minCompetitive
     ) {
+        this(
+            refCounteds,
+            driverContext,
+            maxPageSize,
+            sliceQueue,
+            limit,
+            limiter,
+            needsScore,
+            directoryBytesRead,
+            singleValueQueryWarnings,
+            minCompetitive,
+            null
+        );
+    }
+
+    /**
+     * See {@link Factory} for {@code minCompetitive} and {@code minCompetitiveScore}.
+     * When {@code minCompetitiveScore} is non-null the {@code sliceQueue} must have been built with
+     * {@link ScoreMode#TOP_SCORES} weights.
+     */
+    @SuppressWarnings("this-escape")
+    public LuceneSourceOperator(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        DriverContext driverContext,
+        int maxPageSize,
+        LuceneSliceQueue sliceQueue,
+        int limit,
+        Limiter limiter,
+        boolean needsScore,
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings,
+        @Nullable MinCompetitiveQuery.Factory minCompetitive,
+        @Nullable MinCompetitiveScore.Factory minCompetitiveScore
+    ) {
         super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
         int estimatedSize = Math.min(limit, maxPageSize);
+        assert minCompetitiveScore == null || needsScore : "min competitive score requires scoring";
         boolean success = false;
         try {
             if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
-                this.leafCollector = new ScoringCollector();
+                this.leafCollector = minCompetitiveScore == null ? new ScoringCollector() : new MinCompetitiveScoringCollector();
             } else {
                 scoreBuilder = null;
                 this.leafCollector = new LimitingCollector();
             }
             this.docIdsPool = new IntArrayPool(blockFactory.breaker());
             this.minCompetitiveQuery = minCompetitive == null ? null : minCompetitive.build(blockFactory);
+            this.minCompetitiveScore = minCompetitiveScore == null ? null : minCompetitiveScore.build(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -440,7 +558,7 @@ public class LuceneSourceOperator extends LuceneOperator {
      */
     class LimitingCollector implements LeafCollector {
         @Override
-        public void setScorer(Scorable scorer) {}
+        public void setScorer(Scorable scorer) throws IOException {}
 
         @Override
         public void collect(int doc) throws IOException {
@@ -513,6 +631,79 @@ public class LuceneSourceOperator extends LuceneOperator {
         // The bulk methods must collect per document so that scoreBuilder stays in sync with docIds. Bulk scorers normally
         // only use them when scores aren't needed, but restoring the per-document loop here keeps this collector correct if
         // one ever does.
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            for (int doc = min; doc < max; doc++) {
+                collect(doc);
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            stream.forEach(this::collect);
+        }
+    }
+
+    /**
+     * How many collected documents between re-reads of the shared min competitive score, the same
+     * interval Lucene's {@code TopScoreDocCollector} uses. It is also re-read on every
+     * {@link LeafCollector#setScorer}, which Lucene calls at the start of every
+     * {@link org.apache.lucene.search.BulkScorer#score} range, so at least once per {@link #getCheckedOutput}.
+     */
+    static final int MIN_COMPETITIVE_SCORE_REFRESH_INTERVAL = 1024;
+
+    /**
+     * Like {@link ScoringCollector} but feeds the downstream TopN's min competitive score back into
+     * Lucene so it can skip documents that can't make the top N. Documents Lucene still collects that
+     * score below the bound are dropped here too: they can't make the top N either and dropping them
+     * saves loading their fields.
+     */
+    final class MinCompetitiveScoringCollector extends LuceneSourceOperator.LimitingCollector {
+        private Scorable scorable;
+        /**
+         * The last value passed to {@link Scorable#setMinCompetitiveScore} on {@link #scorable}, or
+         * {@link MinCompetitiveScore#NO_THRESHOLD} if there hasn't been one yet.
+         */
+        private float minCompetitive = MinCompetitiveScore.NO_THRESHOLD;
+        private int untilRefresh = MIN_COMPETITIVE_SCORE_REFRESH_INTERVAL;
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {
+            if (scorer != scorable) {
+                scorable = scorer;
+                minCompetitive = MinCompetitiveScore.NO_THRESHOLD;
+            }
+            refreshMinCompetitiveScore();
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            float score = scorable.score();
+            if (--untilRefresh == 0) {
+                untilRefresh = MIN_COMPETITIVE_SCORE_REFRESH_INTERVAL;
+                refreshMinCompetitiveScore();
+            }
+            // Strictly less than: a document tied with the bound may still enter the top N.
+            if (score < minCompetitive) {
+                return;
+            }
+            super.collect(doc);
+            scoreBuilder.appendDouble(score);
+        }
+
+        private void refreshMinCompetitiveScore() throws IOException {
+            float current = minCompetitiveScore.minCompetitiveScore();
+            if (current > minCompetitive) {
+                // Lucene requires this to never decrease on a scorer. The check above guarantees that.
+                scorable.setMinCompetitiveScore(current);
+                minCompetitive = current;
+                minCompetitiveScoreUpdates++;
+            }
+        }
+
+        // Per document like ScoringCollector, so that scoreBuilder stays in sync with docIds and every doc is checked
+        // against the bound.
 
         @Override
         public void collectRange(int min, int max) throws IOException {
@@ -655,12 +846,23 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(scoreBuilder, docIdsPool, minCompetitiveQuery);
+        Releasables.close(scoreBuilder, docIdsPool, minCompetitiveQuery, minCompetitiveScore);
+    }
+
+    /**
+     * How many times the min competitive score was raised on a Lucene {@link Scorable}. Visible for testing.
+     */
+    int minCompetitiveScoreUpdates() {
+        return minCompetitiveScoreUpdates;
     }
 
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", remainingDocs = ").append(remainingDocs);
+        if (minCompetitiveScore != null) {
+            // Shows up in the profile. The count is only final once the operator is done.
+            sb.append(", minCompetitiveScoreUpdates = ").append(minCompetitiveScoreUpdates);
+        }
     }
 
     @Override

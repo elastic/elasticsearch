@@ -326,6 +326,20 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Enables feeding the {@code _score} of the least competitive row of a {@code SORT _score DESC}
+     * TopN that couldn't be pushed to Lucene back into Lucene's scorers, so block-max / WAND scoring
+     * can skip documents that can't make the top N. Separate from
+     * {@link #MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED} because this one switches the Lucene
+     * weight to {@code ScoreMode.TOP_SCORES}, a different scoring code path.
+     */
+    public static final Setting<Boolean> MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED = Setting.boolSetting(
+        "esql.min_competitive.score_optimization.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Integer> MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES = Setting.intSetting(
         "esql.min_competitive.global_merge.batch_pages",
         1,
@@ -400,6 +414,7 @@ public class PlannerSettings {
             PARALLEL_OPERATOR_MAX_WORKERS,
             IN_SUBQUERY_HASH_JOIN_THRESHOLD,
             MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
+            MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED,
             MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
             MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
             AGG_PARTITIONING_COUNT_THRESHOLD,
@@ -471,6 +486,10 @@ public class PlannerSettings {
                 v -> settings.updateAndGet(s -> s.minCompetitiveTimestampOptimizationEnabled(v))
             );
             clusterSettings.initializeAndWatch(
+                MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED,
+                v -> settings.updateAndGet(s -> s.minCompetitiveScoreOptimizationEnabled(v))
+            );
+            clusterSettings.initializeAndWatch(
                 MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
                 v -> settings.updateAndGet(s -> s.minCompetitiveGlobalMergeBatchPages(v))
             );
@@ -518,6 +537,7 @@ public class PlannerSettings {
     private final int parallelTopNMaxWorkers;
     private final int inSubqueryHashJoinThreshold;
     private final boolean minCompetitiveTimestampOptimizationEnabled;
+    private final boolean minCompetitiveScoreOptimizationEnabled;
     private final int minCompetitiveGlobalMergeBatchPages;
     private final int minCompetitiveGlobalMergeMaxPendingKeys;
     private final int aggregationPartitioningCountThreshold;
@@ -549,6 +569,7 @@ public class PlannerSettings {
         PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
         IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED.getDefault(Settings.EMPTY),
+        MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS.getDefault(Settings.EMPTY),
         AGG_PARTITIONING_COUNT_THRESHOLD.getDefault(Settings.EMPTY),
@@ -581,6 +602,7 @@ public class PlannerSettings {
         int parallelTopNMaxWorkers,
         int inSubqueryHashJoinThreshold,
         boolean minCompetitiveTimestampOptimizationEnabled,
+        boolean minCompetitiveScoreOptimizationEnabled,
         int minCompetitiveGlobalMergeBatchPages,
         int minCompetitiveGlobalMergeMaxPendingKeys,
         int aggregationPartitioningCountThreshold,
@@ -608,6 +630,7 @@ public class PlannerSettings {
         this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
         this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
         this.minCompetitiveTimestampOptimizationEnabled = minCompetitiveTimestampOptimizationEnabled;
+        this.minCompetitiveScoreOptimizationEnabled = minCompetitiveScoreOptimizationEnabled;
         this.minCompetitiveGlobalMergeBatchPages = minCompetitiveGlobalMergeBatchPages;
         this.minCompetitiveGlobalMergeMaxPendingKeys = minCompetitiveGlobalMergeMaxPendingKeys;
         this.aggregationPartitioningCountThreshold = aggregationPartitioningCountThreshold;
@@ -638,6 +661,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -673,6 +697,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -708,6 +733,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -757,6 +783,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -792,6 +819,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -827,6 +855,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -862,6 +891,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -897,6 +927,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -939,6 +970,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -977,6 +1009,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1015,6 +1048,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1050,6 +1084,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1085,6 +1120,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1120,6 +1156,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1155,6 +1192,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1190,6 +1228,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1225,6 +1264,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1260,6 +1300,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1295,6 +1336,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1330,6 +1372,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1341,6 +1384,42 @@ public class PlannerSettings {
 
     public boolean minCompetitiveTimestampOptimizationEnabled() {
         return minCompetitiveTimestampOptimizationEnabled;
+    }
+
+    public PlannerSettings minCompetitiveScoreOptimizationEnabled(boolean minCompetitiveScoreOptimizationEnabled) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold,
+            tsInfoSampleMinRows,
+            tsInfoSampleLimitMultiplier
+        );
+    }
+
+    public boolean minCompetitiveScoreOptimizationEnabled() {
+        return minCompetitiveScoreOptimizationEnabled;
     }
 
     public PlannerSettings minCompetitiveGlobalMergeBatchPages(int minCompetitiveGlobalMergeBatchPages) {
@@ -1365,6 +1444,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1400,6 +1480,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1435,6 +1516,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1474,6 +1556,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1513,6 +1596,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,
@@ -1548,6 +1632,7 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveScoreOptimizationEnabled,
             minCompetitiveGlobalMergeBatchPages,
             minCompetitiveGlobalMergeMaxPendingKeys,
             aggregationPartitioningCountThreshold,

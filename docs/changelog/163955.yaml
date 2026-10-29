@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 163955
+summary: Omit empty unit from OTLP metrics `_tsid`
+type: bug

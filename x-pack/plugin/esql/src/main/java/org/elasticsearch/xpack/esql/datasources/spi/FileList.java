@@ -163,11 +163,17 @@ public interface FileList {
     long estimatedBytes();
 
     /**
-     * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
-     * list is a prefix of the files the pattern (and any partition filters) matches and {@link #fileCount()} is
-     * a floor, not a total.
+     * Whether listing stopped short of the end of the glob, so this list is a prefix of the files the pattern
+     * (and any partition filters) matches and {@link #fileCount()} is a floor, not a total. Usually that is the
+     * caller's own file-set extent; it is also the node's {@code max_listed_objects} ceiling
+     * ({@code ListingExtents#acceptsPrefix}). One flag covers both because a reader owes a prefix the same care
+     * either way. That ceiling is dynamic and is not part of a listing's address, so this is the first node
+     * setting a cached entry can carry the cut of, and an entry truncated at it can outlive a raised ceiling.
+     * Every reader below re-lists or marks the statistics partial, so it costs a listing rather than an answer.
      * <p>
-     * Only resolution ever asks for a bound. Under inferred {@code first_file_wins} and a declared mapping
+     * Resolution asks for an extent, and so does the scan's first attempt
+     * ({@code FileSplitProvider#listingExtentsForTheDemand}). Under inferred {@code first_file_wins} and a
+     * declared mapping
      * that prefix is of the files this query's filters keep, large enough for one file to define the schema
      * (or, for a declaration, to count files and derive partition columns). Turning a truncated listing into
      * the query's own file set is split discovery's job

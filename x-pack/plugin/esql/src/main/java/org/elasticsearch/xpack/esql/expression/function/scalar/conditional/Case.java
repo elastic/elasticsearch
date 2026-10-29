@@ -267,7 +267,7 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Nullability nullable() {
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override

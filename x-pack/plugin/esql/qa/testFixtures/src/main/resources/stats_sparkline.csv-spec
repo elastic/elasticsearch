@@ -320,3 +320,56 @@ FROM employees
 sparkline:long                            | value:long
 [999, 0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 20
 ;
+
+sparklineAndAggWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(emp_no), birth_date, 10, "1950-01-01T00:00:00Z", "1970-01-01T00:00:00Z"),
+        value = FIRST(emp_no, emp_no)
+;
+
+sparkline:long                                                | value:long
+[0, 0, 8, 11, 8, 4, 5, 4, 7, 9, 8, 8, 6, 7, 4, 1, 0, 0, 0, 0] | 10001
+;
+
+sparklineAndAggWithMultipleInputFieldsAndWhere
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(emp_no), birth_date, 10, "1950-01-01T00:00:00Z", "1970-01-01T00:00:00Z"),
+        value = FIRST(emp_no, salary) WHERE salary > 50000
+;
+
+sparkline:long                                                | value:long
+[0, 0, 8, 11, 8, 4, 5, 4, 7, 9, 8, 8, 6, 7, 4, 1, 0, 0, 0, 0] | 10046
+;
+
+sparklinesWithAggWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline1 = SPARKLINE(FIRST(emp_no, -emp_no), birth_date, 10, "1950-01-01T00:00:00Z", "1970-01-01T00:00:00Z"),
+        sparkline2 = SPARKLINE(FIRST(emp_no, +emp_no), birth_date, 10, "1950-01-01T00:00:00Z", "1970-01-01T00:00:00Z")
+;
+
+sparkline1:long                                                                                                      | sparkline2:long
+[0, 0, 10097, 10100, 10096, 10091, 10099, 10094, 10071, 10087, 10084, 10098, 10086, 10089, 10093, 10095, 0, 0, 0, 0] | [0, 0, 10009, 10001, 10004, 10005, 10014, 10007, 10008, 10003, 10012, 10016, 10027, 10010, 10002, 10095, 0, 0, 0, 0]
+;
+
+sparklineWithAggWithConstantInput
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(STD_DEV(1), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:double
+[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+;
+
+sparklineWithAggWithNullInput
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(STD_DEV(null), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:double
+[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+;

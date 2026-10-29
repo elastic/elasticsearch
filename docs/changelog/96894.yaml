@@ -1,0 +1,5 @@
+pr: 96894
+summary: Create translog snapshot with given an end seq no on phase2
+area: Recovery
+type: enhancement
+issues: []

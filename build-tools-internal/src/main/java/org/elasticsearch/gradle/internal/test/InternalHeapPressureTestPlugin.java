@@ -13,7 +13,6 @@ import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
@@ -29,6 +28,9 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerT
  *
  * <p>Consumers must declare their own compile dependencies (e.g. {@code :test:framework},
  * {@code :test:test-clusters}) on the {@code heapPressureTestImplementation} configuration.
+ *
+ * <p>The {@code heapPressureTest} task is not part of {@code check}, so CI does not run it.
+ * Run it by name, for example {@code ./gradlew :modules:lang-painless:heapPressureTest}.
  */
 public class InternalHeapPressureTestPlugin implements Plugin<Project> {
 
@@ -47,8 +49,6 @@ public class InternalHeapPressureTestPlugin implements Plugin<Project> {
             // Each class runs in its own JVM so heap-constrained clusters are fully isolated.
             task.setForkEvery(1L);
         });
-
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 
         GradleUtils.setupIdeForTestSourceSet(project, sourceSet);
     }

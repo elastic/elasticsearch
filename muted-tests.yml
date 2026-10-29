@@ -563,3 +563,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluateInManyThreads {TestCase=<random tdigest> with random bucket count and long/double bounds}
   issue: https://github.com/elastic/elasticsearch/issues/163887
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testAggregationEmitPartialResultPeriodically
+  issue: https://github.com/elastic/elasticsearch/issues/163688

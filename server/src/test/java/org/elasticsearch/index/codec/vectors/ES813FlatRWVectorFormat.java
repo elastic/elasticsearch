@@ -20,7 +20,7 @@ import org.apache.lucene.util.IORunnable;
 
 import java.io.IOException;
 
-class ES813FlatRWVectorFormat extends ES813FlatVectorFormat {
+public class ES813FlatRWVectorFormat extends ES813FlatVectorFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {

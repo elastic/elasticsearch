@@ -40,7 +40,7 @@ public class ES815BitFlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES813FlatVectorFormat.ES813FlatVectorReader(format.fieldsReader(state));
+        return new ES813FlatVectorFormat.ES813FlatVectorReader(format.fieldsReader(VectorReadHints.scannedBySearches(state)));
     }
 
     @Override

@@ -167,6 +167,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         in.updateIOContext(context);
     }
 
+    @Override
+    public boolean isEfficientFor(IOContext context) {
+        return in.isEfficientFor(context);
+    }
+
     void addBytesRead(long bytes) {
         metricHolder.instance().addBytesRead(bytes);
     }

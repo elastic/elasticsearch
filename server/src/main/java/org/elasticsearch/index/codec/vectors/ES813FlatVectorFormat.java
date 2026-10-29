@@ -23,6 +23,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.DataAccessHint;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,7 +51,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES813FlatVectorReader(format.fieldsReader(state));
+        return new ES813FlatVectorReader(format.fieldsReader(VectorReadHints.scannedBySearches(state)));
     }
 
     @Override
@@ -78,6 +79,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            return reader.getFloatVectorValues(field, access);
+        }
+
+        @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
             return reader.getByteVectorValues(field);
         }
@@ -95,6 +101,16 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
             return reader.getOffHeapByteSize(fieldInfo);
+        }
+
+        @Override
+        public KnnVectorsReader getMergeInstance() throws IOException {
+            return new ES813FlatVectorReader(reader.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            reader.finishMerge();
         }
 
         @Override

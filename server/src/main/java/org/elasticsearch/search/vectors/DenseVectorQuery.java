@@ -33,6 +33,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
@@ -125,6 +126,11 @@ public abstract class DenseVectorQuery extends Query {
      */
     abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
 
+    /** {@link #vectorScorer} reading the vectors with {@code access}. */
+    VectorScorer vectorScorer(LeafReaderContext leafReaderContext, DataAccessHint access) throws IOException {
+        return vectorScorer(leafReaderContext);
+    }
+
     /**
      * Indicates if weight is cacheable given the query. Doc values require a careful override due to them being updatable.
      */
@@ -194,7 +200,9 @@ public abstract class DenseVectorQuery extends Query {
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(get(Long.MAX_VALUE), cost);
+                    // scores every vector of the leaf, so reads them in order
+                    VectorScorer sequentialScorer = query.vectorScorer(context, DataAccessHint.SEQUENTIAL);
+                    return new DenseVectorBulkScorer(new DenseVectorScorer(sequentialScorer, filterIterator, boost), cost);
                 }
 
                 @Override
@@ -259,7 +267,19 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
-            FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
+            return scorer(leafReaderContext, leafReaderContext.reader().getFloatVectorValues(field));
+        }
+
+        @Override
+        VectorScorer vectorScorer(LeafReaderContext leafReaderContext, DataAccessHint access) throws IOException {
+            if (function == null) {
+                // the codec-bound scorer reads the quantized vectors
+                return vectorScorer(leafReaderContext);
+            }
+            return scorer(leafReaderContext, leafReaderContext.reader().getFloatVectorValues(field, access));
+        }
+
+        private VectorScorer scorer(LeafReaderContext leafReaderContext, FloatVectorValues vectorValues) throws IOException {
             if (vectorValues == null) {
                 return null;
             }

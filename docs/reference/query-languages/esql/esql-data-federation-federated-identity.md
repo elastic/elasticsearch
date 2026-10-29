@@ -172,11 +172,9 @@ To create the role with the AWS CLI:
 
 Note the role ARN that AWS returns. You enter it when you [connect the data source](#connect-data-source).
 ::::::
-
-::::::{step} Grant read access and connect
-Continue with [Grant role read access](#grant-role-read-access).
-::::::
 :::::::
+
+Then [grant the role read access](#grant-role-read-access).
 
 ## Grant role read access
 

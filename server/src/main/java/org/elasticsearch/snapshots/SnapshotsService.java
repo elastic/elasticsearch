@@ -589,6 +589,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             allShardCountsListener
         );
         snapshotInfoListener.addListener(ActionListener.wrap(snapshotInfo -> {
+            if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false && snapshotInfo.hasEncryptedData()) {
+                throw new SnapshotException(
+                    targetSnapshot,
+                    "Can't clone snapshot [" + sourceSnapshot + "] because it contains encrypted data, which this cluster does not support"
+                );
+            }
             for (IndexId indexId : indices) {
                 if (RestoreService.failed(snapshotInfo, indexId.getName())) {
                     throw new SnapshotException(

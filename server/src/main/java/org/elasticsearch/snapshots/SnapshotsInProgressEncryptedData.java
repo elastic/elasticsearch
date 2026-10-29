@@ -62,7 +62,13 @@ public final class SnapshotsInProgressEncryptedData extends AbstractNamedDiffabl
             return this;
         }
         final Map<String, SnapshotEncryptedData> updated = new HashMap<>(encryptedData);
-        added.forEach((snapshot, data) -> updated.put(snapshot.getSnapshotId().getUUID(), data));
+        // copy the password so closing the request's instance can't close the one finalization needs
+        added.forEach(
+            (snapshot, data) -> updated.put(
+                snapshot.getSnapshotId().getUUID(),
+                new SnapshotEncryptedData(data.type(), data.password() == null ? null : data.password().clone(), data.passwordId())
+            )
+        );
         return new SnapshotsInProgressEncryptedData(updated);
     }
 

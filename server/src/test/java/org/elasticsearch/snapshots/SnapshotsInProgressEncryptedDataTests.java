@@ -41,6 +41,19 @@ public class SnapshotsInProgressEncryptedDataTests extends ESTestCase {
         assertThat(custom.get(second), equalTo(secondData));
     }
 
+    public void testWithAddedEntriesCopiesPassword() {
+        final Snapshot snapshot = randomSnapshot();
+        final SnapshotEncryptedData requested = randomEncryptedData();
+        final String password = requested.password().toString();
+
+        final SnapshotsInProgressEncryptedData custom = SnapshotsInProgressEncryptedData.EMPTY.withAddedEntries(
+            Map.of(snapshot, requested)
+        );
+        requested.password().close();
+
+        assertThat(custom.get(snapshot).password().toString(), equalTo(password));
+    }
+
     public void testRetainRunning() {
         final Snapshot running = randomSnapshot();
         final Snapshot finished = randomSnapshot();

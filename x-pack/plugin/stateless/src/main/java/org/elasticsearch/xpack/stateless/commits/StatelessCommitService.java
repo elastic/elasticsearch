@@ -150,6 +150,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// Controls uploads of VBCC based on the size. A VBCC that is bigger than the threshold is uploaded after appending the latest commit.
+    /// Size of VBCC does not include copied generational files, see
+    /// [VirtualBatchedCompoundCommit#sizeInBytesExcludingCopiedGenerationalFiles].
+    /// Note that a smaller VBCC can be uploaded based on the `max_commits` and `max_age` settings.
     public static final Setting<ByteSizeValue> STATELESS_UPLOAD_MAX_SIZE = Setting.byteSizeSetting(
         "stateless.upload.max_size",
         ByteSizeValue.ofMb(15),
@@ -445,18 +449,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// completes it.
     ///
     /// @throws AlreadyClosedException if the shard commit state is already closed
-    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        assert assertIndexingBlocked(shardId);
-        getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
+        assert assertIndexingBlocked(shard);
+        getSafe(shardsCommitsStates, shard.shardId()).installUploadBoundListener(uploadBoundListener);
     }
 
-    private boolean assertIndexingBlocked(ShardId shardId) {
-        final var indexService = indicesService.indexService(shardId.getIndex());
-        assert indexService != null : shardId + " index service expected to be non-null";
-        final var shard = indexService.getShardOrNull(shardId.id());
-        assert shard != null : shardId + " shard expected to be non-null";
+    private boolean assertIndexingBlocked(IndexShard shard) {
+        assert shard != null : "shard expected to be non-null";
         assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
-            : shardId + " installUploadBoundListener must be called while holding all operation permits";
+            : shard.shardId() + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }
 
@@ -965,6 +966,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         metrics.recordBccUpload(
             virtualBcc.getTotalSizeInBytes(),
+            virtualBcc.headersSizeInBytes(),
+            virtualBcc.replicatedContentSizeInBytes(),
+            virtualBcc.copiedGenerationalFilesSizeInBytes(),
             virtualBcc.size(),
             threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
             Iterators.map(
@@ -2191,7 +2195,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-            return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
+            return virtualBcc.sizeInBytesExcludingCopiedGenerationalFiles() >= bccUploadMaxSizeInBytes
+                // This check is intended to catch a theoretical "runaway" scenario where copied generational files could accumulate
+                // and produce very large commits.
+                || virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes * 4
                 || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;
         }
 

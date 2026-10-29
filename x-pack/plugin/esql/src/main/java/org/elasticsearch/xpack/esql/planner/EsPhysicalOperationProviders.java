@@ -797,7 +797,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            targetChunkRows
+            targetChunkRows,
+            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold())
         );
     }
 

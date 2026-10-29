@@ -200,7 +200,9 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         protected abstract int docCount();
 
         final void updateCompetitiveIterator() throws IOException {
-            if (hitsThresholdReached == false) {
+            // When a top value is set (search_after), we can build the competitive iterator immediately
+            // because we already know the upper bound and don't need to wait for the hits threshold.
+            if (hitsThresholdReached == false && leafTopSet == false) {
                 return;
             }
             if (leafTopSet == false && queueFull == false) {

@@ -401,8 +401,16 @@ public class FooterCacheScopeIT extends ESRestTestCase {
     private void putDataSource(String name, String endpoint, String accessKey) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-        req.setJsonEntity(Strings.format("""
-            {"type":"s3","settings":{"access_key":"%s","secret_key":"%s","endpoint":"%s"}}""", accessKey, SECRET_KEY, endpoint));
+        req.setJsonEntity(
+            Strings.format(
+                """
+                    {"type":"s3","settings":{"access_key":"%s","secret_key":"%s","endpoint":"%s","region":"%s"}}""",
+                accessKey,
+                SECRET_KEY,
+                endpoint,
+                REGION
+            )
+        );
         Response r = client().performRequest(req);
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
         datasourcesToDelete.add(name);
@@ -412,7 +420,7 @@ public class FooterCacheScopeIT extends ESRestTestCase {
         Request req = new Request("PUT", "/_query/dataset/" + name);
         req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         req.setJsonEntity(Strings.format("""
-            {"data_source":"%s","resource":"%s","settings":{"region":"%s"}}""", dataSource, resource, REGION));
+            {"data_source":"%s","resource":"%s"}""", dataSource, resource));
         Response r = client().performRequest(req);
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
         datasetsToDelete.add(name);

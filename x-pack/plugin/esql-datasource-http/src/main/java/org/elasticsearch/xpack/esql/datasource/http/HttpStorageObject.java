@@ -67,12 +67,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     /**
      * Provider constructor: {@code storageIdentity} is computed once per provider rather than per object.
      */
-    HttpStorageObject(
-        StorageIdentity storageIdentity,
-        HttpClient client,
-        StoragePath path,
-        HttpConfiguration config
-    ) {
+    HttpStorageObject(StorageIdentity storageIdentity, HttpClient client, StoragePath path, HttpConfiguration config) {
         if (storageIdentity == null) {
             throw new IllegalArgumentException("storageIdentity cannot be null");
         }
@@ -99,13 +94,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         this(HttpConfigIdentity.of(config), client, path, config, length);
     }
 
-    HttpStorageObject(
-        StorageIdentity storageIdentity,
-        HttpClient client,
-        StoragePath path,
-        HttpConfiguration config,
-        long length
-    ) {
+    HttpStorageObject(StorageIdentity storageIdentity, HttpClient client, StoragePath path, HttpConfiguration config, long length) {
         this(storageIdentity, client, path, config);
         this.cachedLength = length;
     }

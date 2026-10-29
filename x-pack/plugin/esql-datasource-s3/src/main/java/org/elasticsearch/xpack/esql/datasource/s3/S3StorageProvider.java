@@ -466,7 +466,17 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length, lastModified);
+        return new S3StorageObject(
+            s3Client,
+            s3AsyncClient,
+            asyncReadRetryStrategy,
+            storageIdentity,
+            bucket,
+            key,
+            path,
+            length,
+            lastModified
+        );
     }
 
     @Override

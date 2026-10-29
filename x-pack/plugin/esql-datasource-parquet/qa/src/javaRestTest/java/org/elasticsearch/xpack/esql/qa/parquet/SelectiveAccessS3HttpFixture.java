@@ -61,7 +61,7 @@ public class SelectiveAccessS3HttpFixture extends S3HttpFixture {
      * @param listOnlyKey access key that may only list (null disables the second key tier)
      */
     public SelectiveAccessS3HttpFixture(String bucket, String readerKey, @Nullable String listOnlyKey) {
-        super(true, null, () -> bucket, () -> "", () -> S3ConsistencyModel.STRONG_MPUS, (auth, token) -> true);
+        super(true, null, bucket, "", () -> S3ConsistencyModel.STRONG_MPUS, (auth, token) -> true);
         this.bucket = bucket;
         this.readerKey = readerKey;
         this.listOnlyKey = listOnlyKey;

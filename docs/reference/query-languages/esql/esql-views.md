@@ -9,12 +9,12 @@ products:
 
 # Define reusable queries with {{esql}} views [esql-views]
 
-A view is a virtual index defined by an ES|QL query. It stores the query, not its results. You reference a view by name in the [`FROM`](/reference/query-languages/esql/commands/from.md) command, just like an ordinary index, and {{es}} resolves and runs the query each time the view is referenced. Results always reflect the current data and the current view definition, so when you update a view, every query, dashboard, and alert that references it uses the new definition on its next run.
+A view is a virtual index defined by an {{esql}} query. It stores the query, not its results. You reference a view by name in the [`FROM`](/reference/query-languages/esql/commands/from.md) command, just like an ordinary index, and {{es}} resolves and runs the query each time the view is referenced. Results always reflect the current data and the current view definition, so when you update a view, every query, dashboard, and alert that references it uses the new definition on its next run.
 
 A view has the following components:
 
 * **Name**: used anywhere an index name is accepted in `FROM`. Refer to [](#esql-views-names) for naming rules.
-* **Definition**: a complete ES|QL query that runs each time the view is referenced.
+* **Definition**: a complete {{esql}} query that runs each time the view is referenced.
 * {applies_to}`stack: ga 9.6+` **Description**: optional text that helps identify the view.
 
 ## Basic example
@@ -59,7 +59,7 @@ PUT /_query/view/country_addresses
 
 Views are a good fit when you want to:
 
-* **Reuse a named query.** Wrap a frequently used ES|QL pipeline as a view and reference it by name, instead of repeating the same query in every request.
+* **Reuse a named query.** Wrap a frequently used {{esql}} pipeline as a view and reference it by name, instead of repeating the same query in every request.
 * **Abstract common transformations.** Centralize renames, type conversions, or derived fields so consumers see a consistent set of columns without needing to know the underlying source structure.
 * **Combine pre-processed data sources.** Define one view per source, each with its own filters or aggregations, and query them together in a single `FROM` clause.
 * **Simplify queries for downstream tools.** Dashboards, alerts, or ad-hoc analysts can query `FROM my_view` without needing to know the indices or processing commands behind it.
@@ -223,7 +223,7 @@ serverless: ga
 :applies_to: { "stack": "ga 9.6+", "serverless": "ga" }
 This example requires `wildcards_match_views = true`. By default, wildcards do
 not match views. Refer to [wildcard patterns and views](#esql-views-wildcards)
-and review the [ES|QL view limitations](#esql-views-limitations).
+and review the [{{esql}} view limitations](#esql-views-limitations).
 :::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md
@@ -293,7 +293,7 @@ Results from all sources (indices, views, subqueries) are unioned into a single 
 
 ### Nesting and branching
 
-A view definition can reference another view. This is called a nested view. ES|QL allows nesting to a depth of 10.
+A view definition can reference another view. This is called a nested view. {{esql}} allows nesting to a depth of 10.
 
 When multiple views are referenced within the same index pattern, each view executes independently (in parallel if possible), similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md).
 
@@ -433,17 +433,17 @@ one branch point in the plan.
 
 ## Limitations [esql-views-limitations]
 
-ES|QL views have the following limitations:
+{{esql}} views have the following limitations:
 
 :::{include} _snippets/common/view_limitations.md
 :::
 
 ## Compare views, subqueries, and FORK
 
-For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
+For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse {{esql}} queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
 
 ## Related pages
 
-* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, in `FROM` or with `IN` / `NOT IN`.
+* [{{esql}} subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, in `FROM` or with `IN` / `NOT IN`.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

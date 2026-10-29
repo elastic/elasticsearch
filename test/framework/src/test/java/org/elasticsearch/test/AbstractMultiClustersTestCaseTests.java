@@ -15,23 +15,27 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AbstractMultiClustersTestCaseTests extends AbstractMultiClustersTestCase {
 
-    private static final AtomicBoolean failNextPluginClose = new AtomicBoolean();
+    private static final String REMOTE_CLUSTER = "cluster-a";
+    private static final AtomicReference<Exception> nextPluginCloseFailure = new AtomicReference<>();
 
     @Override
     protected List<String> remoteClusterAlias() {
-        return List.of("cluster-a");
+        return List.of(REMOTE_CLUSTER);
     }
 
     @Override
@@ -40,11 +44,11 @@ public class AbstractMultiClustersTestCaseTests extends AbstractMultiClustersTes
     }
 
     public void testFailedCloseStillClearsClustersAndReportsLeakedPages() throws Exception {
-        failNextPluginClose.set(true);
+        Exception closeFailure = failNextPluginClose();
         new MockPageCacheRecycler(Settings.EMPTY).bytePage(false);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, AbstractMultiClustersTestCase::stopClusters);
-        assertThat(e.getMessage(), equalTo("simulated close failure"));
+        Exception e = expectThrows(Exception.class, AbstractMultiClustersTestCase::stopClusters);
+        assertThat(e, sameInstance(closeFailure));
         assertThat(e.getSuppressed(), arrayWithSize(1));
         assertThat(e.getSuppressed()[0], instanceOf(AssertionError.class));
         assertThat(e.getSuppressed()[0].getMessage(), equalTo("1 pages have not been released"));
@@ -54,10 +58,10 @@ public class AbstractMultiClustersTestCaseTests extends AbstractMultiClustersTes
     }
 
     public void testFailedCloseWithoutLeakedPagesStillClearsClusters() throws Exception {
-        failNextPluginClose.set(true);
+        Exception closeFailure = failNextPluginClose();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, AbstractMultiClustersTestCase::stopClusters);
-        assertThat(e.getMessage(), equalTo("simulated close failure"));
+        Exception e = expectThrows(Exception.class, AbstractMultiClustersTestCase::stopClusters);
+        assertThat(e, sameInstance(closeFailure));
         assertThat(e.getSuppressed(), emptyArray());
 
         assertClustersRestartAndServeRequests();
@@ -97,9 +101,22 @@ public class AbstractMultiClustersTestCaseTests extends AbstractMultiClustersTes
         assertTrue(lastClosed.get());
     }
 
+    /**
+     * Makes the next plugin close throw an {@link IOException} or a {@link RuntimeException}, the failures that
+     * {@code Node#close} collects while still closing the rest of the node. An {@link AssertionError} would stop
+     * {@code Node#close} before it shuts down the node's thread pool, leaking its threads into the suite.
+     */
+    private static Exception failNextPluginClose() {
+        Exception failure = randomBoolean()
+            ? new IOException("simulated close failure")
+            : new IllegalStateException("simulated close failure");
+        nextPluginCloseFailure.set(failure);
+        return failure;
+    }
+
     private void assertClustersRestartAndServeRequests() throws Exception {
         startClusters();
-        for (String clusterAlias : List.of(LOCAL_CLUSTER, "cluster-a")) {
+        for (String clusterAlias : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
             ClusterHealthResponse health = client(clusterAlias).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
             assertThat(health.isTimedOut(), is(false));
         }
@@ -111,10 +128,15 @@ public class AbstractMultiClustersTestCaseTests extends AbstractMultiClustersTes
      */
     public static class FailOnClosePlugin extends Plugin {
         @Override
-        public void close() {
-            if (failNextPluginClose.compareAndSet(true, false)) {
-                throw new IllegalStateException("simulated close failure");
+        public void close() throws IOException {
+            Exception failure = nextPluginCloseFailure.getAndSet(null);
+            if (failure instanceof IOException e) {
+                throw e;
             }
+            if (failure instanceof RuntimeException e) {
+                throw e;
+            }
+            assert failure == null : failure;
         }
     }
 }

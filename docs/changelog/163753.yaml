@@ -1,0 +1,12 @@
+area: ES|QL
+issues:
+ - 162319
+ - 163279
+ - 163280
+ - 162373
+ - 162371
+ - 162369
+ - 159710
+pr: 163753
+summary: Make delta() independent of partial-state merge order
+type: bug

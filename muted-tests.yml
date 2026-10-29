@@ -369,9 +369,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testCsvReadNanosIsolatedBetweenQueries
   issue: https://github.com/elastic/elasticsearch/issues/162715
-- class: org.elasticsearch.search.basic.TransportSearchFailuresIT
-  method: testFailedSearchWithWrongQuery
-  issue: https://github.com/elastic/elasticsearch/issues/162738
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -546,3 +543,8 @@ tests:
   - :server:test
   method: testAllFieldsLoaderReleasesItsReservationWhenItFails
   issue: https://github.com/elastic/elasticsearch/issues/163868
+- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateInManyThreads {TestCase=<random tdigest> with random bucket count and long/double bounds}
+  issue: https://github.com/elastic/elasticsearch/issues/163887

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -71,6 +72,12 @@ public final class HighlightQueryBuilders {
                 String defaultField = HighlightSupport.queryStringDefaultField(queryString);
                 if (defaultField != null) {
                     requireOnField(defaultField, onFields);
+                }
+                // A wildcard in the fields option is resolved against the ON fields when the query is translated
+                for (String field : queryString.fields().keySet()) {
+                    if (Regex.isSimpleMatchPattern(field) == false) {
+                        requireOnField(field, onFields);
+                    }
                 }
             }
             case BinaryLogic binary -> {

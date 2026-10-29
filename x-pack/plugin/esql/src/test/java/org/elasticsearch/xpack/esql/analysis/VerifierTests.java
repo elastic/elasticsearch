@@ -3761,6 +3761,13 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^-0\"]})",
             allOf(containsString("Invalid option [fields]"), containsString("negative boost in [title^-0]"))
         );
+        // Float.parseFloat accepts these, but Lucene's BoostQuery rejects a non-finite boost on the shard
+        for (String boost : List.of("NaN", "Infinity", "1e39")) {
+            fullText().error(
+                "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^" + boost + "\"]})",
+                allOf(containsString("Invalid option [fields]"), containsString("invalid boost in [title^" + boost + "]"))
+            );
+        }
     }
 
     /**
@@ -5441,6 +5448,9 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
         );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE QSTR(\"fox\", {\"fields\": [\"body\"]}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
+        );
     }
 
     /** Query analyzer and values analyzer may differ, exactly like {@code WHERE MATCH}. WITH sets only the values side. */
@@ -5769,6 +5779,12 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"body\", \"title^2\"]}) ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // a wildcard in the fields option is resolved against the ON fields
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"ti*\"]}) ON title");
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"title:fox\" ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))

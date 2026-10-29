@@ -96,7 +96,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         entry(DEFAULT_FIELD_FIELD.getPreferredName(), KEYWORD),
         entry(DEFAULT_OPERATOR_FIELD.getPreferredName(), KEYWORD),
         entry(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), BOOLEAN),
-        // A keyword or a list of keywords. Validated and translated separately by queryStringFields().
+        // A keyword or a list of keywords. Validated and translated separately by fields().
         entry(FIELDS_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZINESS_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
@@ -363,7 +363,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         Map<String, Object> queryStringOptions = new HashMap<>();
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
-            // populateMap converts every value to a single string; the fields are passed to the query by queryStringFields()
+            // populateMap converts every value to a single string; the fields are passed to the query by fields()
             queryStringOptions.remove(FIELDS_FIELD.getPreferredName());
         }
         queryStringOptions.putIfAbsent(
@@ -374,10 +374,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     /**
-     * The {@code fields} option with its boosts, e.g. {@code ["title^2", "body"]}, or an empty map if it isn't set.
-     * It is read from the option literal directly because {@link Options#populateMap} would flatten a list into one string.
+     * The {@code fields} option with its boosts, e.g. {@code ["title^2", "body"]} gives {@code {title=2.0, body=1.0}}, or an
+     * empty map if it isn't set. It is read from the option literal directly because {@link Options#populateMap} would flatten
+     * a list into one string. Boosts that Lucene's {@code BoostQuery} rejects (non-finite or negative) fail here, at
+     * verification, instead of on the shard.
      */
-    private Map<String, Float> queryStringFields() throws InvalidArgumentException {
+    public Map<String, Float> fields() throws InvalidArgumentException {
         if (options() instanceof MapExpression map
             && map.get(FIELDS_FIELD.getPreferredName()) instanceof Literal literal
             && literal.value() != null) {
@@ -391,8 +393,14 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                 } catch (NumberFormatException e) {
                     throw new InvalidArgumentException(invalidFieldsMessage("invalid boost in [{}]", field));
                 }
-                if (parsed.values().stream().anyMatch(boost -> Float.compare(boost, 0f) < 0)) {
-                    throw new InvalidArgumentException(invalidFieldsMessage("negative boost in [{}]", field));
+                for (float boost : parsed.values()) {
+                    // Float.parseFloat accepts NaN, Infinity and values that overflow to Infinity
+                    if (Float.isFinite(boost) == false) {
+                        throw new InvalidArgumentException(invalidFieldsMessage("invalid boost in [{}]", field));
+                    }
+                    if (Float.compare(boost, 0f) < 0) {
+                        throw new InvalidArgumentException(invalidFieldsMessage("negative boost in [{}]", field));
+                    }
                 }
             }
             // parse the whole list at once so duplicate fields are handled the same way as in the query_string query
@@ -410,8 +418,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
      * {@code default_field} aren't both set, which the query_string query rejects.
      */
     private void verifyOptions(Map<String, Object> options) throws InvalidArgumentException {
-        Map<String, Float> fields = queryStringFields();
-        if (fields.isEmpty() == false && options.containsKey(DEFAULT_FIELD_FIELD.getPreferredName())) {
+        if (fields().isEmpty() == false && options.containsKey(DEFAULT_FIELD_FIELD.getPreferredName())) {
             throw new InvalidArgumentException(
                 format(
                     null,
@@ -453,7 +460,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), queryStringFields(), queryStringOptions());
+        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), fields(), queryStringOptions());
     }
 
     @Override

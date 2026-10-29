@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
@@ -138,6 +140,11 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         return new MapExpression(EMPTY, entries);
     }
 
+    /** A list-valued keyword option such as the QSTR {@code fields} option. A keyword literal holds its strings as {@link BytesRef}. */
+    private static List<BytesRef> keywords(String... values) {
+        return Stream.of(values).map(BytesRef::new).toList();
+    }
+
     public void testLiteralDisjunctionOfTerms() {
         BooleanQuery bq = asInstanceOf(BooleanQuery.class, translateLiteral("foo bar"));
         assertThat(bq.clauses(), hasSize(2));
@@ -183,9 +190,26 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         HighlightQueryBuilders.verify(query, TITLE_STANDARD, false, false, null);
     }
 
+    /** An explicit query's {@code fields} option must name ON fields, like {@code default_field}. A wildcard is resolved at translation. */
+    public void testVerifyQueryStringFieldsOptionMustBeOnField() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(
+                queryString("fox", options("fields", keywords("title", "body^2"))),
+                TITLE_STANDARD,
+                true,
+                false,
+                null
+            )
+        );
+        assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
+        HighlightQueryBuilders.verify(queryString("fox", options("fields", keywords("ti*"))), TITLE_STANDARD, true, false, null);
+    }
+
     public void testVerifyImplicitQueryFieldOutsideOnIsLenient() {
         HighlightQueryBuilders.verify(queryString("body:fox", null), TITLE_STANDARD, false, true, null);
         HighlightQueryBuilders.verify(queryString("fox", options("default_field", "body")), TITLE_STANDARD, false, true, null);
+        HighlightQueryBuilders.verify(queryString("fox", options("fields", keywords("body"))), TITLE_STANDARD, false, true, null);
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
         HighlightQueryBuilders.verify(kql, TITLE_STANDARD, false, true, null);
     }
@@ -293,6 +317,23 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         );
     }
 
+    /** The {@code fields} option restricts an unqualified term to those ON fields, as a string, a list, a boost or a wildcard. */
+    public void testQueryStringFieldsOption() {
+        assertThat(
+            terms(translate(queryString("fox", options("fields", "body")), TITLE_BODY)),
+            containsInAnyOrder(new Term("body", "fox"))
+        );
+        assertThat(
+            terms(translate(queryString("fox", options("fields", keywords("body"))), TITLE_BODY)),
+            containsInAnyOrder(new Term("body", "fox"))
+        );
+        assertThat(
+            terms(translate(queryString("fox", options("fields", keywords("title^2", "body"))), TITLE_BODY)),
+            containsInAnyOrder(new Term("title", "fox"), new Term("body", "fox"))
+        );
+        assertThat(terms(translate(queryString("fox", options("fields", "bo*")), TITLE_BODY)), containsInAnyOrder(new Term("body", "fox")));
+    }
+
     public void testAnd() {
         And and = new And(EMPTY, match("title", "fox", null), match("body", "bar", null));
         BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(and, TITLE_BODY));
@@ -348,9 +389,18 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
+    public void testQueryStringFieldsOptionOutsideOnThrows() {
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> translate(queryString("fox", options("fields", keywords("body"))), TITLE)
+        );
+        assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
+    }
+
     public void testFieldsOutsideOnAreMatchNoneInLenientContext() {
         assertThat(translateLenient(queryString("body:fox", null), TITLE), instanceOf(MatchNoDocsQuery.class));
         assertThat(translateLenient(queryString("fox", options("default_field", "body")), TITLE), instanceOf(MatchNoDocsQuery.class));
+        assertThat(translateLenient(queryString("fox", options("fields", keywords("body"))), TITLE), instanceOf(MatchNoDocsQuery.class));
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
         assertThat(translateLenient(kql, TITLE), instanceOf(MatchNoDocsQuery.class));
     }

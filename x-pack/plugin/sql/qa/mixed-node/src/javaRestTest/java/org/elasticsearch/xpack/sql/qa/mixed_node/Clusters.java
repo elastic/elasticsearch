@@ -39,11 +39,10 @@ public class Clusters {
      * Creates a mixed-version cluster with 3 nodes: 2 old version nodes (indices 0, 1) and 1 current version node (index 2).
      */
     public static ElasticsearchCluster mixedVersionCluster() {
-        boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING, isDetachedVersion)) // index 0
-            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING, isDetachedVersion)) // index 1
+            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING)) // index 0
+            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING)) // index 1
             .withNode(node -> node.version(Version.CURRENT)) // index 2
             .setting("xpack.security.enabled", "false")
             .setting("xpack.watcher.enabled", "false")

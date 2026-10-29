@@ -25,9 +25,7 @@ import java.util.Objects;
 
 public class DownsampleShardStatus implements Task.Status {
     public static final String NAME = "rollup-index-shard";
-    static final TransportVersion DOWNSAMPLE_SKIPPED_ALREADY_INDEXED = TransportVersion.fromName(
-        "downsample_skipped_already_indexed"
-    );
+    static final TransportVersion DOWNSAMPLE_SKIPPED_ALREADY_INDEXED = TransportVersion.fromName("downsample_skipped_already_indexed");
     private static final ParseField SHARD_FIELD = new ParseField("shard");
     private static final ParseField START_TIME_FIELD = new ParseField("start_time");
     private static final ParseField IN_NUM_DOCS_RECEIVED_FIELD = new ParseField("in_num_docs_received");

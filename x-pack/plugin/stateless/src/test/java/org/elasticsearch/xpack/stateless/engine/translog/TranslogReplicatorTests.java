@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -56,7 +57,10 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1326,6 +1330,56 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         // If the translog recovery start file has advanced past the missing hole, then we get all the operations
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, operations[0], operations[1]);
+    }
+
+    public void testReplicatorReaderFailsWhenFileChangesWhileReadingHeader() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            mockConsistencyService(),
+            false,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Serialized[] serialized = serializeOperations(generateRandomOperations(1));
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        // After the first byte we break the read by throwing a `BlobVersionMismatchException` and we assert that `TranslogReplicatorReader`
+        // throws as well. We do not want the exception to be swallowed by `TranslogReplicatorReader` in order for the recovery to fail.
+        BlobContainer blobContainer = objectStoreService.getTranslogBlobContainer();
+        doAnswer(invocation -> new FilterInputStream(compoundFiles.get(0).streamInput()) {
+            private int served;
+
+            @Override
+            public int read() throws IOException {
+                byte[] b = new byte[1];
+                return read(b, 0, 1) == -1 ? -1 : b[0] & 0xff;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (served > 0) {
+                    throw new BlobVersionMismatchException(invocation.getArgument(1), "1", null);
+                }
+                int n = super.read(b, off, Math.min(len, 1 - served));
+                served += n;
+                return n;
+            }
+        }).when(blobContainer).readBlob(eq(OperationPurpose.TRANSLOG), any());
+
+        expectThrows(BlobVersionMismatchException.class, () -> new TranslogReplicatorReader(blobContainer, shardId));
     }
 
     public void testReplicatorReaderStopsRecoveringWhenMissingExpectedDirectoryFilesWhenAtTheBeginning() throws IOException {

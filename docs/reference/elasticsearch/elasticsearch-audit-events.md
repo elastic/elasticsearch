@@ -642,7 +642,7 @@ $$$event-tampered-request$$$
 
 $$$event-put-data-source$$$
 `put_data_source` {applies_to}`stack: preview 9.6+`
-:   Logged when the [create or update data source API](../query-languages/esql/esql-data-federation-sources.md#create-or-update-a-data-source) is invoked to create or update a data source at `/_query/data_source/{name}`.
+:   Logged when the [create or update data source API](../query-languages/esql/esql-data-federation-manage-data-sources-api.md#create-or-update-a-data-source) is invoked to create or update a data source at `/_query/data_source/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -659,7 +659,7 @@ $$$event-put-data-source$$$
 
 $$$event-delete-data-source$$$
 `delete_data_source` {applies_to}`stack: preview 9.6+`
-:   Logged when the [delete data source API](../query-languages/esql/esql-data-federation-sources.md#delete-a-data-source) is invoked to delete a data source at `/_query/data_source/{name}`.
+:   Logged when the [delete data source API](../query-languages/esql/esql-data-federation-manage-data-sources-api.md#delete-a-data-source) is invoked to delete a data source at `/_query/data_source/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
 

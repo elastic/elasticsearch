@@ -433,6 +433,8 @@ toc:
           - file: esql/esql-data-federation-quickstart.md
           - file: esql/esql-data-federation-sources.md
             children:
+              - file: esql/esql-data-federation-manage-data-sources-ui.md
+              - file: esql/esql-data-federation-manage-data-sources-api.md
               - file: esql/esql-data-federation-s3.md
                 children:
                   - file: esql/esql-data-federation-static-credentials.md

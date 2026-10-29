@@ -803,7 +803,7 @@ redirects:
       'brace-groups-and-partition-placeholders': 'define-partition-paths'
       'patterns-in-file_exclusions': 'exclude-non-data-objects'
 
-  # ES|QL Data Federation: S3 data source settings split out of the data sources page
+  # ES|QL Data Federation: S3 data source settings, and the UI and API content, split out of the data sources page
   'reference/query-languages/esql/esql-data-federation-sources.md':
     to: 'reference/query-languages/esql/esql-data-federation-sources.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset
@@ -812,6 +812,18 @@ redirects:
         anchors:
           's3': 's3'
           's3-endpoint-requirements': 's3-endpoint-requirements'
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-data-sources-ui.md'
+        anchors:
+          'manage-data-sources-using-the-kibana-ui':
+          'connect-a-new-data-source': 'connect-a-new-data-source'
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-data-sources-api.md'
+        anchors:
+          'manage-data-sources-using-the-api':
+          'create-or-update-a-data-source': 'create-or-update-a-data-source'
+          'get-a-data-source': 'get-a-data-source'
+          'list-all-data-sources': 'list-all-data-sources'
+          'delete-a-data-source': 'delete-a-data-source'
+          'test-a-connection': 'test-a-connection'
 
   # Node-scoped settings moved out of index-settings into configuration-reference.
   # The cluster.routing.allocation.total_shards_per_node setting is now documented

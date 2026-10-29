@@ -244,11 +244,6 @@ gradlePlugin {
         id = 'elasticsearch.docker-image-cache'
         implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerImageCachePlugin'
     }
-    // Deprecated alias of 'elasticsearch.docker-image-cache', kept until downstream builds (e.g. serverless) have migrated
-    cacheTestFixtures {
-        id = 'elasticsearch.cache-test-fixtures'
-        implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerImageCachePlugin'
-    }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'

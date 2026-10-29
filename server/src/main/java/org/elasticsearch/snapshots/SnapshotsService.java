@@ -768,6 +768,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any of the given
     /// [SnapshotsInProgress.Entry] entries.
+    ///
+    /// @param entries The entries to search for ready-to-run shard clones. In practice all callers today pass a value containing entries
+    /// from a single repository.
     private void runReadyShardClonesInEntries(List<SnapshotsInProgress.Entry> entries) {
         for (SnapshotsInProgress.Entry entry : entries) {
             if (entry.isClone() && entry.state() == SnapshotsInProgress.State.STARTED) {

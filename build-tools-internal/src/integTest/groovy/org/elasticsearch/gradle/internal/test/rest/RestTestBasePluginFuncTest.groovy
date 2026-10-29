@@ -98,6 +98,24 @@ class RestTestBasePluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains(":modules:b")
     }
 
+    def "transforms cluster plugin zips into directories for extracted plugins"() {
+        given:
+        pluginProject(":plugins:c", "renamed-c", "org.example.plugins.c.RenamedCPlugin")
+        restConsumerProject([], [":plugins:c"])
+
+        when:
+        def result = gradleRunner(":consumer:resolveClusterArtifacts").build()
+
+        then:
+        def extractedLine = result.output.readLines().find { it.startsWith("RESOLVED_EXTRACTED=") }
+        // The plugin bundle zip is resolved through the extractedPlugins consumer and transformed into a directory.
+        extractedLine != null
+        extractedLine.contains("renamed-c")
+        // Every resolved extracted artifact is a directory (zip->directory transform applied); none left as a raw zip.
+        extractedLine.contains(":true")
+        extractedLine.contains(":false") == false
+    }
+
     private void pluginProject(String projectPath, String pluginName, String classname, List<String> extendedPlugins = []) {
         String extendedPluginsAssignment = extendedPlugins.isEmpty() ? "" : "extendedPlugins = ${asGroovyStringList(extendedPlugins)}"
         subProject(projectPath) << """
@@ -130,14 +148,19 @@ class RestTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
             def clusterModulesConfiguration = configurations.clusterModules
             def clusterPluginsConfiguration = configurations.clusterPlugins
+            def extractedPluginsConfiguration = configurations.extractedPlugins
 
             tasks.register('resolveClusterArtifacts') {
-                inputs.files(clusterModulesConfiguration, clusterPluginsConfiguration)
+                inputs.files(clusterModulesConfiguration, clusterPluginsConfiguration, extractedPluginsConfiguration)
                 doLast {
                     def modules = clusterModulesConfiguration.files.collect { it.name }.sort().join(',')
                     def plugins = clusterPluginsConfiguration.files.collect { it.name }.sort().join(',')
+                    // The extractedPlugins configuration extends clusterPlugins and requests the directory artifact
+                    // type, so resolving it must run the zip->directory UnzipTransform on each bundle zip.
+                    def extracted = extractedPluginsConfiguration.files.collect { "\${it.name}:\${it.directory}" }.sort().join(',')
                     println "RESOLVED_MODULES=\${modules}"
                     println "RESOLVED_PLUGINS=\${plugins}"
+                    println "RESOLVED_EXTRACTED=\${extracted}"
                 }
             }
         """

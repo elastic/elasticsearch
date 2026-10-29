@@ -536,8 +536,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      *     shared, so a document below another shard's minimum score can't make the final top N either. Which shards share
      *     one follows from {@code Sort.equals()}. Sort fields backed by an {@code IndexFieldData.XFieldComparatorSource}
      *     (numeric, date and geo distance sorts) compare by identity, so each shard gets its own manager for those. Keyword
-     *     sorts usually resolve to a plain {@code SortedSetSortField}, which compares by value, so
-     *     {@code SORT _score DESC, keyword_field} shares one manager across shards, like a bare {@code SORT _score DESC}.
+     *     sorts resolve to a {@code SortedSetSortField}, which compares by value, so {@code SORT _score DESC, keyword_field}
+     *     shares one manager across shards, like a bare {@code SORT _score DESC}.
      * </p>
      */
     static class PerShardCollectorProvider {
@@ -629,9 +629,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
         /**
          * Whether collectors for {@code sort} share a minimum competitive score through their {@link TopFieldCollectorManager}.
-         * Mirrors the check in {@code TopFieldCollector}'s constructor, which only enables it when the first comparator is the
-         * relevance comparator in its natural, descending, order, and {@code totalHitsThreshold} isn't {@link Integer#MAX_VALUE}
-         * (we always pass {@code 0}). {@code LuceneTopNSourceOperatorCollectorTests} checks Lucene still behaves this way.
+         * Mirrors the check in {@code TopFieldCollector}'s constructor: the first comparator is the relevance comparator in its
+         * natural, descending, order, and {@code totalHitsThreshold} isn't {@link Integer#MAX_VALUE} (the provider passes
+         * {@code 0}). {@code LuceneTopNSourceOperatorCollectorTests} checks Lucene behaves this way.
          */
         static boolean sharesMinCompetitiveScore(Sort sort) {
             SortField primary = sort.getSort()[0];

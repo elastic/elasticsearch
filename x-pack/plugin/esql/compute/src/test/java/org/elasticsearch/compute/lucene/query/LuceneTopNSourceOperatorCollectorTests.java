@@ -247,9 +247,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Guards the assumption behind {@link LuceneTopNSourceOperator.PerShardCollectorProvider#sharesMinCompetitiveScore}: Lucene
-     * doesn't share a minimum competitive score between collectors of a field-first sort, even when they come from the same
-     * manager. If this starts failing after a Lucene upgrade, field-first sorts may be worth sharing a manager again.
+     * Checks the Lucene behaviour {@link LuceneTopNSourceOperator.PerShardCollectorProvider#sharesMinCompetitiveScore} relies on:
+     * collectors of a field-first sort don't share a minimum competitive score, even when they come from the same manager.
+     * If this fails after a Lucene upgrade, revisit which sorts share a manager.
      */
     public void testLuceneOnlySharesMinCompetitiveScoreForScoreFirstSorts() throws IOException {
         int limit = randomIntBetween(5, 20);
@@ -285,9 +285,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * {@code SORT _score DESC, x} is the only sort that still creates its collectors from a shared
-     * {@link TopFieldCollectorManager}, whose {@code newCollector()} isn't thread-safe. Collectors created concurrently must
-     * all come from that one manager and still share its minimum competitive score.
+     * {@code SORT _score DESC, x} is the only sort whose collectors come from a shared {@link TopFieldCollectorManager}, whose
+     * {@code newCollector()} isn't thread-safe. Collectors created concurrently must all come from that one manager and share
+     * its minimum competitive score.
      */
     public void testConcurrentCollectorsForScoreFirstMultiKeySortShareManager() throws Exception {
         int limit = randomIntBetween(5, 20);
@@ -393,8 +393,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Shards whose sorts are equal by value, which is what {@code SORT _score DESC, keyword_field} usually resolves to, share
-     * one manager.
+     * Shards whose sorts are equal by value, which is what {@code SORT _score DESC, keyword_field} resolves to, share one
+     * manager.
      */
     public void testShardsWithEqualSortsShareManager() throws IOException {
         setupIndex(100);

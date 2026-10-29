@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class ActivitySinkTests extends ESTestCase {
@@ -28,7 +29,8 @@ public class ActivitySinkTests extends ESTestCase {
         var sink = new ActivitySink<TestContext, String>(
             () -> true,
             context -> Optional.of("took " + context.getTookInNanos()),
-            written::add
+            written::add,
+            () -> "test-sink"
         );
 
         sink.accept(new TestContext(42));
@@ -38,7 +40,7 @@ public class ActivitySinkTests extends ESTestCase {
 
     public void testEmptyFromProducerWritesNothing() {
         List<String> written = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, String>(() -> true, context -> Optional.empty(), written::add);
+        var sink = new ActivitySink<TestContext, String>(() -> true, context -> Optional.empty(), written::add, () -> "test-sink");
 
         sink.accept(new TestContext(42));
 
@@ -47,8 +49,9 @@ public class ActivitySinkTests extends ESTestCase {
 
     public void testIsEnabledIsReadEachTime() {
         var enabled = new AtomicBoolean(false);
-        var sink = new ActivitySink<TestContext, String>(enabled::get, context -> Optional.empty(), message -> {});
+        var sink = new ActivitySink<TestContext, String>(enabled::get, context -> Optional.empty(), message -> {}, () -> "test-sink");
 
+        assertThat(sink.toString(), equalTo("test-sink"));
         assertFalse(sink.isEnabled());
         enabled.set(true);
         assertTrue(sink.isEnabled());

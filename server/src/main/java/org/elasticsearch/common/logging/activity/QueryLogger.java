@@ -105,7 +105,12 @@ public class QueryLogger<Context extends QueryCaptureContext> {
         var fieldsContext = new ActionLoggingFieldsContext(true);
         this.additionalFields = fieldsProvider.create(fieldsContext);
         this.systemChecker = systemChecker;
-        this.sink = new ActivitySink<>(this::isEnabled, this::produce, this::write);
+        this.sink = new ActivitySink<>(
+            this::isEnabled,
+            this::produce,
+            this::write,
+            () -> "query_log/" + producer.getClass().getSimpleName()
+        );
         settings.initializeAndWatch(QUERY_LOGGER_ENABLED, v -> enabled = v);
         settings.initializeAndWatch(QUERY_LOGGER_THRESHOLD, v -> threshold = v.nanos());
         settings.initializeAndWatch(QUERY_LOGGER_LEVEL, this::setLogLevel);

@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A downstream consumer of the completed context of an action handled by an {@link ActivityInterceptor}. The query log is one sink,
@@ -31,6 +32,7 @@ import java.util.function.Function;
  * @param <M> the message passed from the producer to the writer
  */
 public final class ActivitySink<C extends ActivityCaptureContext, M> {
+    private final Supplier<String> description;
     private final BooleanSupplier enabled;
     private final Function<C, Optional<M>> producer;
     private final Consumer<M> writer;
@@ -40,11 +42,14 @@ public final class ActivitySink<C extends ActivityCaptureContext, M> {
      *                 typically a volatile read. While no sink is enabled the action is not wrapped at all.
      * @param producer turns the context into a message, or returns empty to skip it
      * @param writer   receives the messages of the producer
+     * @param description describes the sink in {@link #toString()}, which is only used when reporting a failure of the sink, so it
+     *                 is evaluated lazily
      */
-    public ActivitySink(BooleanSupplier enabled, Function<C, Optional<M>> producer, Consumer<M> writer) {
+    public ActivitySink(BooleanSupplier enabled, Function<C, Optional<M>> producer, Consumer<M> writer, Supplier<String> description) {
         this.enabled = enabled;
         this.producer = producer;
         this.writer = writer;
+        this.description = description;
     }
 
     public boolean isEnabled() {
@@ -56,5 +61,10 @@ public final class ActivitySink<C extends ActivityCaptureContext, M> {
      */
     public void accept(C context) {
         producer.apply(context).ifPresent(writer);
+    }
+
+    @Override
+    public String toString() {
+        return description.get();
     }
 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -123,7 +125,7 @@ public class QueryLoggerTests extends ESTestCase {
 
     public void testExtraSinkCalledWhenQueryLogDisabled() {
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, accepted::add);
+        var sink = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, accepted::add, () -> "test-sink");
         var interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink(), sink));
         TestContext context = new TestContext(100);
 
@@ -136,7 +138,7 @@ public class QueryLoggerTests extends ESTestCase {
     public void testExtraSinkAndQueryLogBothCalledWhenEnabled() {
         enableLogger();
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, accepted::add);
+        var sink = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, accepted::add, () -> "test-sink");
         var interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink(), sink));
         TestContext context = new TestContext(100);
         ESLogMessage randomMessage = randomMessage();
@@ -151,7 +153,7 @@ public class QueryLoggerTests extends ESTestCase {
     public void testDisabledExtraSinkIsSkippedWhileQueryLogIsEnabled() {
         enableLogger();
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, TestContext>(() -> false, Optional::of, accepted::add);
+        var sink = new ActivitySink<TestContext, TestContext>(() -> false, Optional::of, accepted::add, () -> "test-sink");
         var interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink(), sink));
         TestContext context = new TestContext(100);
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage()));
@@ -159,6 +161,12 @@ public class QueryLoggerTests extends ESTestCase {
         interceptor.notifySinks(context);
 
         assertTrue(accepted.isEmpty());
+    }
+
+    public void testSinkDescriptionNamesTheProducer() {
+        var queryLogger = new QueryLogger<>(clusterSettings, new SearchLogProducer(), writerProvider, fieldProvider);
+
+        assertThat(queryLogger.sink().toString(), equalTo("query_log/SearchLogProducer"));
     }
 
     private QueryLogger<TestContext> queryLogger() {

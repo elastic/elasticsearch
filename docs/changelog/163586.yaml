@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 163586
+summary: Validate `context_setup` in painless execute API
+type: bug

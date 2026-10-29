@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownConjunctions
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLimitIntoUnionAll;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterIntoInlineJoinAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
@@ -122,6 +123,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        new Batch<>("Push Filters Into Inline Stats", Limiter.ONCE, new PushDownFilterIntoInlineJoinAggregate()),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
         warnings(),

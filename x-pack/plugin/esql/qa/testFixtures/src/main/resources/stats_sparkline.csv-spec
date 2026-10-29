@@ -32,6 +32,46 @@ sparkline:long
 [0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]
 ;
 
+sparklineWithCountAllDateBounds
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, TO_DATETIME("1985-01-01T00:00:00Z"), TO_DATETIME("1985-12-31T00:00:00Z"))
+;
+
+sparkline:long
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+;
+
+sparklineWithIntegerAggregateDateFromKeywordTo
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(MAX(salary), hire_date, 20, TO_DATETIME("1985-01-01T00:00:00Z"), "1985-12-31T00:00:00Z")
+;
+
+sparkline:integer
+[0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]
+;
+
+sparklineWithLongAggregateKeywordFromDateTo
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(SUM(salary), hire_date, 20, "1985-01-01T00:00:00Z", TO_DATETIME("1985-12-31T00:00:00Z"))
+;
+
+sparkline:long
+[0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]
+;
+
+sparklineWithDoubleAggregateDateBounds
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(AVG(salary), hire_date, 20, TO_DATETIME("1985-01-01T00:00:00Z"), TO_DATETIME("1985-12-31T00:00:00Z"))
+;
+
+sparkline:double
+[0.0, 46305.0, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51532.0, 54539.75, 0.0]
+;
+
 
 sparklineWithWeightedAvg
 required_capability: fn_sparkline_duplicate_surrogates

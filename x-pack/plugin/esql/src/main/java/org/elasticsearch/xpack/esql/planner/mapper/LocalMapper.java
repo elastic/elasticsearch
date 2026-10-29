@@ -137,7 +137,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof TsInfo tsInfo) {
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL, tsInfo.limit());
         }
 
         //

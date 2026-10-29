@@ -16,9 +16,8 @@ base {
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+  // Bouncy Castle is only reachable through the relocated ("shadow.org.bouncycastle") classes in the bc subproject, see bc/build.gradle
+  implementation project(path: 'bc', configuration: 'shadow')
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"
@@ -26,10 +25,11 @@ dependencies {
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
-}
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
+  // tests parse the tool's PEM/DER output with the un-relocated Bouncy Castle API; it does not clash with the shadow jar
+  testImplementation "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -42,10 +42,10 @@ tasks.named("test").configure {
 }
 
 if (buildParams.inFipsJvm) {
+  // Disable tests in FIPS mode due to JAR hell between the un-relocated Bouncy Castle used by the tests
+  // and the BC FIPS dependencies added by the FIPS gradle config. The tool itself only uses the relocated
+  // Bouncy Castle from the bc subproject, which does not clash with BC FIPS JARs in ES lib.
   tasks.named("test").configure {
-    enabled = false
-  }
-  tasks.named("jarHell").configure {
     enabled = false
   }
   // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are

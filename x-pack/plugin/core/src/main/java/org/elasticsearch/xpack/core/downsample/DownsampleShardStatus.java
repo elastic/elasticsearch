@@ -24,7 +24,7 @@ import java.util.Objects;
 
 public class DownsampleShardStatus implements Task.Status {
     public static final String NAME = "rollup-index-shard";
-    private static final TransportVersion DOWNSAMPLE_SKIPPED_ALREADY_INDEXED = TransportVersion.fromName(
+    static final TransportVersion DOWNSAMPLE_SKIPPED_ALREADY_INDEXED = TransportVersion.fromName(
         "downsample_skipped_already_indexed"
     );
     private static final ParseField SHARD_FIELD = new ParseField("shard");
@@ -231,6 +231,10 @@ public class DownsampleShardStatus implements Task.Status {
         this.downsampleBeforeBulkInfo = downsampleBeforeBulkInfo;
         this.downsampleAfterBulkInfo = downsampleAfterBulkInfo;
         this.downsampleShardIndexerStatus = downsampleShardIndexerStatus;
+    }
+
+    public long getNumSkippedAlreadyIndexed() {
+        return numSkippedAlreadyIndexed;
     }
 
     public static DownsampleShardStatus fromXContent(XContentParser parser) throws IOException {

@@ -1,0 +1,5 @@
+area: Cluster Coordination
+issues: []
+pr: 151003
+summary: Normalize file-based seed host entries
+type: bug

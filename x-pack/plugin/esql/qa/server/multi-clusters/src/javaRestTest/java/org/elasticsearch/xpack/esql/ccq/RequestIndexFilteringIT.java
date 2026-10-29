@@ -21,6 +21,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -155,10 +156,10 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         return version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0));
     }
 
-    // The local cluster receives the request and could be older than the test runner.
+    // The query does not involve remote clusters, so only the local one, which coordinates the request, matters.
     @Override
-    protected boolean detectsMissingIndexDuringResolution() {
-        return Clusters.localClusterVersion().equals(Version.CURRENT);
+    protected boolean detectsMissingIndexDuringResolution() throws IOException {
+        return minimumTransportVersion().supports(IndexResolver.VERIFY_PARTIAL_RESOLUTION);
     }
 
     @Override
@@ -212,7 +213,10 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         assertThat(isPartial, is(true));
         // The coordinator detects the missing index during index resolution, before the plan is analyzed.
         // Older coordinators and remotes only report it while executing the plan.
-        boolean detectedDuringResolution = Clusters.detectsMissingRemoteIndexDuringResolution();
+        boolean detectedDuringResolution = Clusters.detectsMissingRemoteIndexDuringResolution(
+            minimumTransportVersion(),
+            minimumTransportVersion(remoteClient)
+        );
         var expectedReason = detectedDuringResolution ? "Unknown index [remote_cluster:foo]" : "no such index [foo]";
         assertThat(
             result,

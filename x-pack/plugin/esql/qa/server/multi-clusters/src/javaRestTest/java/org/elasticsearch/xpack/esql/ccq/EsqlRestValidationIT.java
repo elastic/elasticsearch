@@ -87,8 +87,11 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
 
     // All patterns in this test are remote ones.
     @Override
-    protected boolean detectsMissingIndexDuringResolution() {
-        return Clusters.detectsMissingRemoteIndexDuringResolution();
+    protected boolean detectsMissingIndexDuringResolution() throws IOException {
+        return Clusters.detectsMissingRemoteIndexDuringResolution(
+            minimumTransportVersion(),
+            minimumTransportVersion(remoteClusterClient())
+        );
     }
 
     @Override

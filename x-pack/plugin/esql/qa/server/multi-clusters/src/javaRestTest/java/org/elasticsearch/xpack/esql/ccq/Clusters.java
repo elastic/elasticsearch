@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -15,6 +17,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -188,13 +191,12 @@ public class Clusters {
     }
 
     /**
-     * Whether a missing remote index is reported during index resolution. That needs a current coordinator and a
-     * remote that returns the resolved index expressions in field caps, which it does as of 9.3.0. Otherwise the
+     * Whether a missing remote index is reported during index resolution. That needs a coordinator that verifies
+     * partial resolution and a remote that returns the resolved index expressions in field caps. Otherwise the
      * missing index is only reported by the remote while executing the plan.
      */
-    public static boolean detectsMissingRemoteIndexDuringResolution() {
-        return localClusterVersion().equals(org.elasticsearch.Version.CURRENT)
-            && remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_3_0);
+    public static boolean detectsMissingRemoteIndexDuringResolution(TransportVersion local, TransportVersion remote) {
+        return local.supports(IndexResolver.VERIFY_PARTIAL_RESOLUTION) && remote.supports(FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS);
     }
 
     public static org.elasticsearch.Version bwcVersion() {

@@ -106,14 +106,15 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
     }
 
     /**
-     * Whether the cluster that receives the request fails on a missing concrete index during index resolution
-     * ({@code 400 verification_exception}). Older versions fail later with {@code 404 index_not_found_exception}.
+     * Whether a missing concrete index fails during index resolution ({@code 400 verification_exception}).
+     * A coordinator without {@link org.elasticsearch.xpack.esql.session.IndexResolver#VERIFY_PARTIAL_RESOLUTION}
+     * fails later with {@code 404 index_not_found_exception}.
      */
-    protected boolean detectsMissingIndexDuringResolution() {
+    protected boolean detectsMissingIndexDuringResolution() throws IOException {
         return true;
     }
 
-    private void assertMissingConcreteIndexError(String indexName) {
+    private void assertMissingConcreteIndexError(String indexName) throws IOException {
         if (detectsMissingIndexDuringResolution()) {
             assertError(indexName, 400, "Unknown index [" + clusterSpecificIndexName("inexistent") + "]");
         } else {

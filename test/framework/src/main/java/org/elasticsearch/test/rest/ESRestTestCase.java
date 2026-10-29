@@ -2738,7 +2738,14 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Returns the minimum transport version among all nodes of the cluster
      */
     protected static TransportVersion minimumTransportVersion() throws IOException {
-        Response response = client.performRequest(new Request("GET", "_nodes"));
+        return minimumTransportVersion(client);
+    }
+
+    /**
+     * Returns the minimum transport version among all nodes of the cluster the given client is connected to
+     */
+    protected static TransportVersion minimumTransportVersion(RestClient restClient) throws IOException {
+        Response response = restClient.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
 

@@ -86,6 +86,8 @@ public class IndexResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
 
+    public static final TransportVersion VERIFY_PARTIAL_RESOLUTION = TransportVersion.fromName("esql_verify_partial_resolution");
+
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
 

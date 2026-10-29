@@ -22,7 +22,7 @@ public final class ReplaceTrivialTypeConversions extends OptimizerRules.Optimize
     @Override
     protected LogicalPlan rule(Eval eval) {
         return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {
-            if (convert.field() instanceof FieldAttribute fa && convert.isNoop()) {
+            if (convert.field() instanceof FieldAttribute fa && fa.dataType() == convert.dataType()) {
                 return fa;
             }
             return convert;

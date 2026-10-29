@@ -353,6 +353,7 @@ public class KnnIndexTester {
                         graphDegree,
                         intermediateGraphDegree,
                         args.onDiskRescore(),
+                        args.flatVectorThreshold(),
                         args.onDiskMerge()
                     );
                     case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);

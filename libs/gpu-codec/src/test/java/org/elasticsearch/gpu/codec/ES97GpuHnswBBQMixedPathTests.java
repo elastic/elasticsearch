@@ -48,6 +48,7 @@ public class ES97GpuHnswBBQMixedPathTests extends ESBaseKnnVectorsFormatTestCase
                 DEFAULT_MAX_CONN,
                 DEFAULT_BEAM_WIDTH,
                 false,
+                0,
                 false
             )
         );

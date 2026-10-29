@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat.BBQ_HNSW_GRAPH_THRESHOLD;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 /**
@@ -37,6 +38,9 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * <p>
  * Unlike {@link ES92GpuHnswSQVectorsFormat}, the graph is always built from the raw float32 vectors:
  * 1-bit codes with per-vector corrective terms can't be used directly as a CAGRA dataset.
+ * <p>
+ * Like the CPU format, it skips the graph for small segments, see
+ * {@link ES93HnswBinaryQuantizedVectorsFormat#BBQ_HNSW_GRAPH_THRESHOLD}.
  */
 public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
     public static final String NAME = ES93HnswBinaryQuantizedVectorsFormat.NAME;
@@ -44,6 +48,7 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
     static final int MAXIMUM_BEAM_WIDTH = 3200;
     private final int maxConn;
     private final int beamWidth;
+    private final int hnswGraphThreshold;
 
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
@@ -57,21 +62,31 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             false,
+            -1,
             false
         );
     }
 
     public ES97GpuHnswBBQVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth, false, false);
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth, false, -1, false);
     }
 
     /**
      * @param useDirectIO whether to use direct IO when reading raw vectors (the field's {@code on_disk_rescore} option)
+     * @param hnswGraphThreshold the minimum expected search cost before building an HNSW graph (the field's
+     *                           {@code flat_index_threshold} option); if negative, use the default
      * @param onDiskMerge whether merges read the source raw vectors with direct I/O (the field's {@code on_disk_merge} option);
      *                    the merged raw vectors are always written through the page cache
      */
-    public ES97GpuHnswBBQVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth, boolean useDirectIO, boolean onDiskMerge) {
-        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth, useDirectIO, onDiskMerge);
+    public ES97GpuHnswBBQVectorsFormat(
+        long totalDeviceMemory,
+        int maxConn,
+        int beamWidth,
+        boolean useDirectIO,
+        int hnswGraphThreshold,
+        boolean onDiskMerge
+    ) {
+        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth, useDirectIO, hnswGraphThreshold, onDiskMerge);
     }
 
     ES97GpuHnswBBQVectorsFormat(
@@ -80,6 +95,7 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
         int maxConn,
         int beamWidth,
         boolean useDirectIO,
+        int hnswGraphThreshold,
         boolean onDiskMerge
     ) {
         super(NAME);
@@ -97,6 +113,7 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
+        this.hnswGraphThreshold = hnswGraphThreshold >= 0 ? hnswGraphThreshold : BBQ_HNSW_GRAPH_THRESHOLD;
         // merges write the raw vectors through the page cache even with on_disk_merge: the writer reads the merged
         // raw vectors straight back (mmapped) to build the graph on GPU, and a direct write would make that read cold
         this.flatVectorsFormat = ES93BinaryQuantizedVectorsFormat.withBufferedMergeWrites(
@@ -115,7 +132,8 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
             maxConn,
             beamWidth,
             flatVectorsFormat,
-            flatVectorsFormat.fieldsWriter(state)
+            flatVectorsFormat.fieldsWriter(state),
+            hnswGraphThreshold
         );
     }
 
@@ -138,6 +156,7 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
             + maxConn
             + ", beamWidth="
             + beamWidth
+            + (hnswGraphThreshold > 0 ? ", hnswGraphThreshold=" + hnswGraphThreshold : "")
             + ", flatVectorFormat="
             + flatVectorsFormat
             + ")";

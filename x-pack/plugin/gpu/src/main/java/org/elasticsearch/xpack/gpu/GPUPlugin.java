@@ -235,6 +235,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
                 ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction),
                 bbqHnswIndexOptions.onDiskRescore(),
+                bbqHnswIndexOptions.flatIndexThreshold(),
                 bbqHnswIndexOptions.isOnDiskMerge()
             );
         } else {

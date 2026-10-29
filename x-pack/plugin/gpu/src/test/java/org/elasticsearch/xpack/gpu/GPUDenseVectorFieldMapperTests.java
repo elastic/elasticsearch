@@ -72,7 +72,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     public void testKnnBBQHNSWVectorsFormat() throws IOException {
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("bbq_hnsw");
         String expectedStr = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, "
-            + "maxConn=12, beamWidth=22, flatVectorFormat=ES93BinaryQuantizedVectorsFormat";
+            + "maxConn=12, beamWidth=22, hnswGraphThreshold=300, flatVectorFormat=ES93BinaryQuantizedVectorsFormat";
         assertThat(knnVectorsFormat, instanceOf(ES97GpuHnswBBQVectorsFormat.class));
         assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
     }

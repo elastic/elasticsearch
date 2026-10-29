@@ -128,15 +128,17 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
                 VectorUtil.l2normalize(vector);
             }
         }
+        // both formats skip the graph for small segments the same way: the default threshold skips it at these sizes
+        int hnswGraphThreshold = randomFrom(-1, 0, randomIntBetween(1, 20));
         var gpuFormat = new ES97GpuHnswBBQVectorsFormat(
             () -> new NullResourceManager(),
             0L,
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             false,
+            hnswGraphThreshold,
             false
         );
-        // hnswGraphThreshold=0 to always build a graph, as the GPU writer does
         var luceneFormat = new ES93HnswBinaryQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
@@ -144,7 +146,7 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
             false,
             1,
             null,
-            0,
+            hnswGraphThreshold,
             false
         );
 

@@ -17,6 +17,8 @@
                 similarity: l2_norm
                 index_options:
                   type: bbq_hnsw
+                  # build the graph (on GPU) even for these tiny segments
+                  flat_index_threshold: 0
           settings:
             index.number_of_shards: 1
             index.refresh_interval: -1

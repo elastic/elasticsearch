@@ -534,10 +534,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      * <p>
      *     A shared manager may span shards. That is safe because {@code limit} is the global limit and only the score is
      *     shared, so a document below another shard's minimum score can't make the final top N either. Which shards share
-     *     one follows from {@code Sort.equals()}. Sort fields backed by an {@code IndexFieldData.XFieldComparatorSource}
-     *     (numeric, date and geo distance sorts) compare by identity, so each shard gets its own manager for those. Keyword
-     *     sorts resolve to a {@code SortedSetSortField}, which compares by value, so {@code SORT _score DESC, keyword_field}
-     *     shares one manager across shards, like a bare {@code SORT _score DESC}.
+     *     one follows from {@code Sort.equals()}. A sort field backed by an {@code IndexFieldData.XFieldComparatorSource}
+     *     compares by identity, so each shard gets its own manager; numeric, date and geo distance sorts build those. A
+     *     {@code SortedSetSortField} or {@code BinarySortField} compares by value, so shards share one; keyword sorts build
+     *     those, so {@code SORT _score DESC, keyword_field} shares one manager across shards, like a bare
+     *     {@code SORT _score DESC}.
      * </p>
      */
     static class PerShardCollectorProvider {

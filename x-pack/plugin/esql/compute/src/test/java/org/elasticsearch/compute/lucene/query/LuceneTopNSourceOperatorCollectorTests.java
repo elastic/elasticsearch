@@ -582,9 +582,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
      * Resolves sorts against the test index. Score sorts match what {@link ScoreSortBuilder} builds exactly: a descending one
      * becomes {@link SortField#FIELD_SCORE} (so a lone one is {@link Sort#RELEVANCE}), an ascending one a reversed score field.
      * Field sorts become {@link #FIELD_SORT}, a value-equal {@link SortedNumericSortField}. That is what a keyword sort looks
-     * like on a real shard (a value-equal {@code SortedSetSortField}). Numeric, date and geo distance sorts build a
-     * {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource} instead, which compares by identity, and
-     * {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
+     * like on a real shard (a value-equal {@code SortedSetSortField} or {@code BinarySortField}). Numeric, date and geo
+     * distance sorts build a {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource} instead, which compares
+     * by identity, and {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
      */
     private static Sort resolveSort(List<SortBuilder<?>> sorts) {
         SortField[] fields = new SortField[sorts.size()];

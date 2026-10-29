@@ -85,10 +85,10 @@ public final class QuerySettings {
         since = "9.4+",
         description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
             + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones).\n\n"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a timezone, the "
             + "`esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured "
-            + "either, the timezone is UTC. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "either, the timezone is UTC."
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
@@ -145,10 +145,10 @@ public final class QuerySettings {
           - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
             `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
 
+        {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         The default itself is configurable. If a query does not specify a value, the
         `esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
         either, the value is `DEFAULT`.
-        {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
@@ -181,10 +181,10 @@ public final class QuerySettings {
         description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
             + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
             + " and contains bucket interval and unit for queries where it can be determined.\n\n"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.column_metadata` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
         .withDefault(Boolean.FALSE)
@@ -206,8 +206,7 @@ public final class QuerySettings {
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_DATASETS = QuerySettingDef.bool("wildcards_match_datasets")
         .withDefault(Boolean.FALSE)
@@ -219,19 +218,18 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: preview\nstack: experimental 9.6+",
+        since = "9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "{applies_to}`{\"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"preview\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)
         .withClusterDefault()
-        .withPreview()
         .withRequestBody()
         .build();
 
@@ -242,11 +240,11 @@ public final class QuerySettings {
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings.\n\n"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "
             + "configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise "
-            + "license; without one the cluster default does not apply and queries run exactly. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "license; without one the cluster default does not apply and queries run exactly."
     )
     @MapParam(
         name = "approximation",
@@ -297,6 +295,12 @@ public final class QuerySettings {
                 name = "limit",
                 type = { "integer" },
                 description = "Maximum number of exemplars to return. Without it the default limit of a regular query applies."
+            ),
+            @MapParam.MapParamEntry(
+                name = "include_timeseries",
+                type = { "boolean" },
+                description = "When enabled, a `_timeseries` column is returned, holding the dimensions that identify the series each"
+                    + " exemplar belongs to. Defaults to `false`."
             ) }
     )
     public static final QuerySettingDef<ExemplarsSettings> EXEMPLARS = QuerySettingDef.object(

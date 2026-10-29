@@ -186,7 +186,7 @@ public class ExtractorTests extends ESTestCase {
                             new TestCase(
                                 "doc that left its node",
                                 e,
-                                new DocVectorEncoder(new DocOriginTable(NoopCircuitBreaker.INSTANCE)),
+                                DocVectorEncoder.detached().withOrigins(new DocOriginTable(NoopCircuitBreaker.INSTANCE)),
                                 false,
                                 () -> RandomBlock.randomDetachedDocBlock(blockFactory, 1, between(1, 3)).block(),
                                 b -> {

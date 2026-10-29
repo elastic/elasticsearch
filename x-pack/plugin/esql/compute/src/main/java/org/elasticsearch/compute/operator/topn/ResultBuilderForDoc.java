@@ -127,7 +127,7 @@ class ResultBuilderForDoc implements ResultBuilder {
 
     /**
      * Numbers the origins of one block in the order its rows first reference them. TopN builds a block for every output
-     * page, so the memory here follows the origins the page references rather than every origin of the query.
+     * page, so the memory here follows the origins the page references rather than every origin the operator saw.
      */
     private static final class BlockOrigins implements Releasable {
         private final DocOriginTable table;
@@ -145,7 +145,7 @@ class ResultBuilderForDoc implements ResultBuilder {
         }
 
         /**
-         * The ordinal of the block's dictionary for the origin numbered {@code tableOrdinal} in the table of the query.
+         * The ordinal of the block's dictionary for the origin numbered {@code tableOrdinal} in the table of the operator.
          */
         int blockOrdinal(int tableOrdinal) {
             long ordinal = blockOrdinals.add(tableOrdinal);

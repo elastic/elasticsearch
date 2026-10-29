@@ -17,7 +17,13 @@ import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DocVectorEncoderTests extends ComputeTestCase {
     /**
@@ -37,7 +43,7 @@ public class DocVectorEncoderTests extends ComputeTestCase {
                 DocVector.config()
             ).asBlock()
         ) {
-            TopNEncoder withTable = new DocVectorEncoder(table);
+            TopNEncoder withTable = DocVectorEncoder.detached().withOrigins(table);
             IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> ValueExtractor.extractorFor(ElementType.DOC, withTable, false, local)
@@ -51,6 +57,46 @@ public class DocVectorEncoderTests extends ComputeTestCase {
             );
             assertThat(e.getMessage(), equalTo("expected an attached DocVector"));
         }
+    }
+
+    /**
+     * The plan marks detached columns without a table. Only an operator can number their origins.
+     */
+    public void testDetachedColumnsNeedTheTableOfAnOperator() {
+        BlockFactory blockFactory = blockFactory();
+        try (DocBlock detached = (DocBlock) RandomBlock.randomDetachedDocBlock(blockFactory, 1, 1).block()) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> ValueExtractor.extractorFor(ElementType.DOC, DocVectorEncoder.detached(), false, detached)
+            );
+            assertThat(e.getMessage(), equalTo("detached [_doc] columns need the origin table of their operator"));
+            e = expectThrows(
+                IllegalStateException.class,
+                () -> ResultBuilder.resultBuilderFor(blockFactory, ElementType.DOC, DocVectorEncoder.detached(), false, 1)
+            );
+            assertThat(e.getMessage(), equalTo("detached [_doc] columns need the origin table of their operator"));
+        }
+    }
+
+    /**
+     * An operator binds the detached columns of the plan to its own table and keeps every other encoder.
+     */
+    public void testOperatorBindsOnlyDetachedColumns() {
+        DocVectorEncoder attached = new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE);
+        List<TopNEncoder> planned = List.of(TopNEncoder.DEFAULT_SORTABLE, attached, DocVectorEncoder.detached());
+        try (DocOriginTable table = DocVectorEncoder.originTableFor(planned, blockFactory().breaker())) {
+            assertThat(table, notNullValue());
+            List<TopNEncoder> bound = DocVectorEncoder.withOrigins(planned, table);
+            assertThat(bound.get(0), sameInstance(TopNEncoder.DEFAULT_SORTABLE));
+            assertThat(bound.get(1), sameInstance(attached));
+            assertThat(bound.get(2), not(sameInstance(DocVectorEncoder.detached())));
+            assertThat(((DocVectorEncoder) bound.get(2)).origins(), sameInstance(table));
+        }
+    }
+
+    public void testNoTableWithoutDetachedColumns() {
+        List<TopNEncoder> planned = List.of(TopNEncoder.DEFAULT_SORTABLE, new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE));
+        assertThat(DocVectorEncoder.originTableFor(planned, blockFactory().breaker()), nullValue());
     }
 
     public void testNullBlocksCantStandInForDocuments() {

@@ -17,12 +17,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Numbers the origins of the documents of one query, so an operator that keeps rows across pages, like a TopN, can store
- * the origin of a row as an int and give the row its origin back later. The pages come from many nodes, and each has
- * its own dictionary of origins, so the numbers of one page mean nothing for the next.
+ * Numbers the origins of the documents an operator keeps across pages, like a TopN, so it can store the origin of a row
+ * as an int and give the row its origin back later. The pages come from many nodes, and each has its own dictionary of
+ * origins, so the numbers of one page mean nothing for the next.
  * <p>
- * The table only grows, by the origins rows bring, and lives until the query ends. Its memory is accounted on the breaker
- * it gets, and {@link #close} returns it.
+ * Not thread safe. One operator owns the table and uses it from the thread that runs the operator. The table only grows,
+ * by the origins rows bring, and lives as long as its operator. Its memory is accounted on the breaker it gets, and the
+ * operator returns it with {@link #close}.
  */
 public final class DocOriginTable implements Releasable {
     /**
@@ -35,7 +36,6 @@ public final class DocOriginTable implements Releasable {
     private final Map<DocOrigin, Integer> ordinals = new HashMap<>();
     private final List<DocOrigin> origins = new ArrayList<>();
     private long reserved;
-    private boolean closed;
 
     public DocOriginTable(CircuitBreaker breaker) {
         this.breaker = breaker;
@@ -43,17 +43,11 @@ public final class DocOriginTable implements Releasable {
 
     /**
      * The number of {@code origin}, numbered now if it is new.
-     *
-     * @throws IllegalStateException if the origin is new and the table is closed
      */
-    public synchronized int ordinal(DocOrigin origin) {
+    public int ordinal(DocOrigin origin) {
         Integer existing = ordinals.get(origin);
         if (existing != null) {
             return existing;
-        }
-        if (closed) {
-            // a driver that outlives the query must not reserve bytes nobody returns
-            throw new IllegalStateException("the document origin table is closed");
         }
         long bytes = origin.ramBytesUsed() + ENTRY_OVERHEAD;
         breaker.addEstimateBytesAndMaybeBreak(bytes, "esql document origins");
@@ -67,20 +61,19 @@ public final class DocOriginTable implements Releasable {
     /**
      * The origin numbered {@code ordinal}.
      */
-    public synchronized DocOrigin get(int ordinal) {
+    public DocOrigin get(int ordinal) {
         return origins.get(ordinal);
     }
 
     /**
      * The bytes the table holds on its breaker.
      */
-    public synchronized long ramBytesUsed() {
+    public long ramBytesUsed() {
         return reserved;
     }
 
     @Override
-    public synchronized void close() {
-        closed = true;
+    public void close() {
         breaker.addWithoutBreaking(-reserved);
         reserved = 0;
     }

@@ -18,7 +18,7 @@ import java.util.Arrays;
 
 /**
  * Writes the shard, segment and doc of a row. For rows that left their node the shard is the number of the row's origin
- * in the {@link DocOriginTable} of the query, because the ordinals of a page's dictionary mean nothing for the next page.
+ * in the {@link DocOriginTable} of the operator, because the ordinals of a page's dictionary mean nothing for the next page.
  */
 class ValueExtractorForDoc implements ValueExtractor {
     private final DocVector vector;

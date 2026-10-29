@@ -177,7 +177,14 @@ public class ResultBuilderForDocTests extends ComputeTestCase {
             int[] referenced = distinctTableOrdinals(LARGE_TABLE_ORIGIN_COUNT, between(1, 5));
             int[] tableOrdinals = IntStream.range(0, between(1, 100)).map(r -> referenced[between(0, referenced.length - 1)]).toArray();
             Block block;
-            try (ResultBuilderForDoc builder = decode(blockFactory(), new DocVectorEncoder(table), tableOrdinals, tableOrdinals.length)) {
+            try (
+                ResultBuilderForDoc builder = decode(
+                    blockFactory(),
+                    DocVectorEncoder.detached().withOrigins(table),
+                    tableOrdinals,
+                    tableOrdinals.length
+                )
+            ) {
                 block = builder.build();
             }
             try (block) {
@@ -210,7 +217,7 @@ public class ResultBuilderForDocTests extends ComputeTestCase {
             DocOriginTable table = tableOf(LARGE_TABLE_ORIGIN_COUNT);
             ResultBuilderForDoc builder = decode(
                 detachedBlockFactory,
-                new DocVectorEncoder(table),
+                DocVectorEncoder.detached().withOrigins(table),
                 new int[] { LARGE_TABLE_ORIGIN_COUNT - 1 },
                 1
             )
@@ -240,7 +247,12 @@ public class ResultBuilderForDocTests extends ComputeTestCase {
         Block block;
         try (
             DocOriginTable table = tableOf(originCount);
-            ResultBuilderForDoc builder = decode(blockFactory(), new DocVectorEncoder(table), tableOrdinals, tableOrdinals.length)
+            ResultBuilderForDoc builder = decode(
+                blockFactory(),
+                DocVectorEncoder.detached().withOrigins(table),
+                tableOrdinals,
+                tableOrdinals.length
+            )
         ) {
             detachedEstimatedBytes = builder.estimatedBytes();
             block = builder.build();
@@ -259,7 +271,7 @@ public class ResultBuilderForDocTests extends ComputeTestCase {
         int originCount = between(1, 1000);
         try (DocOriginTable table = tableOf(originCount)) {
             int[] tableOrdinals = IntStream.range(0, between(1, 100)).map(r -> between(0, originCount - 1)).toArray();
-            decode(blockFactory(), new DocVectorEncoder(table), tableOrdinals, tableOrdinals.length).close();
+            decode(blockFactory(), DocVectorEncoder.detached().withOrigins(table), tableOrdinals, tableOrdinals.length).close();
         }
         allBreakersEmpty();
     }
@@ -271,7 +283,7 @@ public class ResultBuilderForDocTests extends ComputeTestCase {
     public void testDetachedDecodeBreaks() throws Exception {
         int originCount = 1000;
         try (DocOriginTable table = tableOf(originCount)) {
-            DocVectorEncoder encoder = new DocVectorEncoder(table);
+            DocVectorEncoder encoder = DocVectorEncoder.detached().withOrigins(table);
             // Decode more rows than the builder has room for so it has to grow. It always has room for at least two rows.
             int[] tableOrdinals = distinctTableOrdinals(originCount, between(3, 100));
             int positions = between(1, tableOrdinals.length - 1);
@@ -307,7 +319,7 @@ public class ResultBuilderForDocTests extends ComputeTestCase {
     public void testDetachedBuildBreaks() throws Exception {
         int originCount = between(1, 1000);
         try (DocOriginTable table = tableOf(originCount)) {
-            DocVectorEncoder encoder = new DocVectorEncoder(table);
+            DocVectorEncoder encoder = DocVectorEncoder.detached().withOrigins(table);
             int[] tableOrdinals = IntStream.range(0, between(1, 100)).map(r -> between(0, originCount - 1)).toArray();
             ByteSizeValue decodeBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
                 try {

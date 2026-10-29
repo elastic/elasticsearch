@@ -50,19 +50,23 @@ PROMQL index=k8s step=1h result=(limitk(0, network.total_bytes_in{cluster="prod"
 result:double | step:datetime | _timeseries:keyword
 ;
 
-// k < series count: exactly two of the three prod series. Which two follows per-shard
-// storage order and is not a global tsid order, so this does not pin the series.
-// The three values themselves are pinned by limitk_k_exceeds_series_count.
-// 947 = pod one, 9969 = pod three, 10277 = pod two.
+// k < series count: exactly two of the three prod series, each with its full source labels.
+// Which two follows per-shard storage order and is not a global tsid order, so this does not
+// pin the series. The three values and labels are pinned by limitk_k_exceeds_series_count.
 limitk_bare
 required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h result=(limitk(2, network.total_bytes_in{cluster="prod"}))
-| STATS n = COUNT(*), known = COUNT(*) WHERE result IN (947.0, 9969.0, 10277.0), distinct = COUNT_DISTINCT(result);
+| EVAL labels_match = CASE(
+    result == 947.0, _timeseries == """{"cluster":"prod","pod":"one","region":["eu","us"]}""",
+    result == 9969.0, _timeseries == """{"cluster":"prod","pod":"three","region":["eu","us"]}""",
+    result == 10277.0, _timeseries == """{"cluster":"prod","pod":"two","region":["eu","us"]}""",
+    false)
+| STATS n = COUNT(*), matched = COUNT(*) WHERE labels_match, distinct = COUNT_DISTINCT(result);
 
-n:long | known:long | distinct:long
-2      | 2          | 2
+n:long | matched:long | distinct:long
+2      | 2            | 2
 ;
 
 // limitk is evaluated per step, returning the first k series at each evaluation point.

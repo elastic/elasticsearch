@@ -45,6 +45,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
@@ -660,6 +661,17 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
 
         // Saturate ccr pool on every follower node and check the lease is still renewed
+        final TimeValue renewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
+        // wait for threads to be idle first
+        assertBusy(() -> {
+            for (final String node : getFollowerCluster().getNodeNames()) {
+                for (final ThreadPoolStats.Stats stats : getFollowerCluster().getInstance(ThreadPool.class, node).stats()) {
+                    if (Ccr.CCR_THREAD_POOL_NAME.equals(stats.name())) {
+                        assertThat(stats.active() + stats.queue(), equalTo(0));
+                    }
+                }
+            }
+        });
         final CountDownLatch release = new CountDownLatch(1);
         try {
             for (final String node : getFollowerCluster().getNodeNames()) {
@@ -673,12 +685,13 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     }
                 }
             }
-            assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
+            safeSleep(TimeValue.timeValueMillis(renewInterval.millis() * 2));
         } finally {
             release.countDown();
         }
+        assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
 
-        // the task itself is unaffected by the full pool and keeps replicating
+        // the task itself is unaffected and keeps replicating
         IntStream.range(0, randomIntBetween(1, 10))
             .forEach(
                 i -> leaderClient().prepareIndex(leaderIndex)

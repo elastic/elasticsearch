@@ -19,7 +19,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with esDistributionLayout.lib(os, architecture)
+        with esDistributionLayout.lib(os, architecture, true)
       }
       into('config') {
         dirPermissions {

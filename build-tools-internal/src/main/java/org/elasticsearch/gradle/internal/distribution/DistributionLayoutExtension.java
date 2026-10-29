@@ -119,12 +119,32 @@ public class DistributionLayoutExtension {
         registeredLibraries.add(registered);
     }
 
-    public CopySpec lib(String os, String architecture) {
+    /**
+     * Builds the {@code lib/} copy spec.
+     *
+     * @param reproduceServerLauncherPermissionLeak reproduce the archive-only historical behaviour where lib jars copied
+     *     after {@code tools/server-launcher} are 0755 (see the comment below). Archives (tar/zip) pass {@code true};
+     *     the deb/rpm packages pass {@code false}, because ospackage applies its own 0644 file mode to those jars.
+     */
+    public CopySpec lib(String os, String architecture, boolean reproduceServerLauncherPermissionLeak) {
         CopySpec spec = fileSystemOperations.copySpec();
+        // Historical behaviour: the original Groovy libFiles copied all libraries into a single copy spec, and the
+        // tools/server-launcher entry's eachFile { it.permissions.unix(0755) } leaked the 0755 file mode onto the copy
+        // action so that every subsequent into(...) entry inherited 0755 (the archive default is filePermissions(0644)).
+        // That makes the plugin/tool/entitlement/platform lib jars 0755 in the shipped ARCHIVES only - the deb/rpm
+        // packages ship them 0644 because ospackage imposes its own file mode. The typed
+        // DistributionPermissions.serverLauncher() action below does not leak, so we reproduce the leak explicitly here
+        // for archives to keep the distribution byte-identical. TODO(follow-up): drop this and normalise these jars to
+        // 0644 - see vault note projects/elasticsearch/notes/distribution-lib-jar-permissions-0755-leak.
+        boolean leakedServerLauncherPermissions = false;
         for (RegisteredLibrary library : registeredLibraries) {
+            boolean inheritExecutable = reproduceServerLauncherPermissionLeak && leakedServerLauncherPermissions;
             switch (library.layout()) {
                 case ROOT -> spec.from(configuration(library.name()));
-                case NESTED -> spec.into(library.targetDirectory(), nested -> nested.from(configuration(library.name())));
+                case NESTED -> spec.into(library.targetDirectory(), nested -> {
+                    nested.from(configuration(library.name()));
+                    reproduceServerLauncherPermissionLeak(nested, inheritExecutable);
+                });
                 case SERVER_LAUNCHER -> spec.into(library.targetDirectory(), nested -> {
                     nested.from(configuration(library.name()));
                     String nativeConfiguration = DistributionLibraries.linuxServerLauncherNativeConfiguration(
@@ -144,11 +164,21 @@ public class DistributionLayoutExtension {
                     if (include != null) {
                         nested.include(include);
                     }
+                    reproduceServerLauncherPermissionLeak(nested, inheritExecutable);
                 });
                 default -> throw new IllegalArgumentException("Unexpected distribution library layout [" + library.layout() + "]");
             }
+            if (library.layout() == DistributionLibraries.Layout.SERVER_LAUNCHER) {
+                leakedServerLauncherPermissions = true;
+            }
         }
         return spec;
+    }
+
+    private static void reproduceServerLauncherPermissionLeak(CopySpec nested, boolean inheritExecutable) {
+        if (inheritExecutable) {
+            nested.filePermissions(permissions -> permissions.unix(0755));
+        }
     }
 
     public CopySpec modules(String os, String architecture) {

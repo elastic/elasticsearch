@@ -122,7 +122,7 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
               compression = Compression.GZIP
               destinationDirectory = layout.buildDirectory.dir('distributions')
               into("elasticsearch-") {
-                into('lib') { with esDistributionLayout.lib('linux', 'x64') }
+                into('lib') { with esDistributionLayout.lib('linux', 'x64', true) }
                 into('config') { with esDistributionLayout.config('tar', false) }
                 into('bin') { with esDistributionLayout.bin('tar', false) }
                 into('modules') { with esDistributionLayout.modules('linux', 'x64') }
@@ -134,7 +134,7 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
               archiveFileName = "integ-test.zip"
               destinationDirectory = layout.buildDirectory.dir('distributions')
               into("elasticsearch-") {
-                into('lib') { with esDistributionLayout.lib(null, null) }
+                into('lib') { with esDistributionLayout.lib(null, null, true) }
                 into('config') { with esDistributionLayout.config('zip', true) }
                 into('bin') { with esDistributionLayout.bin('zip', true) }
                 into('modules') { with esDistributionLayout.integTestModules() }
@@ -158,7 +158,7 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
               }
 
               into('usr/share/elasticsearch/lib') {
-                with esDistributionLayout.lib('linux', 'x64')
+                with esDistributionLayout.lib('linux', 'x64', false)
               }
               into('usr/share/elasticsearch/modules') {
                 with esDistributionLayout.modules('linux', 'x64')

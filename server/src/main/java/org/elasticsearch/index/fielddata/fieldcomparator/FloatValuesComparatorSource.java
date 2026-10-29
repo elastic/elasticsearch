@@ -98,7 +98,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         int bucketSize,
         BucketedSort.ExtraData extra
     ) {
-        final Float fMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
+        final float fMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
         return new BucketedSort.ForFloats(bigArrays, sortOrder, format, bucketSize, extra) {
             @Override
             public boolean needsScores() {

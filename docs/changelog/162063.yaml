@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 162063
-summary: Name TS WITHOUT grouping `_timeseries` at resolution
+summary: Name `TS` WITHOUT grouping `_timeseries` at resolution
 type: bug

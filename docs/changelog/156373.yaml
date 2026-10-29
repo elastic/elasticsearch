@@ -1,5 +1,5 @@
 area: Downsampling
 issues: []
 pr: 156373
-summary: "Downsampling: `ResetDataPoints'` Key reset data points by field name"
+summary: Store downsampling reset data points by field name
 type: enhancement

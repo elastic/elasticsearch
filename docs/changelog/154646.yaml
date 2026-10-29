@@ -2,5 +2,5 @@ area: Infra/Metrics
 issues:
 - 154461
 pr: 154646
-summary: Fix NPE in index-mode stats when a node reports an unknown mode
+summary: Fix `NullPointerException` in index-mode stats when a node reports an unknown mode
 type: bug

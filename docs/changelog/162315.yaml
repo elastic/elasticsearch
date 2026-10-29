@@ -2,5 +2,5 @@ area: Vector Search
 issues:
  - 162295
 pr: 162315
-summary: Prevent SO in automatic KNN prefilter
+summary: Prevent `StackOverflowError` in automatic KNN prefilter
 type: bug

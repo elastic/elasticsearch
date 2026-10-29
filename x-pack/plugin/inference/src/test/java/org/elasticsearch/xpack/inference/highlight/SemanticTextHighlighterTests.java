@@ -177,7 +177,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
 
     /**
      * Highlighting a document without a value for the semantic_text field returns no highlight instead of failing: no chunks are
-     * indexed, so there is no scorer for the extracted queries (see <a href="https://github.com/elastic/elasticsearch/issues/128975">#128975</a>).
+     * indexed, so there is no scorer for the extracted queries
+     * (see <a href="https://github.com/elastic/elasticsearch/issues/128975">#128975</a>).
      */
     @SuppressWarnings("unchecked")
     public void testNoSemanticTextFieldValue() throws Exception {

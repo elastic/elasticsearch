@@ -28,6 +28,7 @@ public class EsField implements Writeable {
         "esql_serialize_timeseries_field_type"
     );
     public static final TransportVersion ESQL_SERIALIZE_PASSTHROUGH_FIELD = TransportVersion.fromName("esql_serialize_passthrough_field");
+    public static final TransportVersion ESQL_SERIALIZE_SINGLE_VALUED_FIELD = TransportVersion.fromName("field_caps_single_valued");
 
     /**
      * Fields in a TSDB can be either dimensions or metrics.  This enum provides a way to store, serialize, and operate on those field
@@ -128,6 +129,7 @@ public class EsField implements Writeable {
     private final boolean isAlias;
     private final TimeSeriesFieldType timeSeriesFieldType;
     private final boolean isPassthrough;
+    private final boolean isStaticallySingleValued;
 
     public EsField(
         String name,
@@ -159,6 +161,19 @@ public class EsField implements Writeable {
         TimeSeriesFieldType timeSeriesFieldType,
         boolean isPassthrough
     ) {
+        this(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType, isPassthrough, false);
+    }
+
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isPassthrough,
+        boolean isStaticallySingleValued
+    ) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
@@ -166,6 +181,7 @@ public class EsField implements Writeable {
         this.isAlias = isAlias;
         this.timeSeriesFieldType = timeSeriesFieldType;
         this.isPassthrough = isPassthrough;
+        this.isStaticallySingleValued = isStaticallySingleValued;
     }
 
     public EsField(StreamInput in) throws IOException {
@@ -176,6 +192,17 @@ public class EsField implements Writeable {
         this.isAlias = in.readBoolean();
         this.timeSeriesFieldType = readTimeSeriesFieldType(in);
         this.isPassthrough = in.getTransportVersion().supports(ESQL_SERIALIZE_PASSTHROUGH_FIELD) && in.readBoolean();
+        this.isStaticallySingleValued = readStaticallySingleValued(in);
+    }
+
+    protected static boolean readStaticallySingleValued(StreamInput in) throws IOException {
+        return in.getTransportVersion().supports(ESQL_SERIALIZE_SINGLE_VALUED_FIELD) && in.readBoolean();
+    }
+
+    protected void writeStaticallySingleValued(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SINGLE_VALUED_FIELD)) {
+            out.writeBoolean(isStaticallySingleValued);
+        }
     }
 
     public static <A extends EsField> A readFrom(StreamInput in) throws IOException {
@@ -202,6 +229,7 @@ public class EsField implements Writeable {
         if (out.getTransportVersion().supports(ESQL_SERIALIZE_PASSTHROUGH_FIELD)) {
             out.writeBoolean(isPassthrough);
         }
+        writeStaticallySingleValued(out);
     }
 
     protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
@@ -246,7 +274,16 @@ public class EsField implements Writeable {
     public EsField withDataType(DataType esDataType) {
         return esDataType == this.esDataType
             ? this
-            : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
+            : new EsField(
+                name,
+                esDataType,
+                properties,
+                aggregatable,
+                isAlias,
+                timeSeriesFieldType,
+                isPassthrough,
+                isStaticallySingleValued
+            );
     }
 
     public EsField withWidenedSmallNumeric() {
@@ -274,7 +311,16 @@ public class EsField implements Writeable {
      * override this so that state (e.g. a keyword's {@code normalized} flag, which decides exact-match eligibility) is not lost.
      */
     public EsField withProperties(Map<String, EsField> newProperties) {
-        return new EsField(name, esDataType, newProperties, aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
+        return new EsField(
+            name,
+            esDataType,
+            newProperties,
+            aggregatable,
+            isAlias,
+            timeSeriesFieldType,
+            isPassthrough,
+            isStaticallySingleValued
+        );
     }
 
     /**
@@ -289,6 +335,28 @@ public class EsField implements Writeable {
      */
     public boolean isPassthrough() {
         return isPassthrough;
+    }
+
+    /**
+     * Whether this field is <em>statically</em> single-valued: the mapping of every index that has it guarantees at most one value per
+     * document, as the ES|QL field loaders read it. "Static" means known from the mapping, like a static type, without reading any
+     * data. The mapping is enforced when a document is indexed and cannot be updated, so the guarantee holds on every shard and for
+     * every future document.
+     * <p>
+     * With {@code on_failure=ignore}, an extra value is kept in {@code _source} and in a side column. It is not in the doc values, the
+     * stored fields or the index. The field loaders do not read it, for any field extract preference, including {@code STORED}, which
+     * the ES|QL {@code field_extract_preference} pragma allows. {@code MapperTestCase} checks this for each mapper that can set this
+     * flag. A reader of {@code _source} itself, such as the {@code _source} metadata column, can see more than one value, so do not
+     * use this flag to promise anything about that.
+     * <p>
+     * This is not the segment statistics behind {@code SearchStats#isSingleValue}. They are an observation of one shard's current
+     * segments, so only local planning on a data node can use them.
+     * <p>
+     * {@code false} means "unknown": the mapping does not guarantee a single value, so the field may hold more than one. It does not
+     * mean that the field is multi-valued. A node that cannot read this flag reports {@code false} for every field.
+     */
+    public boolean isStaticallySingleValued() {
+        return isStaticallySingleValued;
     }
 
     /**
@@ -333,6 +401,7 @@ public class EsField implements Writeable {
         return aggregatable == field.aggregatable
             && isAlias == field.isAlias
             && isPassthrough == field.isPassthrough
+            && isStaticallySingleValued == field.isStaticallySingleValued
             && esDataType == field.esDataType
             && Objects.equals(name, field.name)
             && Objects.equals(properties, field.properties)
@@ -341,7 +410,16 @@ public class EsField implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(esDataType, aggregatable, properties, name, isAlias, timeSeriesFieldType, isPassthrough);
+        return Objects.hash(
+            esDataType,
+            aggregatable,
+            properties,
+            name,
+            isAlias,
+            timeSeriesFieldType,
+            isPassthrough,
+            isStaticallySingleValued
+        );
     }
 
     public static final class Exact {

@@ -35,7 +35,20 @@ public class KeywordEsField extends EsField {
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, timeSeriesFieldType);
+        this(name, properties, hasDocValues, precision, normalized, isAlias, timeSeriesFieldType, false);
+    }
+
+    public KeywordEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        int precision,
+        boolean normalized,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isStaticallySingleValued
+    ) {
+        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, timeSeriesFieldType, isStaticallySingleValued);
     }
 
     protected KeywordEsField(
@@ -46,9 +59,10 @@ public class KeywordEsField extends EsField {
         int precision,
         boolean normalized,
         boolean isAlias,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isStaticallySingleValued
     ) {
-        super(name, esDataType, properties, hasDocValues, isAlias, timeSeriesFieldType);
+        super(name, esDataType, properties, hasDocValues, isAlias, timeSeriesFieldType, false, isStaticallySingleValued);
         this.precision = precision;
         this.normalized = normalized;
     }
@@ -62,7 +76,8 @@ public class KeywordEsField extends EsField {
             in.readInt(),
             in.readBoolean(),
             in.readBoolean(),
-            readTimeSeriesFieldType(in)
+            readTimeSeriesFieldType(in),
+            readStaticallySingleValued(in)
         );
     }
 
@@ -76,7 +91,8 @@ public class KeywordEsField extends EsField {
             precision,
             normalized,
             isAlias(),
-            getTimeSeriesFieldType()
+            getTimeSeriesFieldType(),
+            isStaticallySingleValued()
         );
     }
 
@@ -89,6 +105,7 @@ public class KeywordEsField extends EsField {
         out.writeBoolean(normalized);
         out.writeBoolean(isAlias());
         writeTimeSeriesFieldType(out);
+        writeStaticallySingleValued(out);
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

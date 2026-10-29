@@ -25,11 +25,16 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
+import org.elasticsearch.xpack.esql.datasources.DataSourceAuditUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
@@ -45,11 +50,53 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
         .build();
 
+    private static final Set<String> AUDITABLE_SETTINGS = Set.of(
+        "region",
+        "format",
+        "schema_resolution",
+        "error_mode",
+        "max_errors",
+        "max_error_ratio",
+        "partition_detection",
+        "partition_sample_size",
+        "file_sort_by",
+        "file_order",
+        "target_split_size",
+        "split_probe_window",
+        "max_split_probes",
+        "schema_sample_size",
+        "schema_max_fields",
+        "segment_size",
+        "mode",
+        "encoding",
+        "header_row",
+        "trim_spaces",
+        "skip_rows",
+        "max_field_size",
+        "delimiter",
+        "quote",
+        "escape",
+        "partition_path",
+        "hive_partitioning",
+        "file_exclusions",
+        "partition_spec",
+        "null_value",
+        "comment",
+        "multi_value_syntax",
+        "column_prefix",
+        "datetime_format",
+        "multiline_fields"
+    );
+
     private PutDatasetAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, DataSourceRequestInfo {
+    public static class Request extends AcknowledgedRequest<Request>
+        implements
+            IndicesRequest,
+            DataSourceRequestInfo,
+            SecurityConfigChangeRequest {
         private static final ParseField DATA_SOURCE = new ParseField("data_source");
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
@@ -231,6 +278,19 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         @Nullable
         public DatasetMapping mapping() {
             return mapping;
+        }
+
+        @Override
+        public Map<String, Object> auditFields() {
+            var fields = new HashMap<String, Object>();
+            fields.put("name", name);
+            fields.put("data_source", dataSource);
+            fields.put("resource", ExternalFailures.redactHttpUrl(resource));
+            if (description != null) {
+                fields.put("description", description);
+            }
+            fields.putAll(DataSourceAuditUtils.auditSettings(rawSettings, AUDITABLE_SETTINGS));
+            return fields;
         }
 
         @Override

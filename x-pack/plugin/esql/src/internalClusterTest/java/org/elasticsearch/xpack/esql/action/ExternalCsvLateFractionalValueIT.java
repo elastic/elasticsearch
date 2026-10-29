@@ -75,7 +75,7 @@ public class ExternalCsvLateFractionalValueIT extends AbstractExternalDataSource
         }
     }
 
-    /** No settings: the sample and the widening window cover 40,000 rows, and the decimal is row 40,001. */
+    /** No settings: the sample covers 40,000 rows, and the decimal is row 40,001 — past it. */
     public void testDecimalPastDefaultInferenceWindowIsNotRounded() throws Exception {
         Path file = write(createTempDir().resolve("late_default"), "d.csv", wholeRowsThen(40_000, 0, "1.9"));
         String dataset = registerLocalFileDataset("late_default", StoragePath.fileUri(file), Map.of());
@@ -104,10 +104,10 @@ public class ExternalCsvLateFractionalValueIT extends AbstractExternalDataSource
 
     // Controls: correct today, and a fix must keep them.
 
-    /** A decimal inside the widening window widens the column. */
-    public void testDecimalInsideWideningWindowWidensColumn() throws Exception {
+    /** A decimal inside the sample window widens the column. */
+    public void testDecimalInsideSampleWidensColumn() throws Exception {
         Path file = write(createTempDir().resolve("widen_window"), "d.csv", wholeRowsThen(8, 0, "1.9"));
-        String dataset = registerLocalFileDataset("widen_window", StoragePath.fileUri(file), Map.of("schema_sample_size", 5));
+        String dataset = registerLocalFileDataset("widen_window", StoragePath.fileUri(file), Map.of("schema_sample_size", 9));
         assertThat(valueOrRefusal("FROM " + dataset + " | WHERE id == 9 | KEEP v", "1.9"), equalTo(1.9));
     }
 

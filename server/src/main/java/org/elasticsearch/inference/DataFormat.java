@@ -10,9 +10,8 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.FeatureFlag;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -23,12 +22,6 @@ public enum DataFormat {
     BASE64,
     URL;
 
-    /**
-     * Feature flag for URL-format inference inputs. Gated here because {@link DataFormat#fromString} needs it to filter
-     * {@link #URL} from error messages when the feature is not yet enabled.
-     */
-    public static final FeatureFlag URL_INPUT_FORMAT_FEATURE_FLAG = new FeatureFlag("inference_url_input_format");
-
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
@@ -38,8 +31,7 @@ public enum DataFormat {
         try {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            var displayedFormats = Arrays.stream(values()).filter(f -> f != URL || URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled()).toList();
-            throw new IllegalArgumentException(Strings.format("Unrecognized format [%s], must be one of %s", name, displayedFormats));
+            throw new IllegalArgumentException(Strings.format("Unrecognized format [%s], must be one of %s", name, List.of(values())));
         }
     }
 }

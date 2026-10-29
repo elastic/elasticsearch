@@ -137,6 +137,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx");
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.searchSlice("s1"));
-        assertThat(ex.getMessage(), containsString("request does not support [slice]"));
+        assertThat(ex.getMessage(), containsString("request does not support [_slice]"));
     }
 }

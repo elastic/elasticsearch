@@ -32,11 +32,11 @@ public final class PartitionValueLayout {
     }
 
     /**
-     * {@code retained == null} is an unknown projection: every Hive column and all five stored {@code _file.*}
-     * keys, with {@link FileMetadataColumns#DIRECTORY} on the shared side, and null values kept.
+     * {@code retained == null} is an unknown projection: every Hive column, plus {@code _file.size} and
+     * {@code _file.modified}, with null values kept. {@code _file.path}, {@code _file.name}, and
+     * {@code _file.directory} are derived from the file URI at read and are never layout keys.
      * An empty retain set keeps nothing. Otherwise Hive columns in the retain set stay directory-constant, in
-     * partition-column order, and {@code _file.path}, {@code _file.name}, {@code _file.size}, {@code _file.modified}
-     * stay per file when retained.
+     * partition-column order, and {@code _file.size} and {@code _file.modified} stay per file when retained.
      */
     public static PartitionValueLayout of(@Nullable Set<String> retained, @Nullable PartitionMetadata partitionInfo) {
         if (retained != null && retained.isEmpty()) {
@@ -51,12 +51,9 @@ public final class PartitionValueLayout {
                 }
             }
         }
-        if (unknown || retained.contains(FileMetadataColumns.DIRECTORY)) {
-            directory.add(FileMetadataColumns.DIRECTORY);
-        }
         List<String> perFile = new ArrayList<>();
         for (String name : FileMetadataColumns.NAMES) {
-            if (name.equals(FileMetadataColumns.RECORD_REF) || name.equals(FileMetadataColumns.DIRECTORY)) {
+            if (name.equals(FileMetadataColumns.RECORD_REF) || FileMetadataColumns.LOCATION_NAMES.contains(name)) {
                 continue;
             }
             if (unknown || retained.contains(name)) {
@@ -68,8 +65,9 @@ public final class PartitionValueLayout {
 
     /**
      * Keys the post-prune exec still needs on each split. Hive names are the query schema intersected with
-     * the listing's partition columns. The five stored {@code _file.*} constants are included only when bound
-     * as metadata. {@code _file.record_ref} is composed per row and is not a map key.
+     * the listing's partition columns. {@code _file.size} and {@code _file.modified} are included only when
+     * bound as metadata. {@code _file.path}, {@code _file.name}, and {@code _file.directory} are derived from
+     * the file URI at read and are not stored. {@code _file.record_ref} is composed per row and is not a map key.
      */
     public static Set<String> retainedKeys(
         ExternalSchema querySchema,
@@ -86,7 +84,7 @@ public final class PartitionValueLayout {
             }
         }
         for (String name : FileMetadataColumns.NAMES) {
-            if (name.equals(FileMetadataColumns.RECORD_REF)) {
+            if (name.equals(FileMetadataColumns.RECORD_REF) || FileMetadataColumns.LOCATION_NAMES.contains(name)) {
                 continue;
             }
             if (metadataColumnNames.contains(name)) {
@@ -96,12 +94,15 @@ public final class PartitionValueLayout {
         return Set.copyOf(retained);
     }
 
-    /** Directory-constant keys in map order: Hive columns, then {@code _file.directory} when retained. */
+    /** Directory-constant keys in map order: Hive columns. Location keys are derived at read and are not included. */
     public List<String> directoryKeys() {
         return directoryKeys;
     }
 
-    /** Per-file keys in {@link FileMetadataColumns} order, excluding directory and {@code _file.record_ref}. */
+    /**
+     * Per-file keys in {@link FileMetadataColumns} order: size and modified. Location keys and
+     * {@code _file.record_ref} are not included.
+     */
     public List<String> perFileKeys() {
         return perFileKeys;
     }

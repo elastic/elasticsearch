@@ -209,3 +209,7 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.dimension_fields.limit`
 :   (Dynamic, integer) Maximum number of [time series dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) for the index. Defaults to `32768`.
 
+$$$non-indexed-field-max-value-length$$$
+`index.mapping.non_indexed_field.max_value_length` {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+:   (Byte value) Maximum size of a single value in a non-indexed `keyword` or `flattened` field in a [columnar index mode](/reference/elasticsearch/columnar/index.md). For a `flattened` field the size covers the key and the value together. Fields that are indexed and all fields in other index modes, keep Lucene's term limit of `32766` bytes. Defaults to `1mb`. The minimum value is `32766b` and the maximum is `2147483647b`. You can only set this setting in a columnar index mode, when you create the index. You cannot change it later.
+

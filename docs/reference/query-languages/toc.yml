@@ -116,6 +116,7 @@ toc:
                   - file: esql/commands/change-point.md
                   - file: esql/commands/completion.md
                   - file: esql/commands/dedup.md
+                  - file: esql/commands/dense-vector.md
                   - file: esql/commands/dissect.md
                   - file: esql/commands/drop.md
                   - file: esql/commands/enrich.md
@@ -175,6 +176,7 @@ toc:
                 children:
                   - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/avg_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/changes.md
                   - file: esql/functions-operators/time-series-aggregation-functions/count_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/count_distinct_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/delta.md
@@ -431,11 +433,22 @@ toc:
           - file: esql/esql-data-federation-quickstart.md
           - file: esql/esql-data-federation-sources.md
             children:
-              - file: esql/esql-data-federation-federated-identity.md
-              - file: esql/esql-data-federation-static-credentials.md
+              - file: esql/esql-data-federation-s3.md
+                children:
+                  - file: esql/esql-data-federation-static-credentials.md
+                  - file: esql/esql-data-federation-federated-identity.md
+              - file: esql/esql-data-federation-data-source-settings.md
           - file: esql/esql-data-federation-datasets.md
             children:
+              - file: esql/esql-data-federation-manage-datasets.md
+                children:
+                  - file: esql/esql-data-federation-manage-datasets-ui.md
+                  - file: esql/esql-data-federation-manage-datasets-api.md
+              - file: esql/esql-data-federation-file-formats.md
               - file: esql/esql-data-federation-patterns.md
+              - file: esql/esql-data-federation-partition-spec.md
+              - file: esql/esql-data-federation-schema.md
+              - file: esql/esql-data-federation-dataset-settings.md
           - file: esql/esql-data-federation-querying.md
           - file: esql/esql-data-federation-security.md
           - file: esql/esql-data-federation-cluster-settings.md
@@ -466,6 +479,7 @@ toc:
       - file: esql/limitations.md
   - file: promql.md
     children:
+      - file: promql/promql-tutorial.md
       - file: promql/promql-http-api.md
       - file: promql/functions.md
         children:
@@ -475,6 +489,8 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+          - file: promql/functions/metadata.md
+          - file: promql/functions/sorting.md
       - file: promql/operators.md
         children:
           - file: promql/operators/arithmetic.md

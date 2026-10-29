@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.compute.operator.MetricsInfoOperatorTests.DATA_STREAMS_BY_INDEX;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +42,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     @Override
     protected TsInfoOperator.Factory simple(SimpleOptions options) {
-        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL);
     }
 
     @Override
@@ -122,11 +124,11 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createInitialOperator() {
-        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
+        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
     }
 
     private Operator createFinalOperator(int[] channels) {
-        return new TsInfoOperator.FinalFactory(channels).get(driverContext());
+        return new TsInfoOperator.FinalFactory(channels, TsInfoOperator.NO_LIMIT).get(driverContext());
     }
 
     public void testInitialModeSingleTsidSingleMetric() {
@@ -562,9 +564,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     /**
      * When the _index block contains a cluster-prefixed backing index name
-     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
-     * strips the backing-index suffix but preserves the cluster prefix, producing
-     * "remote_cluster:k8s".
+     * the supplied data-stream lookup preserves the cluster qualifier in the output.
      */
     public void testRemoteClusterPrefixPreservedForBackingIndex() {
         BlockFactory blockFactory = driverContext().blockFactory();
@@ -589,9 +589,32 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    /**
-     * Local index names (no cluster prefix) pass through unchanged.
-     */
+    /** Membership overrides naming conventions, while standalone indices retain their names. */
+    public void testDataStreamMembershipLookup() {
+        String clusterPrefix = randomBoolean() ? "remote_cluster:" : "";
+        String customIndex = clusterPrefix + "custom-backing-index";
+        String backingIndex = clusterPrefix + ".ds-misleading-name-2024.01.15-000001";
+        String standaloneIndex = clusterPrefix + "partial-.ds-metrics-2024.01.15-000002";
+        String dataStream = clusterPrefix + "metrics";
+        Map<String, String> dataStreams = Map.of(customIndex, dataStream, backingIndex, dataStream);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = new TsInfoOperator.Factory(SIMPLE_LOOKUP, dataStreams, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext())) {
+            for (String index : List.of(customIndex, backingIndex, standaloneIndex)) {
+                op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", index));
+            }
+            op.finish();
+            Page output = op.getOutput();
+            assertNotNull(output);
+            try {
+                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of(dataStream, standaloneIndex)));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /** Local index names without a parent data stream pass through unchanged. */
     public void testLocalIndexNameUnchanged() {
         BlockFactory blockFactory = driverContext().blockFactory();
         Operator op = createInitialOperator();
@@ -617,7 +640,14 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx)) {
+        try (
+            TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(
+                SIMPLE_LOOKUP,
+                DATA_STREAMS_BY_INDEX,
+                METADATA_CHANNEL,
+                INDEX_CHANNEL
+            ).get(ctx)
+        ) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
@@ -646,7 +676,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS).get(ctx)) {
+        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS, TsInfoOperator.NO_LIMIT).get(ctx)) {
             Page page1 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -713,12 +743,109 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testFinalModeLimitsDistinctMetricDimensions() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS, 2).get(ctx)) {
+            Page cpuA = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host"),
+                "{}"
+            );
+            Page cpuB = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-b"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host"),
+                "{}"
+            );
+            Page diskA = buildFinalPage(
+                blockFactory,
+                "disk_io",
+                Set.of("ds-a"),
+                Set.of("bytes"),
+                Set.of("counter"),
+                Set.of("long"),
+                Set.of("host"),
+                "{}"
+            );
+            Page memA = buildFinalPage(
+                blockFactory,
+                "memory",
+                Set.of("ds-a"),
+                Set.of("bytes"),
+                Set.of("gauge"),
+                Set.of("long"),
+                Set.of("host"),
+                "{}"
+            );
+            op.addInput(cpuA);
+            op.addInput(new Page(3, concat(blockFactory, cpuB, diskA, memA)));
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(2));
+            assertThat(readValues(output.getBlock(0), 0), equalTo(Set.of("cpu_usage")));
+            assertThat(readValues(output.getBlock(0), 1), equalTo(Set.of("disk_io")));
+            assertThat(readValues(output.getBlock(1), 0), equalTo(Set.of("ds-a", "ds-b")));
+            assertThat(readValues(output.getBlock(1), 1), equalTo(Set.of("ds-a")));
+            output.releaseBlocks();
+            assertThat(op.toString(), equalTo("TsInfoOperator[mode=FINAL, limit=2]"));
+            TsInfoOperator.Status status = (TsInfoOperator.Status) op.status();
+            assertThat(status.rowsReceived(), equalTo(4L));
+            assertThat(status.rowsEmitted(), equalTo(2L));
+        }
+    }
+
+    private static Set<String> readValues(BytesRefBlock block, int position) {
+        Set<String> values = new HashSet<>();
+        int start = block.getFirstValueIndex(position);
+        for (int i = start; i < start + block.getValueCount(position); i++) {
+            values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+        }
+        return values;
+    }
+
+    private static Block[] concat(BlockFactory blockFactory, Page... pages) {
+        Block[] blocks = new Block[pages[0].getBlockCount()];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(pages.length)) {
+                    for (Page page : pages) {
+                        BytesRefBlock block = page.getBlock(i);
+                        builder.copyFrom(block, 0, block.getPositionCount());
+                    }
+                    blocks[i] = builder.build();
+                }
+            }
+            return blocks;
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     public void testCloseReleasesTrackedMemory() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
 
-        TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
+        TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            DATA_STREAMS_BY_INDEX,
+            METADATA_CHANNEL,
+            INDEX_CHANNEL
+        ).get(ctx);
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
         assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));

@@ -142,4 +142,20 @@ public class AllocationDefDispatchTests extends AllocationTestCase {
     public void testDefInheritedConstantTripsLimit() {
         assertTripsLimit("def x = new AllocationInheritanceObject(); x.inheritedConstant(); return \"y\";");
     }
+
+    public void testDefGetterShortcutCharged() {
+        // A def load of .estimatedValue resolves at runtime to getEstimatedValue(), which carries an estimator.
+        assertEquals(72L, allocatedBytes("def o = new AllocationEstimatorTestObject(); int v = o.estimatedValue; return \"x\";"));
+    }
+
+    public void testDefGetterShortcutTripsLimit() {
+        assertTripsLimit("def o = new AllocationEstimatorTestObject(); int v = o.estimatedValue; return \"x\";");
+    }
+
+    public void testDefGetterShortcutUnannotatedTargetChargesNothing() {
+        // The name matches an annotated getter elsewhere, so the script is pushed, but a map key read charges nothing extra.
+        long withoutRead = allocatedBytes("def m = ['estimatedValue': 1]; return \"x\";");
+        long withRead = allocatedBytes("def m = ['estimatedValue': 1]; int v = m.estimatedValue; return \"x\";");
+        assertEquals(withoutRead, withRead);
+    }
 }

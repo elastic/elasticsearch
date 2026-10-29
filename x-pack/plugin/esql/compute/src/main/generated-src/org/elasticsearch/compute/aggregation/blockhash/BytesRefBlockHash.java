@@ -285,6 +285,11 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    public long estimatedBytesForPartitioning() {
+        return estimatedKeyBytes(hash.getBytesRefs());
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
     }

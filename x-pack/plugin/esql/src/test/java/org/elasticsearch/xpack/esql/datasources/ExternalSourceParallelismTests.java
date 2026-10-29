@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ExternalSourceParallelismTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testMultipleDriversReadAllSplits() throws Exception {

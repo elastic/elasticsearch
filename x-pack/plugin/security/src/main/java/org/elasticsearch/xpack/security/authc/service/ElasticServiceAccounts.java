@@ -28,7 +28,7 @@ final class ElasticServiceAccounts {
         "auto-ops",
         new RoleDescriptor(
             NAMESPACE + "/auto-ops",
-            new String[] { "monitor", "read_ilm", "read_slm" },
+            new String[] { "monitor", "read_ilm", "read_slm", "cluster:admin/xpack/searchable_snapshots/cache/stats" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .allowRestrictedIndices(true)

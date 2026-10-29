@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.truncateForError;
+
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
 public interface DocValueFormat extends NamedWriteable {
     long MASK_2_63 = 0x8000000000000000L;
@@ -465,7 +467,7 @@ public interface DocValueFormat extends NamedWriteable {
                 case "true":
                     return 1;
             }
-            throw new IllegalArgumentException("Cannot parse boolean [" + value + "], expected either [true] or [false]");
+            throw new IllegalArgumentException("Cannot parse boolean [" + truncateForError(value) + "], expected either [true] or [false]");
         }
 
         @Override

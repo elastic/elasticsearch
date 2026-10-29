@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.junit.Before;
 
 import java.util.List;
@@ -50,13 +49,11 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
         MlDailyMaintenanceService mlDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         ClusterService clusterService = mock(ClusterService.class);
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = mock(AdaptiveAllocationsScalerService.class);
-        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = mock(TrainedModelAssignmentClusterService.class);
         mlInitializationService = new MlInitializationService(
             client(),
             threadPool,
             mlDailyMaintenanceService,
             adaptiveAllocationsScalerService,
-            trainedModelAssignmentClusterService,
             clusterService
         );
     }

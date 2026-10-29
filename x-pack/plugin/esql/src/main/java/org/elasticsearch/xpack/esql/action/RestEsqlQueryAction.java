@@ -105,15 +105,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         if (esqlRequest.columnar()) {
             throw incompatibleWithStreaming("columnar");
         }
-        if (esqlRequest.profile()) {
-            throw incompatibleWithStreaming("profile");
-        }
-        if (Boolean.TRUE.equals(esqlRequest.includeCCSMetadata())) {
-            throw incompatibleWithStreaming("include_ccs_metadata");
-        }
-        if (Boolean.TRUE.equals(esqlRequest.includeExecutionMetadata())) {
-            throw incompatibleWithStreaming("include_execution_metadata");
-        }
         if (request.param(URL_PARAM_DELIMITER) != null) {
             throw incompatibleWithStreaming(URL_PARAM_DELIMITER);
         }
@@ -142,12 +133,13 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
-            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
+            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel, client.threadPool().getThreadContext());
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
                 esqlRequest,
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
-                resolvedBatchSize
+                resolvedBatchSize,
+                restListener::setPreHeaderFailureFooter
             );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,

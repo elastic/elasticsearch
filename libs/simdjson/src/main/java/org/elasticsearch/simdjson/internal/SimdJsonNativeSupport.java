@@ -11,7 +11,6 @@ package org.elasticsearch.simdjson.internal;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.foreign.LibraryProvider;
-import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -38,7 +37,7 @@ public final class SimdJsonNativeSupport {
     }
 
     private static SimdJsonLibrary tryLoad() {
-        if (isNativeLibSupported() && checkEnableSystemProperty()) {
+        if (checkEnableSystemProperty()) {
             try {
                 SimdJsonLibrary lib = LibraryProvider.lookupLibrary(SimdJsonLibrary.class);
                 if (lib != null) {
@@ -52,10 +51,6 @@ public final class SimdJsonNativeSupport {
             }
         }
         return null;
-    }
-
-    public static boolean isNativeLibSupported() {
-        return Platform.current().equals(Platform.DARWIN_X64) == false;
     }
 
     static boolean checkEnableSystemProperty() {

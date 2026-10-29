@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.response;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;

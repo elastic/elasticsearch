@@ -13,9 +13,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,18 +40,35 @@ public class FormatReaderRegistry {
      * {@link DecompressionCodec#name()}. {@code uncompressed} is the no-codec path and so is not listed.
      * On snapshot builds the gate in {@link #wrapWithCodec} is bypassed, so any registered codec
      * resolves; the four codecs outside this set (bzip2, snappy, lz4, brotli) each return to the GA
-     * surface once benchmarked (see elastic/esql-planning#938).
+     * surface once benchmarked.
      */
     public static final Set<String> GA_TEXT_CODECS = Set.of("gzip", "zstd");
 
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+    private volatile AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
+    private final NodeByteBudget nodeByteBudget;
     private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
     private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
+        this(codecRegistry, null);
+    }
+
+    public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry, @Nullable NodeByteBudget nodeByteBudget) {
         this.codecRegistry = codecRegistry;
+        this.nodeByteBudget = nodeByteBudget;
+    }
+
+    /** Shared node I/O byte tickets; {@code null} in tests that construct a registry without one. */
+    @Nullable
+    NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
+    public void setAdmissionTracker(AdmissionTracker admissionTracker) {
+        this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
     }
 
     public void setMaxDecompressionRatio(int ratio) {
@@ -79,7 +98,8 @@ public class FormatReaderRegistry {
                 if (instance == null) {
                     synchronized (this) {
                         if (instance == null) {
-                            FormatReader created = factory.create(settings, blockFactory);
+                            FormatReader created = factory.create(settings, blockFactory, nodeByteBudget);
+                            created.bindAdmissionTracker(admissionTracker);
                             // Claim extension mappings before publishing the instance, under the same
                             // conflict rule as registerExtension: a reader-declared extension already
                             // owned by another format fails loudly instead of silently stealing the
@@ -293,8 +313,7 @@ public class FormatReaderRegistry {
      * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
      * cannot make the advice lie.
      *
-     * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
-     *                    path, the object name here
+     * @param displayPath quoted back to the user; never the full location, which the user may not be allowed to see
      * @param objectName  the object name to diagnose the extension from
      */
     UnreadableObjectException unreadableObject(String displayPath, String objectName) {
@@ -391,6 +410,16 @@ public class FormatReaderRegistry {
             ext = ext.substring(0, fragmentStart);
         }
         return ext.isEmpty() ? null : "." + ext.toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The configured reader that reads the listed object {@code objectName} of the dataset at {@code location}: the
+     * dataset's format ({@link FormatNameResolver#datasetFormat}) configured with {@code config}, then wrapped for
+     * the object's own compression. The one derivation for both the metadata read and the planner, which keys the
+     * schema it caches by what this reader samples: two derivations could configure two different readers.
+     */
+    public FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
+        return wrapForObject(byName(FormatNameResolver.datasetFormat(config, location, this)).withConfig(config), objectName);
     }
 
     /**

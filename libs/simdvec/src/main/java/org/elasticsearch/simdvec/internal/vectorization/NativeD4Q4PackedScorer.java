@@ -24,7 +24,7 @@ final class NativeD4Q4PackedScorer extends NativeMemorySegmentScorer {
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return DISTANCE_FUNCS.dotProductI4(query, dataset, length);
+        return DISTANCE_FUNCS.dotProductI4(dataset, query, length);
     }
 
     @Override
@@ -33,16 +33,16 @@ final class NativeD4Q4PackedScorer extends NativeMemorySegmentScorer {
     }
 
     @Override
-    void dotProductBulkWithOffsets(
+    void dotProductBulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int dataLength,
         int dataStride,
-        MemorySegment offsets,
-        int offsetsCount,
+        int mask,
+        int count,
         MemorySegment scores
     ) {
-        DISTANCE_FUNCS.dotProductI4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        DISTANCE_FUNCS.dotProductI4BulkMasked(dataset, query, dataLength, dataStride, mask, count, scores);
     }
 
     @Override

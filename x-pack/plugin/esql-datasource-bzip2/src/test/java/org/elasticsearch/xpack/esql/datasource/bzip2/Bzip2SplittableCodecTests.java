@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.datasource.bzip2;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -236,6 +239,33 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
             assertTrue("Stream of a non-last range must end with '\\n' (finish-current-line)", out.length > 0);
             assertEquals("Last byte must be newline", '\n', out[out.length - 1]);
         }
+    }
+
+    /**
+     * {@code decompressOneMemberRange} opens a to-EOF GET then closes at the block boundary.
+     * That close must abort the unread remainder rather than drain it.
+     */
+    public void testDecompressRangeCloseAbortsOpenEndedRemainder() throws IOException {
+        byte[] data = new byte[400_000];
+        random().nextBytes(data);
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        assertTrue("compressed payload must exceed the close-drain threshold", compressed.length > 64 * 1024);
+
+        ByteArrayStorageObject scan = new ByteArrayStorageObject(compressed);
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(scan, 0, compressed.length);
+        assertTrue("Need multiple blocks", boundaries.length >= 2);
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(compressed, tracking);
+
+        try (InputStream stream = codec.decompressRange(object, boundaries[0], boundaries[1])) {
+            byte[] out = stream.readAllBytes();
+            assertTrue(out.length > 0);
+        }
+
+        assertTrue("closing a bounded bzip2 range must abort the open-ended GET remainder", tracking.aborted.get());
+        assertThat(tracking.bytesConsumed.get(), Matchers.lessThan((long) compressed.length / 2));
     }
 
     /**

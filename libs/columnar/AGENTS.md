@@ -33,8 +33,12 @@ Read `README.md` for the architecture first, then this. It covers what is expens
 
 6. **No temporary files, except where a second pass needs one.** Each content file has one stream writing
    into it at a time while a column is written, so values and tables go into their files as they are
-   produced. The dictionary layout is the exception: it stages its ordinals and its escapes, which it
-   replays once their count is known. A new structure streams too; staging needs a reason.
+   produced. The dictionary layout's escapes are the exception: their stream has to be told its length
+   before it starts, and how many values escape is known only once the pass is over, so they are staged in
+   a temporary file — created on the first escape, so a column without one creates no file — and replayed.
+   Its ordinals are not staged: they stream into the data as the values are walked, through
+   `NumericColumnWriter.Stream`, with only the first two blocks held back until the trial that picks their
+   shape has them. A new structure streams too; staging needs a reason.
 
 7. **Metadata and content live in different files**, one of each per segment and shared by every field:
 

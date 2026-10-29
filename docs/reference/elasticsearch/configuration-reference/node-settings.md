@@ -141,7 +141,11 @@ stack: preview 9.3
     * `true` - GPU must be used for vector indexing. If GPU or required libraries are unavailable, the node will fail to start.
     * `false` - GPU will not be used for vector indexing.
 
-    GPU indexing is supported for `hnsw`, `int8_hnsw` and {applies_to}`stack: ga 9.7` `bbq_hnsw` index types with `float` element type only.
+    GPU indexing is supported for the following index types. Only the `float` element type is supported.
+    
+    * `hnsw`
+    * `int8_hnsw`
+    * {applies_to}`stack: ga 9.7+` `bbq_hnsw`
     Requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 

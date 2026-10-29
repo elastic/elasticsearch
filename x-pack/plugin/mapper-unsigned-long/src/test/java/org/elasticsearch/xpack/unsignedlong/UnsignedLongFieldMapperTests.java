@@ -55,6 +55,11 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
+    protected boolean columnarCodecStoresDocValues() {
+        return false;
+    }
+
+    @Override
     protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
         UnsignedLongFieldMapper mapper = (UnsignedLongFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         return mapper.docValuesParameters();

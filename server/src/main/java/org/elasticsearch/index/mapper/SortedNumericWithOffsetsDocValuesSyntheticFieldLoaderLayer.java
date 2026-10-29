@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implemen
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        SortedNumericDocValues valueDocValues = DocValues.getSortedNumeric(leafReader, fullPath);
+        SortedNumericDocValues valueDocValues = ColumnarNumericDocValues.getSortedNumeric(leafReader, fullPath);
         SortedDocValues offsetDocValues = DocValues.getSorted(leafReader, offsetsFieldName);
 
         return docValuesLoader = new NumericDocValuesWithOffsetsLoader(valueDocValues, offsetDocValues, valueWriter);

@@ -11,8 +11,10 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -177,6 +179,11 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FLS_FIX = new NodeFeature("mapper.columnar_stored.source_fls_fix");
+    /**
+     * Numeric fields of new strict columnar indices write their doc values with the ColumNAR codec. Only present while the
+     * {@code columnar_codec_numeric} feature flag is enabled, so tests can tell from the cluster which format they read.
+     */
+    public static final NodeFeature COLUMNAR_NUMERIC_CODEC = new NodeFeature("mapper.columnar.numeric_codec");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     /**
@@ -221,6 +228,14 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
+        Set<NodeFeature> features = new HashSet<>(testFeaturesWithoutFlags());
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()) {
+            features.add(COLUMNAR_NUMERIC_CODEC);
+        }
+        return Set.copyOf(features);
+    }
+
+    private static Set<NodeFeature> testFeaturesWithoutFlags() {
         return Set.of(
             TEXT_SEARCH_WITHOUT_TERMS,
             DATE_RANGE_INDEXING_FIX,

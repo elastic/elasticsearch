@@ -57,6 +57,20 @@ public class DefaultSystemPropertyProvider implements SystemPropertyProvider {
             }
         }
 
+        // The ColumNAR format for numeric fields is gated by the columnar_codec_numeric flag while it is under development, and
+        // a segment one build writes is not necessarily readable by another. Turning it off in upgrade clusters keeps every
+        // node on the stock numeric format, so tests never have to work out per node or per index which format they read;
+        // the mapper.columnar.numeric_codec feature tells them whether the codec is on.
+        // Temporary: goes with the columnar_codec_numeric flag, which ColumnarCodecNumericUpgradeTestFlagTests pins this to.
+        // An explicit feature(FeatureFlag.X) request still wins, as for the flags above.
+        if (isUpgradeTest() || upgradesFromAnotherBuild(nodeSpec)) {
+            String numericFlagProperty = "es.columnar_codec_numeric_feature_flag_enabled";
+            boolean requested = nodeSpec.getFeatures().stream().anyMatch(f -> f.systemProperty.startsWith(numericFlagProperty + "="));
+            if (requested == false) {
+                properties.put(numericFlagProperty, "false");
+            }
+        }
+
         return Collections.unmodifiableMap(properties);
     }
 

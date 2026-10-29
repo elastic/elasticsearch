@@ -163,7 +163,7 @@ public abstract class SortedNumericLongValues {
      * @throws IOException if an I/O error occurs while retrieving the values
      */
     public static SortedNumericLongValues getLongValues(String fieldName, LeafReader reader) throws IOException {
-        SortedNumericDocValues values = DocValues.getSortedNumeric(reader, fieldName);
+        SortedNumericDocValues values = ColumnarNumericDocValues.getSortedNumeric(reader, fieldName);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
             boolean isDense = false;

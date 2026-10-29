@@ -12,6 +12,12 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
@@ -23,10 +29,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -47,6 +55,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -564,15 +573,108 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
     }
 
-    public void testColumnarNotUsedForNonKeywordField() throws IOException {
-        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+    public void testColumnarUsedForNumericFieldsOnlyWhenNumericCodecEnabled() throws IOException {
+        final IndexVersion version = randomColumnarEligibleIndexVersion();
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), version);
+        final boolean expected = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()
+            && version.onOrAfter(IndexVersions.COLUMNAR_CODEC_NUMERIC_FF);
+        assertThat("long field", supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat, is(expected));
+        assertThat("double field", supplier.getDocValuesFormatForField("score") instanceof ColumNARDocValuesFormat, is(expected));
+        assertThat(supplier.columnarNumericTypeOf("size"), equalTo(expected ? ColumnarFieldType.LONG : null));
+        assertThat(supplier.columnarNumericTypeOf("score"), equalTo(expected ? ColumnarFieldType.DOUBLE : null));
         assertFalse(
-            "long companion field must not be routed to ColumNAR",
-            supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat
+            "date field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("@timestamp") instanceof ColumNARDocValuesFormat
         );
-        assertFalse(
-            "double companion field must not be routed to ColumNAR",
-            supplier.getDocValuesFormatForField("score") instanceof ColumNARDocValuesFormat
+    }
+
+    public void testColumnarFieldTypeResolvedPerField() throws IOException {
+        assumeTrue(
+            "columnar_codec_numeric feature flag must be enabled",
+            ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()
+        );
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), IndexVersion.current());
+        assertThat(supplier.resolveColumnarFieldType(fieldInfo("category")), equalTo(ColumnarFieldType.STRING));
+        assertThat(supplier.resolveColumnarFieldType(fieldInfo("size")), equalTo(ColumnarFieldType.LONG));
+        assertThat(supplier.resolveColumnarFieldType(fieldInfo("score")), equalTo(ColumnarFieldType.DOUBLE));
+        expectThrows(IllegalStateException.class, () -> supplier.resolveColumnarFieldType(fieldInfo("@timestamp")));
+    }
+
+    public void testColumnarNotUsedForNumericFieldsWhenSettingDisabled() throws IOException {
+        assumeTrue(
+            "columnar_codec_numeric feature flag must be enabled",
+            ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()
+        );
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            IndexVersion.current(),
+            Settings.builder().put(IndexSettings.COLUMNAR_CODEC_NUMERIC_ENABLED_SETTING.getKey(), false).build(),
+            COLUMNAR_MAPPING
+        );
+        assertFalse(supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat);
+        assertFalse(supplier.getDocValuesFormatForField("score") instanceof ColumNARDocValuesFormat);
+        assertThat(supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
+    }
+
+    public void testColumnarNotUsedForNumericIndexSortField() throws IOException {
+        assumeTrue(
+            "columnar_codec_numeric feature flag must be enabled",
+            ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()
+        );
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.COLUMNAR,
+            IndexVersion.current(),
+            Settings.builder().put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "size").build(),
+            COLUMNAR_MAPPING
+        );
+        assertFalse("index sort field", supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat);
+        assertThat(supplier.getDocValuesFormatForField("score"), instanceOf(ColumNARDocValuesFormat.class));
+    }
+
+    public void testColumnarNotUsedForNumericIndexTermsField() throws IOException {
+        assumeTrue(
+            "columnar_codec_numeric feature flag must be enabled",
+            ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()
+        );
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            IndexVersion.current(),
+            Settings.EMPTY,
+            """
+                {
+                    "properties": {
+                        "id": {
+                            "type": "long",
+                            "index": true,
+                            "index_terms": true
+                        }
+                    }
+                }
+                """
+        );
+        assertFalse(supplier.getDocValuesFormatForField("id") instanceof ColumNARDocValuesFormat);
+    }
+
+    private static FieldInfo fieldInfo(String name) {
+        return new FieldInfo(
+            name,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.BINARY,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Map.of(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
         );
     }
 
@@ -650,7 +752,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             randomColumnarEligibleIndexVersion()
         );
         final DocValuesFormat idFormat = supplier.getDocValuesFormatForField(IdFieldMapper.NAME);
-        final DocValuesFormat otherFormat = supplier.getDocValuesFormatForField("size");
+        final DocValuesFormat otherFormat = supplier.getDocValuesFormatForField("@timestamp");
 
         assertNotSame("_id is written by its own instance", idFormat, otherFormat);
         assertThat("but by the same format, so one reader serves both", idFormat.getName(), equalTo(otherFormat.getName()));
@@ -737,11 +839,20 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     private PerFieldFormatSupplier createColumnarFormatSupplier(final IndexMode mode, final IndexVersion indexVersion) throws IOException {
-        final Settings.Builder settings = Settings.builder();
+        return createColumnarFormatSupplier(mode, indexVersion, Settings.EMPTY, COLUMNAR_MAPPING);
+    }
+
+    private PerFieldFormatSupplier createColumnarFormatSupplier(
+        final IndexMode mode,
+        final IndexVersion indexVersion,
+        final Settings extraSettings,
+        final String mapping
+    ) throws IOException {
+        final Settings.Builder settings = Settings.builder().put(extraSettings);
         settings.put(IndexSettings.MODE.getKey(), mode);
         settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
         final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
-        mapperService.merge("type", new CompressedXContent(COLUMNAR_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 

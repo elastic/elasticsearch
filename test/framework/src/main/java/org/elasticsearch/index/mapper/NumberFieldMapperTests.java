@@ -19,6 +19,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -549,7 +550,16 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_NUMERIC;
+        // Asked of a new columnar index, whose numeric doc values the ColumNAR codec stores as binary
+        return columnarCodecStoresDocValues() ? DocValuesType.BINARY : DocValuesType.SORTED_NUMERIC;
+    }
+
+    /**
+     * Whether a new strictly columnar index writes the doc values of the field under test with the ColumNAR codec, which only
+     * {@link NumberFieldMapper} does. Numeric mappers of their own keep {@code SORTED_NUMERIC} and override this.
+     */
+    protected boolean columnarCodecStoresDocValues() {
+        return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled();
     }
 
     /**
@@ -615,8 +625,22 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     public void testColumnarModeSkippers() throws IOException {
 
         {
-            // In columnar mode, non-indexed numeric fields use skippers
+            // In columnar mode, non-indexed numeric fields use skippers, unless the ColumNAR codec stores their doc values as binary,
+            // which can't carry one
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+            MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+            assertThat(
+                mapperService.fieldType("field").indexType(),
+                equalTo(columnarCodecStoresDocValues() ? IndexType.docValuesOnly() : IndexType.skippers())
+            );
+        }
+
+        if (columnarCodecStoresDocValues()) {
+            // Opting out of the ColumNAR codec brings the skippers back
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.COLUMNAR_CODEC_NUMERIC_ENABLED_SETTING.getKey(), false)
+                .build();
             MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }

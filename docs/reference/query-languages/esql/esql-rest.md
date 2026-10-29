@@ -721,20 +721,6 @@ You will also receive the async ID and running status in the `X-Elasticsearch-As
 Useful if you use a tabular text format like `txt`, `csv` or `tsv`, as you won't receive those fields in the body there.
 ::::
 
-### Stop or cancel queries against datasets [esql-rest-async-external-stop-cancel]
-```{applies_to}
-stack: preview 9.6+
-serverless: unavailable
-```
-
-When a query reads from an [{{esql}} Data Federation dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), each way of ending the query handles results differently:
-
-* **Async stop**: `POST /_query/async/{id}/stop` ends the read and keeps the rows already read. The response returns those rows with `is_partial: true`. Rows that the source hasn't delivered yet aren't returned. If the query finishes on its own before the stop takes effect, the response is complete and `is_partial` is `false`.
-* **Async delete**: `DELETE /_query/async/{id}` cancels the running query and deletes the stored result. No rows are returned.
-* **Task cancel or client disconnect**: Cancelling the task with the [task management API](esql-task-management.md), or closing the connection that sent a synchronous query, fails the query with a task-cancelled error. No rows are returned.
-
-Only async stop returns partial results. Queries against {{es}} indices behave the same way.
-
 ## `documents_found` and `values_loaded` [esql-rest-documents-found]
 
 ```{applies_to}

@@ -38,7 +38,7 @@ public final class EscfBatch implements SourceBatch {
     private BytesReference serialized;
     private boolean closed;
 
-    /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
+    /** In-memory construction path used by {@link EscfEncoder#build()}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
         this(schema, docCount, columnData, null, releasable);
     }
@@ -80,7 +80,7 @@ public final class EscfBatch implements SourceBatch {
      * In-memory construction path for builders outside this package that manage their own
      * {@link SourceSchema} and {@link EscfColumnData} array — for example a domain-specific builder with a
      * fixed, pre-registered schema (see {@code AbstractOTLPBatchBuilder} in the {@code otel-data} plugin).
-     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#buildPartition}.
+     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#build}.
      */
     public static EscfBatch of(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
         return new EscfBatch(schema, docCount, columnData, releasable);

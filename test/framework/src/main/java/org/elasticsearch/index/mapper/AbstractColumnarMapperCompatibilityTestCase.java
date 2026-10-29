@@ -418,9 +418,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder) throws IOException {
         try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd)) {
             for (BytesReference source : sources) {
-                escfEncoder.addDocument(source, XContentType.JSON, 0);
+                escfEncoder.addDocument(source, XContentType.JSON);
             }
-            return escfEncoder.buildPartition(0);
+            return escfEncoder.build();
         }
     }
 

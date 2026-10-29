@@ -56,6 +56,13 @@ public class ToDenseVector extends AbstractConvertFunction {
         returnType = "dense_vector",
         briefSummary = "Converts numbers or a hexadecimal string to a dense_vector.",
         description = "Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.",
+        detailedDescription = """
+            The order that <<esql-multivalued-fields, multivalued fields>> are read from
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
+            rely on that. When converting a multivalued numeric field, the dimensions of the
+            resulting vector might not match the order in the source document. Indices in
+            [columnar mode](/reference/elasticsearch/columnar/index.md) preserve the original
+            order of multivalued fields.""",
         preview = true,
         examples = @Example(file = "dense_vector", tag = "to_dense_vector-ints"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }

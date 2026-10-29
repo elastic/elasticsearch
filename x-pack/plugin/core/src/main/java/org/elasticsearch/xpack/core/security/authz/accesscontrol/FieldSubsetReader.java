@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -174,6 +175,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 && isMapped.apply(fi.getName()) == false) {
                 name = fi.getName()
                     .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+            }
+            // Columnar shape fields store normalized geometries in an unmapped companion used to rebuild synthetic source.
+            if (fi.getName().endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)
+                && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName()
+                    .substring(0, fi.getName().length() - AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX.length());
             }
             if (filter.run(name)) {
                 filteredInfos.add(fi);

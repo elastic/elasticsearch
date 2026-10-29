@@ -3120,9 +3120,11 @@ public class InternalEngine extends Engine {
                 listener.afterFlushWithLock(generation);
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
+                reportFlushFailure(ex);
                 listener.onFailure(ex);
                 return;
             } catch (Exception e) {
+                reportFlushFailure(e);
                 listener.onFailure(e);
                 return;
             } finally {
@@ -3970,7 +3972,7 @@ public class InternalEngine extends Engine {
         // engine otherwise we might loose documents if the flush succeeds
         // and the translog recovery fails when we "commit" the translog on flush.
         if (pendingTranslogRecovery.get()) {
-            throw new IllegalStateException(shardId.toString() + " flushes are disabled - pending translog recovery");
+            throw new PendingTranslogRecoveryException(shardId.toString() + " flushes are disabled - pending translog recovery");
         }
     }
 
@@ -4095,6 +4097,15 @@ public class InternalEngine extends Engine {
     @Override
     public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
         return TimeUnit.NANOSECONDS.toMillis(totalFlushTimeExcludingWaitingOnLock.sum());
+    }
+
+    /**
+     * Reports every flush failure to the event listener. Only the engine knows whether it was closing cleanly at the time, which
+     * the listener needs to tell an expected {@link AlreadyClosedException} from one caused by a tragic event.
+     */
+    private void reportFlushFailure(Exception e) {
+        final boolean closedCleanly = failedEngine.get() == null && (isClosed.get() || isClosing());
+        eventListener.onFlushFailed(e, closedCleanly);
     }
 
     @Override

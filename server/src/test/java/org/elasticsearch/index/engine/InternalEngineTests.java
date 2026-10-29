@@ -629,9 +629,17 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
         engine.close();
 
-        engine = new InternalEngine(engine.config());
-        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
-        expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
+        final AtomicReference<Exception> reportedFailure = new AtomicReference<>();
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).eventListener(new Engine.EventListener() {
+            @Override
+            public void onFlushFailed(Exception e, boolean closedCleanly) {
+                assertFalse("the engine is open", closedCleanly);
+                reportedFailure.set(e);
+            }
+        }).build());
+        expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
+        expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
+        assertThat(reportedFailure.get(), instanceOf(PendingTranslogRecoveryException.class));
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {

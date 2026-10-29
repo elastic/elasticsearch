@@ -19,7 +19,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
@@ -630,6 +632,20 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                     .map(o -> o.getIndices())
                     .map(o -> o.getFlush())
                     .map(o -> o.getTotalTimeExcludingWaitingOnLockMillis())
+                    .orElse(0L)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.failed.total",
+                "Total number of flushes that failed for a reason not expected during normal operation; "
+                    + "flushes rejected due to a closed shard or engine, or a pending translog recovery, are not counted",
+                "operations",
+                () -> Optional.ofNullable(stats.getOrRefresh())
+                    .map(NodeStats::getIndices)
+                    .map(NodeIndicesStats::getFlush)
+                    .map(FlushStats::getFailed)
                     .orElse(0L)
             )
         );

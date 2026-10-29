@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.packer;
+package org.elasticsearch.gradle.internal.docker;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ResolveAllDependencies;
-import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
-import org.elasticsearch.gradle.internal.docker.NativeImageBuildTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
@@ -26,15 +24,15 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Caches external resources required by a project's build and tests as part of {@code resolveAllDependencies}, which is
- * run when baking CI agent images (see {@code .buildkite/packer_cache.sh}). This avoids pulling them from remote
- * registries at job time. Covers:
+ * Pulls Docker images required by a project's build and tests as part of {@code resolveAllDependencies}, which is run
+ * when baking CI agent images (see {@code .buildkite/packer_cache.sh}). This avoids pulling them from remote registries
+ * at job time. Covers:
  * <ul>
- *     <li>resources (usually Docker images) of {@code CacheableTestFixture} implementations in this project</li>
- *     <li>the Docker builder images used by this project's {@link NativeImageBuildTask}s</li>
+ *     <li>images of {@code CacheableTestFixture} implementations (test containers) in this project</li>
+ *     <li>the builder images used by this project's {@link NativeImageBuildTask}s</li>
  * </ul>
  */
-public class CacheTestFixtureResourcesPlugin implements Plugin<Project> {
+public class DockerImageCachePlugin implements Plugin<Project> {
 
     public static final String CACHE_TEST_FIXTURES = "cacheTestFixtures";
     public static final String CACHE_NATIVE_IMAGE_BUILDER = "cacheNativeImageBuilder";

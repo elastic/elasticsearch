@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.packer;
+package org.elasticsearch.gradle.internal.docker;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;

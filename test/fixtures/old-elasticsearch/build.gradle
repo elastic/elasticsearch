@@ -10,7 +10,7 @@
 import org.elasticsearch.gradle.Architecture
 
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.docker-image-cache'
 apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 description = 'Testcontainers fixture for old Elasticsearch versions'

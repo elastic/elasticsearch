@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 // Pre-cache the native-image builder Docker image when baking CI agent images
-apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.docker-image-cache'
 
 configurations {
   nativeLinuxX64 {

@@ -7,11 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.packer;
+package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.docker.DockerImagePullSupport;
-import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
-import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
@@ -24,7 +21,7 @@ import javax.inject.Inject;
 
 /**
  * Pulls Docker images required by the build into the local Docker image store, so they can be baked into CI agent
- * images (see {@link CacheTestFixtureResourcesPlugin}) rather than being pulled from a remote registry at job time.
+ * images (see {@link DockerImageCachePlugin}) rather than being pulled from a remote registry at job time.
  * Images already present locally are not pulled again.
  */
 public abstract class CacheDockerImages extends DefaultTask {

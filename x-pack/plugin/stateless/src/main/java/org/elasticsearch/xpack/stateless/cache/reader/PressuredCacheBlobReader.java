@@ -66,8 +66,12 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
 
                 @Override
                 public void onFailure(Exception e) {
-                    budget.close();
-                    delegatedListener.onFailure(e);
+                    // close() can throw (release() propagates waiter-listener failures); the failure must still reach the delegate
+                    try {
+                        budget.close();
+                    } finally {
+                        delegatedListener.onFailure(e);
+                    }
                 }
             };
             // routes sync-thrown exceptions to readListener so the budget still releases

@@ -93,13 +93,13 @@ An [{{es}} transform](docs-content://explore-analyze/transforms.md) is not an
 {{esql}} source. To query transform results from a view, use the transform's
 destination index as the source in the view definition.
 
-#### Datasets
+#### Data Federation datasets
 ```yaml {applies_to}
 stack: preview 9.6+, experimental =9.5
 serverless: unavailable
 ```
 
-A view definition can read from a dataset.
+A view definition can read from a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), which [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) uses to query external data.
 
 {applies_to}`stack: experimental 9.6+` A wildcard in the view definition
 matches datasets only when the view definition sets `wildcards_match_datasets`

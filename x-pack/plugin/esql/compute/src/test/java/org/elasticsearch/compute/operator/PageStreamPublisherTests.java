@@ -7,10 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -18,12 +23,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -316,6 +325,7 @@ public class PageStreamPublisherTests extends ComputeTestCase {
             p.failStream(cause);
             assertThat(s.error, sameInstance(cause));
             assertThat(s.errorCount, equalTo(1));
+            assertFalse("a failure raised by the caller is not a consumer timeout", p.consumerTimedOut());
             expectNoPages(s);
             assertThat("pump terminal branch must release buffered page", factory.breaker().getUsed(), equalTo(0L));
             s.requestOne();
@@ -929,5 +939,301 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         publisher.failStream(new RuntimeException("terminal"));
         assertFalse("addPage must return false after terminal state", producer.addPage(makePageWithValues(4, 6)));
         assertThat("rejected page rows must not be counted", publisher.rowsPublished(), equalTo(4L));
+    }
+
+    private static final long FACTORY_TOOK_MILLIS = 1234L;
+    private static final List<String> FACTORY_WARNINGS = List.of("factory warning");
+
+    private static PageStreamPublisher.StreamFooter factoryFooter(Exception e) {
+        return new PageStreamPublisher.StreamFooter(
+            ExceptionsHelper.status(e).getStatus(),
+            FACTORY_TOOK_MILLIS,
+            true,
+            FACTORY_WARNINGS,
+            null,
+            null,
+            e,
+            null
+        );
+    }
+
+    private static PageStreamPublisher publisherWithConsumerTimeout(int pageSize, TimeValue timeout, DeterministicTaskQueue taskQueue) {
+        return new PageStreamPublisher(
+            pageSize,
+            timeout,
+            taskQueue.getThreadPool(),
+            taskQueue.getThreadPool().generic(),
+            PageStreamPublisherTests::factoryFooter
+        );
+    }
+
+    public void testConsumerTimeoutFailsStalledStream() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+        assertDriverBlocked(publisher);
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(subscriber.errorCount, equalTo(1));
+        assertTrue("the failure must be attributed to the consumer deadline", publisher.consumerTimedOut());
+        assertThat(publisher.failure(), sameInstance(subscriber.error));
+        assertThat(publisher.footer().error(), sameInstance(subscriber.error));
+        assertThat(
+            "mid-flight footer must come from the factory, not a zeroed placeholder",
+            publisher.footer().tookMillis(),
+            equalTo(FACTORY_TOOK_MILLIS)
+        );
+        assertThat(publisher.footer().warnings(), equalTo(FACTORY_WARNINGS));
+        assertThat(publisher.footer().isPartial(), equalTo(true));
+        assertThat(publisher.footer().status(), equalTo(429));
+        assertDriverUnblocked(publisher);
+        assertFalse("addPage must be rejected once the stream timed out", producer.addPage(makePageWithValues(3, 1)));
+    }
+
+    public void testConsumerTimeoutWithoutFailureFooterFactoryRecordsNoFooter() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = new PageStreamPublisher(
+            3,
+            TimeValue.timeValueSeconds(30),
+            taskQueue.getThreadPool(),
+            taskQueue.getThreadPool().generic(),
+            null
+        );
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        assertThat("the subscriber supplies its own footer when none was recorded", publisher.footer(), nullValue());
+    }
+
+    public void testRequestResetsConsumerDeadline() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+
+        taskQueue.runTasksUpToTimeInOrder(20_000);
+        assertThat(subscriber.error, nullValue());
+        subscriber.requestOne();
+        expectPage(subscriber, rows(0, 3));
+
+        taskQueue.runTasksUpToTimeInOrder(40_000);
+        assertThat(subscriber.error, nullValue());
+
+        taskQueue.runTasksUpToTimeInOrder(60_000);
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        producer.finish();
+    }
+
+    public void testConsumerTimeoutDisabled() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.MINUS_ONE, taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+
+        assertFalse("no timer may be scheduled when the deadline is disabled", taskQueue.hasDeferredTasks());
+        assertThat(subscriber.error, nullValue());
+        publisher.failStream(new RuntimeException("cleanup"));
+    }
+
+    public void testConsumerTimeoutDoesNotFireAfterCancelOrCompletion() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        {
+            PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+            publisher.registerProducer();
+            TestSubscriber subscriber = subscribe(publisher);
+            subscriber.subscription.cancel();
+            taskQueue.runAllTasksInTimeOrder();
+            assertThat(subscriber.error, nullValue());
+            assertThat(subscriber.errorCount, equalTo(0));
+        }
+        {
+            PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+            PageStreamPublisher.Producer producer = publisher.registerProducer();
+            TestSubscriber subscriber = subscribeWithDemand(publisher);
+            finishStream(producer, publisher);
+            assertTrue(subscriber.completed);
+            taskQueue.runAllTasksInTimeOrder();
+            assertThat(subscriber.error, nullValue());
+            assertThat(subscriber.errorCount, equalTo(0));
+        }
+    }
+
+    public void testConsumerTimeoutAfterComputeFinishedReplacesSuccessFooter() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(10, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 4));
+        producer.finish();
+        publisher.completeWithFooter(42L, List.of("compute warning"), false);
+        assertThat("success footer is recorded before the consumer ever asks for rows", publisher.footer().error(), nullValue());
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        assertFalse("a stream with dropped rows must not complete", subscriber.completed);
+        assertThat("the footer must carry the timeout, not the success footer", publisher.footer().error(), sameInstance(subscriber.error));
+        assertThat("the recorded footer's took must be kept, not the factory's", publisher.footer().tookMillis(), equalTo(42L));
+        assertThat(publisher.footer().warnings(), equalTo(List.of("compute warning")));
+        assertThat(publisher.footer().isPartial(), equalTo(false));
+        publisher.completeWithFooter(0, List.of(), false);
+        assertThat("a late success footer must not replace the error footer", publisher.footer().error(), sameInstance(subscriber.error));
+    }
+
+    public void testConsumerTimeoutDoesNotFireWhenOnlyFooterRemains() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribeWithDemand(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+        expectPage(subscriber, rows(0, 3));
+        finishStream(producer, publisher);
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, nullValue());
+        assertThat(subscriber.errorCount, equalTo(0));
+        assertThat(publisher.footer().error(), nullValue());
+        subscriber.requestOne();
+        assertTrue("the stream completes with the success footer once the consumer asks again", subscriber.completed);
+        assertThat(subscriber.error, nullValue());
+    }
+
+    public void testArmedConsumerTimerIgnoredOnceProducersFinishWithEmptyBuffer() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        assertTrue("the timer is armed while the subscriber has no demand", taskQueue.hasDeferredTasks());
+        finishStream(producer, publisher);
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, nullValue());
+        assertThat(subscriber.errorCount, equalTo(0));
+        subscriber.requestOne();
+        assertTrue(subscriber.completed);
+        assertThat(subscriber.error, nullValue());
+    }
+
+    public void testConsumerTimeoutIgnoredWhenProducersFinishedBeforeFooter() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribeWithDemand(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+        expectPage(subscriber, rows(0, 3));
+        producer.finish();
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, nullValue());
+        assertThat(subscriber.errorCount, equalTo(0));
+        publisher.completeWithFooter(0, List.of(), false);
+        subscriber.requestOne();
+        assertTrue(subscriber.completed);
+        assertThat(subscriber.error, nullValue());
+    }
+
+    public void testConsumerTimerRejectedByShutDownSchedulerDoesNotLeak() {
+        TestThreadPool pool = new TestThreadPool(getTestName());
+        ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        PageStreamPublisher publisher = new PageStreamPublisher(
+            2,
+            TimeValue.timeValueSeconds(30),
+            pool,
+            pool.generic(),
+            PageStreamPublisherTests::factoryFooter
+        );
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+
+        subscriber.requestOne();
+        assertTrue(producer.addPage(makePageWithValues(0, 3)));
+        expectPage(subscriber, rows(0, 2));
+        assertThat(publisher.failure(), nullValue());
+
+        subscriber.requestOne();
+        finishStream(producer, publisher);
+        expectPage(subscriber, rows(2, 1));
+        subscriber.requestOne();
+        assertTrue(subscriber.completed);
+        assertThat(subscriber.error, nullValue());
+        assertThat(publisher.failure(), nullValue());
+    }
+
+    private static PlainActionFuture<Void> drainedFuture(PageStreamPublisher publisher) {
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        publisher.addDrainedListener(drained, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
+        return drained;
+    }
+
+    public void testDrainedListenerWaitsForBufferedRowsAndNeedsNoFooter() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        PlainActionFuture<Void> drained = drainedFuture(publisher);
+
+        producer.addPage(makePageWithValues(0, 6));
+        producer.finish();
+        assertFalse("rows are still buffered", drained.isDone());
+
+        subscriber.requestOne();
+        expectPage(subscriber, rows(0, 3));
+        assertFalse("rows are still buffered", drained.isDone());
+
+        subscriber.requestOne();
+        expectPage(subscriber, rows(3, 3));
+        assertTrue("every row was delivered, so the outcome is final", drained.isDone());
+        assertThat("the drain must not wait for the footer, which follows it", publisher.footer(), nullValue());
+        assertThat(publisher.failure(), nullValue());
+
+        publisher.completeWithFooter(0, List.of(), false);
+        subscriber.requestOne();
+        assertTrue(subscriber.completed);
+    }
+
+    public void testDrainedListenerCompletesWithTimeoutFailure() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        PlainActionFuture<Void> drained = drainedFuture(publisher);
+        producer.addPage(makePageWithValues(0, 4));
+        producer.finish();
+        assertFalse(drained.isDone());
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertTrue(drained.isDone());
+        assertThat(publisher.failure(), instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(subscriber.error, sameInstance(publisher.failure()));
+    }
+
+    public void testDrainedListenerCompletesOnCancelWithoutFailure() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        PlainActionFuture<Void> drained = drainedFuture(publisher);
+        producer.addPage(makePageWithValues(0, 4));
+        producer.finish();
+        assertFalse(drained.isDone());
+
+        subscriber.subscription.cancel();
+
+        assertTrue(drained.isDone());
+        assertThat(publisher.failure(), nullValue());
     }
 }

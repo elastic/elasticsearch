@@ -350,6 +350,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * How long a streaming query ({@code POST /_query?streaming=true}) may wait for the HTTP consumer to
+     * request the next batch before it is failed. Bounds how long a client that holds its connection open but
+     * stops reading can pin a streaming query's compute and buffered results. Only a new batch request resets
+     * the clock; progress writing an already delivered batch does not, so a slow but live consumer of very
+     * large batches may need a higher value. {@code -1} (or {@code 0}) disables the deadline.
+     * Registered only while streaming is available, see {@link RestEsqlQueryAction#STREAMING_ENABLED}.
+     */
+    public static final Setting<TimeValue> STREAMING_CONSUMER_TIMEOUT = Setting.timeSetting(
+        "esql.streaming.consumer_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -750,6 +766,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             )
         );
         settings.addAll(PlannerSettings.settings());
+
+        // Streaming is unreleased: its settings exist only where the streaming REST surface does, so they are
+        // unknown (and rejected) on release builds.
+        if (RestEsqlQueryAction.STREAMING_ENABLED) {
+            settings.add(STREAMING_CONSUMER_TIMEOUT);
+        }
 
         // The cluster settings backing ES|QL query-setting defaults, derived from the query-settings registry —
         // one per setting declared with withClusterDefault(). Never hand-maintained: opting a setting in is one

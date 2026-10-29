@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
@@ -107,7 +106,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
@@ -1993,9 +1991,12 @@ public class LocalExecutionPlanner {
         ReferenceAttribute indexAttr = new ReferenceAttribute(metricsInfoExec.source(), null, MetadataAttribute.INDEX, DataType.KEYWORD);
         ReferenceAttribute fieldNamesAttr = new ReferenceAttribute(metricsInfoExec.source(), null, "field_names", DataType.KEYWORD);
         Layout fieldSetsLayout = new Layout.Builder().append(List.of(indexAttr, fieldNamesAttr)).build();
-        Map<Integer, FieldPresenceOperator.ShardFields> timeSeriesFields = createTimeSeriesFields(context.shardContexts);
+        IndexedByShardId<? extends ShardContext> shardContexts = context.shardContexts;
         PhysicalOperation fieldSets = dedupedSource.with(
-            new FieldPresenceOperator.Factory(timeSeriesFields::get, dedupedSource.layout.get(docAttr.id()).channel()),
+            new FieldPresenceOperator.Factory(
+                shard -> createTimeSeriesFields(shardContexts.get(shard)),
+                dedupedSource.layout.get(docAttr.id()).channel()
+            ),
             fieldSetsLayout
         );
 
@@ -2016,27 +2017,19 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * Builds the presence checks of every dimension and metric field of each shard's mapping. Built here rather than
-     * on the driver threads because {@link ShardContext#toQuery} resets state of the shard's search context.
+     * Builds the presence checks of every dimension and metric field of a shard's mapping. Runs on the driver thread that
+     * reads the shard first, so it uses {@link ShardContext#existsQuery}, which leaves the shard's search context alone.
      */
-    private Map<Integer, FieldPresenceOperator.ShardFields> createTimeSeriesFields(IndexedByShardId<? extends ShardContext> shardContexts) {
-        Map<Integer, FieldPresenceOperator.ShardFields> fieldsByShard = new HashMap<>();
-        for (ShardContext shard : shardContexts.iterable()) {
-            fieldsByShard.put(shard.index(), createTimeSeriesFields(shard));
-        }
-        return Map.copyOf(fieldsByShard);
-    }
-
     private FieldPresenceOperator.ShardFields createTimeSeriesFields(ShardContext shard) {
         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, shard.indexSettings().getIndex().getName());
         IndexSearcher searcher = shard.searcher();
         List<FieldPresenceOperator.Field> fields = new ArrayList<>();
         if (shard.indexSettings().getMode().isTsdb()) {
             for (String fieldName : timeSeriesFieldNames(shard.mappingLookup())) {
-                Query exists = shard.toQuery(new ExistsQueryBuilder(fieldName));
                 try {
                     // Bypasses the query cache, which could build a bitset per segment for each of the many fields.
-                    Weight presence = searcher.rewrite(exists).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    Weight presence = searcher.rewrite(shard.existsQuery(fieldName))
+                        .createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     fields.add(new FieldPresenceOperator.Field(fieldName, presence));
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

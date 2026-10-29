@@ -50,6 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -259,6 +260,30 @@ public class FieldPresenceOperatorTests extends OperatorTestCase {
         try (Operator operator = new FieldPresenceOperator.Factory(noShards::get, 0).get(driverContext)) {
             Exception e = expectThrows(IllegalStateException.class, () -> operator.addInput(docs(doc(0, 0, 0))));
             assertThat(e.getMessage(), equalTo("no fields configured for shard [0]"));
+        }
+    }
+
+    public void testBuildsTheFieldsOfAShardOnceWhenFirstRead() {
+        IndexReader first = index(List.of(List.of(Set.of("host", "cpu"), Set.of("pod", "cpu"))));
+        IndexReader second = index(List.of(List.of(Set.of("host", "cpu"))));
+        Map<Integer, FieldPresenceOperator.ShardFields> fieldsByShard = Map.of(
+            0,
+            shardFields("metrics-1", first),
+            1,
+            shardFields("metrics-2", second)
+        );
+        Map<Integer, Integer> builds = new ConcurrentHashMap<>();
+        FieldPresenceOperator.Factory factory = new FieldPresenceOperator.Factory(shard -> {
+            builds.merge(shard, 1, Integer::sum);
+            return fieldsByShard.get(shard);
+        }, 0);
+        try (Operator firstDriver = factory.get(driverContext()); Operator secondDriver = factory.get(driverContext())) {
+            assertThat("no shard is read yet", builds, equalTo(Map.of()));
+            firstDriver.addInput(docs(doc(0, 0, 0)));
+            firstDriver.getOutput().releaseBlocks();
+            secondDriver.addInput(docs(doc(0, 0, 1)));
+            secondDriver.getOutput().releaseBlocks();
+            assertThat(builds, equalTo(Map.of(0, 1)));
         }
     }
 

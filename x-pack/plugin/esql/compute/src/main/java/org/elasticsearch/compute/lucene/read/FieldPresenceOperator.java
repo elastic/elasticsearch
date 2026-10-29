@@ -35,7 +35,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntFunction;
 
 /**
@@ -75,18 +77,42 @@ public final class FieldPresenceOperator implements Operator {
     }
 
     /**
-     * @param shardFields the fields of each shard, by the shard ordinal of the doc vector
-     * @param docChannel  channel of the {@link DocBlock} to read
+     * Builds the operators of every driver of a plan. They share the fields of each shard, which are only built when a driver
+     * first reads the shard, so the shards that no document comes from cost nothing.
      */
-    public record Factory(IntFunction<ShardFields> shardFields, int docChannel) implements OperatorFactory {
+    public static final class Factory implements OperatorFactory {
+        private final IntFunction<ShardFields> buildShardFields;
+        private final int docChannel;
+        private final Map<Integer, ShardFields> fieldsByShard = new ConcurrentHashMap<>();
+
+        /**
+         * @param buildShardFields builds the fields of a shard, by the shard ordinal of the doc vector. Called at most once per
+         *                         shard, from the driver thread that reads the shard first.
+         * @param docChannel       channel of the {@link DocBlock} to read
+         */
+        public Factory(IntFunction<ShardFields> buildShardFields, int docChannel) {
+            this.buildShardFields = buildShardFields;
+            this.docChannel = docChannel;
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FieldPresenceOperator(driverContext.blockFactory(), shardFields, docChannel);
+            return new FieldPresenceOperator(driverContext.blockFactory(), this);
         }
 
         @Override
         public String describe() {
             return "FieldPresenceOperator[docChannel=" + docChannel + "]";
+        }
+
+        private ShardFields shardFields(int shard) {
+            return fieldsByShard.computeIfAbsent(shard, s -> {
+                ShardFields fields = buildShardFields.apply(s);
+                if (fields == null) {
+                    throw new IllegalStateException("no fields configured for shard [" + s + "]");
+                }
+                return fields;
+            });
         }
     }
 
@@ -99,7 +125,7 @@ public final class FieldPresenceOperator implements Operator {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-    private final IntFunction<ShardFields> shardFields;
+    private final Factory factory;
     private final int docChannel;
     private final Set<FieldSet> seenFieldSets = new HashSet<>();
     private long trackedBytes;
@@ -113,11 +139,11 @@ public final class FieldPresenceOperator implements Operator {
     private long rowsReceived;
     private long rowsEmitted;
 
-    private FieldPresenceOperator(BlockFactory blockFactory, IntFunction<ShardFields> shardFields, int docChannel) {
+    private FieldPresenceOperator(BlockFactory blockFactory, Factory factory) {
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
-        this.shardFields = shardFields;
-        this.docChannel = docChannel;
+        this.factory = factory;
+        this.docChannel = factory.docChannel;
     }
 
     @Override
@@ -165,7 +191,7 @@ public final class FieldPresenceOperator implements Operator {
 
     private void discover(int shard, int segment, int doc, List<FieldSet> discovered) throws IOException {
         if (segmentIterators == null || segmentIterators.canRead(shard, segment, doc) == false) {
-            segmentIterators = new SegmentIterators(shard, segment, shardFields(shard));
+            segmentIterators = new SegmentIterators(shard, segment, factory.shardFields(shard));
         }
         FixedBitSet presentFields = segmentIterators.presentFields(doc);
         if (presentFields == null || seenFieldSets.contains(new FieldSet(shard, presentFields))) {
@@ -179,21 +205,13 @@ public final class FieldPresenceOperator implements Operator {
         discovered.add(fieldSet);
     }
 
-    private ShardFields shardFields(int shard) {
-        ShardFields fields = shardFields.apply(shard);
-        if (fields == null) {
-            throw new IllegalStateException("no fields configured for shard [" + shard + "]");
-        }
-        return fields;
-    }
-
     private Page buildPage(List<FieldSet> fieldSets) {
         try (
             BytesRefBlock.Builder indexNames = blockFactory.newBytesRefBlockBuilder(fieldSets.size());
             BytesRefBlock.Builder fieldNames = blockFactory.newBytesRefBlockBuilder(fieldSets.size())
         ) {
             for (FieldSet fieldSet : fieldSets) {
-                ShardFields fields = shardFields(fieldSet.shard());
+                ShardFields fields = factory.shardFields(fieldSet.shard());
                 indexNames.appendBytesRef(new BytesRef(fields.indexName()));
                 FixedBitSet present = fieldSet.presentFields();
                 boolean multivalued = present.cardinality() > 1;

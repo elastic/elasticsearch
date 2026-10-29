@@ -20,8 +20,9 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 
-import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Pulls Docker images required by a project's build and tests as part of {@code resolveAllDependencies}, which is run
@@ -30,17 +31,18 @@ import java.util.stream.Collectors;
  * <ul>
  *     <li>images of {@code CacheableTestFixture} implementations (test containers) in this project</li>
  *     <li>the builder images used by this project's {@link NativeImageBuildTask}s</li>
+ *     <li>the base images declared by this project's {@link DockerBuildTask}s</li>
  * </ul>
  */
 public class DockerImageCachePlugin implements Plugin<Project> {
 
     public static final String CACHE_TEST_FIXTURES = "cacheTestFixtures";
-    public static final String CACHE_NATIVE_IMAGE_BUILDER = "cacheNativeImageBuilder";
+    public static final String CACHE_DOCKER_IMAGES = "cacheDockerImages";
 
     @Override
     public void apply(Project project) {
         configureTestFixtureCaching(project);
-        configureNativeImageBuilderCaching(project);
+        configureDockerImageCaching(project);
     }
 
     private static void configureTestFixtureCaching(Project project) {
@@ -69,28 +71,31 @@ public class DockerImageCachePlugin implements Plugin<Project> {
     }
 
     /**
-     * Only images for the host architecture are cached: CI agents only build native images for their own architecture,
-     * and the Docker image store holds a single platform variant per tag.
+     * Only images for the host architecture are cached: CI agents only build images for their own architecture (cross
+     * architecture builds use buildx, which has its own image store), and the Docker image store holds a single platform
+     * variant per tag.
      */
-    private static void configureNativeImageBuilderCaching(Project project) {
+    private static void configureDockerImageCaching(Project project) {
         project.getPluginManager().apply(DockerSupportPlugin.class);
         String hostPlatform = Architecture.current().dockerPlatform;
-        var cacheNativeImageBuilder = project.getTasks().register(CACHE_NATIVE_IMAGE_BUILDER, CacheDockerImages.class, t -> {
-            t.setDescription("Pulls the Docker images used by native-image builds for the host architecture");
+        var cacheDockerImages = project.getTasks().register(CACHE_DOCKER_IMAGES, CacheDockerImages.class, t -> {
+            t.setDescription("Pulls the Docker base and builder images used by this project for the host architecture");
             t.getPlatform().set(hostPlatform);
-            t.getImages()
-                .set(
-                    project.provider(
-                        () -> project.getTasks()
-                            .withType(NativeImageBuildTask.class)
-                            .stream()
-                            .filter(n -> hostPlatform.equals(n.getPlatform().getOrNull()))
-                            .map(n -> n.getImageTag().getOrNull())
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toSet())
-                    )
-                );
+            t.getImages().set(project.provider(() -> {
+                Set<String> images = new LinkedHashSet<>();
+                project.getTasks().withType(NativeImageBuildTask.class).forEach(n -> {
+                    if (hostPlatform.equals(n.getPlatform().getOrNull()) && n.getImageTag().isPresent()) {
+                        images.add(n.getImageTag().get());
+                    }
+                });
+                project.getTasks().withType(DockerBuildTask.class).forEach(d -> {
+                    if (d.isPull() && d.getBaseImages() != null && d.getPlatforms().getOrElse(Set.of()).contains(hostPlatform)) {
+                        images.addAll(Arrays.asList(d.getBaseImages()));
+                    }
+                });
+                return images;
+            }));
         });
-        project.getTasks().withType(ResolveAllDependencies.class).configureEach(r -> r.dependsOn(cacheNativeImageBuilder));
+        project.getTasks().withType(ResolveAllDependencies.class).configureEach(r -> r.dependsOn(cacheDockerImages));
     }
 }

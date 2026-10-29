@@ -1,0 +1,8 @@
+FROM employees
+| RENAME first_name AS original_first_name
+| LOOKUP JOIN test_lookup ON emp_no
+| RENAME first_name AS looked_up_once
+| LOOKUP JOIN test_lookup ON emp_no
+| RENAME first_name AS looked_up_twice
+| LOOKUP JOIN test_lookup ON emp_no
+| KEEP emp_no, original_first_name, looked_up_once, looked_up_twice, first_name

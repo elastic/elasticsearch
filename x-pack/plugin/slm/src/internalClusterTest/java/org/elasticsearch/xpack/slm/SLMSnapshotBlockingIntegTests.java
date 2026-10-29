@@ -253,6 +253,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 ).get().isAcknowledged()
             );
 
+            // Retention picks the snapshots to delete asynchronously. Wait until it has queued the deletion of the
+            // completed snapshot, so it can't also pick the second snapshot once that one is unblocked and completes.
+            awaitNDeletionsInProgress(1);
+
             logger.info("--> unblocking snapshots");
             unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);

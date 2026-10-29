@@ -234,9 +234,6 @@ public class AshPostingsListWriter {
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
         final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AshPostingsVisitor.CORRECTION_BYTES];
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
-        // per vector. Created here and reused for every posting list, since W does not change.
-        final AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE);
         final float[] blockVecCentroidSqDists = new float[ENCODE_SIZE];
         DocIdsWriter idsWriter = new DocIdsWriter();
 
@@ -250,7 +247,9 @@ public class AshPostingsListWriter {
             offHeapValues.updateReadAdvice(DataAccessHint.RANDOM);
         }
 
-        try {
+        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
+        // per vector. Created here and reused for every posting list, since W does not change.
+        try (AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE)) {
             for (int c = 0; c < nClusters; c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 // Precompute centroid projection + norm once per posting list

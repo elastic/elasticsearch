@@ -1071,7 +1071,11 @@ public class ObjectMapper extends Mapper {
         boolean isFragment,
         boolean columnarStored
     ) {
-        // The _unmapped sink arrives among the root's metadata mappers.
+        // The _unmapped sink arrives among the root's metadata mappers. A columnar_stored root writes the _source precomputed at index
+        // time, which already holds the absorbed fields, so the sink isn't loaded there.
+        if (isRoot() && columnarStored) {
+            mappers = mappers.stream().filter(m -> m instanceof UnmappedSinkFieldMapper == false).toList();
+        }
         Mapper sink = mappers.stream().filter(UnmappedSinkFieldMapper.class::isInstance).findFirst().orElse(null);
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))

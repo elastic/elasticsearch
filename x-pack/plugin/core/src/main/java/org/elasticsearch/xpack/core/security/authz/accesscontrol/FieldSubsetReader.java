@@ -10,6 +10,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -270,6 +272,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             return stripSuffix(fieldName, onFailure);
         }
 
+        // A columnar geo_shape field stores its normalized geometries in a <field>.source_geometry companion so synthetic source
+        // can be rebuilt
+        if (fieldName.endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)) {
+            return stripSuffix(fieldName, AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX);
+        }
+
         return fieldName;
     }
 
@@ -474,6 +482,25 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
     }
 
+    @Override
+    public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        if (hasField(field) == false || isFilteredCountsField(field)) {
+            return null;
+        }
+        return super.getDocValuesSkipper(field);
+    }
+
+    /**
+     * Returns whether {@code field} is a counts field that stays visible but whose numeric doc values this reader filters:
+     * {@code _ignored_source.counts}, which {@link #getNumericDocValues} hides, and {@code _unmapped._keyed.counts}, which it
+     * reduces to the slots of granted unmapped fields. The skipper stored for such a field summarizes the unfiltered values,
+     * including those of hidden fields, so it must not be exposed. Returning no skipper is always correct: readers treat it
+     * as optional and read the doc values without one.
+     */
+    private boolean isFilteredCountsField(String field) {
+        return isIgnoredSourceCountsField(field) || UNMAPPED_SINK_COUNTS.equals(field);
+    }
+
     /**
      * The slots of the {@code _unmapped} field for one document at a time, keeping only those of the unmapped fields that
      * {@code filter} grants. Each slot is {@code [valueLength+1]key\0value}, or {@code [0]key\0} for a null, and is kept as it is,
@@ -534,21 +561,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public boolean advanceExactStored(int target) throws IOException {
-            doc = target;
-            fields.granted.clear();
-            fields.grantedCount = 0;
-            return fields.counts.advanceExact(target) && fields.slots.advanceExact(target);
+        public BinaryDocValues storedSlots() {
+            return fields.slots;
         }
 
         @Override
-        public BytesRef storedSlots() throws IOException {
-            return fields.slots.binaryValue();
-        }
-
-        @Override
-        public int storedSlotCount() throws IOException {
-            return Math.toIntExact(fields.counts.longValue());
+        public NumericDocValues storedCounts() {
+            return fields.counts;
         }
 
         @Override

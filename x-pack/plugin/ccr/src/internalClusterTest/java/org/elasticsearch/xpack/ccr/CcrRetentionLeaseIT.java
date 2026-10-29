@@ -660,9 +660,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         ensureFollowerGreen(true, followerIndex);
         assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
 
-        // Saturate ccr pool on every follower node and check the lease is still renewed
         final TimeValue renewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
-        // wait for threads to be idle first
+        // Wait for ccr pool threads to be idle first
         assertBusy(() -> {
             for (final String node : getFollowerCluster().getNodeNames()) {
                 for (final ThreadPoolStats.Stats stats : getFollowerCluster().getInstance(ThreadPool.class, node).stats()) {
@@ -672,6 +671,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 }
             }
         });
+        // Saturate ccr pool on every follower node and check the lease is still renewed
         final CountDownLatch release = new CountDownLatch(1);
         try {
             for (final String node : getFollowerCluster().getNodeNames()) {

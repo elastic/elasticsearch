@@ -146,6 +146,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -486,6 +487,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final TaskManager taskManager;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -496,7 +499,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager
     ) {
         Settings settings = clusterService.getSettings();
         this.sessionId = UUIDs.randomBase64UUID();
@@ -511,6 +515,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
+        this.taskManager = taskManager;
         this.onlinePrewarmingService = onlinePrewarmingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -667,15 +672,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
+    public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+        // Runs before the shards close. engine.close waits on searchers held by in-flight phases, so they must be cancelled
+        // first. Relocation and shutdown close shards without removing the index, and those searches must keep running.
+        if (removalFreesSearchContexts(reason)) {
+            final Index index = indexService.index();
+            for (ReaderContext ctx : activeReaders.values()) {
+                if (index.equals(ctx.indexShard().shardId().getIndex())) {
+                    ctx.cancelInFlightSearches(taskManager, "index removed: " + index.getName());
+                }
+            }
+        }
+    }
+
+    @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
         // if we then close all the contexts we can get some search failures along the way which are not expected.
         // it's fine to keep the contexts open if the index is still "alive"
         // unfortunately we don't have a clear way to signal today why an index is closed.
         // to release memory and let references to the filesystem go etc.
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
+        if (removalFreesSearchContexts(reason)) {
             freeAllContextForIndex(index);
         }
+    }
+
+    private static boolean removalFreesSearchContexts(IndexRemovalReason reason) {
+        return reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED;
     }
 
     @Override
@@ -961,6 +984,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         final long waitForCheckpoint = request.waitForCheckpoint();
         final Executor executor = getExecutor(shard);
+        final AtomicBoolean isDone = new AtomicBoolean(false);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
                 runAsync(executor, executable, listener);
@@ -975,21 +999,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return;
             }
 
-            final AtomicBoolean isDone = new AtomicBoolean(false);
-            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
-            // index shard on timeout so that a timed-out listener does not use up any listener slots.
             final TimeValue timeout = request.getWaitForCheckpointsTimeout();
-            final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
-                if (isDone.compareAndSet(false, true)) {
-                    var shardTarget = new SearchShardTarget(
-                        shard.routingEntry().currentNodeId(),
-                        shard.shardId(),
-                        request.getClusterAlias()
-                    );
-                    var message = LoggerMessageFormat.format("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout);
-                    listener.onFailure(new SearchTimeoutException(shardTarget, message));
-                }
-            }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            // The timeout is scheduled after the listener is registered, so that failures reported synchronously during registration
+            // (e.g. an unissued checkpoint) cannot lose a race against it.
+            final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
 
             // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
             // to 30s
@@ -1031,18 +1044,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 @Override
                 public void onFailure(Exception e) {
                     if (isDone.compareAndSet(false, true)) {
-                        if (timeoutTask != null) {
-                            timeoutTask.cancel();
-                        }
+                        cancelTimeout();
                         listener.onFailure(e);
+                    }
+                }
+
+                private void cancelTimeout() {
+                    final Scheduler.ScheduledCancellable scheduled = timeoutTask.get();
+                    if (scheduled != null) {
+                        scheduled.cancel();
                     }
                 }
 
                 private void searchReady() {
                     if (isDone.compareAndSet(false, true)) {
-                        if (timeoutTask != null) {
-                            timeoutTask.cancel();
-                        }
+                        cancelTimeout();
                         runAsync(executor, executable, listener);
                         // we successfully submitted the async task to the search pool so let's prewarm the shard
                         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
@@ -1051,8 +1067,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
             });
+
+            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
+            // index shard on timeout so that a timed-out listener does not use up any listener slots.
+            if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
+                timeoutTask.set(threadPool.schedule(() -> {
+                    if (isDone.compareAndSet(false, true)) {
+                        var shardTarget = new SearchShardTarget(
+                            shard.routingEntry().currentNodeId(),
+                            shard.shardId(),
+                            request.getClusterAlias()
+                        );
+                        var message = LoggerMessageFormat.format(
+                            "Wait for seq_no [{}] refreshed timed out [{}]",
+                            waitForCheckpoint,
+                            timeout
+                        );
+                        listener.onFailure(new SearchTimeoutException(shardTarget, message));
+                    }
+                }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE));
+                if (isDone.get()) {
+                    // the listener completed before the task was set, so it could not cancel it
+                    timeoutTask.get().cancel();
+                }
+            }
         } catch (Exception e) {
-            listener.onFailure(e);
+            // the refresh listener may already be registered and complete the listener, so only fail it if nothing else has
+            if (isDone.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            }
         }
     }
 
@@ -1609,7 +1652,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request, @Nullable ShardId expectedShard)
+    /**
+     * Looks up a registered reader context by id. When {@code expectedShard} is given, the context must belong to that
+     * shard. {@link SearchOperationListener#validateReaderContext} then runs, so listeners such as the security listener
+     * can reject the caller. Their exceptions propagate. A rejection frees the context only if it serves a single
+     * search or a scroll.
+     *
+     * @throws SearchContextMissingException if no context has this id
+     * @throws IllegalArgumentException if the id has no session id, or the context belongs to another shard
+     */
+    public ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request, @Nullable ShardId expectedShard)
         throws SearchContextMissingException {
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
@@ -1645,7 +1697,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final ReaderContext createOrGetReaderContext(ShardSearchRequest request, Task task) {
+    /**
+     * Returns the reader context that {@code request} names, or registers a new one for its shard. A new context serves a
+     * single search: {@link #findReaderContext} finds it, the reaper frees it once it was unused for its keep-alive, and
+     * removing the index or stopping the node frees it. Its keep-alive is the one of the request, or
+     * {@code search.default_keep_alive}. Callers outside the search phases free it with {@link #freeReaderContext}.
+     *
+     * @param task the task that opens the context, logged when the context opens and closes. May be {@code null}.
+     */
+    public final ReaderContext createOrGetReaderContext(ShardSearchRequest request, @Nullable Task task) {
         ShardSearchContextId contextId = request.readerId();
         final long keepAliveInMillis = getKeepAlive(request);
         if (contextId != null) {
@@ -1947,6 +2007,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
 
+        if (readerContext.scrollContext() != null) {
+            // Freed readers close only after in-flight phases release them. Registering the task lets index removal cancel
+            // a scroll phase blocked inside its SearchContext try-with-resources so it can exit and close that context.
+            // Only scroll is tracked: that is the case that leaked (#161316), and other searches keep today's behavior.
+            readerContext.addInFlightSearch(task, context);
+            // Registration happens before this check, and cancellation publishes its reason before sweeping the registered
+            // tasks, so a phase that missed the sweep is rejected here.
+            final String cancelReason = readerContext.inFlightCancelReason();
+            if (cancelReason != null) {
+                context.close();
+                throw new TaskCancelledException(cancelReason);
+            }
+        }
+
         return context;
     }
 
@@ -1962,6 +2036,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
             return searchContext;
         }
+    }
+
+    /**
+     * Creates a search context on an existing reader context, for example one from {@link #createOrGetReaderContext}. The
+     * search context can execute queries and load fields. While it is open, the reader context cannot expire or close
+     * its reader. Closing the search context does not free the reader context.
+     *
+     * @throws SearchContextMissingException if the reader context is already closed
+     */
+    public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
+        throws IOException {
+        // pin the reader before the search context acquires a searcher, so a concurrent free cannot close it in between
+        final Releasable pin = readerContext.markAsUsed(-1L);
+        final DefaultSearchContext searchContext;
+        try {
+            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
+        } catch (Exception e) {
+            pin.close();
+            throw e;
+        }
+        searchContext.addReleasable(pin);
+        searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
+        return searchContext;
     }
 
     @SuppressWarnings("unchecked")
@@ -2001,8 +2098,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
 
             Rewriteable.rewrite(request.getRewriteable(), context, true);
-            assert context.getQueryConstructionMemoryUsed() == 0
-                : "rewrite phase should not build queries; found " + context.getQueryConstructionMemoryUsed() + " bytes tracked";
+            assert context.getQueryConstructionMemoryUsed() == 0 && context.hasQueryConstructionReleasables() == false
+                : "rewrite phase should not build queries; found "
+                    + context.getQueryConstructionMemoryUsed()
+                    + " bytes tracked, releasables registered: "
+                    + context.hasQueryConstructionReleasables();
 
             if (context.getTimeRangeFilterFromMillis() != null) {
                 // range queries may get rewritten to match_all or a range with open bounds. Rewriting in that case is the only place

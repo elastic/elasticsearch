@@ -110,6 +110,26 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
     }
 
+    /// If cancelSplits already ran (removing nothing) and the shard is CLOSED by the time a state machine is registered,
+    /// the CLOSED guard must prevent leaving an entry in the map that nothing would ever clean up.
+    public void testStateMachineIsNotRegisteredForClosedShard() {
+        var threadPool = mock(ThreadPool.class);
+        var clusterService = mock(ClusterService.class);
+        var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+        var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
+
+        var split = dummySplit();
+        var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(split.shardId());
+        when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
+
+        sts.cancelSplits(indexShard);
+        sts.initializeSplitInCloneState(indexShard, split);
+
+        assertTrue(sts.getShardsWithOngoingSplits().isEmpty());
+    }
+
     /// Closing a shard cancels its split. Nothing else answers the refreshes waiting on it, so the state machine's `cancel()` must
     /// fail them.
     public void testWaitingRefreshesAreAnsweredWhenSplitIsCancelled() {

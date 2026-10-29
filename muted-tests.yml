@@ -448,3 +448,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
   method: test {csv-spec:null.nullLiteralArgInMultiInputAggs}
   issue: https://github.com/elastic/elasticsearch/issues/163927
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testColumnarGeoShapeRespectsFieldLevelSecurity
+  issue: https://github.com/elastic/elasticsearch/issues/163935

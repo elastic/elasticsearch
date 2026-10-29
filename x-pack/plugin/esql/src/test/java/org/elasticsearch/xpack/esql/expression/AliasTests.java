@@ -17,17 +17,29 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias> {
@@ -70,7 +82,7 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         assertEquals(DataType.COUNTER_LONG, counter.dataType());
     }
 
-    public void testCastOfNonMetricRemainsNonMetric() {
+    public void testNumericCastPreservesAndExplicitCastsEstablishMetricIdentity() {
         FieldAttribute field = new FieldAttribute(
             Source.EMPTY,
             "value",
@@ -79,13 +91,73 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         Alias converted = new Alias(Source.EMPTY, "converted", new ToDouble(Source.EMPTY, field));
         assertFalse(converted.toAttribute().isMetric());
         Alias counter = new Alias(Source.EMPTY, "counter", new ToCounter(Source.EMPTY, field));
-        assertFalse(counter.toAttribute().isMetric());
+        assertTrue(counter.toAttribute().isMetric());
+        Alias gauge = new Alias(Source.EMPTY, "gauge", new ToGauge(Source.EMPTY, field));
+        assertTrue(gauge.toAttribute().isMetric());
     }
 
     public void testCastOfComputedValueRemainsNonMetric() {
         Expression computed = new Coalesce(Source.EMPTY, metricField(DataType.LONG), List.of(new Literal(Source.EMPTY, 0L, DataType.LONG)));
         Alias alias = new Alias(Source.EMPTY, "computed", new ToDouble(Source.EMPTY, computed));
         assertFalse(alias.toAttribute().isMetric());
+    }
+
+    public void testExplicitCastsDeclareComputedMetrics() throws IOException {
+        Expression computed = new Coalesce(Source.EMPTY, metricField(DataType.LONG), List.of(new Literal(Source.EMPTY, 0L, DataType.LONG)));
+        for (Expression declaration : List.of(new ToGauge(Source.EMPTY, computed), new ToCounter(Source.EMPTY, computed))) {
+            Alias alias = new Alias(Source.EMPTY, "declared", declaration);
+            assertTrue(alias.toAttribute().isMetric());
+            Alias copy = copyInstance(alias);
+            assertTrue(copy.toAttribute().isMetric());
+            Alias numeric = new Alias(Source.EMPTY, "numeric", new ToDouble(Source.EMPTY, copy.toAttribute()));
+            assertTrue(numeric.toAttribute().isMetric());
+        }
+    }
+
+    public void testNumericConversionsPreserveMetricIdentity() {
+        Expression metric = metricField(DataType.LONG);
+        for (Expression conversion : List.of(
+            new ToDouble(Source.EMPTY, metric),
+            new ToInteger(Source.EMPTY, metric),
+            new ToLong(Source.EMPTY, metric),
+            new ToUnsignedLong(Source.EMPTY, metric),
+            new ToAggregateMetricDouble(Source.EMPTY, metric)
+        )) {
+            assertTrue(conversion.toString(), new Alias(Source.EMPTY, "converted", conversion).toAttribute().isMetric());
+        }
+    }
+
+    public void testHistogramConversionsPreserveMetricIdentity() throws IOException {
+        Expression histogram = metricField(DataType.HISTOGRAM);
+        Alias tdigest = new Alias(Source.EMPTY, "tdigest", new ToTDigest(Source.EMPTY, histogram));
+        Alias exponential = new Alias(Source.EMPTY, "exponential", new ToExponentialHistogram(Source.EMPTY, tdigest.toAttribute()));
+        assertTrue(tdigest.toAttribute().isMetric());
+        assertTrue(exponential.toAttribute().isMetric());
+        assertTrue(copyInstance(exponential).toAttribute().isMetric());
+        FieldAttribute ordinaryHistogram = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.HISTOGRAM, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        assertFalse(MetricExpression.isMetric(new ToTDigest(Source.EMPTY, ordinaryHistogram)));
+        assertFalse(MetricExpression.isMetric(new ToExponentialHistogram(Source.EMPTY, ordinaryHistogram)));
+    }
+
+    public void testOtherConversionsAndAngleTransformationsDropMetricIdentity() {
+        Expression metric = metricField(DataType.LONG);
+        for (Expression conversion : List.of(
+            new ToString(Source.EMPTY, metric, TEST_CFG),
+            new ToBoolean(Source.EMPTY, metric),
+            new ToDatetime(Source.EMPTY, metric, TEST_CFG),
+            new ToDateNanos(Source.EMPTY, metric, TEST_CFG),
+            new ToDegrees(Source.EMPTY, metric),
+            new ToRadians(Source.EMPTY, metric)
+        )) {
+            Alias alias = new Alias(Source.EMPTY, "converted", conversion);
+            assertFalse(conversion.toString(), alias.toAttribute().isMetric());
+        }
+        Expression string = new ToString(Source.EMPTY, metric, TEST_CFG);
+        assertFalse(MetricExpression.isMetric(new ToDouble(Source.EMPTY, string)));
     }
 
     private static FieldAttribute metricField(DataType type) {

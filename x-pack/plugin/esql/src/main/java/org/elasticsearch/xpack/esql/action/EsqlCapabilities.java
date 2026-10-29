@@ -4612,8 +4612,8 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
-         * Casts retain metric identity through aliases and transport without changing their result types or counter conversions.
-         * Converted metrics receive the same TS null filtering as mapped metric fields.
+         * Numeric and histogram casts preserve metric identity through aliases and transport; counter and gauge casts establish it.
+         * Declared and converted metrics receive the same TS null filtering as mapped metric fields.
          */
         METRIC_IDENTITY_THROUGH_CASTS,
 

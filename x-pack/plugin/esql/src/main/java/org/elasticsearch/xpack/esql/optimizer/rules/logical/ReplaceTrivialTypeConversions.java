@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetricExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -22,7 +23,7 @@ public final class ReplaceTrivialTypeConversions extends OptimizerRules.Optimize
     @Override
     protected LogicalPlan rule(Eval eval) {
         return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {
-            if (convert.field() instanceof FieldAttribute fa && fa.dataType() == convert.dataType()) {
+            if (convert.field() instanceof FieldAttribute fa && convert.isNoop() && MetricExpression.isMetric(convert) == fa.isMetric()) {
                 return fa;
             }
             return convert;

@@ -35,7 +35,7 @@ import java.util.Map;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
-public class ToExponentialHistogram extends AbstractConvertFunction {
+public class ToExponentialHistogram extends AbstractConvertFunction implements MetricPreservingConvertFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

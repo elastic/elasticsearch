@@ -69,7 +69,8 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
 
     /**
      * Whether an aggregation reads an input that isn't a metric, such as a value computed with arithmetic or {@code COALESCE}
-     * in an {@code EVAL}. Casts and aliases of metrics retain metric identity. A filter on the metrics alone would drop the rows
+     * in an {@code EVAL}. Numeric and histogram casts preserve metric identity, while counter and gauge casts explicitly declare metrics.
+     * A filter on the metrics alone would drop the rows
      * that only have values for that input.
      * <p>
      * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have

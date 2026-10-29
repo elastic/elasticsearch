@@ -1839,6 +1839,8 @@ TS null filtering through metric casts:
               b:
                 type: long
                 time_series_metric: gauge
+              value:
+                type: long
               requests:
                 type: long
                 time_series_metric: counter
@@ -1848,7 +1850,7 @@ TS null filtering through metric casts:
         index: test-metric-casts
         body:
           - '{"create": {}}'
-          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1, "requests": 100}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1, "value": 3, "requests": 100}'
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2, "requests": 200}'
 
@@ -1907,3 +1909,61 @@ TS null filtering through metric casts:
   - length: {values: 2}
   - match: {values.0: [1.0, true, false, "h1"]}
   - match: {values.1: [null, false, true, "h2"]}
+
+
+  # A plain numeric input retains h2's group even though its value is null.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | STATS maximum = max(value) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [3, "h1"]}
+  - match: {values.1: [null, "h2"]}
+
+  # Declaring the same input as a gauge enables metric null filtering, removing h2's null-only group.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL declared = value::gauge | STATS maximum = max(declared) BY host | SORT host'
+  - length: {values: 1}
+  - match: {values.0: [3, "h1"]}
+
+  # Explicit counter declarations establish metric identity, which a subsequent numeric cast preserves.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL declared = value::counter::long | STATS maximum = max(declared) BY host | SORT host'
+  - length: {values: 1}
+  - match: {values.0: [3, "h1"]}
+
+  # Computed values can also be explicitly declared as metrics.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL declared = (b + 1)::gauge | STATS maximum = max(declared) BY host | SORT host'
+  - length: {values: 1}
+  - match: {values.0: [3, "h2"]}
+
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL declared = (b + 1)::counter::long | STATS maximum = max(declared) BY host | SORT host'
+  - length: {values: 1}
+  - match: {values.0: [3, "h2"]}
+
+  # Casting back to a numeric type does not restore identity lost through a string conversion.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = a::string::double | STATS maximum = max(converted) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1.0, "h1"]}
+  - match: {values.1: [null, "h2"]}
+
+  # Angle transformations behave like arithmetic, retaining groups whose computed input is null.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = to_degrees(a) | STATS maximum = max(converted) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.1: [null, "h2"]}

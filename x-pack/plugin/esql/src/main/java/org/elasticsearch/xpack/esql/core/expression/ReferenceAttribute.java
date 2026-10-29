@@ -86,7 +86,7 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
     /**
      * Creates a reference retaining expression metadata across aliasing and transport boundaries.
      *
-     * @param metric whether the referenced expression preserves the identity of a mapped time-series metric
+     * @param metric whether the referenced expression represents a mapped or explicitly declared time-series metric
      */
     public ReferenceAttribute(
         Source source,
@@ -139,6 +139,8 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
                         + "] or newer."
                 );
             }
+            // Older peers intentionally retain their existing null-filtering behavior: references lose metric identity.
+            // During rolling upgrades, filtering can therefore differ between old and new nodes.
             if (out.getTransportVersion().supports(ESQL_METRIC_IDENTITY_IN_REFERENCES)) {
                 out.writeBoolean(metric);
             }

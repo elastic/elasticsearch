@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -87,6 +88,18 @@ public class BufferingMetricExporter implements MetricExporter {
         Supplier<MeterProvider> meterProviderSupplier,
         long writeWindowMillis
     ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, writeWindowMillis, BufferingMetricExporter::createStorage);
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis,
+        BiFunction<Path, FileStorageConfiguration, SignalStorage.Metric> storageFactory
+    ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
         long maxDiskBytes = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes();
@@ -102,7 +115,7 @@ public class BufferingMetricExporter implements MetricExporter {
             .setDeleteItemsOnIteration(false)
             .setDiscardedFileListener((file, reason) -> bufferingMetrics.fullDrops().add(1))
             .build();
-        this.storage = createStorage(diskDir, config);
+        this.storage = storageFactory.apply(diskDir, config);
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
 
         this.diskExecutor = new Scheduler.SafeScheduledThreadPoolExecutor(
@@ -213,6 +226,12 @@ public class BufferingMetricExporter implements MetricExporter {
             Iterator<Collection<MetricData>> it = storage.iterator();
             while (it.hasNext()) {
                 Collection<MetricData> batch = it.next();
+                if (batch == null) {
+                    // Despite the Iterator contract, the storage iterator returns null when it is closed concurrently (on shutdown)
+                    // between hasNext() and next()
+                    logger.debug("the FileMetricStorage is shut down, stoping drain");
+                    return;
+                }
                 CompletableResultCode result = delegate.export(batch).join(sendTimeout.millis(), TimeUnit.MILLISECONDS);
                 it.remove();
                 if (result.isSuccess()) {
@@ -249,7 +268,7 @@ public class BufferingMetricExporter implements MetricExporter {
     }
 
     @SuppressForbidden(reason = "disk-buffering library exposes a java.io.File based API")
-    private static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
+    static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
         return FileMetricStorage.create(dir.toFile(), config);
     }
 

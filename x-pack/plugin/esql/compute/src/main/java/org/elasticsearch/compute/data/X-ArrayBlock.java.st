@@ -104,6 +104,11 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
 
 $if(BytesRef)$
     @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }

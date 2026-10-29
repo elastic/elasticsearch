@@ -293,12 +293,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRemoveAsyncIndex
-  issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
-  method: testPeerRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/161463
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyDissectFromRow
   issue: https://github.com/elastic/elasticsearch/issues/161465
@@ -396,15 +390,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
-- class: org.elasticsearch.index.mapper.TextFieldPhraseWithoutPositionsTests
-  method: testWithIndexPrefixes
-  issue: https://github.com/elastic/elasticsearch/issues/162793
 - class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
   method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/162839
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testConcurrentBulkRequestsWithDynamicMappingUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/162912
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/162945
@@ -431,11 +419,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/163242
-- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
-  tasks:
-  - :server:heapPressureTest
-  method: testPausedHeavyWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/163244
 - class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -500,11 +483,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
   method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
   issue: https://github.com/elastic/elasticsearch/issues/163420
-- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
-  tasks:
-  - :server:heapPressureTest
-  method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/163460
 - class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
   tasks:
   - :server:test
@@ -530,11 +508,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
   issue: https://github.com/elastic/elasticsearch/issues/163504
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  tasks:
-  - :server:internalClusterTest
-  method: testBulkRequestSameOutcomeAsSeparateRequests
-  issue: https://github.com/elastic/elasticsearch/issues/163520
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.19.24#yamlRestTest
@@ -546,5 +519,56 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163562
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.24#yamlRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecAbsentIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#csvSpecTestsOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/163577
+- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
+  issue: https://github.com/elastic/elasticsearch/issues/163583
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/163608
+- class: org.elasticsearch.xpack.eql.qa.mixed_node.EqlSearchIT
+  tasks:
+  - :x-pack:plugin:eql:qa:mixed-node:v9.6.0#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163660
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163565
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingRejectedWithoutFeatureFlag
+  issue: https://github.com/elastic/elasticsearch/issues/163668
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163670
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/163697
+- class: org.elasticsearch.xpack.esql.action.EsqlQueryLogIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSetLevel
+  issue: https://github.com/elastic/elasticsearch/issues/163699
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStressWithRelocationFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148129

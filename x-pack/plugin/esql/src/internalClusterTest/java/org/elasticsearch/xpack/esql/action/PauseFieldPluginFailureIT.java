@@ -42,7 +42,10 @@ public class PauseFieldPluginFailureIT extends AbstractPausableIntegTestCase {
     }
 
     private String queryFailure() {
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM test | STATS sum(pause_me)").pragmas(getPragmas()).allowPartialResults(false);
+        EsqlQueryRequest request = syncEsqlQueryRequest();
+        request.query("FROM test | STATS sum(pause_me)");
+        request.pragmas(randomPragmas());
+        request.allowPartialResults(false);
         Exception e = expectThrows(Exception.class, () -> run(request).close());
         return ExceptionsHelper.stackTrace(e);
     }

@@ -95,7 +95,7 @@ The template creates the following resources:
 
 In the flyout, select the **Manual** setup method.
 
-Elastic shows three AWS CLI commands, with your project or deployment's issuer URL and ID filled in. They create the identity provider, the read access policy, and the role. Use one of the following approaches, without mixing them, because the commands create the resources in a different order than the following steps:
+Use one of the following approaches. Don't mix them, because the commands create the resources in a different order than the following steps:
 
 - **Run the commands from Elastic**: Run all three in order in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) or any shell with the AWS CLI configured, then continue with [connecting a data source and creating a dataset](#connect-data-source-and-create-a-dataset).
 - **Create the resources yourself**: Follow these steps, for example in the AWS console or with infrastructure as code.

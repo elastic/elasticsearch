@@ -1,5 +1,5 @@
 area: Analysis
 issues: [163431]
 pr: 163676
-summary: "Fix the haasephonetik encoder dropping the letter after a leading CH (for example CHLOE was coded as CHOE). Indices created before this fix keep the previous codes and must be reindexed to get the corrected ones"
+summary: "Fix the haasephonetik encoder miscoding words that start with CH (for example CHLOE was coded as CHOE). Indices created before this fix keep the previous codes and must be reindexed to get the corrected ones"
 type: bug

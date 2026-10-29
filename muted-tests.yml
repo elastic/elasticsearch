@@ -609,3 +609,8 @@ tests:
   - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
   method: testUsingRCS1GeneratesDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/163658
+- class: org.elasticsearch.compute.operator.ComputeExecutorTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testRunsEveryTaskOnce
+  issue: https://github.com/elastic/elasticsearch/issues/163879

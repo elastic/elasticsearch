@@ -13,6 +13,8 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkAction;
@@ -60,6 +62,8 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
 
     abstract static class CacheTestFixtureWorkAction implements WorkAction<Parameters> {
 
+        private static final Logger LOGGER = Logging.getLogger(CacheTestFixtureWorkAction.class);
+
         @Inject
         @SuppressWarnings("checkstyle:RedundantModifier")
         public CacheTestFixtureWorkAction() {}
@@ -79,12 +83,12 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
                 try {
                     ifClass = Class.forName("org.elasticsearch.test.fixtures.CacheableTestFixture");
                 } catch (ClassNotFoundException e) {
-                    System.out.println("No cacheable test fixtures on classpath, skipping");
+                    LOGGER.lifecycle("No cacheable test fixtures on classpath, skipping");
                     return;
                 }
                 Set<Class<?>> classes = (Set<Class<?>>) reflections.getSubTypesOf(ifClass);
 
-                System.out.println("Fixtures found: " + classes.size());
+                LOGGER.lifecycle("Fixtures found: {}", classes.size());
                 for (Class<?> cacheableTestFixtureClazz : classes) {
                     if (Modifier.isAbstract(cacheableTestFixtureClazz.getModifiers()) == false) {
                         try {
@@ -92,14 +96,13 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
                             declaredConstructor.setAccessible(true);
                             Object o = declaredConstructor.newInstance();
                             Method cacheMethod = cacheableTestFixtureClazz.getMethod("cache");
-                            System.out.println("Caching resources from " + cacheableTestFixtureClazz.getName());
+                            LOGGER.lifecycle("Caching resources from {}", cacheableTestFixtureClazz.getName());
                             cacheMethod.invoke(o);
                         } catch (NoSuchMethodException e) {
                             // Skip classes without a no-arg constructor - they are not meant to be cached directly
-                            System.out.println("Skipping " + cacheableTestFixtureClazz.getName() + " (no no-arg constructor)");
+                            LOGGER.lifecycle("Skipping {} (no no-arg constructor)", cacheableTestFixtureClazz.getName());
                         } catch (Exception e) {
-                            System.err.println("Failed caching" + cacheableTestFixtureClazz.getName() + ": " + e.getMessage());
-                            e.printStackTrace();
+                            LOGGER.error("Failed caching {}", cacheableTestFixtureClazz.getName(), e);
                         }
                     }
                 }

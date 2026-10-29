@@ -22,7 +22,7 @@ import javax.inject.Inject;
 /**
  * Pulls Docker images required by the build into the local Docker image store, so they can be baked into CI agent
  * images (see {@link DockerImageCachePlugin}) rather than being pulled from a remote registry at job time.
- * Images already present locally are not pulled again.
+ * Images already present locally are not pulled again. The task declares no outputs, so it is never up-to-date.
  */
 public abstract class CacheDockerImages extends DefaultTask {
 
@@ -30,8 +30,6 @@ public abstract class CacheDockerImages extends DefaultTask {
     public CacheDockerImages() {
         onlyIf("There are images to cache", t -> getImages().get().isEmpty() == false);
         onlyIf("Docker is available", t -> getDockerSupport().get().getDockerAvailability().isAvailable());
-        // Pulling has external side effects only, never consider this task up-to-date
-        getOutputs().upToDateWhen(t -> false);
     }
 
     /** Images to cache. */

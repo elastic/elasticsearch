@@ -372,9 +372,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testCsvReadNanosIsolatedBetweenQueries
   issue: https://github.com/elastic/elasticsearch/issues/162715
-- class: org.elasticsearch.search.basic.TransportSearchFailuresIT
-  method: testFailedSearchWithWrongQuery
-  issue: https://github.com/elastic/elasticsearch/issues/162738
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -539,13 +536,13 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163831
-- class: org.elasticsearch.xpack.inference.SemanticTextEISDefaultIT
-  tasks:
-  - :x-pack:plugin:inference:qa:inference-service-tests:javaRestTest
-  method: testDefaultInferenceIdForSemanticText
-  issue: https://github.com/elastic/elasticsearch/issues/163865
 - class: org.elasticsearch.index.mapper.UnmappedFieldsTests
   tasks:
   - :server:test
   method: testAllFieldsLoaderReleasesItsReservationWhenItFails
   issue: https://github.com/elastic/elasticsearch/issues/163868
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testAggregationEmitPartialResultPeriodically
+  issue: https://github.com/elastic/elasticsearch/issues/163688

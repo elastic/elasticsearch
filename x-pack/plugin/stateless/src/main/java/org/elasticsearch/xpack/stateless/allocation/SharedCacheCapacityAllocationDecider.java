@@ -88,29 +88,39 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public static final Setting<CacheAccountingMode> ACCOUNTING_MODE_SETTING = Setting.enumSetting(
         CacheAccountingMode.class,
         "cluster.routing.allocation.shared_cache_capacity.accounting_mode",
-        CacheAccountingMode.TOTAL,
+        CacheAccountingMode.BOOSTED,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
+     * Bounds for the watermark settings. Watermarks above 100% are allowed because cache commitments can intentionally oversubscribe the
+     * node's shared cache, since not all committed cache is expected to be in active use at the same time.
+     */
+    private static final RatioValue MIN_WATERMARK = RatioValue.ofPercent(50);
+    private static final RatioValue MAX_WATERMARK = RatioValue.ofPercent(150);
+
+    /**
      * The {@code canAllocate} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for new allocations.
-     * The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.low",
-        RatioValue.ofPercent(95),
+        RatioValue.ofPercent(104),
+        MIN_WATERMARK,
+        MAX_WATERMARK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
      * The {@code canRemain} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for shards already allocated to
-     * the node. The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
+     * the node.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
-        RatioValue.ofPercent(100),
+        RatioValue.ofPercent(109),
+        MIN_WATERMARK,
+        MAX_WATERMARK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

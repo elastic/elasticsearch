@@ -66,6 +66,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
@@ -227,7 +228,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     }
 
     private static ShardRouting relocatingSearchReplicaTarget(ClusterState state, String indexName) {
-        final ShardId shardId = new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+        return relocatingSearchReplicaTarget(state, new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0));
+    }
+
+    private static ShardRouting relocatingSearchReplicaTarget(ClusterState state, ShardId shardId) {
         return state.routingTable(DEFAULT_PROJECT_ID)
             .shardRoutingTable(shardId)
             .shardsWithState(RELOCATING)
@@ -1043,61 +1047,38 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     /// saved) and 2000ms when all four remain (nothing saved). Warm volume would take the whole remaining 8000ms, because only this shard
     /// has a collected volume.
     public void testReevaluationOfEqualSharePlanUsesSavedTimeEvenIfWarmVolumeWins() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            final Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final var index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            final var previous = new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(2500),
-                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
-                2500.0
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final var index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        final var previous = new SearchRecoveryTimeout(
+            TimeValue.timeValueMillis(2500),
+            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+            2500.0
+        );
+        final int shardsLeft = randomFrom(2, 4);
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+            1,
+            1,
+            index,
+            "source",
+            "target",
+            startedAtMillis,
+            shardsLeft - 1
+        );
+        final var shardId = new ShardId(index, 0);
+        final var volumes = warmVolumes(index, 600L);
 
-            final int shardsLeft = randomFrom(2, 4);
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                1,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                shardsLeft - 1
-            );
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(sourceNodeId, new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of(new ShardId(index, 0), 600L)));
-            final var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
+        final var plan = shutdownRelocationPlan(state, startedAtMillis, shardId, volumes, 0L, previous, TelemetryProvider.NOOP);
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+        assertThat(plan.extendable(), is(true));
+        assertThat(plan.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
+        assertThat(plan.perShardShareMs(), equalTo(8000.0 / shardsLeft));
+        assertThat(plan.shouldExtendAfter(previous), is(true));
 
-            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
-            assertThat(plan.extendable(), is(true));
-            assertThat(plan.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
-            assertThat(plan.perShardShareMs(), equalTo(8000.0 / shardsLeft));
-            assertThat(plan.shouldExtendAfter(previous), is(true));
-
-            final var firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
-            assertThat(firstPlan.timeout().millis(), equalTo(8000L));
-            assertThat(firstPlan.extendable(), is(false));
-            assertThat(firstPlan.shouldExtendAfter(previous), is(false));
-        }
+        final var firstPlan = shutdownRelocationPlan(state, startedAtMillis, shardId, volumes, 0L, null, TelemetryProvider.NOOP);
+        assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+        assertThat(firstPlan.timeout().millis(), equalTo(8000L));
+        assertThat(firstPlan.extendable(), is(false));
+        assertThat(firstPlan.shouldExtendAfter(previous), is(false));
     }
 
     /// Volumes that arrive after an equal-share plan do not replace the extension. The first calculation has no volume map, so it is
@@ -1132,18 +1113,14 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 startedAtMillis,
                 3
             );
-            final ShardRouting initialSelf = initialState.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
+            final ShardRouting initialSelf = relocatingSearchReplicaTarget(initialState, new ShardId(index, 0));
             final var firstPlan = service.searchRecoveryTimeout(initialState, mockIndexShard(initialSelf), 0L, null);
             assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(firstPlan.perShardShareMs(), equalTo(2500.0));
             assertThat(firstPlan.timeout().millis(), equalTo(2500L));
 
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
-            volumes.put(sourceNodeId, new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of(new ShardId(index, 0), 600L)));
+            volumes.put(sourceNodeId, new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, warmVolumes(index, 600L)));
             final ClusterState stateAfterEarlyFinishes = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 1,
                 1,
@@ -1153,11 +1130,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 startedAtMillis,
                 1
             );
-            final ShardRouting self = stateAfterEarlyFinishes.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
+            final ShardRouting self = relocatingSearchReplicaTarget(stateAfterEarlyFinishes, new ShardId(index, 0));
             final var extended = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, firstPlan);
             assertThat(extended.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(extended.extendable(), is(true));
@@ -1175,58 +1148,27 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     /// warm volume may win. 10s grace, 2000ms elapsed, volumes 600/300/100 across three shards still competing for this target: warm
     /// volume is 4800ms, above the equal share.
     public void testWarmVolumeWinsAsFirstShutdownPlanAfterPlanWithoutShare() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            final Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final var index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                0,
-                2
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
-                )
-            );
-            final var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            final var previous = new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(2500),
-                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN
-            );
+        final var index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 1, index, "source", "target", startedAtMillis, 0, 2);
+        final var previous = new SearchRecoveryTimeout(
+            TimeValue.timeValueMillis(2500),
+            TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN
+        );
 
-            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
-            assertThat(plan.timeout().millis(), equalTo(4800L));
-            assertThat(plan.extendable(), is(false));
-            assertThat(plan.shouldExtendAfter(previous), is(true));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            warmVolumes(index, 600L, 300L, 100L),
+            0L,
+            previous,
+            TelemetryProvider.NOOP
+        );
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+        assertThat(plan.timeout().millis(), equalTo(4800L));
+        assertThat(plan.extendable(), is(false));
+        assertThat(plan.shouldExtendAfter(previous), is(true));
     }
 
     /// [SearchRecoveryTimeout#shouldExtendAfter] for every pair of contexts: any extendable context can be the previous plan (the loop
@@ -2761,378 +2703,201 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         );
     }
 
-    public void testWarmVolumeShareWinsOverEqualShare() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
+    /// Warm volumes keyed by shard number: `bytesByShard[i]` is the volume of shard `i` of `index`.
+    private static Map<ShardId, Long> warmVolumes(Index index, long... bytesByShard) {
+        return IntStream.range(0, bytesByShard.length).boxed().collect(Collectors.toMap(i -> new ShardId(index, i), i -> bytesByShard[i]));
+    }
+
+    /// Plans the timeout of the copy of `shardId` relocating off a source whose shutdown started at `shutdownStartedAtMillis`. The plan is
+    /// computed 2000ms later with a 10s grace cap, so 8000ms remain. The cache holds 1000 bytes and the source's warm volumes are
+    /// `volumes`.
+    private SearchRecoveryTimeout shutdownRelocationPlan(
+        ClusterState state,
+        long shutdownStartedAtMillis,
+        ShardId shardId,
+        Map<ShardId, Long> volumes,
+        long totalBytesToWarm,
+        @Nullable SearchRecoveryTimeout previousPlan,
+        TelemetryProvider telemetryProvider
+    ) {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), 0, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+            final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            // One relocating here, two still STARTED on the source (no target yet).
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                0,
-                2
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
-
-            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
-                )
-            );
-            var service = newCalculationService(threadPool, settings, 1000L, volumes, telemetryProvider(meterRegistry));
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            assertThat(plan.awaitWarming(), is(true));
-            // remaining=8000; equal-share=8000/3; warm-volume=600/1000*8000=4800 wins
-            assertThat(plan.timeout().millis(), equalTo(4800L));
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
-            assertThat(plan.extendable(), is(false));
-            List<Measurement> measurements = meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.LONG_COUNTER,
-                    SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC
-                );
-            assertThat(measurements, hasSize(1));
-            assertThat(
-                measurements.get(0)
-                    .attributes()
-                    .get(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY),
-                equalTo("warm_volume")
+            final ShardRouting self = relocatingSearchReplicaTarget(state, shardId);
+            final ShardWarmVolumes shardWarmVolumes = enabledWarmVolumes();
+            shardWarmVolumes.put(self.relocatingNodeId(), new ShardWarmVolumes.CollectedWarmVolumes(shutdownStartedAtMillis, volumes));
+            return newCalculationService(threadPool, settings, 1000L, shardWarmVolumes, telemetryProvider).searchRecoveryTimeout(
+                state,
+                mockIndexShard(self),
+                totalBytesToWarm,
+                previousPlan
             );
         }
+    }
+
+    public void testWarmVolumeShareWinsOverEqualShare() {
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        // One relocating here, two still STARTED on the source (no target yet).
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 1, index, "source", "target", startedAtMillis, 0, 2);
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            warmVolumes(index, 600L, 300L, 100L),
+            0L,
+            null,
+            telemetryProvider(meterRegistry)
+        );
+        assertThat(plan.awaitWarming(), is(true));
+        // remaining=8000; equal-share=8000/3; warm-volume=600/1000*8000=4800 wins
+        assertThat(plan.timeout().millis(), equalTo(4800L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+        assertThat(plan.extendable(), is(false));
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(
+                InstrumentType.LONG_COUNTER,
+                SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC
+            );
+        assertThat(measurements, hasSize(1));
+        assertThat(
+            measurements.get(0)
+                .attributes()
+                .get(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY),
+            equalTo("warm_volume")
+        );
     }
 
     /// Warm volume is 4800ms for volumes 600/300/100, above the equal share of three shards. 400 bytes against a 500-byte warming cache
     /// is 6400ms, so data volume wins and the plan is not extendable.
     public void testDataVolumeWinsWhenLargerThanWarmVolume() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                0,
-                2
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 1, index, "source", "target", startedAtMillis, 0, 2);
 
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
-                )
-            );
-            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 400L, null);
-            assertThat(plan.timeout().millis(), equalTo(6400L));
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
-            assertThat(plan.extendable(), is(false));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            warmVolumes(index, 600L, 300L, 100L),
+            400L,
+            null,
+            TelemetryProvider.NOOP
+        );
+        assertThat(plan.timeout().millis(), equalTo(6400L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
+        assertThat(plan.extendable(), is(false));
     }
 
     public void testWarmVolumeShareBelowEqualShareKeepsEqualShare() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            // One relocating here with a small volume; two still STARTED on the source.
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                0,
-                2
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        // One relocating here with a small volume; two still STARTED on the source.
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 1, index, "source", "target", startedAtMillis, 0, 2);
 
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 300L, new ShardId(index, 2), 600L)
-                )
-            );
-            var withVolumes = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            var withoutVolumes = newCalculationService(threadPool, settings, 1000L);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var expected = withoutVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            var actual = withVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            assertThat(actual.timeout(), equalTo(expected.timeout()));
-            assertThat(actual.timeoutContext(), equalTo(expected.timeoutContext()));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            warmVolumes(index, 100L, 300L, 600L),
+            0L,
+            null,
+            TelemetryProvider.NOOP
+        );
+        // remaining=8000; warm-volume=100/1000*8000=800 loses to equal-share=8000/3
+        assertThat(plan.timeout().millis(), equalTo(2667L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
     }
 
     public void testWarmVolumeShareUnknownShardFallsBackToEqualShare() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 1, index, "source", "target", startedAtMillis);
 
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of(new ShardId(index, 1), 300L, new ShardId(index, 2), 600L))
-            );
-            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            // The other two shards relocate elsewhere, so the filtered equal-share divisor is this shard alone.
-            assertThat(plan.timeout().millis(), equalTo(8000L));
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            Map.of(new ShardId(index, 1), 300L, new ShardId(index, 2), 600L),
+            0L,
+            null,
+            TelemetryProvider.NOOP
+        );
+        // The other two shards relocate elsewhere, so the filtered equal-share divisor is this shard alone.
+        assertThat(plan.timeout().millis(), equalTo(8000L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
     }
 
     public void testWarmVolumeShareExcludesShardsThatLeftTheSource() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            // Snapshot still holds A, B, C. A already left. B is relocating here. C is still STARTED on the source.
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                2,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                1,
-                1
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        // Snapshot still holds A, B, C. A already left. B is relocating here. C is still STARTED on the source.
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 2, index, "source", "target", startedAtMillis, 1, 1);
 
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 600L, new ShardId(index, 2), 200L)
-                )
-            );
-            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 1))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            assertThat(plan.awaitWarming(), is(true));
-            // remaining=8000; leftover total=600+200; share=600/800*8000=6000. Including A would be 600/900*8000=5333.
-            assertThat(plan.timeout().millis(), equalTo(6000L));
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
-            assertThat(plan.extendable(), is(false));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 1),
+            warmVolumes(index, 100L, 600L, 200L),
+            0L,
+            null,
+            TelemetryProvider.NOOP
+        );
+        assertThat(plan.awaitWarming(), is(true));
+        // remaining=8000; leftover total=600+200; share=600/800*8000=6000. Including A would be 600/900*8000=5333.
+        assertThat(plan.timeout().millis(), equalTo(6000L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+        assertThat(plan.extendable(), is(false));
     }
 
     public void testWarmVolumeShareExcludesShardsRelocatingToOtherNodes() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            // Shard 0 relocating here, shard 1 relocating to another node, shard 2 still STARTED on the source.
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                1,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis,
-                0,
-                1
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        // Shard 0 relocating here, shard 1 relocating to another node, shard 2 still STARTED on the source.
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 1, index, "source", "target", startedAtMillis, 0, 1);
 
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
-                )
-            );
-            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            assertThat(plan.awaitWarming(), is(true));
-            // remaining=8000; skip the 300 going elsewhere; S=600+100; share=600/700*8000≈6857.
-            // Including the other-target copy would be 600/1000*8000=4800.
-            assertThat(plan.timeout().millis(), equalTo(6857L));
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
-            assertThat(plan.extendable(), is(false));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            warmVolumes(index, 600L, 300L, 100L),
+            0L,
+            null,
+            TelemetryProvider.NOOP
+        );
+        assertThat(plan.awaitWarming(), is(true));
+        // remaining=8000; skip the 300 going elsewhere; S=600+100; share=600/700*8000≈6857.
+        // Including the other-target copy would be 600/1000*8000=4800.
+        assertThat(plan.timeout().millis(), equalTo(6857L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+        assertThat(plan.extendable(), is(false));
     }
 
     public void testWarmVolumeShareMultipliedByOngoingRelocationsAndCapped() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            Settings settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .build();
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final Index index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String targetNodeId = "target-node";
-            // Two shards relocating to this target, one to another node.
-            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                3,
-                2,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis
-            );
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+        final Index index = new Index("idx", randomUUID());
+        final long startedAtMillis = randomNonNegativeLong() / 2;
+        // Two shards relocating to this target, one to another node.
+        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(3, 2, index, "source", "target", startedAtMillis);
 
-            ShardWarmVolumes volumes = enabledWarmVolumes();
-            volumes.put(
-                sourceNodeId,
-                new ShardWarmVolumes.CollectedWarmVolumes(
-                    startedAtMillis,
-                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
-                )
-            );
-            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
-            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
-                .shardsWithState(RELOCATING)
-                .get(0)
-                .getTargetRelocatingShard();
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            assertThat(plan.awaitWarming(), is(true));
-            // remaining=8000; warm-volume=4800; concurrentRelocations=2 (both relocations are from this source, and the
-            // default relocation cap does not bind) → 9600, capped at remaining 8000
-            assertThat(plan.timeout().millis(), equalTo(8000L));
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
-            assertThat(plan.extendable(), is(false));
-        }
+        final var plan = shutdownRelocationPlan(
+            state,
+            startedAtMillis,
+            new ShardId(index, 0),
+            warmVolumes(index, 600L, 300L, 100L),
+            0L,
+            null,
+            TelemetryProvider.NOOP
+        );
+        assertThat(plan.awaitWarming(), is(true));
+        // remaining=8000; warm-volume=4800; concurrentRelocations=2 (both relocations are from this source, and the
+        // default relocation cap does not bind) → 9600, capped at remaining 8000
+        assertThat(plan.timeout().millis(), equalTo(8000L));
+        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME));
+        assertThat(plan.extendable(), is(false));
     }
 
 }

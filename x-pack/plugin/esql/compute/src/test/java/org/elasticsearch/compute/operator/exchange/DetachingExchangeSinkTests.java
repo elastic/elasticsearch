@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -50,6 +51,27 @@ public class DetachingExchangeSinkTests extends ComputeTestCase {
             for (CountingRefCounted shard : shards) {
                 assertThat("the page released its shards while its rows live on", shard.count.get(), equalTo(1));
             }
+        }
+    }
+
+    /**
+     * The pages in the sink go to another driver, here or on another node. The detached documents are a new block that
+     * the sink operator never prepared for that, so the sink prepares it.
+     */
+    public void testDetachedDocumentsCanPassToAnotherDriver() {
+        BlockFactory parentFactory = blockFactory();
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(parentFactory.breaker(), 1024, 1024);
+        BlockFactory driverFactory = parentFactory.newChildFactory(localBreaker);
+        try {
+            CollectingSink sink = new CollectingSink();
+            new DetachingExchangeSink(sink, origins::get).addPage(new Page(docBlock(driverFactory, new int[] { 0, 1 })));
+            try (Page out = sink.only()) {
+                DocBlock docs = out.getBlock(0);
+                assertThat(docs.blockFactory(), sameInstance(parentFactory));
+                assertThat(docs.asVector().shards().blockFactory(), sameInstance(parentFactory));
+            }
+        } finally {
+            localBreaker.close();
         }
     }
 

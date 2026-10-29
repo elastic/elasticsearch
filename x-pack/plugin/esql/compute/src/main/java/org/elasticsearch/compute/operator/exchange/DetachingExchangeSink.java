@@ -56,17 +56,20 @@ public final class DetachingExchangeSink implements ExchangeSink {
             for (int b = 0; b < blocks.length; b++) {
                 Block block = page.getBlock(b);
                 if (block instanceof DocBlock doc && doc.asVector().origins() == null) {
-                    blocks[b] = doc.asVector().detach(originOfSlot).asBlock();
+                    DocBlock detached = doc.asVector().detach(originOfSlot).asBlock();
+                    blocks[b] = detached;
+                    // the sink operator prepared the blocks it got for another driver, but this block is new
+                    detached.allowPassingToDifferentDriver();
                 } else {
                     block.incRef();
                     blocks[b] = block;
                 }
             }
-            Page detached = page.batchMetadata() == null
+            Page detachedPage = page.batchMetadata() == null
                 ? new Page(page.getPositionCount(), blocks)
                 : new Page(page.batchMetadata(), blocks);
             success = true;
-            return detached;
+            return detachedPage;
         } finally {
             if (success == false) {
                 Releasables.closeExpectNoException(blocks);

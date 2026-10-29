@@ -35,11 +35,8 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_
 public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
     private static final String STREAM_FIELD = "stream";
-    private static final String SYSTEM_FIELD = "system";
     private static final String STOP_SEQUENCES_FIELD = "stop_sequences";
     private static final String TOP_K_FIELD = "top_k";
-    private static final String TEXT_TYPE = "text";
-    private static final String SYSTEM_ROLE = "system";
 
     private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
@@ -78,8 +75,8 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
         builder.field(MODEL_FIELD, modelId);
 
         // Anthropic requires system prompts as a top-level "system" field, not inside the messages array.
-        var nonSystemMessages = AnthropicToolUtils.writeSystemMessages(builder, unifiedRequest.messages());
-        AnthropicToolUtils.writeMessages(builder, nonSystemMessages);
+        AnthropicToolUtils.writeSystemMessages(builder, unifiedRequest.messages());
+        AnthropicToolUtils.writeMessages(builder, AnthropicToolUtils.excludeSystemMessages(unifiedRequest.messages()));
 
         var stop = unifiedRequest.stop();
         if (stop != null && stop.isEmpty() == false) {

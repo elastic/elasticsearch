@@ -63,8 +63,8 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
         builder.startObject();
         builder.field(ANTHROPIC_VERSION, VERTEX_2023_10_16);
         // Anthropic requires system prompts as a top-level "system" field, not inside the messages array.
-        var nonSystemMessages = AnthropicToolUtils.writeSystemMessages(builder, unifiedRequest.messages());
-        AnthropicToolUtils.writeMessages(builder, nonSystemMessages);
+        AnthropicToolUtils.writeSystemMessages(builder, unifiedRequest.messages());
+        AnthropicToolUtils.writeMessages(builder, AnthropicToolUtils.excludeSystemMessages(unifiedRequest.messages()));
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());
         }

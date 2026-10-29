@@ -88,29 +88,33 @@ public final class AnthropicToolUtils {
     private AnthropicToolUtils() {}
 
     /**
-     * Writes any {@code system} messages as Anthropic's top-level {@code system} array of text blocks and returns the remaining
-     * messages. Anthropic has no {@code system} role: system prompts must not appear in {@code messages}, so callers pass the
-     * returned list to {@link #writeMessages}. Nothing is written when there are no system messages.
+     * Returns the messages that are not {@code system} messages. Anthropic has no {@code system} role, so callers pass the result
+     * to {@link #writeMessages} and emit the system messages separately with {@link #writeSystemMessages}.
      */
-    public static List<Message> writeSystemMessages(XContentBuilder builder, List<Message> messages) throws IOException {
-        List<Message> systemMessages = new ArrayList<>();
+    public static List<Message> excludeSystemMessages(List<Message> messages) {
         List<Message> nonSystemMessages = new ArrayList<>();
         for (var message : messages) {
-            if (SYSTEM_ROLE.equals(message.role())) {
-                systemMessages.add(message);
-            } else {
+            if (SYSTEM_ROLE.equals(message.role()) == false) {
                 nonSystemMessages.add(message);
             }
         }
-
-        if (systemMessages.isEmpty() == false) {
-            builder.startArray(SYSTEM_FIELD);
-            for (var message : systemMessages) {
-                writeTextBlock(builder, extractText(message.content()));
-            }
-            builder.endArray();
-        }
         return nonSystemMessages;
+    }
+
+    /**
+     * Writes the {@code system} messages among the given messages as Anthropic's top-level {@code system} array of text blocks.
+     * Nothing is written when there are no system messages.
+     */
+    public static void writeSystemMessages(XContentBuilder builder, List<Message> messages) throws IOException {
+        var systemMessages = messages.stream().filter(message -> SYSTEM_ROLE.equals(message.role())).toList();
+        if (systemMessages.isEmpty()) {
+            return;
+        }
+        builder.startArray(SYSTEM_FIELD);
+        for (var message : systemMessages) {
+            writeTextBlock(builder, extractText(message.content()));
+        }
+        builder.endArray();
     }
 
     /**

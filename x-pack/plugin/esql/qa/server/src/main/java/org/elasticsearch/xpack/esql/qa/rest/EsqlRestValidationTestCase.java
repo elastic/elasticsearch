@@ -74,7 +74,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
 
     public void testExistentIndexWithoutWildcard() throws IOException {
         for (String pattern : List.of(indexName + ",inexistent", "inexistent," + indexName)) {
-            assertError(pattern, 404, "no such index [inexistent]");
+            assertMissingConcreteIndexError(pattern);
         }
     }
 
@@ -90,7 +90,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
             """.formatted(indexName, aliasName));
 
         for (String indexName : List.of(aliasName + ",inexistent", "inexistent," + aliasName)) {
-            assertError(indexName, 404, "no such index [inexistent]");
+            assertMissingConcreteIndexError(indexName);
         }
         for (String indexName : List.of(aliasName + ",inexistent*", aliasName + "*,inexistent*", "inexistent*," + aliasName)) {
             assertEmpty(indexName);
@@ -103,6 +103,22 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
 
     protected String clusterSpecificIndexName(String indexName) {
         return indexName;
+    }
+
+    /**
+     * Whether the cluster that receives the request fails on a missing concrete index during index resolution
+     * ({@code 400 verification_exception}). Older versions fail later with {@code 404 index_not_found_exception}.
+     */
+    protected boolean detectsMissingIndexDuringResolution() {
+        return true;
+    }
+
+    private void assertMissingConcreteIndexError(String indexName) {
+        if (detectsMissingIndexDuringResolution()) {
+            assertError(indexName, 400, "Unknown index [" + clusterSpecificIndexName("inexistent") + "]");
+        } else {
+            assertError(indexName, 404, "no such index [inexistent]");
+        }
     }
 
     private void assertEmpty(String indexName) throws IOException {

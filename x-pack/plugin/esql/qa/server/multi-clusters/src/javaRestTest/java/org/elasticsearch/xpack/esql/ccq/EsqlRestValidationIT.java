@@ -85,6 +85,12 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         return true;
     }
 
+    // The local cluster receives the request and could be older than the test runner.
+    @Override
+    protected boolean detectsMissingIndexDuringResolution() {
+        return Clusters.localClusterVersion().equals(Version.CURRENT);
+    }
+
     @Override
     public void testAlias() throws IOException {
         assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());

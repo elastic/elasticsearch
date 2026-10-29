@@ -201,6 +201,14 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [idx]"));
     }
 
+    /**
+     * Whether the cluster that receives the request fails on a missing concrete index during index resolution
+     * ({@code 400 verification_exception}). Older versions fail later with {@code 404 index_not_found_exception}.
+     */
+    protected boolean detectsMissingIndexDuringResolution() {
+        return true;
+    }
+
     public void testIndicesDontExist() throws IOException {
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
@@ -218,9 +226,15 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         );
 
         e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), containsString("no such index [foo]"));
+        if (detectsMissingIndexDuringResolution()) {
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), containsString("verification_exception"));
+            assertThat(e.getMessage(), containsString("Unknown index [foo]"));
+        } else {
+            assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), containsString("index_not_found_exception"));
+            assertThat(e.getMessage(), containsString("no such index [foo]"));
+        }
 
         // Don't test remote patterns here, we'll test them in the multi-cluster tests
         if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {

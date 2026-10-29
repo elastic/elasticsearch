@@ -1,0 +1,47 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+/*
+ * Isolates security-cli's Bouncy Castle usage behind a small API whose public
+ * signatures contain no Bouncy Castle types, and relocates Bouncy Castle into
+ * the "shadow" package so that it cannot clash with any other Bouncy Castle
+ * artifact (notably bc-fips) that may be present on the tool's classpath.
+ * This mirrors distribution/tools/plugin-cli/bc.
+ */
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.gradleup.shadow'
+
+base {
+  archivesName = 'elasticsearch-security-cli-bc'
+}
+
+dependencies {
+  compileOnly project(":server")
+  implementation "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  implementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  implementation "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
+}
+
+tasks.named("shadowJar").configure {
+  relocate 'org.bouncycastle', 'shadow.org.bouncycastle'
+}
+
+if (buildParams.inFipsJvm) {
+  // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
+  // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
+  tasks.withType(CheckForbiddenApisTask).configureEach {
+    configureBundledSignaturesFromDefaults {
+      remove 'jdk-non-portable'
+    }
+  }
+}

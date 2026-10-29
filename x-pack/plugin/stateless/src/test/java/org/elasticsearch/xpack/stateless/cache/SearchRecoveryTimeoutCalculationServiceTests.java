@@ -1323,7 +1323,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                ShardWarmVolumes.NOOP,
+                TelemetryProvider.NOOP
             );
             this.plan = plan;
         }

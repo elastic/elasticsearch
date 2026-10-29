@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseA
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -324,7 +325,9 @@ public class FakeStatelessNode implements Closeable {
                     threadPool,
                     clusterSettings,
                     nodeSettings,
-                    ByteSizeValue.ZERO
+                    ByteSizeValue.ZERO,
+                    ShardWarmVolumes.NOOP,
+                    TelemetryProvider.NOOP
                 )
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(

@@ -151,11 +151,7 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                     () -> shardWarmVolumes.releaseClaim(relocatingNodeId, claimedShutdownSignalTimestamp)
                 )
                 : fetchListener;
-            try {
-                client.execute(TransportFetchSearchShardInformationAction.TYPE, request, responseListener);
-            } catch (Exception e) {
-                responseListener.onFailure(e);
-            }
+            ActionListener.run(responseListener, l -> client.execute(TransportFetchSearchShardInformationAction.TYPE, request, l));
 
             return null;
         });

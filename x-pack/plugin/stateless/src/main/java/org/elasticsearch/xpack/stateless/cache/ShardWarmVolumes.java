@@ -84,7 +84,7 @@ public class ShardWarmVolumes implements ClusterStateListener {
         if (enabled == false) {
             return null;
         }
-        CollectedWarmVolumes collected = collectedForShutdownSignal(state, sourceNodeId);
+        CollectedWarmVolumes collected = getCollectedVolumesForShutdownSignal(state, sourceNodeId);
         if (collected == null || collected.volumes().isEmpty()) {
             return null;
         }
@@ -95,7 +95,7 @@ public class ShardWarmVolumes implements ClusterStateListener {
      * Any stored volumes for this source's current shutdown signal timestamp, including empty.
      */
     @Nullable
-    CollectedWarmVolumes collectedForShutdownSignal(ClusterState state, String sourceNodeId) {
+    CollectedWarmVolumes getCollectedVolumesForShutdownSignal(ClusterState state, String sourceNodeId) {
         CollectedWarmVolumes collected = memo.get(sourceNodeId);
         if (collected == null) {
             return null;
@@ -108,7 +108,14 @@ public class ShardWarmVolumes implements ClusterStateListener {
     }
 
     public void completeFetch(ClusterState state, String respondingNodeId, long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
-        putIfCurrentShutdownSignal(state, respondingNodeId, shutdownSignalTimestamp, volumes);
+        if (state.nodes().nodeExists(respondingNodeId) == false) {
+            return;
+        }
+        var shutdown = state.metadata().nodeShutdowns().get(respondingNodeId);
+        if (shutdown == null || shutdown.getStartedAtMillis() != shutdownSignalTimestamp) {
+            return;
+        }
+        memo.put(respondingNodeId, new CollectedWarmVolumes(shutdownSignalTimestamp, volumes));
     }
 
     /**
@@ -116,17 +123,6 @@ public class ShardWarmVolumes implements ClusterStateListener {
      */
     public void releaseClaim(String sourceNodeId, long shutdownSignalTimestamp) {
         inFlight.remove(sourceNodeId, shutdownSignalTimestamp);
-    }
-
-    private void putIfCurrentShutdownSignal(ClusterState state, String nodeId, long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
-        if (state.nodes().nodeExists(nodeId) == false) {
-            return;
-        }
-        var shutdown = state.metadata().nodeShutdowns().get(nodeId);
-        if (shutdown == null || shutdown.getStartedAtMillis() != shutdownSignalTimestamp) {
-            return;
-        }
-        memo.put(nodeId, new CollectedWarmVolumes(shutdownSignalTimestamp, volumes));
     }
 
     @Override

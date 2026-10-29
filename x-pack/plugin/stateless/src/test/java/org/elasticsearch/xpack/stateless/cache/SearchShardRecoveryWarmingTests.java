@@ -190,7 +190,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                ShardWarmVolumes.NOOP,
+                TelemetryProvider.NOOP
             )
         ) {
             @Override
@@ -735,7 +737,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                ShardWarmVolumes.NOOP,
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 public SearchRecoveryTimeout searchRecoveryTimeout(

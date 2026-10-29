@@ -114,16 +114,6 @@ public class SearchRecoveryTimeoutCalculationService {
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
-        ByteSizeValue maxHeap
-    ) {
-        this(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap, ShardWarmVolumes.NOOP, TelemetryProvider.NOOP);
-    }
-
-    public SearchRecoveryTimeoutCalculationService(
-        StatelessSharedBlobCacheService cacheService,
-        ThreadPool threadPool,
-        ClusterSettings clusterSettings,
-        Settings nodeSettings,
         ByteSizeValue maxHeap,
         ShardWarmVolumes shardWarmVolumes,
         TelemetryProvider telemetryProvider
@@ -134,9 +124,9 @@ public class SearchRecoveryTimeoutCalculationService {
         this.drainTimeoutHeuristicTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC,
-                "Drain-path search recovery warming timeouts, broken down by the ["
+                "Number of warming timeouts calculated for drain-path search recovery warming, broken down by the ["
                     + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
-                    + "] heuristic that produced the timeout",
+                    + "] heuristic used for the timeout",
                 "count"
             );
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
@@ -339,17 +329,16 @@ public class SearchRecoveryTimeoutCalculationService {
     }
 
     /// Returns the warming timeout for a shard whose relocation source is shutting down. One per-shard heuristic is
-    /// chosen, multiplied by `concurrentRelocations`, and capped at the remaining grace period. Warm-volume is chosen
-    /// only when it is strictly larger than both of the others; otherwise data-volume is chosen when it is strictly
-    /// larger than equal-share, and equal-share wins the remaining ties:
+    /// chosen, multiplied by `concurrentRelocations`, and capped at the remaining grace period.
+    /// The heuristic which affords the most amount of time to the shard wins.
     ///
     /// 1. _Equal-share_: `factor * (deadline - now) / shardsOnSource * concurrentRelocations`, ensuring every
     /// shard on the shutting-down source gets a fair slice of the remaining grace period.
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero): the fraction of the
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
-    /// 3. _Warm-volume share_ (when [ShardWarmVolumes.CollectedWarmVolumes] exists for the current shutdown signal):
-    /// `(warm volume / sum of warm volumes still competing for this target) * remaining * concurrentRelocations`.
+    /// 3. _Warm-volume share_ (when the information has been fetched for the current shutdown signal):
+    /// `(shardWarmVolume / sumOfWarmVolumesCompetingForTarget) * remaining * concurrentRelocations`.
     /// Copies already relocating to a different node are omitted from the sum. STARTED copies
     /// (no target yet) stay in it. An unknown shard contributes 0.
     ///
@@ -434,7 +423,7 @@ public class SearchRecoveryTimeoutCalculationService {
         final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, targetNodeId, shardId, remaining);
 
         // The decision below is per-shard whereas the three heuristics above assume all shards opt with the same heuristic.
-        // This is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
+        // This is an inherent problem of the fact that, during relocation, we don't know up-front all the shards that are going
         // to be relocated between two given nodes, so we can't know which of the three heuristics is more suitable overall.
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated.
@@ -466,7 +455,7 @@ public class SearchRecoveryTimeoutCalculationService {
         );
     }
 
-    /// Per-shard warm-volume share of `remaining`, or `0` when the map cannot be used for this shard.
+    /// Per-shard warm-volume share of `remaining`, or `0` when we cannot compute the share.
     /// Copies already relocating from `sourceNodeId` to a node other than `targetNodeId` are left out of
     /// the denominator: they are committed elsewhere. STARTED copies remain in the sum until they get a target.
     private double warmVolumeShareMs(ClusterState state, String sourceNodeId, String targetNodeId, ShardId shardId, long remaining) {

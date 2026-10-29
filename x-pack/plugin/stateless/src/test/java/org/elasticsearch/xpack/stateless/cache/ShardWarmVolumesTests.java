@@ -55,7 +55,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         volumes.put("source", new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of()));
 
         assertThat(volumes.get(state, "source"), nullValue());
-        assertNotNull(volumes.collectedForShutdownSignal(state, "source"));
+        assertNotNull(volumes.getCollectedVolumesForShutdownSignal(state, "source"));
         assertFalse(volumes.claimFetch(state, "source"));
     }
 
@@ -68,7 +68,7 @@ public class ShardWarmVolumesTests extends ESTestCase {
         volumes.put("source", new ShardWarmVolumes.CollectedWarmVolumes(firstGen, Map.of(new ShardId(index, 0), 10L)));
 
         assertThat(volumes.get(second, "source"), nullValue());
-        assertThat(volumes.collectedForShutdownSignal(second, "source"), nullValue());
+        assertThat(volumes.getCollectedVolumesForShutdownSignal(second, "source"), nullValue());
         assertTrue(volumes.claimFetch(second, "source"));
     }
 

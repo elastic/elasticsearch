@@ -170,4 +170,28 @@ public final class ExternalFailures {
     private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
     }
+
+    /**
+     * Drops the query string, fragment and user info from an {@code http}/{@code https} location, where a pre-signed
+     * URL carries its signature and a {@code user:pass@} its credentials. Other schemes are returned unchanged: their
+     * user info is not a secret (for {@code wasb}/{@code wasbs} it is the container name).
+     */
+    public static String redactHttpUrl(String location) {
+        int schemeEnd = location.indexOf("://");
+        if (schemeEnd < 0) {
+            return location;
+        }
+        String scheme = location.substring(0, schemeEnd);
+        if (scheme.equalsIgnoreCase("http") == false && scheme.equalsIgnoreCase("https") == false) {
+            return location;
+        }
+        String rest = location.substring(schemeEnd + 3);
+        int query = rest.indexOf('?');
+        int fragment = rest.indexOf('#');
+        int end = Math.min(query < 0 ? rest.length() : query, fragment < 0 ? rest.length() : fragment);
+        rest = rest.substring(0, end);
+        int pathStart = rest.indexOf('/');
+        int at = rest.lastIndexOf('@', pathStart < 0 ? rest.length() - 1 : pathStart - 1);
+        return location.substring(0, schemeEnd + 3) + (at < 0 ? rest : rest.substring(at + 1));
+    }
 }

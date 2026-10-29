@@ -142,6 +142,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -2840,6 +2841,80 @@ public class IndexShardTests extends IndexShardTestCase {
         assertDocCount(newShard, 1);
 
         closeShards(newShard);
+    }
+
+    /// A failed store recovery is only aborted (and not reported to the master) if this shard was closed, since whoever
+    /// closed it is responsible for informing the master. An [IndexShardClosedException] about some other shard, such as
+    /// a reshard split source on a remote node, must still be reported, otherwise this shard is left initializing forever.
+    /// See #161494.
+    public void testStoreRecoveryFailureIsOnlyAbortedIfShardIsClosed() throws Exception {
+        final var closeShardDuringRecovery = randomBoolean();
+        final var indexName = randomIndexName();
+        final var indexUuid = randomUUID();
+        final var shardId = new ShardId(indexName, indexUuid, 0);
+        final var shardRouting = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+        final var dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final var shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final var metadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, 0).build())
+            .primaryTerm(0, 1)
+            .build();
+
+        final var recoveryFailure = randomFrom(
+            new IndexShardRecoveryException(
+                shardId,
+                "failed to recover from gateway",
+                new RemoteTransportException("simulated", new IndexShardClosedException(new ShardId(indexName, indexUuid, 1)))
+            ),
+            new IndexShardClosedException(new ShardId(indexName, randomUUID(), 1)),
+            new ElasticsearchException("simulated")
+        );
+
+        final var shard = newShard(
+            shardRouting,
+            null,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            new IndexEventListener() {
+                @Override
+                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                    ActionListener.run(listener, l -> {
+                        if (closeShardDuringRecovery) {
+                            closeShardNoCheck(indexShard);
+                        }
+                        l.onFailure(recoveryFailure);
+                    });
+                }
+            }
+        );
+
+        final var failureStrategyFuture = new PlainActionFuture<FailureStrategy>();
+        final var recoveryListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                failureStrategyFuture.onFailure(new IllegalStateException("recovery should have failed"));
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+                failureStrategyFuture.onResponse(failureStrategy);
+            }
+        };
+        threadPool.generic().execute(() -> shard.startRecovery(null, recoveryListener, null, (mapping, l) -> l.onResponse(null), null, 0L));
+
+        assertThat(safeGet(failureStrategyFuture), equalTo(closeShardDuringRecovery ? FailureStrategy.ABORT : FailureStrategy.FAIL_SEND));
+        closeShards(shard);
     }
 
     public void testRecoverFromStoreRemoveStaleOperations() throws Exception {

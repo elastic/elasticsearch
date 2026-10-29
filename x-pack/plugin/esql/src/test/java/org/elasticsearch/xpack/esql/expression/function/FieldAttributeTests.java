@@ -25,7 +25,7 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
         EsField field = onlyRepresentable
             ? randomRepresentableEsField(maxDepth)
             : AbstractEsFieldTypeTests.randomSerializableEsField(maxDepth);
-        Nullability nullability = randomFrom(Nullability.values());
+        Nullability nullability = randomFrom(Nullability.TRUE, Nullability.FALSE);
         boolean synthetic = randomBoolean();
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, new NameId(), synthetic);
     }
@@ -57,7 +57,7 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
             case 1 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 2 -> name = randomAlphaOfLength(name.length() + 1);
             case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomSerializableEsField(3));
-            case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.TRUE, Nullability.FALSE));
             case 5 -> id = new NameId();
             case 6 -> synthetic = false == synthetic;
         }

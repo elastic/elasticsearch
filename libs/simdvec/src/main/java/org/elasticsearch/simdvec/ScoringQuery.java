@@ -20,7 +20,16 @@ import java.util.function.IntFunction;
  * only when they are handed a different instance: new query contents need a new instance, and
  * {@code bytes} must not be modified while the instance can still be passed to a scorer.
  */
-public record ScoringQuery(byte[] bytes) {
+public final class ScoringQuery {
+    private final byte[] bytes;
+
+    public ScoringQuery(byte[] bytes) {
+        this.bytes = bytes;
+    }
+
+    public byte[] bytes() {
+        return bytes;
+    }
 
     public static final class OffHeapCopy {
         private final IntFunction<MemorySegment> scratch;

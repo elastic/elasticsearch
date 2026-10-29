@@ -84,10 +84,11 @@ public class SnapshotShardContextHelper {
             // We want to detect if a resharding operation has happened after this snapshot was started and if so we'll
             // fail the shard snapshot to avoid such inconsistency.
             // Note that the master already fails a shard snapshot whose index is being resharded at the time it assigns
-            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus) or when moving a WAITING shard to INIT
-            // (see SnapshotsServiceUtils#processWaitingShardsAndRemovedNodes). The data node check is still needed for
-            // resharding that starts after the master started the shard snapshot, and for resharding that already completed
-            // but after the snapshot was created, so the snapshot only contains the pre-split shards.
+            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus) or when it would have moved a WAITING or
+            // PAUSED_FOR_NODE_REMOVAL shard to INIT (see SnapshotsServiceUtils#processWaitingShardsAndRemovedNodes) absent
+            // the resharding process. The data node check is still needed for both a resharding operation that starts after
+            // the master started the shard snapshot, and for a resharding operation that already completed but did so
+            // after the snapshot was created (so the snapshot only contains the pre-split shards).
 
             // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
             // The information that we are interested in (the shards map keys) doesn't change so this is fine.

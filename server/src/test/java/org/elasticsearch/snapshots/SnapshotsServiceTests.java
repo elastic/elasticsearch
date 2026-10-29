@@ -44,6 +44,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -1227,8 +1229,8 @@ public class SnapshotsServiceTests extends ESTestCase {
      */
     public void testShardsOfReshardingIndexFailOnSnapshotCreation() {
         final var nodeId = uuid();
-        final var reshardingIndexName = "resharding-index";
-        final var otherIndexName = "other-index";
+        final var reshardingIndexName = randomIndexName();
+        final var otherIndexName = randomValueOtherThan(reshardingIndexName, ESTestCase::randomIndexName);
         final var settings = Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current());
         final var reshardingIndexMetadata = IndexMetadata.builder(reshardingIndexName)
             .settings(settings)
@@ -1285,7 +1287,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             List.of(indexId(reshardingIndexName), indexId(otherIndexName)),
             true,
             RepositoryData.EMPTY,
-            "repo",
+            randomRepoName(),
             randomBoolean()
         );
 
@@ -1301,12 +1303,13 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     /**
-     * A queued shard snapshot that is unblocked by the completion of an earlier shard snapshot after resharding started is failed
-     * by the master instead of being sent to the data node, which would fail it anyway.
+     * Queued shard snapshots that are unblocked by the completion of an earlier shard snapshot after resharding started
+     * are failed by the master instead of being sent to the data node, which would fail them anyway. The failure propagates
+     * along the whole queue.
      */
     public void testQueuedShardSnapshotOfReshardingIndexFailsWhenStarted() throws Exception {
-        final var repoName = "test-repo";
-        final var indexName = "index-1";
+        final var repoName = randomRepoName();
+        final var indexName = randomIndexName();
         final var dataNodeId = uuid();
         final var indexId = indexId(indexName);
 
@@ -1336,29 +1339,35 @@ public class SnapshotsServiceTests extends ESTestCase {
             )
             .build();
 
-        final var runningSnapshot = snapshot(repoName, "running-snapshot");
-        final var queuedSnapshot = snapshot(repoName, "queued-snapshot");
-        final var state = stateWithSnapshots(
-            stateWithIndex,
-            repoName,
-            snapshotEntry(runningSnapshot, Map.of(indexName, indexId), Map.of(sourceShardId, initShardStatus(dataNodeId))),
-            snapshotEntry(
-                queuedSnapshot,
-                Map.of(indexName, indexId),
-                Map.of(sourceShardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
-            )
-        );
+        final var runningSnapshot = snapshot(repoName, randomSnapshotName());
+        final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+        entries.add(snapshotEntry(runningSnapshot, Map.of(indexName, indexId), Map.of(sourceShardId, initShardStatus(dataNodeId))));
+        final int queuedSnapshotCount = between(1, 3);
+        for (int i = 0; i < queuedSnapshotCount; i++) {
+            entries.add(
+                snapshotEntry(
+                    snapshot(repoName, randomSnapshotName()),
+                    Map.of(indexName, indexId),
+                    Map.of(sourceShardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
+                )
+            );
+        }
+        final var state = stateWithSnapshots(stateWithIndex, repoName, entries.toArray(SnapshotsInProgress.Entry[]::new));
 
         // The running shard snapshot acquired its commit before the split started, so it completes successfully.
         final var updatedState = applyUpdates(state, successUpdate(runningSnapshot, sourceShardId, dataNodeId));
 
         final SnapshotsInProgress snapshotsInProgress = updatedState.custom(SnapshotsInProgress.TYPE);
-        final var startedSnapshot = snapshotsInProgress.forRepo(repoName).get(1);
-        assertThat(startedSnapshot.snapshot(), equalTo(queuedSnapshot));
-        final var shardSnapshotStatus = startedSnapshot.shards().get(sourceShardId);
-        assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.FAILED));
-        assertThat(shardSnapshotStatus.reason(), equalTo(SnapshotsService.SHARD_BEING_RESHARDED_REASON));
-        assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
+        final var updatedEntries = snapshotsInProgress.forRepo(repoName);
+        assertThat(updatedEntries, hasSize(queuedSnapshotCount + 1));
+        for (int i = 1; i <= queuedSnapshotCount; i++) {
+            final var startedSnapshot = updatedEntries.get(i);
+            assertThat(startedSnapshot.snapshot(), equalTo(entries.get(i).snapshot()));
+            final var shardSnapshotStatus = startedSnapshot.shards().get(sourceShardId);
+            assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.FAILED));
+            assertThat(shardSnapshotStatus.reason(), equalTo(SnapshotsService.SHARD_BEING_RESHARDED_REASON));
+            assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
+        }
     }
 
     /**
@@ -1367,7 +1376,7 @@ public class SnapshotsServiceTests extends ESTestCase {
      */
     public void testRelocatingOrPausedShardSnapshotOfReshardingIndexFails() {
         final var nodeId = uuid();
-        final var indexMetadata = splitIndexMetadata("index-1", uuid(), true);
+        final var indexMetadata = splitIndexMetadata(randomIndexName(), uuid(), true);
         final var shardId = new ShardId(indexMetadata.getIndex(), 0);
         final var relocating = randomBoolean();
         final var primary = relocating
@@ -1410,8 +1419,8 @@ public class SnapshotsServiceTests extends ESTestCase {
      * known failure so that queued shard snapshots of the same shard fail too.
      */
     public void testWaitingShardSnapshotFailsWhenIndexStartsResharding() {
-        final var repoName = "test-repo";
-        final var indexName = "index-1";
+        final var repoName = randomRepoName();
+        final var indexName = randomIndexName();
         final var indexUuid = uuid();
         final var nodeId = uuid();
         final var indexId = indexId(indexName);
@@ -1420,7 +1429,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final var shardId = new ShardId(indexName, indexUuid, 0);
         final var generation = ShardGeneration.newGeneration(random());
         final var entry = snapshotEntry(
-            snapshot(repoName, "snapshot"),
+            snapshot(repoName, randomSnapshotName()),
             Map.of(indexName, indexId),
             Map.of(
                 shardId,
@@ -1433,7 +1442,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
         // A later snapshot of the same shard that is queued behind the waiting one.
         final var queuedEntry = snapshotEntry(
-            snapshot(repoName, "queued-snapshot"),
+            snapshot(repoName, randomSnapshotName()),
             Map.of(indexName, indexId),
             Map.of(shardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
         );

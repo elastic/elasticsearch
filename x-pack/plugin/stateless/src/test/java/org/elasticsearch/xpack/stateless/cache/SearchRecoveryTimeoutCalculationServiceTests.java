@@ -2284,6 +2284,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     private static Settings otherNodeShutdownSettings() {
         return Settings.builder()
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+            // the DNRT limit stays unbounded, so the master's limit is the effective one
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
             .build();
     }

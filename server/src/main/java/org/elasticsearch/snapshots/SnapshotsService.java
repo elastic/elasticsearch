@@ -801,10 +801,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     // RepositoryShardId is unique across projects because RepositoryShardId.index().getId() is an UUID
-    private final Set<RepositoryShardId> activeShardClones = Collections.synchronizedSet(new HashSet<>());
+    private final Set<RepositoryShardId> runningShardClones = Collections.synchronizedSet(new HashSet<>());
 
     /// Start running the given shard-level clone task, which must be ready to start (i.e. in state [ShardState#INIT]) in the current
-    /// cluster state. Safe to call multiple times for each shard, as requests are deduplicated via [#activeShardClones].
+    /// cluster state. Safe to call multiple times for each shard, as requests are deduplicated via [#runningShardClones].
     private void runReadyShardClone(
         Snapshot target,
         SnapshotId sourceSnapshot,
@@ -814,7 +814,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     ) {
         final SnapshotId targetSnapshot = target.getSnapshotId();
         final String localNodeId = clusterService.localNode().getId();
-        if (activeShardClones.add(repoShardId)) {
+        if (runningShardClones.add(repoShardId)) {
             repository.cloneShardSnapshot(
                 sourceSnapshot,
                 targetSnapshot,
@@ -839,7 +839,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                     failAllListenersOnMasterFailOver(e);
                                 }
                             ),
-                            () -> activeShardClones.remove(repoShardId)
+                            () -> runningShardClones.remove(repoShardId)
                         )
                     ),
                     e -> createAndSubmitRequestToUpdateSnapshotState(
@@ -854,7 +854,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         ),
                         ActionListener.runBefore(
                             failedShardCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
-                            () -> activeShardClones.remove(repoShardId)
+                            () -> runningShardClones.remove(repoShardId)
                         )
                     )
                 )

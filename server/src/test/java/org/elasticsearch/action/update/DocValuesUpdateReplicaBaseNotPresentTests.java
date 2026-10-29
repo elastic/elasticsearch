@@ -31,8 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
  * still-recovering copy receiving live operations, or a CCR follower replica that got the delta batch before the base - the engine rejects
  * it with {@link DocValuesUpdateBaseNotPresentException} (see {@code InternalEngine#planDocValuesUpdateAsNonPrimary}).
  * {@code ReplicationOperation} fails the replica for any exception that is not {@link TransportActions#isShardNotAvailableException}, so on
- * the normal replication path the shard is failed and recovery restarts; only the CCR leader fetch ({@code ShardFollowNodeTask#shouldRetry})
- * retries it. The primary avoids shipping such a delta by gating the in-place fast path on every tracked copy holding the base (see
+ * the normal replication path the shard is failed and recovery restarts; only the CCR leader fetch
+ * ({@code ShardFollowNodeTask#shouldRetry}) retries it. The primary avoids shipping such a delta by gating the in-place fast path on
+ * every tracked copy holding the base (see
  * {@code UpdateHelper}); this covers the residual path where a delta still reaches a copy without the base.
  */
 public class DocValuesUpdateReplicaBaseNotPresentTests extends IndexShardTestCase {

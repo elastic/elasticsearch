@@ -180,7 +180,7 @@ public class DocValuesUpdateRecoverySourceTests extends IndexShardTestCase {
         return ((Number) source.get("count")).longValue();
     }
 
-    /** Reads the operation at {@code seqNo} back from the operation history, exactly as peer recovery and CCR do, and returns its source. */
+    /** Reads the operation at {@code seqNo} back from the operation history, exactly as peer recovery and CCR do, returning its source. */
     private static Map<String, Object> reconstructSource(IndexShard shard, long seqNo) throws IOException {
         try (
             Translog.Snapshot snapshot = shard.newChangesSnapshot("test", seqNo, seqNo, true, true, false, ByteSizeValue.ofMb(1).getBytes())

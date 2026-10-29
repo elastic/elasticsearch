@@ -333,8 +333,10 @@ public class PruningMergePolicyTests extends ESTestCase {
                     assertThat(leafReader.numDocs(), equalTo(nbDocs));
                     NumericDocValues presence = leafReader.getNumericDocValues(presenceField);
                     SortedNumericDocValues value = leafReader.getSortedNumericDocValues(valueField);
+                    NumericDocValues seqNo = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
                     assertNotNull(presence);
                     assertNotNull(value);
+                    assertNotNull(seqNo);
                     StoredFields storedFields = reader.storedFields();
                     for (int i = 0; i < reader.maxDoc(); i++) {
                         boolean isEven = Booleans.parseBoolean(storedFields.document(i).getField("even").stringValue());
@@ -344,12 +346,17 @@ public class PruningMergePolicyTests extends ESTestCase {
                         if (value.docID() < i) {
                             value.advance(i);
                         }
+                        if (seqNo.docID() < i) {
+                            seqNo.advance(i);
+                        }
                         // The pre-image is kept only for retained docs and pruned for the rest - the same boundary as the recovery source.
                         assertThat(presence.docID() == i, equalTo(isEven));
                         assertThat(value.docID() == i, equalTo(isEven));
                         if (isEven) {
+                            // The merge may reorder docs, so compare the pre-image against this doc's own value rather than its position.
+                            assertThat(seqNo.docID(), equalTo(i));
                             assertThat(value.docValueCount(), equalTo(1));
-                            assertThat(value.nextValue(), equalTo((long) i));
+                            assertThat(value.nextValue(), equalTo(seqNo.longValue()));
                         }
                     }
                 }

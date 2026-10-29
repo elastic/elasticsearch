@@ -117,10 +117,11 @@ public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCas
     }
 
     /**
-     * The gate must also account for still-recovering copies, not just in-sync ones. A recovering replica is already tracked and receives
-     * live deltas concurrently with its recovery, so shipping it a delta whose base it has not caught up to would fail on the copy. Here the
-     * primary tracks a recovering (tracked but not yet in-sync) replica that is held below the base: the in-sync checkpoint ignores that
-     * copy entirely, but the tracked checkpoint does not, so the update is realized as a full reindex until the copy catches up.
+     * The gate must also account for still-recovering copies, not just in-sync ones. A recovering replica is already tracked and
+     * receives live deltas concurrently with its recovery, so shipping it a delta whose base it has not caught up to would fail on the
+     * copy. Here the primary tracks a recovering (tracked but not yet in-sync) replica that is held below the base: the in-sync
+     * checkpoint ignores that copy entirely, but the tracked checkpoint does not, so the update is realized as a full reindex until the
+     * copy catches up.
      */
     public void testInPlaceUpdateGatedOnRecoveringCopyCheckpoint() throws Exception {
         assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());

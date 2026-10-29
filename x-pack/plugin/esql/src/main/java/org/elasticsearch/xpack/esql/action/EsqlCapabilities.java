@@ -4652,6 +4652,13 @@ public class EsqlCapabilities {
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
+        /**
+         * Folding a function that returns {@code null} if any argument is {@code null} no longer fails when an
+         * argument is a constant expression folding to {@code null}, like {@code CASE} without a match, {@code 1/0}
+         * or a typed {@code null}. See <a href="https://github.com/elastic/elasticsearch/issues/162639">#162639</a>.
+         */
+        FIX_FOLD_NULL_ARGUMENTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

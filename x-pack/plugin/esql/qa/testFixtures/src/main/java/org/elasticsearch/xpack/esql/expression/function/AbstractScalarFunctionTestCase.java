@@ -481,6 +481,23 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public void testFold() {
+        Expression expression = buildFoldableLiteralExpression();
+        Row row = new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, "unused_name", expression)));
+        Row folded = (Row) new FoldNull().apply(row, unboundLogicalOptimizerContext());
+        Expression nullFolded = folded.fields().getFirst().child();
+        assertFold(nullFolded);
+        if (nullFolded != expression && expression instanceof AnyNullIsNull) {
+            /*
+             * FoldNull doesn't always replace an expression with null arguments before it's folded: it may not see
+             * them as null (a CASE without a match, 1/0...), and optimizer rules may fold an expression directly
+             * once its references are replaced by literals. So AnyNullIsNull expressions must fold to null by
+             * themselves too. Other expressions may evaluate, and warn about, arguments FoldNull removed.
+             */
+            assertFold(expression);
+        }
+    }
+
+    private Expression buildFoldableLiteralExpression() {
         Expression expression = buildLiteralExpression(testCase);
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         if (expression instanceof SurrogateExpression s) {
@@ -489,15 +506,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 expression = surrogate;
             }
         }
+        return expression;
+    }
 
-        Row row = new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, "unused_name", expression)));
-        Row folded = (Row) new FoldNull().apply(row, unboundLogicalOptimizerContext());
-        Expression nullOptimized = folded.fields().getFirst().child();
-
-        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
-        assertTrue(nullOptimized.foldable());
+    private void assertFold(Expression expression) {
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        assertTrue(expression.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold(FoldContext.small());
+            Object result = expression.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 if (result instanceof List<?> l) {
@@ -517,7 +533,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.small()));
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> expression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }

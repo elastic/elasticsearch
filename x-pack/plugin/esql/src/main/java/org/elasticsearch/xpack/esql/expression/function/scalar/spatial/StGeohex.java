@@ -284,7 +284,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         var wkb = (BytesRef) spatialField().fold(ctx);
         if (wkb == null) {
             return null;

@@ -125,7 +125,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     /**
      * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * Used in {@link DateTimeArithmeticOperation#doFold}.
      * @param left the left period
      * @param right the right period
      * @return the result of the evaluation
@@ -134,7 +134,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     /**
      * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * Used in {@link DateTimeArithmeticOperation#doFold}.
      * @param left the left duration
      * @param right the right duration
      * @return the result of the evaluation
@@ -142,7 +142,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
     abstract Duration fold(Duration left, Duration right);
 
     @Override
-    public final Object fold(FoldContext ctx) {
+    public final Object doFold(Source source, FoldContext ctx) {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
@@ -175,7 +175,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         if (isNull(leftDataType) || isNull(rightDataType)) {
             return null;
         }
-        return super.fold(ctx);
+        return super.doFold(source, ctx);
     }
 
     @Override

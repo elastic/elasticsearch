@@ -199,7 +199,7 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
     }
 
     @Override
-    public Object fold(FoldContext foldCtx) {
+    public Object doFold(Source source, FoldContext foldCtx) {
         var toleranceExpression = tolerance.fold(foldCtx);
         double inputTolerance = getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);

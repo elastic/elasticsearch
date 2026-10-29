@@ -282,7 +282,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         var wkb = (BytesRef) spatialField().fold(ctx);
         if (wkb == null) {
             return null;

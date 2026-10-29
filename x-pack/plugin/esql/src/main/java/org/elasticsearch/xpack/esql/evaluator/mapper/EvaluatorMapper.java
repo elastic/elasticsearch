@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -84,10 +85,29 @@ public interface EvaluatorMapper {
     ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator);
 
     /**
+     * Fold this expression with {@link #doFold}. {@link AnyNullIsNull} expressions fold to {@code null} first if any
+     * argument folds to {@code null}, so {@link #doFold} doesn't have to handle them.
+     * <p>
+     * To customize folding, override {@link #doFold} instead of this method or {@link Expression#fold}.
+     * </p>
+     */
+    default Object fold(Source source, FoldContext ctx) {
+        if (this instanceof AnyNullIsNull && this instanceof Expression expression) {
+            Expression withFoldedArguments = AnyNullIsNull.foldArguments(expression, ctx);
+            if (withFoldedArguments == null) {
+                return null;
+            }
+            // replaceChildren keeps the class, so the copy is an EvaluatorMapper too
+            return ((EvaluatorMapper) withFoldedArguments).doFold(source, ctx);
+        }
+        return doFold(source, ctx);
+    }
+
+    /**
      * Fold using {@link #toEvaluator} so you don't need a "by hand"
      * implementation of {@link Expression#fold}.
      */
-    default Object fold(Source source, FoldContext ctx) {
+    default Object doFold(Source source, FoldContext ctx) {
         /*
          * OK! So! We're going to build a bunch of *stuff* that so that we can
          * call toEvaluator and use it without standing up an entire compute

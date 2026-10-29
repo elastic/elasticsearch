@@ -376,7 +376,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
     }
 
     @Override
-    public Object fold(FoldContext foldCtx) {
+    public Object doFold(Source source, FoldContext foldCtx) {
         var distanceExpression = distance.fold(foldCtx);
         double inputDistance = getInputDistance(distanceExpression);
         BufferParameters bp = bufferParameters();

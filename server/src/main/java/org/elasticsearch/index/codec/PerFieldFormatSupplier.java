@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.KnnVectorsFormatMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -249,7 +250,7 @@ public class PerFieldFormatSupplier {
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
-            if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
+            if (mapper instanceof KnnVectorsFormatMapper vectorMapper) {
                 return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings(), threadPool);
             }
         }

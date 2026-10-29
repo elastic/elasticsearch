@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
 
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.mapper.FieldMapper.notInMultiFields;
 import static org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.CONTENT_TYPE;
@@ -40,8 +41,11 @@ public class RankVectorsPlugin extends Plugin implements MapperPlugin {
             return new RankVectorsFieldMapper.Builder(
                 n,
                 c.indexVersionCreated(),
+                c.getIndexSettings().getMode(),
                 getLicenseState(),
-                INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+                INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
+                DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
+                c.getVectorsFormatProviders()
             );
         }, notInMultiFields(CONTENT_TYPE)));
     }

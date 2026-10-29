@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -45,13 +47,16 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.SyntheticVectorsMapperTestCase;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
+import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -60,10 +65,10 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -93,7 +98,35 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new LocalStateRankVectors(SETTINGS));
+        return List.of(new LocalStateRankVectors(SETTINGS), new TestDiskBBQProviderPlugin());
+    }
+
+    private static class TestDiskBBQProviderPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
+        @Override
+        public VectorsFormatProvider getVectorsFormatProvider() {
+            return new VectorsFormatProvider() {
+                @Override
+                public KnnVectorsFormat getKnnVectorsFormat(
+                    IndexSettings indexSettings,
+                    DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
+                    DenseVectorFieldMapper.VectorSimilarity similarity,
+                    ElementType elementType,
+                    ExecutorService mergingExecutorService,
+                    int maxMergingWorkers,
+                    ExecutorService quantizerExecutorService
+                ) {
+                    return null;
+                }
+
+                @Override
+                public boolean isVectorIndexTypeAllowed(
+                    IndexVersion indexVersionCreated,
+                    DenseVectorFieldMapper.VectorIndexType indexType
+                ) {
+                    return indexType == DenseVectorFieldMapper.VectorIndexType.BBQ_DISK;
+                }
+            };
+        }
     }
 
     @Override
@@ -201,6 +234,15 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "byte")),
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
         );
+        XContentBuilder nonIndexed = fieldMapping(
+            b -> b.field("type", "rank_vectors").field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS).field("index", false)
+        );
+        XContentBuilder indexedMuvera = fieldMapping(b -> {
+            b.field("type", "rank_vectors").field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS).field("index", true);
+            muveraIndexOptions(b);
+        });
+        checker.registerConflictCheck("index", nonIndexed, indexedMuvera);
+        checker.registerConflictCheck("index_options", nonIndexed, indexedMuvera);
     }
 
     @Override
@@ -320,6 +362,211 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     + "] vectors in a single document"
             )
         );
+    }
+
+    public void testIndexedMuveraAddsSameFieldFdeAndKeepsOriginalStorageAndSource() throws Exception {
+        int tokenDims = RankVectorsFieldMapper.MUVERA_TOKEN_DIMS;
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", tokenDims);
+            b.field("index", true);
+            muveraIndexOptions(b);
+        }));
+
+        assertThat(mapperService.mappingLookup().getMapper("field"), instanceOf(RankVectorsFieldMapper.class));
+        assertFalse(mapperService.fieldType("field") instanceof DenseVectorFieldMapper.DenseVectorFieldType);
+        assertTrue(mapperService.fieldType("field").indexType().hasDocValues());
+        assertTrue(mapperService.fieldType("field").indexType().hasVectors());
+        assertNull(mapperService.mappingLookup().getMapper("field._muvera"));
+
+        float[][] vectors = new float[2][tokenDims];
+        vectors[0][0] = 1f;
+        vectors[1][1] = 1f;
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(source(b -> b.field("field", vectors)));
+
+        assertThat(parsedDocument.rootDoc().getField("field"), instanceOf(BinaryDocValuesField.class));
+        assertThat(
+            parsedDocument.rootDoc().getField("field" + RankVectorsFieldMapper.VECTOR_MAGNITUDES_SUFFIX),
+            instanceOf(BinaryDocValuesField.class)
+        );
+        List<IndexableField> sameNameFields = parsedDocument.rootDoc().getFields("field");
+        assertEquals(2, sameNameFields.size());
+        KnnFloatVectorField fdeField = (KnnFloatVectorField) sameNameFields.stream()
+            .filter(KnnFloatVectorField.class::isInstance)
+            .findFirst()
+            .orElseThrow();
+        assertNotNull(fdeField);
+        float[] expectedFde = new MuveraEncoder(
+            tokenDims,
+            RankVectorsFieldMapper.MUVERA_K_SIM,
+            RankVectorsFieldMapper.MUVERA_D_PROJ,
+            RankVectorsFieldMapper.MUVERA_R_REPS,
+            RankVectorsFieldMapper.MUVERA_SEED
+        ).encodeDocument(vectors);
+        assertArrayEquals(expectedFde, fdeField.vectorValue(), 0f);
+
+        String serializedMapping = mapperService.documentMapper().mappingSource().string();
+        assertThat(serializedMapping, containsString("\"index\":true"));
+        assertThat(
+            serializedMapping,
+            containsString(
+                "\"index_options\":{\"type\":\"muvera\",\"encoding_version\":1,\"encoding_profile\":\"muvera_v1\","
+                    + "\"k_sim\":3,\"d_proj\":8,\"r_reps\":64,\"seed\":42,\"output_dims\":4096}"
+            )
+        );
+        assertFalse(serializedMapping.contains("_muvera"));
+        String originalSource = parsedDocument.source().originalBytes().utf8ToString();
+        assertFalse(originalSource.contains("_muvera"));
+    }
+
+    public void testIndexedMuveraRequiresUnitVectors() throws Exception {
+        DocumentMapper indexedMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+            muveraIndexOptions(b);
+        }));
+        float[] nonUnitVector = new float[RankVectorsFieldMapper.MUVERA_TOKEN_DIMS];
+        nonUnitVector[0] = 1f;
+        nonUnitVector[1] = 1f;
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> indexedMapper.parse(source(b -> b.field("field", new float[][] { nonUnitVector })))
+        );
+        assertThat(e.getCause().getMessage(), containsString("must have unit magnitude"));
+
+        DocumentMapper nonIndexedMapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 2).field("index", false))
+        );
+        nonIndexedMapper.parse(source(b -> b.field("field", new float[][] { { 1f, 1f } })));
+    }
+
+    public void testIndexedMuveraVectorLimit() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+            muveraIndexOptions(b);
+        }));
+        float[] unitVector = new float[RankVectorsFieldMapper.MUVERA_TOKEN_DIMS];
+        unitVector[0] = 1f;
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i <= RankVectorsFieldMapper.MAX_MUVERA_VECTORS; i++) {
+                b.value(unitVector);
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("cannot be indexed with more than [" + RankVectorsFieldMapper.MAX_MUVERA_VECTORS + "] vectors")
+        );
+
+        DocumentMapper nonIndexedMapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 2).field("index", false))
+        );
+        nonIndexedMapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i <= RankVectorsFieldMapper.MAX_MUVERA_VECTORS; i++) {
+                b.startArray().value(1f).value(0f).endArray();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testIndexedMuveraMappingValidation() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+        })));
+        assertThat(e.getMessage(), containsString("requires [index_options.type] to be [muvera]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+            b.startObject("index_options").field("type", "muvera").endObject();
+        })));
+        assertThat(e.getMessage(), containsString("require explicit [encoding_version] and [encoding_profile]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("index", true);
+            muveraIndexOptions(b);
+        })));
+        assertThat(e.getMessage(), containsString("require [dims] to be configured"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("element_type", "byte");
+            b.field("index", true);
+            muveraIndexOptions(b);
+        })));
+        assertThat(e.getMessage(), containsString("require [element_type] to be [float]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+            b.startObject("index_options")
+                .field("type", "muvera")
+                .field("encoding_version", RankVectorsFieldMapper.MUVERA_ENCODING_VERSION)
+                .field("encoding_profile", RankVectorsFieldMapper.MUVERA_ENCODING_PROFILE)
+                .field("candidate_index", "hnsw")
+                .endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Unknown MUVERA index option fields [candidate_index]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", 64);
+            b.field("index", true);
+            muveraIndexOptions(b);
+        })));
+        assertThat(e.getMessage(), containsString("requires [dims] to be [128]"));
+    }
+
+    public void testIndexedMuveraRejectsChangedEncodingIdentityOnMerge() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+            muveraIndexOptions(b);
+        }));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+            b.field("index", true);
+            b.startObject("index_options")
+                .field("type", "muvera")
+                .field("encoding_version", RankVectorsFieldMapper.MUVERA_ENCODING_VERSION)
+                .field("encoding_profile", RankVectorsFieldMapper.MUVERA_ENCODING_PROFILE)
+                .field("seed", RankVectorsFieldMapper.MUVERA_SEED + 1)
+                .endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Unsupported MUVERA profile"));
+    }
+
+    public void testIndexedMuveraRequiresClusterFeature() throws IOException {
+        try (MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(feature -> false).build()) {
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> withMapping(mapperService, fieldMapping(b -> {
+                b.field("type", "rank_vectors");
+                b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+                b.field("index", true);
+                muveraIndexOptions(b);
+            })));
+            assertThat(e.getMessage(), containsString("until all nodes support feature [mapper.rank_vectors.muvera_indexing]"));
+        }
+    }
+
+    private static void muveraIndexOptions(XContentBuilder builder) throws IOException {
+        builder.startObject("index_options");
+        builder.field("type", "muvera");
+        builder.field("encoding_version", RankVectorsFieldMapper.MUVERA_ENCODING_VERSION);
+        builder.field("encoding_profile", RankVectorsFieldMapper.MUVERA_ENCODING_PROFILE);
+        builder.endObject();
     }
 
     public void testNonIndexedVector() throws Exception {

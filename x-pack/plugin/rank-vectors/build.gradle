@@ -20,4 +20,5 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  testImplementation project(':x-pack:plugin:diskbbq')
 }

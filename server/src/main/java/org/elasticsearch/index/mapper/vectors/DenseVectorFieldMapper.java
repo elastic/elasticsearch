@@ -156,7 +156,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVec
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends FieldMapper {
+public class DenseVectorFieldMapper extends FieldMapper implements KnnVectorsFormatMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     public static final int BBQ_MIN_DIMS = 64;
     public static final String CONFIDENCE_INTERVAL_DEPRECATION_MESSAGE =
@@ -4385,6 +4385,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * @param indexSettings      the index settings
      * @param threadPool         the thread pool to use for merging, or {@code null} if not available
      */
+    @Override
     public KnnVectorsFormat getKnnVectorsFormatForField(
         KnnVectorsFormat defaultFormat,
         IndexSettings indexSettings,

@@ -45,6 +45,11 @@ public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCa
         return indexVersion.onOrAfter(DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT) ? DEFAULT_ENABLED_ISO_SIZING : DEFAULT_DISABLED;
     }
 
+    /** Returns an explicitly disabled auto-calibration configuration. */
+    public static DenseVectorAutoCalibrate disabled() {
+        return new DenseVectorAutoCalibrate(false, IvfAutoCalibrationProfile.DISABLED);
+    }
+
     /** Accepts a boolean, a boolean string, or a profile name. */
     public static DenseVectorAutoCalibrate parse(
         @Nullable Object node,

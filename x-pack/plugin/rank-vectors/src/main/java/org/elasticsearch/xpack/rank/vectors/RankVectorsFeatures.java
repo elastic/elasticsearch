@@ -18,6 +18,12 @@ public class RankVectorsFeatures implements FeatureSpecification {
         "mapper.rank_vectors.dynamic_template_dotted_field_fix"
     );
     static final NodeFeature RANK_VECTORS_EMPTY_ARRAY_REJECTED = new NodeFeature("mapper.rank_vectors.empty_array_rejected");
+    public static final NodeFeature RANK_VECTORS_MUVERA_INDEXING = new NodeFeature("mapper.rank_vectors.muvera_indexing");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(RANK_VECTORS_MUVERA_INDEXING);
+    }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

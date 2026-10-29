@@ -180,6 +180,13 @@ public final class IndexType {
         return new IndexType(false, false, false, true, false, false);
     }
 
+    /**
+     * @return an IndexType with both a vector index and doc values
+     */
+    public static IndexType vectorsWithDocValues() {
+        return new IndexType(false, false, false, true, true, false);
+    }
+
     @Override
     public String toString() {
         return "IndexType{"

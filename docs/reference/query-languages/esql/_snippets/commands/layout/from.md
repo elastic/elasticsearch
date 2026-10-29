@@ -99,6 +99,20 @@ Use comma-separated lists or wildcards to
 FROM employees-00001,other-employees-*
 ```
 
+### Query a dataset
+```{applies_to}
+stack: preview 9.6+, experimental =9.5
+serverless: unavailable
+```
+
+Use a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) name to query external data through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md):
+
+```esql
+FROM speedtest_data
+```
+
+{applies_to}`stack: preview 9.6+` By default, a wildcard doesn't match datasets. To include datasets in a wildcard, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#match-datasets-with-wildcards).
+
 ### Query remote clusters
 ```{applies_to}
 stack: ga

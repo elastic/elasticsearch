@@ -96,6 +96,8 @@ When sources have different schemas, columns that do not exist in a given source
 - {applies_to}`stack: preview 9.6+` Use `METADATA _name` and `METADATA _class`. `_name` returns the dataset name for dataset rows and the index name for index rows. `_class` returns `index` or `dataset`, so a query can tell the two apart without knowing the names in advance. `_index` returns `null` for dataset rows, because a dataset is not an index.
 - {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows. `_class` and `_name` are not available.
 
+A view definition can also read from a dataset. For how datasets behave inside views, refer to [](/reference/query-languages/esql/esql-views.md#data-federation-datasets).
+
 ### Match datasets with wildcards
 ```{applies_to}
 stack: preview 9.6+

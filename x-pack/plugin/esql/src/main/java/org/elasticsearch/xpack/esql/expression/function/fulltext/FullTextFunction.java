@@ -91,8 +91,6 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
@@ -764,9 +762,6 @@ public abstract class FullTextFunction extends Function
      * minimum transport version predates {@code compact_multi_type_es_field}).
      */
     private static boolean isUnsafeAnalysisConversion(DataType targetType, FieldAttribute fieldAttribute) {
-        if (targetType != TEXT && targetType != KEYWORD) {
-            return false;
-        }
         if (fieldAttribute.dataType() != targetType) {
             return true;
         }

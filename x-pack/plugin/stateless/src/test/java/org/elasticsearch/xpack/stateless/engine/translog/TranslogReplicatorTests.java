@@ -57,10 +57,8 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

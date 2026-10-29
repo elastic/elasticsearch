@@ -667,10 +667,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
             // Read the rest of the stream, it should throw because the contents changed
             String message = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream)).getMessage();
-            assertThat(
-                message,
-                startsWith("blob [" + container.path().buildAsString() + key + "] version [1] is no longer available")
-            );
+            assertThat(message, startsWith("blob [" + container.path().buildAsString() + key + "] version [1] is no longer available"));
         }
     }
 

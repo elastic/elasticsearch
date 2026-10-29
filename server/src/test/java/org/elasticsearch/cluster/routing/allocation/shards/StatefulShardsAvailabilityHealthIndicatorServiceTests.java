@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -63,6 +64,8 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.index.Index;
@@ -141,6 +144,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -150,6 +154,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     private static final Settings NO_GRACE_PERIOD_SETTINGS = Settings.builder()
         .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
         .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
+        .build();
+
+    private static final Settings PRIMARY_GRACE_PERIOD_20S_SETTINGS = Settings.builder()
+        .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s")
         .build();
 
     private boolean multiProject;
@@ -383,7 +391,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    public void testAllReplicasUnassigned() {
+    public void testShardsWithNoActiveReplicas() {
         {
             ProjectId projectId = randomProjectIdOrDefault();
             var clusterState = createClusterStateWith(
@@ -411,9 +419,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertFalse(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -442,9 +451,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertFalse(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -473,9 +483,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertTrue(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -506,9 +517,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
+            assertTrue(status.replicas.doAnyIndicesHaveShardWithNoActiveCopy());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -551,13 +563,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
             // Here because the replica is unassigned due to the primary being created, it's treated as though the replica can be ignored.
             assertFalse(
-                "an unassigned replica from a newly created and initializing primary "
-                    + "should not be treated as an index with all replicas unassigned",
-                status.replicas.doAnyIndicesHaveAllUnassigned()
+                "an inactive replica from a newly created and initializing primary "
+                    + "should not be treated as an index with all replicas inactive",
+                status.replicas.doAnyIndicesHaveShardWithNoActiveCopy()
             );
         }
 
@@ -584,10 +597,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
             var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertTrue(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
+            assertTrue(service.hasNoActiveCopyOfThisType(projectId, shardRouting, clusterState));
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -616,10 +630,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 NodesShutdownMetadata.EMPTY,
                 randomBoolean(),
                 timeValueSeconds(0),
-                timeValueSeconds(0)
+                timeValueSeconds(0),
+                Map.of()
             );
             var shardRouting = clusterState.routingTable(projectId).index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertFalse(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
+            assertFalse(service.hasNoActiveCopyOfThisType(projectId, shardRouting, clusterState));
         }
     }
 
@@ -2932,6 +2947,219 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 )
             );
         }
+    }
+
+    /// A primary which is initializing within the grace period for an expected transient reason is normally not a cause for concern, but if
+    /// it has been retried locally on the data node then it must be treated as if it had failed allocations, so the grace period no longer
+    /// applies.
+    public void testPrimaryInitializingWithinGracePeriodIsRedIfRecoveryRetriedLocally() {
+        final var indexName = randomIndexName();
+        final var nodeId = randomNodeId();
+        final var clusterState = clusterStateWith(
+            () -> List.of(index(indexName, new ShardAllocation(nodeId, INITIALIZING, expectedTransientUnassignedInfoWithinGracePeriod())))
+        );
+        final var service = createShardsAvailabilityIndicatorService(PRIMARY_GRACE_PERIOD_20S_SETTINGS, clusterState, Map.of());
+
+        assertThat(service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO).status(), equalTo(GREEN));
+
+        final var withRetries = service.calculate(
+            true,
+            healthInfoWithLocalRecoveryRetries(clusterState, indexName, nodeId, randomIntBetween(1, 10))
+        );
+        assertThat(withRetries.status(), equalTo(RED));
+        assertThat(
+            withRetries.symptom(),
+            equalTo(
+                projectIds.size() == 1
+                    ? "This cluster has 1 initializing primary shard."
+                    : "This cluster has " + projectIds.size() + " initializing primary shards."
+            )
+        );
+    }
+
+    public void testLocalRecoveryRetriesForOtherNodesShardsOrAllocationsAreIgnored() {
+        final var indexName = randomIndexName();
+        final var nodeId = randomNodeId();
+        final var clusterState = clusterStateWith(
+            () -> List.of(index(indexName, new ShardAllocation(nodeId, INITIALIZING, expectedTransientUnassignedInfoWithinGracePeriod())))
+        );
+        final var service = createShardsAvailabilityIndicatorService(PRIMARY_GRACE_PERIOD_20S_SETTINGS, clusterState, Map.of());
+
+        final var otherShard = new ShardId(indexName, "_na_", 1);
+        final var otherIndexShard = new ShardId(randomAlphaOfLength(8), "_na_", 0);
+        final Map<RecoveryKey, Integer> otherRecoveries = new HashMap<>();
+        for (var primary : primaryShardsOfIndex(clusterState, indexName)) {
+            final var allocationId = primary.allocationId().getId();
+            otherRecoveries.put(new RecoveryKey(otherShard, allocationId), randomIntBetween(1, 10));
+            otherRecoveries.put(new RecoveryKey(otherIndexShard, allocationId), randomIntBetween(1, 10));
+            // Same shard on the same node, but an earlier allocation (e.g. one which the master has since cancelled):
+            otherRecoveries.put(new RecoveryKey(primary.shardId(), randomUUID()), randomIntBetween(1, 10));
+        }
+        final var retries = Map.of(
+            randomNodeId(),
+            new LocalRecoveryRetriesHealthInfo(recoveriesOfPrimaries(clusterState, indexName, randomIntBetween(1, 10))),
+            nodeId,
+            new LocalRecoveryRetriesHealthInfo(otherRecoveries)
+        );
+        assertThat(service.calculate(true, healthInfoWithLocalRecoveryRetries(retries)).status(), equalTo(GREEN));
+    }
+
+    /// Unassigned shards have no current node, so they cannot have local retries, and having a non-empty map of retries must not break
+    /// the calculation for them.
+    public void testUnassignedShardsAreUnaffectedByLocalRecoveryRetriesOnOtherShards() {
+        final var indexName = randomIndexName();
+        final var clusterState = clusterStateWith(
+            () -> List.of(indexNewlyCreated(indexName, new ShardAllocation(null, CREATING), new ShardAllocation(null, CREATING)))
+        );
+        final var service = createShardsAvailabilityIndicatorService(PRIMARY_GRACE_PERIOD_20S_SETTINGS, clusterState, Map.of());
+
+        final var expected = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        final var actual = service.calculate(
+            true,
+            healthInfoWithLocalRecoveryRetries(
+                Map.of(randomNodeId(), new LocalRecoveryRetriesHealthInfo(Map.of(new RecoveryKey(shardId(indexName), randomUUID()), 1)))
+            )
+        );
+        assertThat(actual, equalTo(expected));
+    }
+
+    /// A primary with a recovery source for which an inactive primary is normally only `YELLOW` (so that it is provisionally inactive)
+    /// should become `RED` if its recovery has been retried locally. (It is otherwise provisionally inactive, which is reported as
+    /// `GREEN`.) That also means that its unassigned replica is no longer provisionally inactive.
+    public void testPrimaryAndReplicaOfNewPrimaryRecoveryRetriedLocally() {
+        final var indexName = randomIndexName();
+        final var nodeId = randomNodeId();
+        final RecoverySource recoverySource = randomFrom(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE
+        );
+        final var clusterState = clusterStateWith(
+            () -> List.of(
+                indexWithInitializingPrimary(
+                    indexName,
+                    recoverySource,
+                    nodeId,
+                    new ShardAllocation(randomNodeId(), UNAVAILABLE, nodeLeft())
+                )
+            )
+        );
+        final var service = createShardsAvailabilityIndicatorService(Settings.EMPTY, clusterState, Map.of());
+
+        final var withoutRetries = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        assertThat(withoutRetries.status(), equalTo(GREEN));
+
+        final var withRetries = service.calculate(
+            true,
+            healthInfoWithLocalRecoveryRetries(clusterState, indexName, nodeId, randomIntBetween(1, 10))
+        );
+        assertThat(withRetries.status(), equalTo(RED));
+        assertThat(
+            withRetries.symptom(),
+            equalTo(
+                projectIds.size() == 1
+                    ? "This cluster has 1 unavailable replica shard, 1 initializing primary shard."
+                    : "This cluster has "
+                        + projectIds.size()
+                        + " unavailable replica shards, "
+                        + projectIds.size()
+                        + " initializing primary shards."
+            )
+        );
+    }
+
+    /// Reshard-split targets remain provisionally inactive even after failed allocations, and the same applies to local retries.
+    public void testReshardSplitPrimaryRecoveryRetriedLocallyIsNotRed() {
+        final var indexName = randomIndexName();
+        final var nodeId = randomNodeId();
+        final var recoverySource = new RecoverySource.ReshardSplitRecoverySource(new ShardId(indexName, "_na_", 1));
+        final var clusterState = clusterStateWith(() -> List.of(indexWithInitializingPrimary(indexName, recoverySource, nodeId)));
+        final var service = createShardsAvailabilityIndicatorService(Settings.EMPTY, clusterState, Map.of());
+
+        final var withoutRetries = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        final var withRetries = service.calculate(
+            true,
+            healthInfoWithLocalRecoveryRetries(clusterState, indexName, nodeId, randomIntBetween(1, 10))
+        );
+        assertThat(withoutRetries.status(), not(equalTo(RED)));
+        assertThat(withRetries, equalTo(withoutRetries));
+    }
+
+    private static UnassignedInfo expectedTransientUnassignedInfoWithinGracePeriod() {
+        return unassignedInfo(
+            randomUnassignedInfoReason(true),
+            new TimeValue(System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(), TimeUnit.MILLISECONDS)
+        );
+    }
+
+    /// The ID of the only shard in an index created by [#index(String, ShardAllocation, ShardAllocation...)].
+    private static ShardId shardId(String indexName) {
+        return new ShardId(indexName, "_na_", 0);
+    }
+
+    /// The primary shards of the given index in the cluster state (there is one for each project, with its own allocation ID).
+    private static List<ShardRouting> primaryShardsOfIndex(ClusterState clusterState, String indexName) {
+        return clusterState.globalRoutingTable()
+            .routingTables()
+            .values()
+            .stream()
+            .map(routingTable -> routingTable.index(indexName).shard(0).primaryShard())
+            .toList();
+    }
+
+    /// The recoveries of the primary shards of the given index in the cluster state, all with the given number of local retries.
+    private static Map<RecoveryKey, Integer> recoveriesOfPrimaries(ClusterState clusterState, String indexName, int retries) {
+        return primaryShardsOfIndex(clusterState, indexName).stream().collect(toMap(RecoveryKey::of, unused -> retries));
+    }
+
+    /// Health info reporting that the given node has retried locally the recoveries of the primary shards of the given index in the
+    /// cluster state.
+    private static HealthInfo healthInfoWithLocalRecoveryRetries(ClusterState clusterState, String indexName, String nodeId, int retries) {
+        return healthInfoWithLocalRecoveryRetries(
+            Map.of(nodeId, new LocalRecoveryRetriesHealthInfo(recoveriesOfPrimaries(clusterState, indexName, retries)))
+        );
+    }
+
+    private static HealthInfo healthInfoWithLocalRecoveryRetries(Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesByNode) {
+        return new HealthInfo(
+            Map.of(),
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsHealthInfo.INDETERMINATE,
+            null,
+            null,
+            localRecoveryRetriesByNode
+        );
+    }
+
+    /// Creates a single-shard index whose primary is initializing on the given node with the given recovery source, which
+    /// [#index(String, ShardAllocation, ShardAllocation...)] does not support (it always uses an existing-store recovery source).
+    private static IndexRoutingTable indexWithInitializingPrimary(
+        String name,
+        RecoverySource recoverySource,
+        String primaryNodeId,
+        ShardAllocation... replicaStates
+    ) {
+        var indexMetadata = IndexMetadata.builder(name)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(1)
+            .numberOfReplicas(replicaStates.length)
+            .build();
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+        var primary = newUnassigned(
+            shardId,
+            true,
+            recoverySource,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT,
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(true)
+        ).initialize(primaryNodeId, null, 0);
+
+        var builder = IndexRoutingTable.builder(indexMetadata.getIndex());
+        builder.addShard(primary);
+        for (var replicaState : replicaStates) {
+            builder.addShard(createShardRouting(shardId, false, replicaState));
+        }
+        return builder.build();
     }
 
     /**

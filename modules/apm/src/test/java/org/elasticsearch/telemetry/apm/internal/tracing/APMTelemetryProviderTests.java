@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
@@ -165,7 +166,13 @@ public class APMTelemetryProviderTests extends ESTestCase {
         return new APMTelemetryProvider(
             meterService,
             tracer,
-            new APMLoggingService(Settings.EMPTY, createTempDir(), List.of(), new TelemetryLogResourceProvider.Default())
+            new APMLoggingService(
+                Settings.EMPTY,
+                createTempDir(),
+                List.of(),
+                new TelemetryLogResourceProvider.Default(),
+                MeterProvider::noop
+            )
         );
     }
 }

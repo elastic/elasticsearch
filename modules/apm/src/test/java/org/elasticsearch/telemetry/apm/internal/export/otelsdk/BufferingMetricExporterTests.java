@@ -127,8 +127,10 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
         delegate.setShouldFail(true);
         assertTrue(exportAndWait("first").isSuccess());
+        safeSleep(200); // let the write window (100ms) expire so the second batch goes to a new file
         assertTrue(exportAndWait("second").isSuccess());
         assertThat(counter("writes"), hasSize(2));
+        assertThat(counter("drops_full"), hasSize(1));
         assertThat(countBufferFiles(), equalTo(1));
     }
 

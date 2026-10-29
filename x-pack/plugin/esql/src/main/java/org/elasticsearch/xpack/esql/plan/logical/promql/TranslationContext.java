@@ -23,17 +23,23 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
@@ -42,7 +48,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -186,12 +191,13 @@ public record TranslationContext(
      * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
      */
     private LogicalPlan doTranslateUnion(List<IntermediateResult> intermediateResults) {
-        // Already validated against MergePlan.MAX_BRANCHES by PromqlCommand.verify
-        assert MergePlan.exceedsMaxBranches(intermediateResults.size()) == false
+        // Already validated against max_branch_count_per_merge by PromqlCommand.verify.
+        int maxBranches = analyzer.maxBranchCountPerMerge();
+        assert intermediateResults.size() <= maxBranches
             : "invariant: merge branch count ["
                 + intermediateResults.size()
-                + "] must be less of equal MergePlan.MAX_BRANCHES ["
-                + MergePlan.MAX_BRANCHES
+                + "] must be <= the max_branch_count_per_merge limit ["
+                + maxBranches
                 + "]";
 
         var source = cmd.source();
@@ -729,5 +735,53 @@ public record TranslationContext(
             }
         }
         return bareMatch;
+    }
+
+    /**
+     * A count is at least 1 for an element: {@code count} counts a group's series, {@code count_over_time} a series'
+     * samples in the window, and a group or series with none is no element. Maps a count of 0 to null so the element
+     * drops like any other without a value.
+     */
+    public static Expression zeroCountAsNull(Expression count) {
+        Expression empty = new Equals(count.source(), count, new Literal(count.source(), 0L, DataType.LONG));
+        return new Case(count.source(), empty, List.of(Literal.NULL, count));
+    }
+
+    /**
+     * A range function over a series without a sample in the window has no element in Prometheus. A series can still
+     * reach the aggregate without one: its rows carry only other fields, or an operand's matchers reject them inside an
+     * aggregate shared with another operand. There {@code count_over_time} reads 0 and {@code present_over_time} false;
+     * both map to null so the element drops like any other without a value.
+     * <p>
+     * {@code absent_over_time} is the mirror: it has an element only for a series without a sample, so only true stays.
+     * A series the operand never selects reads true too - its matchers reject every row, or only another operand's metric
+     * has values - so true stays only for a series the operand selects.
+     */
+    public static Expression emptyRangeAsNull(Expression function, Expression time) {
+        if (function instanceof CountOverTime) {
+            return zeroCountAsNull(function);
+        }
+        if (function instanceof PresentOverTime present) {
+            return new Case(present.source(), present, List.of(Literal.TRUE, Literal.NULL));
+        }
+        if (function instanceof AbsentOverTime absent) {
+            Expression absentFromSelected = new And(absent.source(), selectedBy(absent, time), absent);
+            return new Case(absent.source(), absentFromSelected, List.of(Literal.TRUE, Literal.NULL));
+        }
+        return function;
+    }
+
+    /**
+     * Whether the operand of {@code absent} reads a row of the series in the window; the operand's matchers apply once its
+     * filter attaches to its time-series functions. A metric selector selects a series only where the metric has a value:
+     * rows are read for every metric the aggregate references
+     * ({@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics}), so a row without a value of
+     * this one can come from another operand's metric. For a metric field {@code absent} therefore never stays true.
+     */
+    private static Expression selectedBy(AbsentOverTime absent, Expression time) {
+        if (absent.field() instanceof Attribute field && field.resolved() && field.isMetric()) {
+            return new Not(absent.source(), absent);
+        }
+        return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());
     }
 }

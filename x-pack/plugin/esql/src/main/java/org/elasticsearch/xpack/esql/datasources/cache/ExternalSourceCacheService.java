@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -585,13 +587,15 @@ public class ExternalSourceCacheService implements Closeable {
         SubscribableListener<FileList> existing = inFlightListings.putIfAbsent(key, newFuture);
         if (existing != null) {
             // Follower: if the leader was cancelled, retry rather than inheriting its TaskCancelledException.
-            existing.addListener(ActionListener.wrap(listener::onResponse, e -> {
+            // The leader's thread completes this listener, so it is metered for the follower's own query: both the
+            // follower's continuation and the listing its retry computes are planning CPU of the follower.
+            existing.addListener(PlanningCpuTracker.inheritMeteredCpu(listener.delegateResponse((l, e) -> {
                 if (e instanceof TaskCancelledException) {
-                    getOrComputeListingAsync(key, compute, listener);
+                    getOrComputeListingAsync(key, compute, l);
                 } else {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
-            }));
+            })));
             return;
         }
         // Re-check the cache after acquiring leadership: a concurrent leader may have completed and removed
@@ -599,6 +603,8 @@ public class ExternalSourceCacheService implements Closeable {
         FileList racedResult = listingStore.get(key);
         if (racedResult != null) {
             inFlightListings.remove(key, newFuture);
+            // Followers may have subscribed to newFuture since the putIfAbsent above; leaving it incomplete would strand them.
+            newFuture.onResponse(racedResult);
             listener.onResponse(racedResult);
             return;
         }
@@ -1885,6 +1891,37 @@ public class ExternalSourceCacheService implements Closeable {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    /**
+     * Drops the listings of the datasets a query read, so the next query lists them again. A query whose read failed with the
+     * object-changed condition names the listings it used, and every cached listing of those datasets goes too: a dataset is cached
+     * under one key per filter-hint set, and split discovery builds keys that the query did not record. A dataset is matched by
+     * its scheme, bucket, prefix and storage identity, so another store with the same bucket and prefix keeps its listings, as
+     * do other datasets. Entries that differ only in their credentials or dataset definition read the same objects, so they are
+     * dropped too.
+     */
+    public void invalidateListings(Collection<ListingCacheKey> used) {
+        Set<List<String>> datasets = new HashSet<>();
+        for (ListingCacheKey key : used) {
+            datasets.add(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()));
+        }
+        List<ListingCacheKey> matches = new ArrayList<>();
+        for (ListingCacheKey key : listingStore.cache().keys()) {
+            if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()))) {
+                matches.add(key);
+            }
+        }
+        for (ListingCacheKey key : matches) {
+            listingStore.cache().invalidate(key);
+        }
+    }
+
+    /** Drops the given file-metadata entries; see {@link #invalidateListings}. */
+    public void invalidateFileMetadata(Collection<FileMetadataCacheKey> keys) {
+        for (FileMetadataCacheKey key : keys) {
+            fileMetadataCache.invalidate(key);
+        }
     }
 
     public void clearAll() {

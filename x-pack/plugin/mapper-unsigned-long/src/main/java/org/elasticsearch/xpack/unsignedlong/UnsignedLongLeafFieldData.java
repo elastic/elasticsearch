@@ -43,7 +43,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
         final SortedNumericLongValues values = signedLongFD.getLongValues();
         final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         if (singleton != null) {
-            return FieldData.singleton(new DoubleValues() {
+            var doubleValues = new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
                     return convertUnsignedLongToDouble(singleton.longValue());
@@ -53,7 +53,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
                 public boolean advanceExact(int doc) throws IOException {
                     return singleton.advanceExact(doc);
                 }
-            });
+            };
+            return SortedNumericDoubleValues.singleton(doubleValues, values.docIdIterator());
         }
         return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
             @Override

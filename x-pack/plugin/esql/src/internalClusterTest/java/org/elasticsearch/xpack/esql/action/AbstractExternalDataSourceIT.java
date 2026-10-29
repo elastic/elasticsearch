@@ -31,7 +31,9 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -39,6 +41,8 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -350,6 +354,42 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         }
         registeredDatasets.clear();
         registeredDataSources.clear();
+        assertAdmissionIdle();
+    }
+
+    /**
+     * After each test method (dataset/data-source DELETE, then idle). Not after every query.
+     * File:// tests have no node limiter, so permit snapshots are empty there. Request-breaker
+     * windows use {@code parquet sliding window}, which {@link #ensureBlocksReleased} does not
+     * cover — only mock compute blocks.
+     */
+    private void assertAdmissionIdle() {
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            DataSourceModule module = planExecutor.dataSourceModule();
+            if (module == null) {
+                continue;
+            }
+            try {
+                assertBusy(() -> {
+                    NodeByteBudget budget = module.nodeByteBudget();
+                    if (budget != null) {
+                        assertEquals("used on " + node, 0L, budget.used());
+                        assertEquals("untracked on " + node, 0L, budget.untracked());
+                        if (budget instanceof NodeByteBudgetService service) {
+                            assertEquals("waiters on " + node, 0, service.waiterCount());
+                            assertNull("owner on " + node, service.overshootOwner());
+                        }
+                    }
+                    for (Map.Entry<String, int[]> entry : module.permitSnapshots().entrySet()) {
+                        assertEquals("permits " + entry.getKey() + " on " + node, entry.getValue()[1], entry.getValue()[0]);
+                    }
+                });
+            } catch (Exception e) {
+                throw new AssertionError("admission not idle on " + node, e);
+            }
+        }
+        ensureBlocksReleased();
     }
 
     // ---------------------------------------------------------------------------------------------

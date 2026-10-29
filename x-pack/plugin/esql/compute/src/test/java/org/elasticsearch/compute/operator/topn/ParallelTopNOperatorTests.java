@@ -10,11 +10,14 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -24,6 +27,9 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -35,9 +41,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
@@ -315,6 +324,31 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         }
     }
 
+    /**
+     * Each worker would number the origins of detached {@code _doc} rows in a table of its own, and merging the worker
+     * queues would mix those numbers. So {@code tryPromote} keeps the operator sequential, even above the threshold.
+     */
+    public void testTryPromoteReturnsSelfWithDetachedDocs() {
+        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+            100,
+            List.of(ElementType.LONG, ElementType.DOC),
+            List.of(DEFAULT_SORTABLE, DocVectorEncoder.detached()),
+            List.of(new TopNOperator.SortOrder(0, true, false)),
+            100,
+            Long.MAX_VALUE,
+            TopNOperator.InputOrdering.NOT_SORTED,
+            null,
+            new TopNOperator.ParallelWorkerConfig(workerExecutor(), 2, 10, 0)
+        );
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        try (TopNOperator op = factory.get(driverContext)) {
+            Block docs = RandomBlock.randomDetachedDocBlock(blockFactory, 1, 1).block();
+            op.addInput(new Page(blockFactory.newConstantLongBlockWith(42L, 1), docs));
+            assertThat(op.tryPromote(driverContext), sameInstance(op));
+        }
+    }
+
     // -------------------------------------------------------------------------
     // State machine tests (construct ParallelTopNOperator directly)
     // -------------------------------------------------------------------------
@@ -472,6 +506,76 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker)) {
             assertThat(op.toString(), equalTo("ParallelTopNOperator[workers=" + (workerCount + 1) + "]"));
         }
+    }
+
+    public void testWorkerCpuIsMetered() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        DriverContext driverContext = driverContext();
+        TopNOperator initialWorker = workerOnlyFactory().get(driverContext);
+        TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), between(1, 4), 10, 0);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
+        try {
+            for (int i = 0; i < 100; i++) {
+                op.addInput(buildLongPage(driverContext.blockFactory(), random().longs(1000)));
+            }
+            op.finish();
+            assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+            assertThat(driverContext.cpuNanos(), greaterThan(0L));
+        } finally {
+            drainAndClose(op);
+        }
+    }
+
+    /**
+     * Closing the operator while a worker runs makes that worker's task the last to finish, so it releases the workers
+     * on its own thread. The driver context parks the worker inside its first measurement until the operator is closed,
+     * and burns CPU when a worker thread releases a worker's block factory.
+     */
+    public void testWorkersReleasedOnWorkerThreadAreMetered() {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        long releaseNanos = TimeUnit.MILLISECONDS.toNanos(20);
+        CountDownLatch workerMetering = new CountDownLatch(1);
+        CountDownLatch operatorClosed = new CountDownLatch(1);
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null) {
+            @Override
+            public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+                return super.meteredCpu(() -> {
+                    if (Thread.currentThread().getName().contains(ESQL_WORKER) && workerMetering.getCount() > 0) {
+                        workerMetering.countDown();
+                        safeAwait(operatorClosed);
+                    }
+                    return work.get();
+                });
+            }
+
+            @Override
+            public void releaseChildBlockFactory(BlockFactory childFactory) {
+                if (Thread.currentThread().getName().contains(ESQL_WORKER)) {
+                    long start = ThreadCpuTimer.currentNanos();
+                    while (ThreadCpuTimer.elapsedNanos(start) < releaseNanos) {
+                        Thread.onSpinWait();
+                    }
+                }
+                super.releaseChildBlockFactory(childFactory);
+            }
+        };
+        TopNOperator initialWorker = workerOnlyFactory().get(driverContext);
+        TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
+        try {
+            safeAwait(workerMetering);
+            op.close();
+        } finally {
+            operatorClosed.countDown();
+        }
+        driverContext.finish();
+        PlainActionFuture<Void> asyncActionsDone = new PlainActionFuture<>();
+        driverContext.waitForAsyncActions(asyncActionsDone);
+        safeGet(asyncActionsDone);
+        assertThat(driverContext.cpuNanos(), greaterThanOrEqualTo(releaseNanos));
     }
 
     public void testPartialWorkerRejectionProducesCorrectOutput() throws Exception {

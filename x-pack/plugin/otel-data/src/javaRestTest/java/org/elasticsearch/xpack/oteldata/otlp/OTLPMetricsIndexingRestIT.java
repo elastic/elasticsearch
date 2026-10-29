@@ -41,7 +41,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -72,8 +71,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
-
-    private static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;
@@ -228,6 +225,42 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(failureSearch.evaluate("hits.hits.0._source.error.type"), equalTo("timestamp_error"));
     }
 
+    /**
+     * Simulates a client retrying a request that was already indexed, e.g. after a timeout.
+     * The retry results in version conflicts which should be reported as a warning without rejecting data points.
+     */
+    public void testRetryOfIndexedDataPointsIsNotRejected() throws Exception {
+        long now = Clock.getDefault().now();
+        byte[] body = marshalMetrics(
+            List.of(
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "retried_gauge", 1.0, "By", now),
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "retried_gauge", 2.0, "By", now + TimeUnit.MILLISECONDS.toNanos(1))
+            )
+        );
+
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));
+        var response = client().performRequest(request);
+        assertOK(response);
+        assertThat(ExportMetricsServiceResponse.parseFrom(responseAsBytes(response).array()).hasPartialSuccess(), equalTo(false));
+
+        Request retry = new Request("POST", otlpEndpointPath());
+        retry.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));
+        var retryResponse = client().performRequest(retry);
+        assertOK(retryResponse);
+        ExportMetricsServiceResponse otlpResponse = ExportMetricsServiceResponse.parseFrom(responseAsBytes(retryResponse).array());
+        assertThat(otlpResponse.hasPartialSuccess(), equalTo(true));
+        assertThat(otlpResponse.getPartialSuccess().getRejectedDataPoints(), equalTo(0L));
+        assertThat(
+            otlpResponse.getPartialSuccess().getErrorMessage(),
+            equalTo("Skipped 2 duplicate documents that were already indexed with the same id.\n")
+        );
+
+        refreshMetricsIndices();
+        ObjectPath path = search("metrics-generic.otel-default");
+        assertThat(path.toString(), path.evaluate("hits.total.value"), equalTo(2));
+    }
+
     public void testGauge() throws Exception {
         long now = Clock.getDefault().now();
         export(
@@ -246,7 +279,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testExemplars() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         long dataPointTimestamp = Clock.getDefault().now();
         long exemplarTimestamp = dataPointTimestamp - TimeUnit.MILLISECONDS.toNanos(1);
         SpanContext spanContext = SpanContext.create(
@@ -635,6 +667,15 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testTsidForBulkIsSame() throws Exception {
+        assertTsidForBulkIsSame("By");
+    }
+
+    public void testTsidForBulkIsSameWithoutUnit() throws Exception {
+        // the unit is omitted from the document when empty, so it must not contribute to the _tsid either
+        assertTsidForBulkIsSame("");
+    }
+
+    private void assertTsidForBulkIsSame(String unit) throws Exception {
         // This test is to ensure that the _tsid is the same when indexing via a bulk request or OTLP.
         long now = Clock.getDefault().now();
 
@@ -652,7 +693,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                         .build(),
                     "metric",
                     42,
-                    "By",
+                    unit,
                     now
                 )
             )
@@ -692,12 +733,12 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                         },
                         "scope": {
                             "name": "io.opentelemetry.example.metrics"
-                        },
-                        "unit": "By"
+                        }$unit
                     }
                     """.replace("\n", "")
                     .replace("$time", Long.toString(TimeUnit.NANOSECONDS.toMillis(now) + 1))
                     .replace("$metric_names_hash", metricNamesHash)
+                    .replace("$unit", unit.isEmpty() ? "" : ",\"unit\": \"" + unit + "\"")
                 + "\n"
         );
         assertThat(ObjectPath.createFromResponse(client().performRequest(bulkRequest)).evaluate("errors"), equalTo(false));

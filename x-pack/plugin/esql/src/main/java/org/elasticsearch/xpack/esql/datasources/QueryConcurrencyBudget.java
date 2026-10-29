@@ -461,15 +461,6 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             if (pinnedLease != null && pinnedLease != io && pinnedLease.isFinished() == false) {
                 return false;
             }
-            RowGroupIo winner;
-            if (favoured != null && favoured.isFinished() == false) {
-                winner = favoured;
-            } else {
-                winner = winnerAmongRegistered();
-            }
-            if (winner != io) {
-                return false;
-            }
             favoured = io;
             pinnedLease = io;
             io.setPinned(true);
@@ -743,31 +734,6 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             if (oldest == null || waiter.enqueueNanos < oldest.enqueueNanos) {
                 oldest = waiter;
             }
-        }
-        return oldest;
-    }
-
-    private RowGroupIo winnerAmongRegistered() {
-        RowGroupIo oldest = null;
-        RowGroupIo closest = null;
-        for (RowGroupIo io : registry) {
-            if (io.isFinished()) {
-                continue;
-            }
-            if (oldest == null || io.startSeq() < oldest.startSeq()) {
-                oldest = io;
-            }
-            if (closest == null
-                || io.outstanding() < closest.outstanding()
-                || (io.outstanding() == closest.outstanding() && io.startSeq() < closest.startSeq())) {
-                closest = io;
-            }
-        }
-        if (oldest == null) {
-            return null;
-        }
-        if (oldest != closest && closest != null && oldest.outstanding() - closest.outstanding() >= PREEMPT_GAP) {
-            return closest;
         }
         return oldest;
     }

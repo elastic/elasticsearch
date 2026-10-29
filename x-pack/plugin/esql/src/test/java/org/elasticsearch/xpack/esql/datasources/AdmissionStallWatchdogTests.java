@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -172,6 +175,17 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         watchdog.close();
     }
 
+    public void testPopulateAdmissionNeverGrantedSerializes() throws Exception {
+        AdmissionStallWatchdog watchdog = watchdog(new AtomicLong(), TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.register(gate("bytes", 0, ""));
+        assertEquals(-1L, watchdog.stats().get(0).millisSinceGrant());
+        Counters counters = new Counters();
+        DataSourceCounters.populateAdmission(counters, new NodeByteBudgetService(10), watchdog, Map.of());
+        BytesStreamOutput out = new BytesStreamOutput();
+        counters.writeTo(out);
+        watchdog.close();
+    }
+
     public void testScheduledInspectRunsOnGeneric() throws Exception {
         AtomicLong clock = new AtomicLong();
         ThreadPool threadPool = new TestThreadPool(getTestName());
@@ -208,7 +222,7 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
     }
 
     /**
-     * U5: the byte gate warns on waiters plus holders when no grant has landed for the stall
+     * The byte gate warns on waiters plus holders when no grant has landed for the stall
      * window. Permit saturation stays silent in {@link #testHoldersInUseStaySilent}.
      */
     public void testByteGateWarnsOnGrantAgeEvenWithHolders() throws Exception {
@@ -635,6 +649,137 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         watchdog.close();
     }
 
+    public void testByteReleaseDoesNotCountAsGrantProgress() {
+        AtomicLong clock = new AtomicLong();
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        budget.bindTracker(watchdog);
+        watchdog.register(bytesGate(budget));
+
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        assertNotNull(residual);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+        SubscribableListener<NodeByteBudget.Hold> head = budget.admitAsync(50, new RowGroupIo(), () -> false, Runnable::run);
+        assertFalse(head.isDone());
+
+        clock.set(TimeUnit.SECONDS.toNanos(4));
+        budget.add(1L);
+        budget.release(1L);
+        clock.set(TimeUnit.SECONDS.toNanos(8));
+        watchdog.inspect();
+        assertEquals("a 1-byte trickle must not reset the rescue clock", 1, watchdog.rescueCount());
+        assertTrue(head.isDone());
+        residual.close();
+        AtomicReference<NodeByteBudget.Hold> granted = new AtomicReference<>();
+        head.addListener(ActionListener.wrap(granted::set, e -> fail(e.toString())));
+        granted.get().close();
+        budget.clearOwner(overshoot.lease());
+        watchdog.close();
+    }
+
+    public void testByteReleaseTrickleDoesNotSuppressStallWarn() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.setRescueEnabled(false);
+        budget.bindTracker(watchdog);
+        watchdog.register(bytesGate(budget));
+
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        assertNotNull(residual);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+        SubscribableListener<NodeByteBudget.Hold> head = budget.admitAsync(50, new RowGroupIo(), () -> false, Runnable::run);
+        assertFalse(head.isDone());
+
+        for (int seconds : new int[] { 4, 8, 12, 16 }) {
+            clock.set(TimeUnit.SECONDS.toNanos(seconds));
+            budget.add(1L);
+            budget.release(1L);
+        }
+        try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "trickle must not silence GRANT_AGE",
+                    AdmissionStallWatchdog.class.getCanonicalName(),
+                    Level.WARN,
+                    "*possible admission stall*"
+                )
+            );
+            watchdog.inspect();
+            mockLog.assertAllExpectationsMatched();
+        }
+        assertEquals(0, watchdog.rescueCount());
+        assertFalse(head.isDone());
+        residual.close();
+        budget.clearOwner(overshoot.lease());
+        watchdog.close();
+    }
+
+    public void testInspectFailsCancelledWaitersWhenRescueDisabled() {
+        AtomicLong clock = new AtomicLong();
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.setRescueEnabled(false);
+        budget.bindTracker(watchdog);
+        watchdog.register(bytesGate(budget));
+
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        assertNotNull(residual);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+        AtomicBoolean cancel = new AtomicBoolean();
+        long usedBefore = budget.used();
+        SubscribableListener<NodeByteBudget.Hold> head = budget.admitAsync(50, new RowGroupIo(), cancel::get, Runnable::run);
+        assertFalse(head.isDone());
+        cancel.set(true);
+        watchdog.inspect();
+        assertTrue(head.isDone());
+        AtomicReference<Exception> error = new AtomicReference<>();
+        head.addListener(ActionListener.wrap(hold -> fail("cancelled waiter must not grant"), error::set));
+        assertNotNull(error.get());
+        assertEquals(usedBefore, budget.used());
+        assertEquals(0, watchdog.rescueCount());
+        residual.close();
+        budget.clearOwner(overshoot.lease());
+        watchdog.close();
+    }
+
+    public void testInspectGrantsNextWaiterAfterCancelledHead() {
+        AtomicLong clock = new AtomicLong();
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.setRescueEnabled(false);
+        budget.bindTracker(watchdog);
+        watchdog.register(bytesGate(budget));
+
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        assertNotNull(residual);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+        AtomicBoolean cancelHead = new AtomicBoolean();
+        SubscribableListener<NodeByteBudget.Hold> cancelled = budget.admitAsync(50, new RowGroupIo(), cancelHead::get, Runnable::run);
+        SubscribableListener<NodeByteBudget.Hold> next = budget.admitAsync(20, new RowGroupIo(), () -> false, Runnable::run);
+        assertFalse(cancelled.isDone());
+        assertFalse(next.isDone());
+        cancelHead.set(true);
+        watchdog.inspect();
+        assertTrue(cancelled.isDone());
+        AtomicReference<Exception> error = new AtomicReference<>();
+        cancelled.addListener(ActionListener.wrap(hold -> fail("cancelled head must not grant"), error::set));
+        assertNotNull(error.get());
+        assertTrue("fitting waiter behind a cancelled head must grant without a release", next.isDone());
+        assertEquals(0, watchdog.rescueCount());
+        assertEquals(100, budget.used());
+        AtomicReference<NodeByteBudget.Hold> granted = new AtomicReference<>();
+        next.addListener(ActionListener.wrap(granted::set, e -> fail(e.toString())));
+        granted.get().close();
+        residual.close();
+        budget.clearOwner(overshoot.lease());
+        watchdog.close();
+    }
+
     public void testRescueRunsSameWaitersOnInspectThread() {
         AtomicLong clock = new AtomicLong();
         NodeByteBudgetService budget = new NodeByteBudgetService(100);
@@ -743,6 +888,11 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
             @Override
             public RescueResult rescueHead(Executor delivery) {
                 return budget.rescueHeadOverCap(delivery);
+            }
+
+            @Override
+            public void failCancelledWaiters() {
+                budget.failCancelledWaiters();
             }
         };
     }

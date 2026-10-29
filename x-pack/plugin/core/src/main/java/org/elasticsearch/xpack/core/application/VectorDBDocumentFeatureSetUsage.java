@@ -37,8 +37,8 @@ public final class VectorDBDocumentFeatureSetUsage extends XPackFeatureUsage {
 
     public VectorDBDocumentFeatureSetUsage(boolean available, boolean enabled, int indicesCount, long numDocs) {
         super(XPackField.VECTORDB_DOCUMENT, available, enabled);
-        this.indicesCount = indicesCount;
-        this.numDocs = numDocs;
+        this.indicesCount = Math.max(0, indicesCount);
+        this.numDocs = Math.max(0L, numDocs);
     }
 
     @Override

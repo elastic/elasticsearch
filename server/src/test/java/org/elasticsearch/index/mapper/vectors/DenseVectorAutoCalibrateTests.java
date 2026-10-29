@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT;
+
 public class DenseVectorAutoCalibrateTests extends ESTestCase {
     private static final String FIELD = "field";
     private static final Predicate<NodeFeature> FEATURE_ON = f -> f == DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES;
@@ -47,12 +49,27 @@ public class DenseVectorAutoCalibrateTests extends ESTestCase {
 
     public void testParseNull() {
         for (IndexVersion version : INDEX_VERSIONS) {
-            assertSame(
-                versionMessage(version),
-                DenseVectorAutoCalibrate.DEFAULT,
-                DenseVectorAutoCalibrate.parse(null, version, FEATURE_UNCHECKED, FIELD)
-            );
+            DenseVectorAutoCalibrate expected = version.onOrAfter(DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT)
+                ? DenseVectorAutoCalibrate.DEFAULT_ENABLED_ISO_SIZING
+                : DenseVectorAutoCalibrate.DEFAULT_DISABLED;
+
+            assertSame(versionMessage(version), expected, DenseVectorAutoCalibrate.parse(null, version, FEATURE_UNCHECKED, FIELD));
         }
+
+        // Explicitly check index version boundaries where behavior changed
+        assertSame(
+            DenseVectorAutoCalibrate.DEFAULT_DISABLED,
+            DenseVectorAutoCalibrate.parse(
+                null,
+                IndexVersionUtils.getPreviousVersion(DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT),
+                FEATURE_UNCHECKED,
+                FIELD
+            )
+        );
+        assertSame(
+            DenseVectorAutoCalibrate.DEFAULT_ENABLED_ISO_SIZING,
+            DenseVectorAutoCalibrate.parse(null, DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT, FEATURE_UNCHECKED, FIELD)
+        );
     }
 
     public void testParseBooleans() {

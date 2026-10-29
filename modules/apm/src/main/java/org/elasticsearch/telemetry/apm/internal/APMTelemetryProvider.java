@@ -47,7 +47,13 @@ public class APMTelemetryProvider implements TelemetryProvider {
     ) {
         apmMeterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
-        loggingService = new APMLoggingService(settings, configDir, filterProviders, logResourceProvider);
+        loggingService = new APMLoggingService(
+            settings,
+            configDir,
+            filterProviders,
+            logResourceProvider,
+            apmMeterService::getHealthMeterProvider
+        );
         httpServerInstrumentation = new HttpServerInstrumentations(
             List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
         );

@@ -103,6 +103,10 @@
                     }
                   }
                 },
+                "settings": {
+                  "dynamic": true,
+                  "type": "object"
+                },
                 "esql": {
                   "properties": {
                     "profile": {
@@ -153,6 +157,10 @@
                   "type": "flattened",
                   "preserve_leaf_arrays": "exact",
                   "ignore_above": 32765
+                },
+                "view_settings": {
+                  "type": "flattened",
+                  "ignore_above": 256
                 },
                 "result_count": {
                   "type": "long",

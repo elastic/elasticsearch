@@ -2,7 +2,7 @@
 navigation_title: "Dataset settings"
 description: "Reference for ES|QL Data Federation dataset settings, including parsing, file discovery, error handling, and schema resolution."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -10,7 +10,7 @@ products:
 
 # Dataset settings reference for {{esql}} Data Federation
 
-Dataset settings control how the files in a dataset are discovered, parsed, and reconciled. Add settings to the `settings` object when you [create or update a dataset](esql-data-federation-manage-datasets.md#create-or-update-a-dataset).
+Dataset settings control how the files in a dataset are discovered, parsed, and reconciled. Add settings to the `settings` object when you [create or update a dataset](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
@@ -19,7 +19,7 @@ Dataset settings control how the files in a dataset are discovered, parsed, and 
 
 The following settings apply to every file-based data source, unless an entry lists specific formats.
 
-% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
+% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op.
 
 ### Format and discovery
 
@@ -42,7 +42,7 @@ $$$format$$$
 
 $$$file-exclusions$$$
 
-`file_exclusions` {applies_to}`stack: experimental 9.6+`
+`file_exclusions` {applies_to}`stack: preview 9.6+`
 :   Patterns that name objects to drop from wildcard discovery.
 
     - **Default:** `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]`
@@ -69,7 +69,7 @@ $$$partition-detection$$$
     - **Requires:** `partition_path` when set to `template`
     - **Conflicts with:**
       - `partition_path` when set to `hive` or `none`
-      - {applies_to}`stack: experimental 9.6+` `partition_spec` when set to `none`
+      - {applies_to}`stack: preview 9.6+` `partition_spec` when set to `none`
     - **Related:** `partition_path`, `partition_spec`, `partition_sample_size`
 
 $$$partition-path$$$
@@ -86,7 +86,7 @@ $$$partition-path$$$
 
 $$$partition-spec$$$
 
-`partition_spec` {applies_to}`stack: experimental 9.6+`
+`partition_spec` {applies_to}`stack: preview 9.6+`
 :   Binds file columns to partition keys, so that filters on those columns can skip folders. `lag` and `lead` are not bindings; they widen the listing window for a bound column.
 
     - **Default:** None
@@ -109,7 +109,7 @@ $$$partition-spec$$$
 
 $$$partition-sample-size$$$
 
-`partition_sample_size` {applies_to}`stack: experimental 9.6+`
+`partition_sample_size` {applies_to}`stack: preview 9.6+`
 :   The number of file paths read to infer partition columns and their types.
 
     - **Default:** `1000`
@@ -135,7 +135,7 @@ $$$schema-resolution$$$
 :   The strategy for reconciling schemas across multiple files.
 
     - **Default:**
-      - {applies_to}`stack: experimental 9.6+` `first_file_wins`
+      - {applies_to}`stack: preview 9.6+` `first_file_wins`
       - {applies_to}`stack: experimental =9.5` `union_by_name`
     - **Valid values:** `first_file_wins`, `union_by_name`, `strict`
     - **Related:** `file_sort_by`, `file_order`
@@ -144,7 +144,7 @@ $$$schema-resolution$$$
 
 $$$file-sort-by$$$
 
-`file_sort_by` {applies_to}`stack: experimental 9.6+`
+`file_sort_by` {applies_to}`stack: preview 9.6+`
 :   The value used to order files when choosing which file supplies the schema.
 
     - **Default:** `list`
@@ -156,7 +156,7 @@ $$$file-sort-by$$$
 
 $$$file-order$$$
 
-`file_order` {applies_to}`stack: experimental 9.6+`
+`file_order` {applies_to}`stack: preview 9.6+`
 :   The sort direction for `file_sort_by`.
 
     - **Default:** `asc`
@@ -182,7 +182,7 @@ $$$error-mode$$$
       - `null_field`: Replaces a value that fails to parse with null and keeps the row.
     - **Related:** `max_errors`, `max_error_ratio`
 
-    {applies_to}`stack: experimental 9.6+` Under `null_field`, a multi-valued cell loses only the values that fail to parse, and is null only when none of its values can be read.
+    {applies_to}`stack: preview 9.6+` Under `null_field`, a multi-valued cell loses only the values that fail to parse, and is null only when none of its values can be read.
 
     :::{dropdown} When `null_field` drops rows
     `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields.
@@ -196,7 +196,7 @@ $$$max-errors$$$
 
     - **Default:** Unlimited
     - **Valid values:** A non-negative integer
-    - **Requires:** {applies_to}`stack: experimental 9.6+` An explicit `error_mode` of `skip_row` or `null_field`
+    - **Requires:** {applies_to}`stack: preview 9.6+` An explicit `error_mode` of `skip_row` or `null_field`
     - **Conflicts with:** `error_mode` set to `fail_fast`
     - **Related:** `max_error_ratio`
 
@@ -207,14 +207,14 @@ $$$max-error-ratio$$$
 
     - **Default:** `0.0`, which applies no ratio limit
     - **Valid values:** A number from `0.0` through `1.0`
-    - **Requires:** {applies_to}`stack: experimental 9.6+` An explicit `error_mode` of `skip_row` or `null_field`
+    - **Requires:** {applies_to}`stack: preview 9.6+` An explicit `error_mode` of `skip_row` or `null_field`
     - **Conflicts with:** `error_mode` set to `fail_fast`
     - **Related:** `max_errors`
 
 $$$error-limits-without-error-mode$$$
 
 :::{dropdown} Error limits without an explicit error mode
-:applies_to: stack: experimental 9.6+
+:applies_to: stack: preview 9.6+
 Creating or updating a dataset with `max_errors` or `max_error_ratio` but no `error_mode` is rejected. A dataset stored with an error limit and no `error_mode` before this requirement took effect continues to read as `skip_row`. So does a `FROM EXTERNAL` query that sets an error limit without `error_mode`. In both cases, the response includes a `Warning` header that identifies the inferred mode.
 :::
 
@@ -235,10 +235,10 @@ $$$target-split-size$$$
 
 $$$split-probe-window$$$
 
-`split_probe_window` {applies_to}`stack: experimental 9.6+`
+`split_probe_window` {applies_to}`stack: preview 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV and TSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`
@@ -246,16 +246,16 @@ $$$split-probe-window$$$
     If a dataset's records are longer than this value, its files are cut into fewer splits than `target_split_size` requests, which reduces parallelism. Raise the value for datasets with long records. If the pair is rejected, lower one of the two probe settings.
 
     :::{dropdown} How record-boundary searches work
-    A search that doesn't reach the end of a record finds no boundary, so the file can't be split at that offset.<br><br>`max_split_probes` sets how many searches a query runs, and `split_probe_window` sets how many bytes each search reads. Their product is the number of bytes a query can read while searching. With the default values, that is 1000 searches of 256 KiB, or about 250 MiB. Size the window from the dataset's longest record, and size `max_split_probes` from the number of splits the scan needs.<br><br>Values below about 136 KiB are read in full by every search, because finishing a small window costs less than opening another connection. Lowering the value below that point doesn't reduce the bytes each search reads.<br><br>Quoted or escaped CSV and TSV can't be searched at a fixed offset, so record boundaries in those files are found by reading them sequentially. That sequential read is bounded by its own convergence behavior and by the `external_max_record_size` query pragma, not by `split_probe_window` or `max_split_probes`.
+    A search that doesn't reach the end of a record finds no boundary, so the file can't be split at that offset.<br><br>`max_split_probes` sets how many searches a query runs, and `split_probe_window` sets how many bytes each search reads. Their product is the number of bytes a query can read while searching. With the default values, that is 1000 searches of 256 KiB, or about 250 MiB. Size the window from the dataset's longest record, and size `max_split_probes` from the number of splits the scan needs.<br><br>Values below about 136 KiB are read in full by every search, because finishing a small window costs less than opening another connection. Lowering the value below that point doesn't reduce the bytes each search reads.<br><br>Other quoted or escaped CSV and TSV can't be searched at a fixed offset, so record boundaries in those files are found by reading them sequentially. That sequential read is bounded by its own convergence behavior and by the `external_max_record_size` query pragma, not by `split_probe_window` or `max_split_probes`.
 
     :::
 
 $$$max-split-probes$$$
 
-`max_split_probes` {applies_to}`stack: experimental 9.6+`
+`max_split_probes` {applies_to}`stack: preview 9.6+`
 :   The maximum number of record-boundary searches that a query can perform, which limits how many splits its files are cut into.
 
-    - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV and TSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** `1000`
     - **Valid values:** An integer from `1` through `10000`. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `split_probe_window`, `target_split_size`
@@ -277,17 +277,17 @@ These settings apply to datasets whose data source uses Amazon S3 or an S3-compa
 
 $$$amazon-s3-region$$$
 
-`region` {applies_to}`stack: experimental 9.6+`
+`region` {applies_to}`stack: preview 9.6+`
 :   The AWS region used for the S3 client, for example `eu-central-1`.
 
     - **Default:** Auto-detected
     - **Valid values:** A non-empty AWS region name
-    - **Related:** `endpoint` and `sts_region` on the [data source](esql-data-federation-sources.md)
+    - **Related:** [`endpoint`](esql-data-federation-data-source-settings.md#endpoint) and [`sts_region`](esql-data-federation-data-source-settings.md#sts-region) on the data source
 
     Omit `region` for standard AWS S3. Set it when the data source uses a custom `endpoint`, such as MinIO or Scaleway, to skip region discovery on the first request.
 
     :::{dropdown} Region discovery and federated identity
-    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region, and the result is cached for the lifetime of the data source. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
+    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region. {{es}} caches the result and clears it after a few minutes without requests. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
 
     :::
 
@@ -307,7 +307,7 @@ $$$csv-delimiter$$$
     - **Default:** `,` for CSV, `\t` for TSV
     - **Valid values:**
       - A single ASCII character other than a line feed or carriage return. Write a tab as `\t` and a backslash as `\\`.
-      - {applies_to}`stack: experimental 9.6+` Multi-character values are rejected when you create or update the dataset.
+      - {applies_to}`stack: preview 9.6+` Multi-character values are rejected when you create or update the dataset.
     - **Conflicts with:** The `quote` character when quoting is on, and the `escape` character when escaping is on
     - **Related:** `quote`, `escape`
 
@@ -321,10 +321,12 @@ $$$csv-mode$$$
       - `quoted`: Fields can be wrapped in quotes. An embedded quote is doubled, and a backslash escapes characters inside a quoted field.
       - `escaped`: No quoting. A backslash escapes special characters, and `\N` reads as null.
       - `plain`: No quoting or escaping. Every byte is literal, so a field can't contain the delimiter or a newline.
-    - **Conflicts with:** {applies_to}`stack: experimental 9.6+` An explicit `quote` when set to `escaped`
+    - **Conflicts with:** {applies_to}`stack: preview 9.6+` An explicit `quote` when set to `escaped`
     - **Related:** `quote`, `escape`
 
     An explicit `quote` or `escape` value overrides the preset.
+
+    {applies_to}`stack: preview 9.6+` Whether a quoted field, or a backslash-escaped line break inside a quoted field, can span several lines isn't decided by `mode` but by [`multiline_fields`](#csv-multiline-fields), which also decides how files that can carry such values are split. A `plain` file is always cut and read line by line, because no field in it can span lines. With `mode` set to `escaped`, a raw newline always ends a record: an in-field newline is the two characters `\` and `n`, so `multiline_fields` does not change the rows that are read.
 
     :::{dropdown} Why `escaped` with `quote` is rejected
     Setting `quote` turns quoting on, and the quoting parser doesn't decode escape sequences. The combination therefore reads neither as escaped nor as quoted data, so it's rejected when you create or update the dataset. A dataset stored with this combination before the check took effect continues to read.
@@ -344,7 +346,7 @@ $$$csv-header-row$$$
 
 $$$csv-skip-rows$$$
 
-`skip_rows` {applies_to}`stack: experimental 9.6+`
+`skip_rows` {applies_to}`stack: preview 9.6+`
 :   The number of leading content records to discard from each file.
 
     - **Default:** `0`
@@ -361,7 +363,7 @@ $$$csv-null-value$$$
     - **Default:** None. No token reads as null.
     - **Valid values:** A string, for example `NULL`, `NA`, or `\N`.
 
-    {applies_to}`stack: experimental 9.6+` An empty string `""` makes empty fields read as null.
+    {applies_to}`stack: preview 9.6+` An empty string `""` makes empty fields read as null.
 
 $$$csv-encoding$$$
 
@@ -382,12 +384,12 @@ $$$csv-schema-sample-size$$$
 
     - **Default:** `40000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
+      - {applies_to}`stack: preview 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
-    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
+    {applies_to}`stack: preview 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
 $$$csv-quote$$$
 
@@ -398,11 +400,11 @@ $$$csv-quote$$$
     - **Valid values:**
       - A single ASCII character other than a line feed or carriage return. Write a tab as `\t` and a backslash as `\\`.
       - `none` to turn off quoting
-      - {applies_to}`stack: experimental 9.6+` Multi-character values are rejected when you create or update the dataset.
+      - {applies_to}`stack: preview 9.6+` Multi-character values are rejected when you create or update the dataset.
     - **Conflicts with:**
       - The `delimiter` character
       - The `escape` character, when escaping is on
-      - {applies_to}`stack: experimental 9.6+` `mode` set to `escaped`
+      - {applies_to}`stack: preview 9.6+` `mode` set to `escaped`
     - **Related:** `mode`, `escape`, `delimiter`
 
     An explicit value overrides the `mode` preset.
@@ -416,7 +418,7 @@ $$$csv-escape$$$
     - **Valid values:**
       - A single ASCII character other than a line feed or carriage return. Write a tab as `\t` and a backslash as `\\`.
       - `none` to turn off escaping
-      - {applies_to}`stack: experimental 9.6+` Multi-character values are rejected when you create or update the dataset.
+      - {applies_to}`stack: preview 9.6+` Multi-character values are rejected when you create or update the dataset.
     - **Conflicts with:**
       - The `delimiter` character
       - The `quote` character, when quoting is on
@@ -461,6 +463,22 @@ $$$csv-trim-spaces$$$
 
     Typed values, such as numbers and dates, tolerate surrounding whitespace regardless of this setting.
 
+$$$csv-multiline-fields$$$
+
+`multiline_fields` {applies_to}`stack: preview 9.6+`
+:   Whether a quoted field, or a backslash-escaped line break inside a quoted field, can span several lines.
+
+    - **Default:** `false`
+    - **Valid values:** `true`, `false`
+    - **Conflicts with:** `multi_value_syntax` set to `brackets` when `false`, which is rejected when you create or update the dataset
+    - **Related:** `mode`, `target_split_size`
+
+    By default, {{esql}} assumes that no value spans lines. Files are split on plain newlines, with no look at the data, which avoids the sequential search for record boundaries that quote-aware files need. This applies to every file, including each file of a glob. Set `true` to read quoted fields and escaped line breaks inside them that span several lines: files are then split with quote awareness.
+
+    With `multi_value_syntax` set to `brackets`, files are always split with quote awareness, because bracketed cells can span lines. With `mode` set to `plain`, the setting has no effect, because no field in such a file can span lines; a query over a dataset that sets it to `true` anyway reports this as a warning. With `mode` set to `escaped`, a raw newline always ends a record. An in-field newline there is the two characters `\` and `n`, so the setting does not change the rows that are read.
+
+    If a quoted value spans lines while `multiline_fields` isn't `true`, the query fails, whatever the `error_mode`, as soon as a read meets that record: in the rows sampled for schema inference, in a file read in one piece, or in a split. The error suggests setting `multiline_fields` to `true`. The split that contains the start of the value is the one that fails. A split that starts inside the value cannot tell, so a query that stops before reading the owning split, such as one satisfied by `LIMIT`, can return rows built from the tail. Make sure the data honors the setting rather than relying on the check.
+
 $$$csv-multi-value-syntax$$$
 
 `multi_value_syntax`
@@ -483,7 +501,7 @@ $$$csv-max-field-size$$$
 
 $$$csv-schema-max-fields$$$
 
-`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+`schema_max_fields` {applies_to}`stack: preview 9.6+`
 :   The maximum number of columns a file's schema can have.
 
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
@@ -506,14 +524,14 @@ $$$ndjson-schema-sample-size$$$
 
     - **Default:** `20000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
+      - {applies_to}`stack: preview 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
-    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
+    {applies_to}`stack: preview 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
-    {applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
+    {applies_to}`stack: preview 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
 
 ### Advanced NDJSON settings
 
@@ -537,7 +555,7 @@ $$$ndjson-datetime-format$$$
 
 $$$ndjson-schema-max-fields$$$
 
-`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+`schema_max_fields` {applies_to}`stack: preview 9.6+`
 :   The maximum number of fields that schema inference can create from a file.
 
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
@@ -551,7 +569,7 @@ Parquet is self-describing, so it has a single dataset setting.
 
 $$$parquet-schema-max-fields$$$
 
-`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+`schema_max_fields` {applies_to}`stack: preview 9.6+`
 :   The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened.
 
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -26,14 +29,24 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -41,10 +54,23 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public class ViewService {
 
+    private static final TimeValue VIEW_VERIFICATION_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+    /**
+     * Analyzes a view query against the current cluster state without running it.
+     * It fails the listener with the error that running the query would hit, for example an unknown index or column.
+     */
+    @FunctionalInterface
+    public interface QueryAnalyzer {
+        void analyze(EsqlStatement statement, String viewName, ActionListener<Void> listener);
+    }
+
     private final EsqlParser parser;
+    private final QueryAnalyzer queryAnalyzer;
     protected final ClusterService clusterService;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
@@ -72,10 +98,12 @@ public class ViewService {
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
+    private volatile int maxCommandCount;
 
-    public ViewService(ClusterService clusterService, EsqlParser parser) {
+    public ViewService(ClusterService clusterService, EsqlParser parser, QueryAnalyzer queryAnalyzer) {
         this.clusterService = clusterService;
         this.parser = parser;
+        this.queryAnalyzer = queryAnalyzer;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
             Priority.NORMAL,
@@ -83,6 +111,7 @@ public class ViewService {
         );
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
+        clusterService.getClusterSettings().initializeAndWatch(EsqlFlags.ESQL_MAX_COMMAND_COUNT, v -> this.maxCommandCount = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -127,6 +156,41 @@ public class ViewService {
             }
         };
         taskQueue.submitTask("update-esql-view-metadata-[" + view.name() + "]", task, task.timeout());
+    }
+
+    /**
+     * Reports what is wrong with a view definition without storing it, so that a caller can validate on the node it received the
+     * request on rather than on the master. A problem with the query becomes a warning on the response; only a definition that could
+     * never be stored, such as an unparsable query, fails the listener.
+     */
+    public void validateView(ProjectId projectId, View view, ActionListener<Void> listener) {
+        try {
+            var statement = validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            final var threadPool = clusterService.threadPool();
+            // The analysis completes on another thread. Go back to the request context, so that the warning ends up on the response
+            // and the warnings of the analysis itself do not.
+            final ActionListener<Void> analyzed = ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                new ContextPreservingActionListener<>(
+                    threadPool.getThreadContext().newRestorableContext(false),
+                    ActionListener.<Void>running(() -> listener.onResponse(null)).delegateResponse((l, e) -> {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
+                            // HeaderWarning percent-encodes newlines, which makes the multi-line verification message unreadable.
+                            final String message = String.valueOf(cause.getMessage()).replace('\n', ' ');
+                            HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), message);
+                        }
+                        l.onFailure(e);
+                    })
+                ),
+                VIEW_VERIFICATION_TIMEOUT,
+                threadPool.generic(),
+                "view [" + view.name() + "] verification"
+            );
+            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -182,7 +246,7 @@ public class ViewService {
     /**
      * Validates that a view may be inserted into the cluster state
      */
-    void validatePutView(ProjectMetadata metadata, View view) {
+    EsqlStatement validatePutView(ProjectMetadata metadata, View view) {
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
@@ -219,8 +283,39 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
-        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+
+        // Parse the query to ensure it's syntactically valid. A definition may SET only the settings scoped at view
+        // boundaries; anything else, including unmapped_fields=LOAD_ALL, is rejected here. TS must be followed by STATS.
+        // A PUT request carries no pragmas, so the command limit comes from the cluster setting only.
+        var statement = parser.parseView(
+            view.query(),
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            view.name(),
+            maxCommandCount
+        );
+        validateTsView(view.name(), statement.plan());
+        return statement;
+    }
+
+    /**
+     * Rejects views that use TS without a following STATS.
+     * The parser turns the first STATS after TS into a TimeSeriesAggregate, so its absence means TS is not aggregated.
+     * PROMQL is also a time series source, but it is always aggregated: it is transpiled to TS followed by STATS.
+     * Subqueries are not checked yet.
+     */
+    private static void validateTsView(String viewName, LogicalPlan plan) {
+        if (hasOuterMatch(plan, p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb())
+            && hasOuterMatch(plan, p -> p instanceof TimeSeriesAggregate || p instanceof PromqlCommand) == false) {
+            throw new IllegalArgumentException("view [" + viewName + "] uses TS, which must be followed by a STATS command");
+        }
+    }
+
+    private static boolean hasOuterMatch(LogicalPlan plan, Predicate<LogicalPlan> predicate) {
+        if (plan instanceof Subquery || plan instanceof UnionAll) {
+            return false;
+        }
+        return predicate.test(plan) || plan.children().stream().anyMatch(child -> hasOuterMatch(child, predicate));
     }
 
     /**
@@ -293,6 +388,21 @@ public class ViewService {
      * }</pre>
      */
     public void ensureReservedViewExists(ProjectId projectId, View view, ActionListener<AcknowledgedResponse> listener) {
+        ensureReservedViewExists(projectId, view, project -> true, listener);
+    }
+
+    /**
+     * Like {@link #ensureReservedViewExists(ProjectId, View, ActionListener)}, but a missing view is only created once
+     * {@code shouldCreate} holds for the project metadata. Until then, the listener stays registered and the condition is
+     * re-evaluated on every cluster state change, so it should be cheap. A view that already exists is brought up to date
+     * regardless of the condition. Use it for views that only make sense when some data is present.
+     */
+    public void ensureReservedViewExists(
+        ProjectId projectId,
+        View view,
+        Predicate<ProjectMetadata> shouldCreate,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         assert view.isReserved() : "ensureReservedViewExists should create reserved views only";
         clusterService.addListener(new ClusterStateListener() {
             private final AtomicBoolean initializing = new AtomicBoolean(false);
@@ -308,7 +418,11 @@ public class ViewService {
                 if (event.state().getMinTransportVersion().supports(View.VIEW_RESERVED_VERSION) == false) {
                     return;
                 }
-                var existing = getMetadata(event.state().metadata().getProject(projectId)).getView(view.name());
+                var project = event.state().metadata().getProject(projectId);
+                var existing = getMetadata(project).getView(view.name());
+                if (existing == null && shouldCreate.test(project) == false) {
+                    return;
+                }
                 if (existing != null && existing.isReserved() == false) {
                     listener.onFailure(new ResourceAlreadyExistsException("view [{}] already exists", view.name()));
                 } else if (existing == null || Objects.equals(view, existing) == false) {

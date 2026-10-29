@@ -96,7 +96,7 @@ public class ActivityInterceptorTests extends ESTestCase {
     public void testFailingSinkDoesNotFailTheActionOrStarveOthers() {
         var failing = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, context -> {
             throw new IllegalStateException("sink failure");
-        });
+        }, () -> "failing-sink");
         var after = new RecordingSink(true);
 
         interceptor(List.of(failing, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
@@ -134,7 +134,7 @@ public class ActivityInterceptorTests extends ESTestCase {
 
         RecordingSink(boolean enabled) {
             this.enabled = new AtomicBoolean(enabled);
-            this.sink = new ActivitySink<>(this.enabled::get, Optional::of, accepted::add);
+            this.sink = new ActivitySink<>(this.enabled::get, Optional::of, accepted::add, () -> "recording-sink");
         }
     }
 

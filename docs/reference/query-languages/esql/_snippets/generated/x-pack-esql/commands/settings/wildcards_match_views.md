@@ -7,7 +7,7 @@ stack: ga 9.6+
 ```
 When enabled, a wildcard in `FROM` also matches registered views. Defaults to `false`, so a wildcard does not match a view and a view is reached by its exact name. Other abstractions a wildcard matches are unaffected.
 
-The default itself is configurable. If a query does not specify a value, the `esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`. {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
+{applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}` The default itself is configurable. If a query does not specify a value, the `esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`.
 
 **Type**: `boolean`
 

@@ -349,6 +349,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 cacheable
             );
             case FILTERED_DENSE_VECTOR -> new RandomQuery(
+                // DenseVectorQuery with a filter doesn't visit its filter, so it is never cacheable
                 new DenseVectorQuery.Floats(
                     new float[] { 1f },
                     field,

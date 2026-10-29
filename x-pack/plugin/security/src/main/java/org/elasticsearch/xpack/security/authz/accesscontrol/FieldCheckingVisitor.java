@@ -15,7 +15,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.function.Supplier;
@@ -49,9 +49,10 @@ final class FieldCheckingVisitor extends QueryVisitor {
             return EMPTY_VISITOR;
         }
 
-        // CoveringQuery doesn't report the field its minimum match count comes from (e.g. terms_set minimum_should_match_field),
-        // and FilteredDenseVectorQuery doesn't visit its filter
-        if (parent instanceof CoveringQuery || parent instanceof FilteredDenseVectorQuery) {
+        // CoveringQuery doesn't report the field its minimum match count comes from (e.g. terms_set minimum_should_match_field).
+        // DenseVectorQuery with a filter doesn't visit its filter.
+        if (parent instanceof CoveringQuery
+            || (parent instanceof DenseVectorQuery denseVectorQuery && denseVectorQuery.getFilter() != null)) {
             cacheable = false;
             return EMPTY_VISITOR;
         }

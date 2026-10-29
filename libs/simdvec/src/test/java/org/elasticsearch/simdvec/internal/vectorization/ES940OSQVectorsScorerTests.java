@@ -25,6 +25,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFor
 import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -147,13 +148,48 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                 ES940OSQVectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory()
                     .newES940OSQVectorsScorer(in, queryBits, indexBits, dimensions, length, ES940OSQVectorsScorer.BULK_SIZE, bitEncoding());
                 for (int i = 0; i < numVectors; i++) {
-                    long expectedScore = defaultScorer.quantizeScore(query);
-                    assertEquals(expectedScore, panamaScorer.quantizeScore(query));
-                    assertEquals(expectedScore, nativeScorer.quantizeScore(query));
+                    long expectedScore = defaultScorer.quantizeScore(new ScoringQuery(query));
+                    assertEquals(expectedScore, panamaScorer.quantizeScore(new ScoringQuery(query)));
+                    assertEquals(expectedScore, nativeScorer.quantizeScore(new ScoringQuery(query)));
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
                 }
                 assertEquals((long) length * numVectors, slice.getFilePointer());
                 assertEquals((long) length * numVectors, in.getFilePointer());
+            }
+        }
+    }
+
+    public void testQuantizeScoreRevisitedQuery() throws Exception {
+        final int dimensions = random().nextInt(1, 2000);
+        final int numVectors = 3;
+        final int length = docPackedLength(dimensions);
+        final int queryBytes = queryPackedLength(dimensions);
+
+        try (Directory dir = newParametrizedDirectory()) {
+            try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
+                final byte[] vector = new byte[length];
+                Arrays.fill(vector, (byte) 0xFF);
+                if (indexBits == 7) clampTo7Bit(vector, dimensions);
+                for (int i = 0; i < numVectors; i++) {
+                    out.writeBytes(vector, 0, length);
+                }
+                CodecUtil.writeFooter(out);
+            }
+            final byte[] queryA = new byte[queryBytes];
+            final byte[] queryB = new byte[queryBytes];
+            Arrays.fill(queryB, (byte) 0xFF);
+            if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED) {
+                clampTo4Bit(queryB);
+            }
+            if (indexBits == 7) clampTo7Bit(queryB, dimensions);
+            try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
+                ES940OSQVectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES940OSQVectorsScorer(in, queryBits, indexBits, dimensions, length, ES940OSQVectorsScorer.BULK_SIZE, bitEncoding());
+                ScoringQuery a = new ScoringQuery(queryA);
+                ScoringQuery b = new ScoringQuery(queryB);
+                assertEquals(0, nativeScorer.quantizeScore(a));
+                assertNotEquals(0, nativeScorer.quantizeScore(b));
+                assertEquals(0, nativeScorer.quantizeScore(a));
             }
         }
     }
@@ -249,7 +285,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                             ES940OSQVectorsScorer.BULK_SIZE,
                             bitEncoding()
                         );
-                    long qDist = defaultScorer.quantizeScore(queryData.quantizedVector());
+                    long qDist = defaultScorer.quantizeScore(new ScoringQuery(queryData.quantizedVector()));
                     slice.readFloats(floatScratch, 0, 3);
                     int quantizedComponentSum = slice.readInt();
                     float defaultScore = defaultScorer.applyCorrectionsIndividually(
@@ -266,7 +302,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         qDist
                     );
 
-                    qDist = panamaScorer.quantizeScore(queryData.quantizedVector());
+                    qDist = panamaScorer.quantizeScore(new ScoringQuery(queryData.quantizedVector()));
                     panamaIn.readFloats(floatScratch, 0, 3);
                     quantizedComponentSum = panamaIn.readInt();
                     float panamaScore = panamaScorer.applyCorrectionsIndividually(
@@ -285,7 +321,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     assertEquals(defaultScore, panamaScore, 1e-2f);
                     assertEquals(((long) (i + 1) * perVectorBytes), slice.getFilePointer());
 
-                    qDist = nativeScorer.quantizeScore(queryData.quantizedVector());
+                    qDist = nativeScorer.quantizeScore(new ScoringQuery(queryData.quantizedVector()));
                     nativeIn.readFloats(floatScratch, 0, 3);
                     quantizedComponentSum = nativeIn.readInt();
                     float nativeScore = nativeScorer.applyCorrectionsIndividually(
@@ -416,7 +452,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                             bitEncoding()
                         );
                     float defaultMaxScore = defaultScorer.scoreBulk(
-                        queryData.quantizedVector(),
+                        new ScoringQuery(queryData.quantizedVector()),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -427,7 +463,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         bulkSize
                     );
                     float panamaMaxScore = panamaScorer.scoreBulk(
-                        queryData.quantizedVector(),
+                        new ScoringQuery(queryData.quantizedVector()),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -440,7 +476,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
                     assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f, 1e-2f);
                     float nativeMaxScore = nativeScorer.scoreBulk(
-                        queryData.quantizedVector(),
+                        new ScoringQuery(queryData.quantizedVector()),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -592,7 +628,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                             bitEncoding()
                         );
                     float defaultMaxScore = defaultScorer.scoreBulkMasked(
-                        queryData.quantizedVector(),
+                        new ScoringQuery(queryData.quantizedVector()),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -604,7 +640,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         count
                     );
                     float panamaMaxScore = panamaScorer.scoreBulkMasked(
-                        queryData.quantizedVector(),
+                        new ScoringQuery(queryData.quantizedVector()),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -618,7 +654,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
                     assertArrayEqualsPercent(Arrays.copyOf(scoresDefault, count), Arrays.copyOf(scoresPanama, count), 0.05f, 1e-2f);
                     float nativeMaxScore = nativeScorer.scoreBulkMasked(
-                        queryData.quantizedVector(),
+                        new ScoringQuery(queryData.quantizedVector()),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -714,7 +750,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                 // With all-zero corrections and zero query intervals, the base score is zero,
                 // and adding -Infinity makes every element's total raw score -Infinity.
                 float defaultMaxScore = defaultScorer.scoreBulk(
-                    query,
+                    new ScoringQuery(query),
                     0f,
                     0f,
                     0,
@@ -724,7 +760,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     scoresDefault
                 );
                 float panamaMaxScore = panamaScorer.scoreBulk(
-                    query,
+                    new ScoringQuery(query),
                     0f,
                     0f,
                     0,
@@ -735,7 +771,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                 );
 
                 float nativeMaxScore = nativeScorer.scoreBulk(
-                    query,
+                    new ScoringQuery(query),
                     0f,
                     0f,
                     0,

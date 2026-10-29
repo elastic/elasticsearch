@@ -3816,6 +3816,21 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM idx | HIGHLIGHT \"foo\" | KEEP highlight_*", ALL_FIELDS);
     }
 
+    public void testHighlightNoOnOverSubqueryUnionWithKeepRequestsAllFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assertFieldNames("FROM (FROM idx | KEEP title), idx | HIGHLIGHT \"foo\" | KEEP highlight_bar", ALL_FIELDS);
+        assertFieldNames("FROM idx, (FROM idx | KEEP title) | HIGHLIGHT \"foo\" | KEEP highlight_bar", ALL_FIELDS);
+        assertFieldNames("FROM idx | WHERE id IN (FROM other | KEEP id) | HIGHLIGHT \"foo\" | KEEP highlight_bar", ALL_FIELDS);
+    }
+
+    public void testHighlightNoOnOverNarrowedSubqueryUnionDoesNotForceAllFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assertFieldNames(
+            "FROM (FROM idx | KEEP title), (FROM idx | KEEP title) | HIGHLIGHT \"foo\" | KEEP highlight_title",
+            Set.of("_index", "title", "title.*", "highlight_title", "highlight_title.*")
+        );
+    }
+
     public void testHighlightExplicitOnWithKeepCollectsOnFields() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assertFieldNames(

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -325,7 +326,7 @@ public class FieldNameUtils {
             } else if (p instanceof Highlight highlight && highlight.fields().isEmpty()) {
                 // No-ON HIGHLIGHT has empty references(); collect query field names, or all fields if the query cannot be narrowed.
                 boolean narrowed = highlight.query() != null && collectHighlightQueryReferences(highlight.query(), referencesBuilder.get());
-                if (narrowed == false && highlight.anyMatch(sub -> shouldCollectReferencedFields(sub, inlinestatsAggs)) == false) {
+                if (narrowed == false && narrowsEveryBranch(highlight.child(), inlinestatsAggs) == false) {
                     projectAll.set(true);
                     breakEarly.set(true);
                     return;
@@ -492,6 +493,19 @@ public class FieldNameUtils {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether every source feeding {@code plan} passes through a column-reducing plan (e.g. KEEP, STATS) on its way up.
+     * Each branch of a {@link MergePlan} (FORK, subqueries in FROM) must be narrowed on its own; for joins only the main
+     * (left) side counts, since a KEEP inside an IN subquery or a lookup index says nothing about the main pipeline's columns.
+     */
+    private static boolean narrowsEveryBranch(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
+            return true;
+        }
+        List<LogicalPlan> inputs = plan instanceof BinaryPlan binary ? List.of(binary.left()) : plan.children();
+        return inputs.isEmpty() == false && inputs.stream().allMatch(input -> narrowsEveryBranch(input, inlinestatsAggs));
     }
 
     private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {

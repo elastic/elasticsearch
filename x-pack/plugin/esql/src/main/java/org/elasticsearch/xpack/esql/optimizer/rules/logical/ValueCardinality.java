@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
@@ -118,48 +119,48 @@ enum ValueCardinality {
                 // Defined here. Resolve against this EVAL, since the expression may read earlier fields of it.
                 // Example: FROM test | EVAL a = MV_MAX(languages), k = a | STATS BY k
                 return ofExpression(definition.child(), eval, depth + 1);
-            } else {
-                // Passed through from below.
-                return ofAttribute(attribute, eval.child(), depth + 1);
             }
+            // Passed through from below.
+            return askChild(attribute, plan, depth + 1);
         }
         if (plan instanceof Row row) {
-            // Nothing is below a ROW, so a column that it does not define is unknown.
+            // A ROW has no child, so every column it outputs is defined here.
             Alias definition = definitionOf(attribute, row.fields());
             if (definition != null) {
                 // Example: ROW x = [1, 2] | STATS BY x -> a multi-valued literal, so unknown
                 return ofExpression(definition.child(), plan, depth + 1);
-            } else {
-                return MAYBE_MULTI;
             }
+            // Only if the caller asks about a column that this node does not output.
+            assert false : "column [" + attribute.name() + "] is not an output of this Row";
+            return MAYBE_MULTI;
         }
         if (plan instanceof Project project) {
             for (NamedExpression projection : project.projections()) {
                 if (projection.id().equals(attribute.id())) {
                     if (projection instanceof Alias alias) {
-                        // A rename. Resolve its source against the child, not this node: projections do not read each other
-                        // (RENAME a AS b, b AS a).
+                        // A rename, so resolve its source against the child.
+                        // Projections do not read each other (RENAME a AS b, b AS a), so we do not need the current node.
                         // Example: FROM test | EVAL a = MV_MAX(languages) | RENAME a AS k | STATS BY k
                         return ofExpression(alias.child(), project.child(), depth + 1);
-                    } else {
-                        // A kept column keeps its id.
-                        return ofAttribute(attribute, project.child(), depth + 1);
                     }
+                    // A kept column, so go to its definition below.
+                    return askChild(attribute, plan, depth + 1);
                 }
             }
-            // Not an output of this node.
+            // Only if the caller asks about a column that this node does not output.
+            assert false : "column [" + attribute.name() + "] is not an output of this Project";
             return MAYBE_MULTI;
         }
         if (plan instanceof MvExpand mvExpand) {
             if (mvExpand.expanded().id().equals(attribute.id())) {
                 // The expanded column has one value per row.
                 return SINGLE;
-            } else {
-                return ofAttribute(attribute, mvExpand.child(), depth + 1);
             }
+            // Any other column comes from the child.
+            return askChild(attribute, plan, depth + 1);
         }
         if (plan instanceof Aggregate aggregate) {
-            // An earlier STATS. See ofAggregateOutput.
+            // An earlier STATS.
             return ofAggregateOutput(attribute, aggregate);
         }
         if (plan instanceof EsRelation) {
@@ -168,11 +169,18 @@ enum ValueCardinality {
             return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
         }
         if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy || plan instanceof TopN) {
-            // These keep, drop or reorder rows without changing columns. The optimizer makes a TopN from SORT followed by LIMIT.
-            return ofAttribute(attribute, plan.children().get(0), depth + 1);
+            // These keep, drop or reorder rows without changing columns.
+            return askChild(attribute, plan, depth + 1);
         }
         // Any other node, such as LOOKUP JOIN or GROK, may rewrite columns, so nothing is known.
         return MAYBE_MULTI;
+    }
+
+    /**
+     * Passes the question about {@code attribute} to the only child of {@code plan}, for a node that does not change the column.
+     */
+    private static ValueCardinality askChild(Attribute attribute, LogicalPlan plan, int depth) {
+        return ofAttribute(attribute, plan.children().get(0), depth);
     }
 
     /**
@@ -199,10 +207,12 @@ enum ValueCardinality {
             || expression instanceof MvFirst
             || expression instanceof MvLast
             || expression instanceof MvCount) {
-            // These turn any input, even a list, into at most one value.
+            // These return at most one value, even for a list.
             return SINGLE;
         }
-        // Any other function is unknown. Even a function of a single value can return a list: SPLIT.
+
+        // Any other function is unknown. Even a function of a single value can return a list, for example SPLIT.
+        // TODO add more functions that are known to return single values.
         return MAYBE_MULTI;
     }
 
@@ -210,21 +220,27 @@ enum ValueCardinality {
      * The same question for an output of an earlier {@code STATS}: an aggregate function or a grouping key.
      */
     private static ValueCardinality ofAggregateOutput(Attribute attribute, Aggregate aggregate) {
-        for (NamedExpression output : aggregate.aggregates()) {
-            if (output.id().equals(attribute.id()) == false) {
-                // Skip columns that aren't the attribute we are looking for.
-                continue;
-            }
-            Expression unwrapped = Alias.unwrap(output);
-            if (unwrapped instanceof Count) {
-                // One number per group.
-                return SINGLE;
-            }
-            // Other aggregate functions can return a list (VALUES, TOP, ...), so only the key itself is proven. A grouping
-            // key holds one value per group even when the input column was a list, because the aggregation unrolls the list.
-            // Example: FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v -> unknown
-            return isGroupKey(aggregate, output) ? SINGLE : MAYBE_MULTI;
+        NamedExpression output = aggregate.aggregates().stream().filter(o -> o.id().equals(attribute.id())).findFirst().orElse(null);
+        if (output == null) {
+            // Only if the caller asks about a column that this node does not output.
+            assert false : "column [" + attribute.name() + "] is not an output of this Aggregate";
+            return MAYBE_MULTI;
         }
+
+        if (isGroupKey(aggregate, output)) {
+            // A grouping key holds one value per group even when the input column was a list, because the aggregation unrolls the list.
+            return SINGLE;
+        }
+
+        Expression unwrapped = Alias.unwrap(output);
+        assert unwrapped instanceof AggregateFunction
+            : "output [" + output.name() + "] is neither a grouping key nor an aggregate function";
+        if (unwrapped instanceof Count) {
+            return SINGLE;
+        }
+
+        // TODO support other aggregate functions.
+        // Some can return a list (VALUES, TOP, ...).
         return MAYBE_MULTI;
     }
 

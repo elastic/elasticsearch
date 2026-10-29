@@ -21,17 +21,21 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -98,10 +102,9 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         var mapperService = createDefaultMapperService(useLegacyFormat);
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
-        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(fieldType.getEmbeddingsField().fullPath(), vector, 10, 10, null, null);
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5), vector, null)
+        );
         var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
 
         String[] expectedScorePassages = ((List<String>) queryMap.get("expected_by_score")).toArray(String[]::new);
@@ -172,8 +175,12 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * Highlighting a document without a value for the semantic_text field returns no highlight instead of failing: no chunks are
+     * indexed, so there is no scorer for the extracted queries (see <a href="https://github.com/elastic/elasticsearch/issues/128975">#128975</a>).
+     */
     @SuppressWarnings("unchecked")
-    public void testNoSemanticField() throws Exception {
+    public void testNoSemanticTextFieldValue() throws Exception {
         var mapperService = createDefaultMapperService(useLegacyFormat);
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("sparse_vector_1");
         List<WeightedToken> tokens = readSparseVector(queryMap.get("embeddings"));
@@ -205,11 +212,9 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         var mapperService = createDefaultMapperService(useLegacyFormat);
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
-        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
-
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(fieldType.getEmbeddingsField().fullPath(), vector, 10, 10, null, 0.85f);
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5), vector, 0.85f)
+        );
         var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
 
         String[] expectedPassages = ((List<String>) queryMap.get("expected_with_similarity_threshold")).toArray(String[]::new);
@@ -224,12 +229,77 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         );
     }
 
+    /** A knn query on another vector field does not highlight this one. */
+    @SuppressWarnings("unchecked")
+    public void testNoHighlightOnOtherFieldKnn() throws Exception {
+        var mapperService = createDefaultMapperService(useLegacyFormat);
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
+        float[] vector = readDenseVector(queryMap.get("embeddings"));
+        var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
+        CheckedBiConsumer<String, Float, Exception> assertNoHighlight = (otherField, similarity) -> {
+            MappedFieldType otherFieldType = mapperService.mappingLookup().getFieldType(otherField);
+            var shardRequest = createShardSearchRequest(createKnnQuery(otherFieldType, vector, similarity));
+            assertHighlightOneDoc(
+                mapperService,
+                shardRequest,
+                sourceToParse,
+                SEMANTIC_FIELD_E5,
+                10,
+                HighlightBuilder.Order.SCORE,
+                new String[0]
+            );
+        };
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("other-e5");
+            b.field("type", "semantic_text");
+            b.field("inference_id", ".multilingual-e5-small-elasticsearch");
+            b.startObject("model_settings");
+            b.field("task_type", "text_embedding");
+            b.field("dimensions", 384);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+            b.endObject();
+            b.startObject("other-vector");
+            b.field("type", "dense_vector");
+            b.field("dims", 384);
+            b.field("similarity", "cosine");
+            b.startObject("index_options").field("type", "flat").endObject();
+            b.endObject();
+        }));
+
+        // knn on another semantic_text field
+        assertNoHighlight.accept("other-e5", null);
+        // knn with a similarity threshold on another semantic_text field
+        assertNoHighlight.accept("other-e5", 0.85f);
+        // exact knn on another dense_vector field
+        assertNoHighlight.accept("other-vector", null);
+    }
+
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
         var settings = Settings.builder()
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
         return createMapperService(settings, mappings.utf8ToString());
+    }
+
+    /** Creates a knn query on {@code fieldType}, nested in its chunks for a semantic_text field. */
+    static QueryBuilder createKnnQuery(MappedFieldType fieldType, float[] vector, @Nullable Float similarity) {
+        String nestedPath = null;
+        final String vectorField;
+        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            nestedPath = semanticTextFieldType.getChunksField().fullPath();
+            vectorField = semanticTextFieldType.getEmbeddingsField().fullPath();
+        } else if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
+            vectorField = fieldType.name();
+        } else {
+            throw new AssertionError("Unsupported field type [" + fieldType.typeName() + "]");
+        }
+
+        QueryBuilder knnQuery = new KnnVectorQueryBuilder(vectorField, vector, 10, 10, null, similarity);
+        return nestedPath == null ? knnQuery : new NestedQueryBuilder(nestedPath, knnQuery, ScoreMode.Max);
     }
 
     private float[] readDenseVector(Object value) {

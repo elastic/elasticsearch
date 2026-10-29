@@ -561,6 +561,203 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(heldByCategory.values(), everyItem(equalTo(0L)));
     }
 
+    /**
+     * A batch whose response is large keeps its permit while its slot listeners run, so that no further batch can be dispatched or
+     * received behind it, and releases it once they are done.
+     */
+    public void testLargeResponseHoldsPermitWhileSlotListenersRun() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 2, 1, 100);
+        PermitReading reading = new PermitReading(coordinator);
+        coordinator.queue.add(slot("my-index", reading.listener()));
+        coordinator.queue.add(slot("my-index", reading.listener()));
+        coordinator.coordinateLookups();
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+
+        respond(lookupFunction, 0, multiSearchResponse(largeSourceBytes(), 100));
+
+        assertThat("permit still held while the listeners ran", reading.remoteRequestsCurrent(2), equalTo(1));
+        assertThat("permit released once the batch is done", coordinator.getRemoteRequestsCurrent(), equalTo(0));
+        assertThat(lookupFunction.capturedRequests, hasSize(1));
+    }
+
+    /**
+     * A batch whose response is small releases its permit before its first slot listener runs, as before; the next batch still goes out
+     * only after the loop.
+     */
+    public void testSmallResponseReleasesPermitBeforeSlotListenersRun() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 2, 1, 100);
+        PermitReading reading = new PermitReading(coordinator);
+        coordinator.queue.add(slot("my-index", reading.listener()));
+        coordinator.queue.add(slot("my-index", reading.listener()));
+        coordinator.queue.add(slot("my-index", ActionListener.noop())); // stays queued for the next batch
+        coordinator.coordinateLookups();
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+        assertThat(coordinator.queue.size(), equalTo(1));
+
+        respond(lookupFunction, 0, multiSearchResponse(100, 100));
+
+        assertThat("permit released before the listeners ran", reading.remoteRequestsCurrent(2), equalTo(0));
+        assertThat("next batch dispatched after the loop only", reading.queued(), equalTo(1));
+        assertThat(lookupFunction.capturedRequests, hasSize(2));
+        assertThat(coordinator.queue.size(), equalTo(0));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+    }
+
+    /**
+     * A slot listener that throws in a large batch must not leak the permit the batch holds, so that the queued slots still go out with
+     * the next coordination round.
+     */
+    public void testThrowingSlotListenerInLargeBatchReleasesPermit() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 100);
+        RuntimeException thrown = new RuntimeException("simulated");
+        coordinator.queue.add(slot("my-index", new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                throw thrown;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e, "unexpected failure");
+            }
+        }));
+        coordinator.queue.add(slot("my-index", ActionListener.noop())); // stays queued for the next batch
+        coordinator.coordinateLookups();
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+
+        MultiSearchResponse response = multiSearchResponse(largeSourceBytes());
+        try {
+            assertSame(
+                thrown,
+                expectThrows(RuntimeException.class, () -> lookupFunction.capturedConsumers.getFirst().accept(response, null))
+            );
+        } finally {
+            response.decRef();
+        }
+        assertThat("permit released although the listener threw", coordinator.getRemoteRequestsCurrent(), equalTo(0));
+
+        // the exception skipped the coordination round of the batch, the next one picks the queued slot up
+        assertThat(lookupFunction.capturedRequests, hasSize(1));
+        coordinator.coordinateLookups();
+        assertThat(lookupFunction.capturedRequests, hasSize(2));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+    }
+
+    /** A failed batch holds no response, so its permit is released before the slot listeners are failed. */
+    public void testFailedBatchReleasesPermitBeforeSlotListenersRun() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 2, 1, 100);
+        PermitReading reading = new PermitReading(coordinator);
+        AtomicInteger failures = new AtomicInteger();
+        coordinator.queue.add(slot("my-index", reading.failureListener(e -> failures.incrementAndGet())));
+        coordinator.queue.add(slot("my-index", reading.failureListener(e -> failures.incrementAndGet())));
+        coordinator.coordinateLookups();
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+
+        lookupFunction.capturedConsumers.getFirst().accept(null, new RuntimeException("simulated"));
+
+        assertThat(failures.get(), equalTo(2));
+        assertThat("permit released before the listeners ran", reading.remoteRequestsCurrent(2), equalTo(0));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+    }
+
+    /**
+     * When one index of a batch trips the breaker and another returns a large response, the batch holds its permit for the large
+     * response and releases it exactly once together with the charge, so that the next batch goes out and the permits balance.
+     */
+    public void testBreakerTripInLargeBatchReleasesPermitOnce() {
+        CapturingClient client = new CapturingClient();
+        CircuitBreaker breaker = requestBreaker(2L * largeSourceBytes(), CircuitBreakerMetrics.NOOP);
+        Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), 2, 1, 100);
+        PermitReading reading = new PermitReading(coordinator);
+        AtomicInteger failures = new AtomicInteger();
+        coordinator.queue.add(slot("index1", reading.listener()));
+        coordinator.queue.add(slot("index2", reading.failureListener(e -> {
+            assertThat(asInstanceOf(CircuitBreakingException.class, e), hasMessage(containsString(Coordinator.BREAKER_LABEL)));
+            failures.incrementAndGet();
+        })));
+        coordinator.queue.add(slot("index3", ActionListener.noop())); // stays queued for the next batch
+        coordinator.coordinateLookups();
+        assertThat(client.pendingIndices(), equalTo(Set.of("index1", "index2")));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+
+        client.respond("index1", multiSearchResponse(largeSourceBytes()));
+        assertThat(breaker.getUsed(), greaterThanOrEqualTo((long) largeSourceBytes()));
+        client.respond("index2", multiSearchResponse(2 * largeSourceBytes()));
+
+        assertThat(failures.get(), equalTo(1));
+        assertThat("permit held for the large response while the listeners ran", reading.remoteRequestsCurrent(2), equalTo(1));
+        assertThat("next batch dispatched after the loop only", reading.queued(), equalTo(1));
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        // released once: the next batch took the single permit, and no permit is left over after it
+        assertThat(client.pendingIndices(), equalTo(Set.of("index3")));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+        client.respond("index3", multiSearchResponse(100));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+        assertThat(coordinator.remoteRequestPermits.availablePermits(), equalTo(1));
+    }
+
+    /** Records what the slot listeners of one batch see of the coordinator while they run. */
+    private static final class PermitReading {
+        private final Coordinator coordinator;
+        private int remoteRequestsCurrent;
+        private int queued;
+        private int listeners;
+
+        PermitReading(Coordinator coordinator) {
+            this.coordinator = coordinator;
+        }
+
+        ActionListener<SearchResponse> listener() {
+            return ActionListener.running(this::takeReading);
+        }
+
+        ActionListener<SearchResponse> failureListener(Consumer<Exception> consumer) {
+            return ActionListener.wrap(r -> fail("unexpected response"), e -> {
+                consumer.accept(e);
+                takeReading();
+            });
+        }
+
+        private void takeReading() {
+            int current = coordinator.getRemoteRequestsCurrent();
+            int size = coordinator.queue.size();
+            assert listeners == 0 || (current == remoteRequestsCurrent && size == queued)
+                : "inconsistent reading in batch: " + current + "/" + size + " vs " + remoteRequestsCurrent + "/" + queued;
+            remoteRequestsCurrent = current;
+            queued = size;
+            listeners++;
+        }
+
+        int remoteRequestsCurrent(int expectedListeners) {
+            assertThat("slot listeners that ran", listeners, equalTo(expectedListeners));
+            return remoteRequestsCurrent;
+        }
+
+        int queued() {
+            assertThat("slot listeners that ran", listeners, greaterThanOrEqualTo(1));
+            return queued;
+        }
+    }
+
+    /** Source bytes of a single hit above {@link Coordinator#PERMIT_HOLD_THRESHOLD_BYTES}, so that a response with it holds the permit. */
+    private static int largeSourceBytes() {
+        return Math.toIntExact(Coordinator.PERMIT_HOLD_THRESHOLD_BYTES) + 1;
+    }
+
+    /** Answers a captured batch of a {@link MockLookupFunction} and, like the transport layer, releases the response afterwards. */
+    private static void respond(MockLookupFunction lookupFunction, int batch, MultiSearchResponse response) {
+        try {
+            lookupFunction.capturedConsumers.get(batch).accept(response, null);
+        } finally {
+            response.decRef();
+        }
+    }
+
     private static final class BatchCircuitBreakerReading {
         private final CircuitBreaker breaker;
         private long used;

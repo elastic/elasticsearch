@@ -22,6 +22,7 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
@@ -94,6 +95,18 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         /** Breaker label for the lookup responses held until the slot listeners have run; same category as the shard-side charge. */
         static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[enrich_coordinator]";
+
+        /**
+         * Estimated response bytes above which a batch keeps its permit until all of its slot listeners have run. The transport
+         * forks the response handler onto the search pool before deserialization and that fork cannot be rejected, so responses
+         * waiting there behind busy search threads are neither charged to the breaker (which only sees a response once a search
+         * thread processes it) nor bounded by the pool. Releasing the permit before the slot loop lets the queue grow by
+         * {@link #maxNumberOfConcurrentRequests} responses per running loop; holding it bounds in-flight, queued and running
+         * responses together. Below the threshold the permit is released up front as before, so small lookups keep their
+         * pipelining depth. A constant rather than a setting: it only separates lookups whose responses matter for heap from those
+         * that do not.
+         */
+        static final long PERMIT_HOLD_THRESHOLD_BYTES = ByteSizeValue.ofMb(1).getBytes();
 
         final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
@@ -193,22 +206,35 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         void handleResponse(List<Slot> slots, MultiSearchResponse response, Exception e) {
-            remoteRequestPermits.release();
             executedSearchesTotal.add(slots.size());
 
             if (response != null) {
                 assert slots.size() == response.getResponses().length;
-                for (int i = 0; i < response.getResponses().length; i++) {
-                    MultiSearchResponse.Item responseItem = response.getResponses()[i];
-                    Slot slot = slots.get(i);
+                // The same estimate as the breaker charge; a small response does not need the bound, see PERMIT_HOLD_THRESHOLD_BYTES
+                final boolean holdPermit = estimateResponseBytes(response) > PERMIT_HOLD_THRESHOLD_BYTES;
+                if (holdPermit == false) {
+                    remoteRequestPermits.release();
+                }
+                try {
+                    for (int i = 0; i < response.getResponses().length; i++) {
+                        MultiSearchResponse.Item responseItem = response.getResponses()[i];
+                        Slot slot = slots.get(i);
 
-                    if (responseItem.isFailure()) {
-                        slot.listener.onFailure(responseItem.getFailure());
-                    } else {
-                        slot.listener.onResponse(responseItem.getResponse());
+                        if (responseItem.isFailure()) {
+                            slot.listener.onFailure(responseItem.getFailure());
+                        } else {
+                            slot.listener.onResponse(responseItem.getResponse());
+                        }
+                    }
+                } finally {
+                    // in a finally so that a throwing slot listener cannot leak the permit, as the early release prevents today
+                    if (holdPermit) {
+                        remoteRequestPermits.release();
                     }
                 }
             } else if (e != null) {
+                // nothing is held for a failed batch
+                remoteRequestPermits.release();
                 slots.forEach(slot -> slot.listener.onFailure(e));
             } else {
                 throw new AssertionError("no response and no error");
@@ -227,6 +253,9 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
          * <p>
          * Failures are not charged: {@link EnrichShardMultiSearchAction} fails a whole lookup rather than single items, so the only
          * failure that reaches a slot is the one exception of its index, shared by all slots of that index.
+         * <p>
+         * Used both for the charge of each shard response and, on the reduced response, to decide whether a batch holds its permit
+         * ({@link #PERMIT_HOLD_THRESHOLD_BYTES}). It reads stored lengths and counts only, so the second pass is cheap.
          */
         static long estimateResponseBytes(MultiSearchResponse response) {
             long bytes = 0;

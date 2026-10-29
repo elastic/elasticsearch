@@ -1483,10 +1483,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                         QueryBuilder expectedInnerQuery = unscore(termQuery(testCase.fieldName, Double.parseDouble(value)));
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else if (predicate.equals(NEQ)) {
-                        QueryBuilder expectedInnerQuery = unscore(
-                            boolQuery().mustNot(unscore(termQuery(testCase.fieldName, Double.parseDouble(value))))
-                        );
-                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                        double parsed = Double.parseDouble(value);
+                        var bool = as(actualInnerLuceneQuery, BoolQueryBuilder.class);
+                        assertThat(bool.should(), hasSize(2));
+                        var lt = as(bool.should().get(0), RangeQueryBuilder.class);
+                        assertThat(lt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(lt.to(), equalTo(parsed));
+                        assertThat(lt.includeUpper(), equalTo(false));
+                        var gt = as(bool.should().get(1), RangeQueryBuilder.class);
+                        assertThat(gt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(gt.from(), equalTo(parsed));
+                        assertThat(gt.includeLower(), equalTo(false));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
                         assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));

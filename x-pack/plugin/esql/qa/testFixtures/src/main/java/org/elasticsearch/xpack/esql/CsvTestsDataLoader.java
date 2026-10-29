@@ -359,19 +359,19 @@ public class CsvTestsDataLoader {
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V5),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V6),
         new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").asDataStream()
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V5),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V6),
         new TestDataset(
             "metrics-noexemplars",
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V5),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V6),
         // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s data stream)
         new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").asDataStream()
             .withSetting("k8s-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V5),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V6),
         new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
@@ -481,6 +481,11 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
         new TestDataset("ts_dense_vector", "mapping-ts_dense_vector.json", "ts_dense_vector.csv", "ts_dense_vector-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS),
+        new TestDataset("unmapped_sink", "mapping-unmapped_sink.json", "unmapped_sink.csv", "unmapped-sink-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_UNMAPPED_SINK_LOAD),
+        new TestDataset("unmapped_sink", "mapping-unmapped_sink.json", "unmapped_sink.csv", "unmapped-sink-columnar-stored-settings.json")
+            .withIndex("unmapped_sink_columnar_stored")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_UNMAPPED_SINK_LOAD),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
         new TestDataset(

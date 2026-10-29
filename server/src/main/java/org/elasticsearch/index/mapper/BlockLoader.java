@@ -34,6 +34,7 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Loads values from a chunk of lucene documents into a "Block" for the compute engine.
@@ -367,6 +368,17 @@ public interface BlockLoader {
          * The {@code _source} of the document.
          */
         Source source() throws IOException;
+
+        /**
+         * The source paths {@link #source()} is restricted to, empty meaning the whole document. Every reader of a read shares one
+         * source, so this is the merge of what all of them asked for in {@link BlockLoader#rowStrideStoredFieldSpec()} and can be
+         * wider than what any single one of them did. Readers that pull one value out of the source do not care, but a reader that
+         * returns the source itself has to narrow it to its own paths. Defaults to the whole document, the safe answer for a caller
+         * that does not track it.
+         */
+        default Set<String> sourcePaths() {
+            return Set.of();
+        }
 
         /**
          * @return the ID for the current document

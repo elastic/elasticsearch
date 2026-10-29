@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
@@ -51,11 +53,15 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.jsonEntityToMap;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ViewIT extends AbstractEsqlIntegTestCase {
@@ -96,6 +102,12 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         plugins.add(ReindexPlugin.class);
         plugins.add(TestSystemIndexPlugin.class);
         return plugins;
+    }
+
+    /** Real HTTP, so a test can read the get-view response body. */
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
     }
 
     public void testIndicesAreNotValidateUponCreation() {
@@ -340,6 +352,48 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * Reads a reserved view through {@code GET /_query/view} and asserts the response body contains
+     * {@code reserved: true}. A plain view omits the field. The view is created through the internal client
+     * because {@code reserved} is not part of the public create API.
+     */
+    public void testGetViewRestResponseIncludesReserved() throws IOException {
+        String reservedName = "reserved-rest-view";
+        String plainName = "plain-rest-view";
+        String query = "FROM some-index";
+        String description = "installed by the cluster";
+        boolean reservedCreated = false;
+        boolean plainCreated = false;
+        try {
+            assertAcked(createView(reservedName, query, description, true));
+            reservedCreated = true;
+            assertAcked(createView(plainName, query, null, false));
+            plainCreated = true;
+
+            Map<String, Object> reserved = getViewFromRest(reservedName);
+            assertThat(reserved.get("name"), equalTo(reservedName));
+            assertThat(reserved.get("query"), equalTo(query));
+            assertThat(reserved.get("description"), equalTo(description));
+            assertThat(reserved.get("reserved"), equalTo(true));
+
+            Map<String, Object> plain = getViewFromRest(plainName);
+            assertThat(plain.get("name"), equalTo(plainName));
+            assertThat(plain.get("query"), equalTo(query));
+            assertThat(plain, not(hasKey("reserved")));
+
+            List<Map<String, Object>> listed = listViewsFromRest();
+            assertThat(findView(listed, reservedName).get("reserved"), equalTo(true));
+            assertThat(findView(listed, plainName), not(hasKey("reserved")));
+        } finally {
+            if (reservedCreated) {
+                deleteView(reservedName, true);
+            }
+            if (plainCreated) {
+                deleteView(plainName, false);
+            }
+        }
+    }
+
     public void testCommandLimitSettingAppliesToQueriesThatExpandViews() {
         assertAcked(indicesAdmin().prepareCreate("source-index").setMapping("f1", "type=integer"));
         prepareIndex("source-index").setSource("f1", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
@@ -374,6 +428,49 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
 
         View view = viewService.get(ProjectId.DEFAULT, "reserved");
         assertThat(view, equalTo(new View("reserved", "ROW f1=1", null, true)));
+    }
+
+    private Map<String, Object> getViewFromRest(String name) throws IOException {
+        Response response = getRestClient().performRequest(new Request("GET", "/_query/view/" + name));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        return singleView(jsonEntityToMap(response.getEntity()));
+    }
+
+    private List<Map<String, Object>> listViewsFromRest() throws IOException {
+        Response response = getRestClient().performRequest(new Request("GET", "/_query/view"));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        return viewsFrom(jsonEntityToMap(response.getEntity()));
+    }
+
+    private static Map<String, Object> singleView(Map<String, Object> body) {
+        List<Map<String, Object>> views = viewsFrom(body);
+        assertThat(views, hasSize(1));
+        return views.get(0);
+    }
+
+    private static List<Map<String, Object>> viewsFrom(Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> views = (List<Map<String, Object>>) body.get("views");
+        assertNotNull(views);
+        return views;
+    }
+
+    private static Map<String, Object> findView(List<Map<String, Object>> views, String name) {
+        for (Map<String, Object> view : views) {
+            if (name.equals(view.get("name"))) {
+                return view;
+            }
+        }
+        throw new AssertionError("view [" + name + "] missing from " + views);
+    }
+
+    private void deleteView(String name, boolean reserved) {
+        assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, reserved)
+            )
+        );
     }
 
     private AcknowledgedResponse createView(String viewName, String query) {

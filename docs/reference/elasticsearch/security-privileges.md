@@ -325,7 +325,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `create_index`
 :   Privilege to create an index or data stream. A create index request may contain aliases to be added to the index once created. In that case the request requires the `manage` privilege as well, on both the index and the aliases names.
 
-`create_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+`create_view` {applies_to}`stack: ga 9.6+, preview 9.4-9.5` {applies_to}`serverless: ga`
 :   Privilege to create or update an [{{esql}} view](/reference/query-languages/esql/esql-views.md), granted on the view name. It does not grant the privilege to query the view, nor any access to the indices that the view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
 
 `cross_cluster_replication` {applies_to}`serverless: unavailable`
@@ -345,7 +345,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `delete_index`
 :   Privilege to delete an index or data stream.
 
-`delete_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+`delete_view` {applies_to}`stack: ga 9.6+, preview 9.4-9.5` {applies_to}`serverless: ga`
 :   Privilege to delete an [{{esql}} view](/reference/query-languages/esql/esql-views.md), granted on the view name. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
 
 `index`
@@ -378,7 +378,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `manage_leader_index` {applies_to}`serverless: unavailable`
 :   All actions that are required to manage the lifecycle of a leader index, which includes [forgetting a follower]({{es-apis}}operation/operation-ccr-forget-follower). This privilege is necessary only on clusters that contain leader indices.
 
-`manage_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+`manage_view` {applies_to}`stack: ga 9.6+, preview 9.4-9.5` {applies_to}`serverless: ga`
 :   Privilege to create, update, retrieve, and delete [{{esql}} view](/reference/query-languages/esql/esql-views.md) definitions, granted on the view name. It does not grant the privilege to query a view with `FROM`, nor any access to the indices that a view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
 
 `monitor`
@@ -393,7 +393,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `read_failure_store` {applies_to}`stack: ga 9.1`
 :   Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
 
-`read_view_metadata` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+`read_view_metadata` {applies_to}`stack: ga 9.6+, preview 9.4-9.5` {applies_to}`serverless: ga`
 :   Privilege to retrieve an [{{esql}} view](/reference/query-languages/esql/esql-views.md) definition, granted on the view name. It does not grant the privilege to query the view, nor any access to the indices that the view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
 
 `view_index_metadata`

@@ -236,6 +236,11 @@ tests:
   - :server:internalClusterTest
   method: testLocalAbort
   issue: https://github.com/elastic/elasticsearch/issues/163861
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.19.24#mixedClusterTest
+  method: test {yaml=aggregations/terms/Unmapped dates}
+  issue: https://github.com/elastic/elasticsearch/issues/164021
 
 # Examples:
 #

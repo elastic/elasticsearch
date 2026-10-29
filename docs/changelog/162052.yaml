@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 162052
-summary: "ES|QL|DS: Prune listing by folder time range"
+summary: Prune listing by folder time range
 type: enhancement

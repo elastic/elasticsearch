@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,11 +17,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
+import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 import org.junit.After;
@@ -32,12 +35,15 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -220,6 +226,42 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
         assertThat(t.transformForSnapshot(PROJECT_ID, s.metadata(), password()), sameInstance(s.metadata()));
         assertThat(t.transformForSnapshot(PROJECT_ID, s.metadata(), null), sameInstance(s.metadata()));
         assertFalse(t.containsEncryptedData(PROJECT_ID, s.metadata()));
+    }
+
+    public void testKeyRetiredWhileWaitingToFinalize() {
+        assertKeyUnavailableAtFinalization(true, "project encryption key [k2] was rotated and retired while the snapshot was waiting");
+    }
+
+    public void testKeyUnknownAtFinalization() {
+        assertKeyUnavailableAtFinalization(false, "cannot re-encrypt data under project encryption key [k2] with the snapshot password");
+    }
+
+    private void assertKeyUnavailableAtFinalization(boolean keyInCapturedMetadata, String expectedReason) {
+        buildSetup();
+        ProjectMetadata.Builder project = ProjectMetadata.builder(PROJECT_ID)
+            .putCustom(TestBlob.TYPE, new TestBlob(new EncryptedData("k2", randomByteArrayOfLength(32))));
+        if (keyInCapturedMetadata) {
+            project.putCustom(
+                ProjectEncryptionKeyMetadata.TYPE,
+                new ProjectEncryptionKeyMetadata(
+                    Map.of("k2", new ProjectEncryptionKeyMetadata.KeyEntry(randomByteArrayOfLength(32), 0L)),
+                    "k2",
+                    "password-id",
+                    Map.of(),
+                    TestPekEncryption.NO_OP
+                )
+            );
+        }
+        Metadata metadata = Metadata.builder().put(project.build()).build();
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new EncryptingSnapshotGlobalStateTransformer().transformForSnapshot(PROJECT_ID, metadata, password())
+        );
+        assertThat(e.getMessage(), containsString(expectedReason));
+        assertThat(e.getMessage(), containsString("the snapshot was not written to the repository and can be retried"));
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getCause(), instanceOf(EncryptionKeyNotYetAvailableException.class));
     }
 
     public void testCustomWithoutDataIsNotEncryptedData() {

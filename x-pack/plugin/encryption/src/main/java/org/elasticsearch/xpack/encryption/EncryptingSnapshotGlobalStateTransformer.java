@@ -8,15 +8,18 @@ package org.elasticsearch.xpack.encryption;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
+import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
@@ -105,14 +108,39 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
         } finally {
             Arrays.fill(chars, '\0');
         }
+        final ProjectEncryptionKeyMetadata capturedKeys = project.custom(ProjectEncryptionKeyMetadata.TYPE);
         return applyToSnapshotCustoms(metadata, project, registry, existing -> {
-            byte[] plaintext = encryptionService.decrypt(existing);
+            final byte[] plaintext;
+            try {
+                plaintext = encryptionService.decrypt(existing);
+            } catch (EncryptionKeyNotYetAvailableException e) {
+                throw keyUnavailableAtFinalization(existing.keyId(), capturedKeys, e);
+            }
             try {
                 return PasswordBasedEncryption.wrapWithKek(plaintext, SNAPSHOT_PASSWORD_KEY_ID, kek, salt);
             } finally {
                 Arrays.fill(plaintext, (byte) 0);
             }
         });
+    }
+
+    /**
+     * A key present in the captured metadata's key set but unknown to the live service was retired while the finalization was queued.
+     */
+    private static ElasticsearchStatusException keyUnavailableAtFinalization(
+        String keyId,
+        @Nullable ProjectEncryptionKeyMetadata capturedKeys,
+        Exception cause
+    ) {
+        final String reason = capturedKeys != null && capturedKeys.getKeys().containsKey(keyId)
+            ? "project encryption key [{}] was rotated and retired while the snapshot was waiting to finalize"
+            : "cannot re-encrypt data under project encryption key [{}] with the snapshot password";
+        return new ElasticsearchStatusException(
+            reason + ", so the snapshot was not written to the repository and can be retried",
+            RestStatus.SERVICE_UNAVAILABLE,
+            cause,
+            keyId
+        );
     }
 
     private static Metadata applyToSnapshotCustoms(

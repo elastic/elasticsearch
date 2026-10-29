@@ -291,7 +291,7 @@ public class SnapshotEncryptedDataIT extends AbstractSnapshotIntegTestCase {
             CreateSnapshotResponse.class,
             l -> client(masterNode).execute(TransportCreateSnapshotAction.TYPE, request, l)
         );
-        assertThat(e.getMessage(), containsString("project encryption key [unknown-key] is not yet available"));
+        assertThat(e.getMessage(), containsString("cannot re-encrypt data under project encryption key [unknown-key]"));
         awaitNoMoreRunningOperations();
 
         assertThat(getRepositoryData(REPO).getSnapshotIds(), empty());

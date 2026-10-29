@@ -174,7 +174,7 @@ Note the role ARN that AWS returns. You enter it when you [connect the data sour
 ::::::
 :::::::
 
-Then [grant the role read access](#grant-role-read-access).
+Once the role is created, [grant it read access](#grant-role-read-access).
 
 ## Grant role read access
 

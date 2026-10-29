@@ -510,11 +510,6 @@ tests:
   - :modules:repository-azure:test
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/163262
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  tasks:
-  - :x-pack:qa:rolling-upgrade-multi-cluster:v9.5.6#bwcTest
-  method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
-  issue: https://github.com/elastic/elasticsearch/issues/163266
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

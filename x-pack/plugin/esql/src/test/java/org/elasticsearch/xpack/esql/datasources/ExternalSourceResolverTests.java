@@ -6946,15 +6946,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
         final int threadCount = 8;
         AtomicInteger inResolve = new AtomicInteger();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath) {
             @Override
             public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
-                try {
-                    assertBusy(
-                        () -> assertEquals("LIST must wait until every resolver thread is in resolve()", threadCount, inResolve.get())
+                // Never throw from here: the listing cache only completes its in-flight entry for an Exception, so an
+                // Error (such as the one assertBusy raises) would leave every other resolver waiting on it forever and
+                // surface only as "did not finish". Record the cause and carry on instead.
+                if (waitUntil(() -> inResolve.get() == threadCount, 20, TimeUnit.SECONDS) == false) {
+                    failure.compareAndSet(
+                        null,
+                        new AssertionError(
+                            "LIST must wait until every resolver thread is in resolve(), but only " + inResolve.get() + " were"
+                        )
                     );
-                } catch (Exception e) {
-                    throw new AssertionError(e);
                 }
                 return super.listObjects(prefix, recursive);
             }
@@ -6964,7 +6969,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(threadCount);
         CyclicBarrier aligned = new CyclicBarrier(threadCount);
-        AtomicReference<Throwable> failure = new AtomicReference<>();
         ExecutorService exec = Executors.newFixedThreadPool(threadCount);
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
@@ -6995,8 +6999,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 });
             }
             start.countDown();
-            assertTrue("concurrent UNION_BY_NAME resolves did not finish", done.await(30, TimeUnit.SECONDS));
+            boolean finished = done.await(60, TimeUnit.SECONDS);
             Throwable t = failure.get();
+            if (finished == false) {
+                throw new AssertionError("concurrent UNION_BY_NAME resolves did not finish", t);
+            }
             if (t != null) {
                 throw new AssertionError("concurrent UNION_BY_NAME resolve failed", t);
             }

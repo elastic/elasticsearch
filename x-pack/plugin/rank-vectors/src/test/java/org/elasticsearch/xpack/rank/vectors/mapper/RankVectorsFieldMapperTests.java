@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -526,6 +527,23 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
             muveraIndexOptions(b);
         })));
         assertThat(e.getMessage(), containsString("requires [dims] to be [128]"));
+    }
+
+    public void testIndexedMuveraSeedMustBeExactLong() {
+        for (Number invalidSeed : List.of(42.5d, new BigInteger("18446744073709551658"))) {
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "rank_vectors");
+                b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+                b.field("index", true);
+                b.startObject("index_options")
+                    .field("type", "muvera")
+                    .field("encoding_version", RankVectorsFieldMapper.MUVERA_ENCODING_VERSION)
+                    .field("encoding_profile", RankVectorsFieldMapper.MUVERA_ENCODING_PROFILE)
+                    .field("seed", invalidSeed)
+                    .endObject();
+            })));
+            assertThat(e.getMessage(), containsString("must be an integer in the signed 64-bit range"));
+        }
     }
 
     public void testIndexedMuveraRejectsChangedEncodingIdentityOnMerge() throws IOException {

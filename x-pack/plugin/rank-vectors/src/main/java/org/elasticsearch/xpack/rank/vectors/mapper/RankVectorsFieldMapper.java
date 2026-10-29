@@ -90,6 +90,13 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
     static final long MUVERA_SEED = 42L;
     private static final int MUVERA_VECTORS_PER_CLUSTER = 384;
     private static final String MUVERA_INDEX_OPTIONS_TYPE = "muvera";
+    private static final MuveraEncoder MUVERA_ENCODER = new MuveraEncoder(
+        MUVERA_TOKEN_DIMS,
+        MUVERA_K_SIM,
+        MUVERA_D_PROJ,
+        MUVERA_R_REPS,
+        MUVERA_SEED
+    );
     private static final Set<String> MUVERA_INDEX_OPTION_FIELDS = Set.of(
         "type",
         "encoding_version",
@@ -101,11 +108,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         "output_dims"
     );
 
-    record MuveraIndexOptions(int encodingVersion, String encodingProfile, int kSim, int dProj, int rReps, long seed, int outputDims) {
-        private MuveraEncoder createEncoder() {
-            return new MuveraEncoder(MUVERA_TOKEN_DIMS, kSim, dProj, rReps, seed);
-        }
-    }
+    record MuveraIndexOptions(int encodingVersion, String encodingProfile, int kSim, int dProj, int rReps, long seed, int outputDims) {}
 
     /**
      * Maximum number of vectors accepted in a single rank vectors value, whether it is a document's field value or a
@@ -258,7 +261,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders,
-                indexed.getValue() ? indexOptions.getValue().createEncoder() : null
+                indexed.getValue() ? MUVERA_ENCODER : null
             );
         }
 
@@ -292,6 +295,13 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
                         + dims.getValue()
                         + "]"
                 );
+            }
+            if (vectorsFormatProviders == null
+                || vectorsFormatProviders.stream()
+                    .noneMatch(
+                        provider -> provider.isVectorIndexTypeAllowed(indexCreatedVersion, DenseVectorFieldMapper.VectorIndexType.BBQ_DISK)
+                    )) {
+                throw new IllegalArgumentException("Indexed MUVERA rank_vectors fields require the [bbq_disk] vector format provider");
             }
         }
 
@@ -376,10 +386,10 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             if (value == null) {
                 return defaultValue;
             }
-            if (value instanceof Number number) {
-                return number.longValue();
+            if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+                return ((Number) value).longValue();
             }
-            throw new MapperParsingException("MUVERA index option [" + name + "] must be a long");
+            throw new MapperParsingException("MUVERA index option [" + name + "] must be an integer in the signed 64-bit range");
         }
     }
 

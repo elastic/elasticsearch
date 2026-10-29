@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
 
 import java.util.Collection;
@@ -29,7 +25,7 @@ public class RankVectorsProviderValidationTests extends MapperServiceTestCase {
     }
 
     public void testIndexedMuveraRequiresDiskBbqProvider() throws Exception {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "rank_vectors");
             b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
             b.field("index", true);
@@ -38,13 +34,8 @@ public class RankVectorsProviderValidationTests extends MapperServiceTestCase {
             b.field("encoding_version", RankVectorsFieldMapper.MUVERA_ENCODING_VERSION);
             b.field("encoding_profile", RankVectorsFieldMapper.MUVERA_ENCODING_PROFILE);
             b.endObject();
-        }));
-        try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
-            PerFieldMapperCodec codec = (PerFieldMapperCodec) new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, threadPool)
-                .codec("default");
-            IllegalStateException e = expectThrows(IllegalStateException.class, () -> codec.getKnnVectorsFormatForField("field"));
-            assertThat(e.getMessage(), containsString("requires the [bbq_disk] vector format provider"));
-        }
+        })));
+        assertThat(e.getMessage(), containsString("require the [bbq_disk] vector format provider"));
     }
 
     public void testNonIndexedRankVectorsDoesNotRequireDiskBbqProvider() throws Exception {

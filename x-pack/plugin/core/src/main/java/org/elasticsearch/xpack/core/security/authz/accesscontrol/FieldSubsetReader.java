@@ -33,6 +33,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -741,6 +742,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         return hasField(field) ? super.getFloatVectorValues(field) : null;
+    }
+
+    @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        return hasField(field) ? in.getFloatVectorValues(field, access) : null;
     }
 
     @Override

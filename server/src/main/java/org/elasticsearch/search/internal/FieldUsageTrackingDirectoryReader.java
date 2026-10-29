@@ -36,6 +36,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -223,16 +224,20 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            FloatVectorValues vectorValues = super.getFloatVectorValues(field);
-            if (vectorValues != null) {
-                notifier.onKnnVectorsUsed(field);
-            }
-            return vectorValues;
+            return knnVectorsUsed(field, super.getFloatVectorValues(field));
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            return knnVectorsUsed(field, in.getFloatVectorValues(field, access));
         }
 
         @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
-            ByteVectorValues vectorValues = super.getByteVectorValues(field);
+            return knnVectorsUsed(field, super.getByteVectorValues(field));
+        }
+
+        private <V> V knnVectorsUsed(String field, V vectorValues) {
             if (vectorValues != null) {
                 notifier.onKnnVectorsUsed(field);
             }

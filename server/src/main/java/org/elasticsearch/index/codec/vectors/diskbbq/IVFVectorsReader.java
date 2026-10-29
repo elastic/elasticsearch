@@ -28,6 +28,7 @@ import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -386,6 +387,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final FloatVectorValues getFloatVectorValues(String field) throws IOException {
         return getReaderForField(field).getFloatVectorValues(field);
+    }
+
+    @Override
+    public final FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        return getReaderForField(field).getFloatVectorValues(field, access);
     }
 
     @Override

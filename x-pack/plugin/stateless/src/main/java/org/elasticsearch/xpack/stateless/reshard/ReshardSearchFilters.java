@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
@@ -359,6 +361,11 @@ public final class ReshardSearchFilters implements Closeable {
         @Override
         protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
             return reader;
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            return in.getFloatVectorValues(field, access);
         }
 
         @Override

@@ -39,6 +39,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
@@ -222,6 +223,11 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return getFloatVectorValues(field, DataAccessHint.RANDOM);
+    }
+
+    @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
         FieldEntry fi = fields.get(field);
         if (fi == null) {
             return null;
@@ -244,7 +250,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
             fi.vectorDataLength,
             quantizedVectorData
         );
-        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
+        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field, access), bvv);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -58,6 +59,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -965,6 +967,11 @@ public class Lucene {
             @Override
             public int numDocs() {
                 return numDocs;
+            }
+
+            @Override
+            public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+                return in.getFloatVectorValues(field, access);
             }
 
             @Override

@@ -24,20 +24,12 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.DataAccessHint;
-import org.apache.lucene.store.IOContext;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.store.VectorFieldHint;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -45,8 +37,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 public class ES93FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES93FlatVectorFormat";
-
-    private static final Logger logger = LogManager.getLogger(ES93FlatVectorFormat.class);
 
     private final FlatVectorsFormat format;
 
@@ -70,8 +60,8 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        SegmentReadState searchState = VectorReadHints.forSearches(state, state.context.hints().toArray(IOContext.FileOpenHint[]::new));
-        return new ES93FlatVectorReader(format, searchState, format.fieldsReader(searchState));
+        SegmentReadState searchState = VectorReadHints.scannedBySearches(state);
+        return new ES93FlatVectorReader(format.fieldsReader(searchState));
     }
 
     @Override
@@ -86,58 +76,20 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
 
     static class ES93FlatVectorReader extends KnnVectorsReader {
 
-        private final FlatVectorsFormat format;
-        private final SegmentReadState state;
         private final FlatVectorsReader reader;
-        // the search reader a merge instance comes from
-        private final ES93FlatVectorReader original;
 
-        ES93FlatVectorReader(FlatVectorsFormat format, SegmentReadState state, FlatVectorsReader reader) {
-            this.format = format;
-            this.state = state;
+        ES93FlatVectorReader(FlatVectorsReader reader) {
             this.reader = reader;
-            this.original = this;
         }
 
-        /** A merge instance of {@code original}, reading through {@code reader}, which it closes when the merge finishes. */
-        private ES93FlatVectorReader(ES93FlatVectorReader original, FlatVectorsReader reader) {
-            this.format = original.format;
-            this.state = original.state;
-            this.reader = reader;
-            this.original = original;
-        }
-
-        /**
-         * A merge streams the vectors that searches scan, so it opens them for itself, reading them sequentially: the
-         * directory then decides how a merge reads the field's vectors. A merge reads through this reader instead when the
-         * files hold several fields, which no one mapping applies to, or when they are gone, since an open reader outlives
-         * them.
-         */
         @Override
         public KnnVectorsReader getMergeInstance() throws IOException {
-            assert original == this : "a merge instance is not merged";
-            VectorFieldHint field = VectorFieldHint.forSuffix(state.fieldInfos, state.segmentSuffix);
-            if (field == null) {
-                return this;
-            }
-            IOContext.FileOpenHint[] hints = Stream.concat(
-                state.context.hints().stream().filter(hint -> hint instanceof DataAccessHint == false),
-                Stream.of(DataAccessHint.SEQUENTIAL, field)
-            ).toArray(IOContext.FileOpenHint[]::new);
-            try {
-                return new ES93FlatVectorReader(this, format.fieldsReader(new SegmentReadState(state, IOContext.merge().withHints(hints))));
-            } catch (FileNotFoundException | NoSuchFileException e) {
-                logger.debug(() -> Strings.format("merging field [%s] through the search reader: its files are gone", field.field()), e);
-                return this;
-            }
+            return new ES93FlatVectorReader(reader.getMergeInstance());
         }
 
-        /** Closes the reader this merge instance opened; a no-op on the search reader. */
         @Override
         public void finishMerge() throws IOException {
-            if (original != this) {
-                reader.close();
-            }
+            reader.finishMerge();
         }
 
         @Override
@@ -148,6 +100,11 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             return reader.getFloatVectorValues(field);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            return reader.getFloatVectorValues(field, access);
         }
 
         @Override

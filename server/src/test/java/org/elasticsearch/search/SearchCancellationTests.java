@@ -24,6 +24,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -217,6 +218,12 @@ public class SearchCancellationTests extends ESTestCase {
         KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
         // On the first doc when already canceled, it throws
         expectThrows(TaskCancelledException.class, iterator::nextDoc);
+
+        cancelled.set(false);
+        FloatVectorValues sequentialValues = leaf.getFloatVectorValues(KNN_FIELD_NAME, DataAccessHint.SEQUENTIAL);
+        cancelled.set(true);
+        // read in order, the values stay cancellable
+        expectThrows(TaskCancelledException.class, sequentialValues.iterator()::nextDoc);
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         FloatVectorValues uncancelledVectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);

@@ -23,6 +23,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -145,6 +146,11 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         return genericReaders.getReaderForField(findField(field)).getFloatVectorValues(field);
+    }
+
+    @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        return genericReaders.getReaderForField(findField(field)).getFloatVectorValues(field, access);
     }
 
     @Override

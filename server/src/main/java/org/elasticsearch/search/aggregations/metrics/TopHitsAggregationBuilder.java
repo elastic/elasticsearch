@@ -552,6 +552,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             seqNoAndPrimaryTerm,
             trackScores,
             optionalSort,
+            sorts,
             highlightBuilder,
             storedFieldsContext,
             docValueFields,

@@ -422,6 +422,23 @@ public abstract class SimdVecLibrary {
     }
 
     /**
+     * Adds {@code a @ b} to columns {@code [colStart, colEnd)} of {@code c}, where {@code a} is {@code m x k},
+     * {@code b} is {@code k x n} and {@code c} is {@code m x n}, all row-major.
+     * {@code c} must be zeroed first to get the plain product. Disjoint column ranges can be computed in parallel.
+     */
+    @Function("vec_sgemm_i8")
+    public abstract void sgemmI8(
+        @RawAddress @MatrixSegment(rowsParam = "m", colsParam = "k", elementBits = Byte.SIZE) MemorySegment a,
+        @RawAddress @MatrixSegment(rowsParam = "k", colsParam = "n", elementBits = Byte.SIZE) MemorySegment b,
+        int m,
+        int k,
+        int n,
+        @RawAddress @MatrixSegment(rowsParam = "m", colsParam = "n", elementBits = Integer.SIZE) MemorySegment c,
+        int colStart,
+        int colEnd
+    );
+
+    /**
      * Computes {@code result = a @ v} in exact int32 arithmetic, where {@code a} is a row-major
      * {@code rows x cols} matrix and {@code v} has {@code cols} values.
      */

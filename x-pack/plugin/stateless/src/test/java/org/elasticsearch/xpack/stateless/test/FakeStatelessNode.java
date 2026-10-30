@@ -301,6 +301,7 @@ public class FakeStatelessNode implements Closeable {
                 threadPool,
                 clusterService,
                 projectResolver,
+                null,
                 meterRegistry != null ? meterRegistry : MeterRegistry.NOOP
             );
             if (projectResolver.supportsMultipleProjects()) {

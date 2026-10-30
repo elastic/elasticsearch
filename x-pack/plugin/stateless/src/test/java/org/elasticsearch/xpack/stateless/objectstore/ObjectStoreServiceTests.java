@@ -172,7 +172,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath, null);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath, null, null);
         assertThat(settings.keySet().size(), equalTo(1));
         assertThat(settings.get("location"), equalTo(basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket));
     }
@@ -197,7 +197,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // check no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath, null);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath, null, null);
         assertThat(
             settings.keySet().size(),
             equalTo(2 + (basePath == null ? 0 : 1) + (objectStoreType == S3 ? 1 /* add_purpose_custom_query_parameter */ : 0))
@@ -222,7 +222,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
         // when threshold is set, the per-type key must be present with the right value and the key count grows by one
         ByteSizeValue threshold = randomBoolean() ? ByteSizeValue.ofMb(between(5, 100)) : null;
-        Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold);
+        Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold, null);
         if (threshold == null) {
             for (var setting : multiPartUploadSettings) {
                 assertThat(settingsWithThreshold.get(setting), is(nullValue()));
@@ -266,36 +266,56 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(eMax.getMessage(), containsString("6gb"));
     }
 
+    public void testObjectStoreAccessConcurrency() {
+        final int value = 100;
+
+        String s3Key = "s3.client.c.max_connections";
+        assertThat(S3.createRepositorySettings("b", "c", null, null, null).get(s3Key), is(nullValue()));
+
+        assertThat(S3.createRepositorySettings("b", "c", null, null, 100).get(s3Key), equalTo(Integer.toString(value)));
+
+        String azureKey = "azure.client.cl.max_connections";
+        assertThat(AZURE.createRepositorySettings("b", "cl", null, null, null).get(azureKey), is(nullValue()));
+
+        assertThat(AZURE.createRepositorySettings("b", "cl", null, null, 100).get(azureKey), equalTo(Integer.toString(value)));
+
+        // Not supported in GCP
+    }
+
     public void testMultiPartThresholdInjectedPerType() {
         ByteSizeValue threshold = ByteSizeValue.ofMb(between(5, 100));
         assertThat(
-            S3.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY),
+            S3.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
         assertThat(
-            GCS.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY),
+            GCS.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
         assertThat(
-            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
+            AZURE.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
         assertThat(
-            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY),
+            AZURE.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
     }
 
     public void testMultiPartThresholdNotInjectedWhenNull() {
-        assertNull(S3.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
-        assertNull(GCS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
-        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
-        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
-        assertNull(FS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(S3.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(GCS.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(
+            AZURE.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY)
+        );
+        assertNull(
+            AZURE.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY)
+        );
+        assertNull(FS.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
     }
 
     public void testMultiPartThresholdClampedForAzure() {
-        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200));
+        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200), null);
         assertEquals(ByteSizeValue.ofMb(200).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
         assertEquals(ByteSizeValue.ofMb(100).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
     }

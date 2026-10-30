@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -320,9 +321,18 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
+            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
-            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry) {
+            return new ObjectStoreService(
+                settings,
+                repositoriesService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                objectStoreAccessConcurrency,
+                meterRegistry
+            ) {
                 @Override
                 public void uploadBatchedCompoundCommitFile(
                     long primaryTerm,

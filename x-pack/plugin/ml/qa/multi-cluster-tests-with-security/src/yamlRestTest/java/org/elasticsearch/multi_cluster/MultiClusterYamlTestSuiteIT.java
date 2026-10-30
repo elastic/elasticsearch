@@ -114,7 +114,7 @@ public class MultiClusterYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             if (params.getInstanceArguments().isEmpty()) {
                 return 1;
             }
-            return params.getInstanceArguments().getFirst().toString().contains("remote_cluster") ? 0 : 1;
+            return params.getInstanceArguments().get(0).toString().contains("remote_cluster") ? 0 : 1;
         }
     }
 }

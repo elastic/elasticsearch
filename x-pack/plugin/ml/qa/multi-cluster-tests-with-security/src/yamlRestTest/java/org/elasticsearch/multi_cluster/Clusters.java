@@ -9,7 +9,6 @@ package org.elasticsearch.multi_cluster;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.function.Supplier;
 
@@ -32,7 +31,6 @@ class Clusters {
     private static final String CCS_COMPAT_VERSION = System.getProperty("tests.ccs_compat_version");
 
     static ElasticsearchCluster remoteCluster() {
-        boolean detached = ESRestTestCase.isOldClusterDetachedVersion();
         return ElasticsearchCluster.local()
             .name("remote-cluster")
             // The default distribution is required both for security/trial licensing and because a cluster pinned to a
@@ -41,7 +39,7 @@ class Clusters {
             // The whole remote cluster runs on the minimum wire-compatible version to exercise cross-cluster search
             // from a current-version cluster against an older remote, matching the original `versions = [ccsCompatVersion,
             // project.version]` topology which started every node on the first (old) version and never upgraded.
-            .version(CCS_COMPAT_VERSION, detached)
+            .version(CCS_COMPAT_VERSION)
             .nodes(2)
             .setting("node.roles", "[data,ingest,master,ml]")
             .setting("xpack.security.enabled", "true")

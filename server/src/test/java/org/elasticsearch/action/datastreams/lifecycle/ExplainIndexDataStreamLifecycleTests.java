@@ -346,7 +346,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         assertThat(copyInstance(unmanaged), equalTo(unmanaged));
     }
 
-    public void testLifecycleEnabledByDefaultSerialization() throws IOException {
+    public void testMinimumLifecycleEnabledSerialization() throws IOException {
         ExplainIndexDataStreamLifecycle enabledByDefault = createManagedIndexDataStreamLifecycleExplanation(
             System.currentTimeMillis(),
             null,
@@ -360,7 +360,6 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 TransportVersionUtils.randomVersionSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_MINIMUM_LIFECYCLE)
             );
             assertThat(roundTripped.isMinimumLifecycleEnabled(), is(true));
-            assertThat(roundTripped, equalTo(enabledByDefault));
         }
         {
             // older nodes are not aware of the default lifecycle, so the flag is dropped

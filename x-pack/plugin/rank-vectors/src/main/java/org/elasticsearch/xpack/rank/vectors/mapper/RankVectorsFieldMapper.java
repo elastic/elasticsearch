@@ -506,12 +506,43 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             return new MuveraMaxSimQuery(name(), queryVectors, k, numCandidates, filter);
         }
 
-        int getVectorDimensions() {
+        /** Returns a native brute-force MaxSim query for evaluation baselines. */
+        public Query exactMaxSimQuery(float[][] queryVectors) {
+            if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
+                throw LicenseUtils.newComplianceException("Rank Vectors");
+            }
+            return new ExactRankVectorsQuery(name(), queryVectors, dims);
+        }
+
+        /** Returns the raw per-shard MUVERA candidate query used by the private evaluation action. */
+        public Query muveraCandidateQuery(float[][] queryVectors, int numCandidates) {
+            if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
+                throw LicenseUtils.newComplianceException("Rank Vectors");
+            }
+            if (indexed == false || indexOptions == null) {
+                throw new IllegalArgumentException("Field [" + name() + "] is not indexed with MUVERA");
+            }
+            return new MuveraCandidateQuery(name(), queryVectors, numCandidates);
+        }
+
+        public int getVectorDimensions() {
             return dims;
         }
 
-        DenseVectorFieldMapper.ElementType getElementType() {
+        public DenseVectorFieldMapper.ElementType getElementType() {
             return element.elementType();
+        }
+
+        public boolean isMuveraIndexed() {
+            return indexed && indexOptions != null;
+        }
+
+        public String getMuveraEncodingProfile() {
+            return indexOptions == null ? null : indexOptions.encodingProfile();
+        }
+
+        public int getMuveraEncodingVersion() {
+            return indexOptions == null ? -1 : indexOptions.encodingVersion();
         }
     }
 

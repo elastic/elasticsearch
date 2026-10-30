@@ -645,6 +645,7 @@ public class Constants {
         "indices:data/read/profiling/flamegraph",
         "indices:data/read/profiling/topn/functions",
         "indices:data/read/rank_eval",
+        "indices:data/read/rank_vectors_eval",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",
         "indices:data/read/search",

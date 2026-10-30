@@ -10,10 +10,12 @@ module org.elasticsearch.rank.vectors {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.logging;
     requires org.apache.lucene.core;
     requires org.elasticsearch.xcontent;
 
     exports org.elasticsearch.xpack.rank.vectors;
+    exports org.elasticsearch.xpack.rank.vectors.eval;
     exports org.elasticsearch.xpack.rank.vectors.mapper;
     exports org.elasticsearch.xpack.rank.vectors.query;
     exports org.elasticsearch.xpack.rank.vectors.script;

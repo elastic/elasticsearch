@@ -111,7 +111,8 @@ public class MuveraEncoderTests extends ESTestCase {
     public void testSingleTokenInnerProductIsExact() {
         int dims = randomIntBetween(4, 64);
         int rReps = randomIntBetween(1, 8);
-        MuveraEncoder encoder = new MuveraEncoder(dims, randomIntBetween(0, 4), dims, rReps, randomLong());
+        int maxKSim = Math.min(4, 31 - Integer.numberOfLeadingZeros(MuveraEncoder.MAX_RAW_DIMENSIONS / (dims * rReps)));
+        MuveraEncoder encoder = new MuveraEncoder(dims, randomIntBetween(0, maxKSim), dims, rReps, randomLong());
         float[][] doc = randomTokens(1, dims);
         float[][] query = randomTokens(1, dims);
         float expected = rReps * VectorUtil.dotProduct(doc[0], query[0]);

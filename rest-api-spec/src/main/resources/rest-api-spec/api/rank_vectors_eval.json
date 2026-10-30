@@ -1,0 +1,67 @@
+{
+  "rank_vectors_eval": {
+    "documentation": {
+      "url": null,
+      "description": "Compare an exact MaxSim baseline, raw per-primary-shard MUVERA candidates, and the normal exact-rescored rank_vectors top-k using one point-in-time. This private diagnostic requires allow_exact:true and rejects nested, non-indexed, non-MUVERA, or inconsistent mappings."
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_rank_vectors_eval",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names to evaluate"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether unavailable indices should be ignored"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether wildcard expressions may resolve to no indices"
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Which concrete indices wildcard expressions expand to"
+      },
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": true,
+        "description": "If false, store the response and return a task identifier"
+      }
+    },
+    "body": {
+      "description": "The field, explicit multivector query_vector, k, num_candidates, and mandatory allow_exact:true.",
+      "required": true
+    }
+  }
+}

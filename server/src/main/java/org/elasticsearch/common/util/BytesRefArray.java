@@ -657,7 +657,9 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         int pageCount;
         byte[] currentPage;
         int currentPagePos;
-        private WeakReference<byte[]> cachedScratch = new WeakReference<>(null);
+        // Shared by all readers. Several threads may call get at once: a reader reuses the cached
+        // buffer only when it already holds that exact buffer, so no reader gets another's buffer.
+        private volatile WeakReference<byte[]> cachedScratch = new WeakReference<>(null);
         private final BytesRef scratch = new BytesRef();
 
         public Bytes(BigArrays bigArrays, long initialSize) {

@@ -5448,7 +5448,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test | eval x = \"abc\" | enrich languages_idx on x"));
         LocalRelation local = as(plan, LocalRelation.class);
-        assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
+        assertThat(Expressions.names(local.output()), contains("x", "language_code", "language_name"));
     }
 
     public void testPlanSanityCheck() throws Exception {

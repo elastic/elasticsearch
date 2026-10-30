@@ -13,7 +13,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -54,6 +53,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -771,7 +771,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testRemoteViewFailsQuery() throws IOException {
+    public void testRemoteViewNotVisible() throws IOException {
         assumeTrue(
             "views not supported on remote cluster",
             capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions", "views_not_discoverable_on_remotes"))
@@ -782,24 +782,44 @@ public class MultiClustersIT extends ESRestTestCase {
             assertOK(remoteClient.performRequest(putView));
         }
         try {
-            // not available when using concrete expression
+            // not available when using concrete expression: the remote is skip_unavailable=true here, so the unknown index
+            // skips the cluster instead of failing the query; MultiClusterEsqlViewRestIT asserts the 400 with skip_unavailable=false
             {
-                ResponseException e = expectThrows(
-                    ResponseException.class,
-                    () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-view").build())
+                var response = runEsql(
+                    new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-view")
+                        .includeCCSMetadata(true)
+                        .build()
                 );
-                assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-                Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
-                assertThat(error.get("type"), equalTo("verification_exception"));
-                assertThat(error.get("reason"), equalTo("Unknown index [remote_cluster:test-remote-view]"));
+                assertThat(response.get("error"), nullValue());
+                assertThat(response.get("is_partial"), equalTo(true));
+                assertThat(columnNames(response), contains("<no-fields>"));
+                assertThat((List<?>) response.get("values"), empty());
+                Map<String, Object> remoteCluster = remoteClusterDetails(response);
+                assertThat(remoteCluster.get("status"), equalTo("skipped"));
+                List<Map<String, Object>> failures = (List<Map<String, Object>>) remoteCluster.get("failures");
+                assertThat(failures, hasSize(1));
+                Map<String, Object> reason = (Map<String, Object>) failures.get(0).get("reason");
+                assertThat(reason.get("type"), equalTo("verification_exception"));
+                assertThat(reason.get("reason"), equalTo("Unknown index [remote_cluster:test-remote-view]"));
             }
 
-            // not visible when using wildcard
+            // not visible when using a wildcard that matches only the view
             {
-                var response = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build());
+                var response = run("FROM remote_cluster:test-remote-v*", true);
                 assertThat(response.get("error"), nullValue());
-                assertThat((List<String>) response.get("columns"), contains("<no-fields>"));
-                assertThat((List<String>) response.get("values"), empty());
+                assertThat(response.get("is_partial"), equalTo(false));
+                assertThat(columnNames(response), contains("<no-fields>"));
+                assertThat((List<?>) response.get("values"), empty());
+                assertThat(remoteClusterDetails(response).get("status"), equalTo("successful"));
+            }
+
+            // not visible when using a wildcard that matches the view and its backing index: the count would be larger if the
+            // view (FROM test-remote-index | LIMIT 10) were expanded as its own branch
+            {
+                var response = run("FROM remote_cluster:test-remote-* | STATS c = COUNT(*)", true);
+                assertThat(response.get("error"), nullValue());
+                assertThat(response.get("values"), equalTo(List.of(List.of(remoteDocs.size()))));
+                assertThat(remoteClusterDetails(response).get("status"), equalTo("successful"));
             }
         } finally {
             try (RestClient remoteClient = remoteClusterClient()) {
@@ -807,6 +827,18 @@ public class MultiClustersIT extends ESRestTestCase {
                 remoteClient.performRequest(deleteView);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> columnNames(Map<String, Object> response) {
+        return ((List<Map<String, Object>>) response.get("columns")).stream().map(c -> (String) c.get("name")).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> remoteClusterDetails(Map<String, Object> response) {
+        Map<String, Object> clusters = (Map<String, Object>) response.get("_clusters");
+        Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+        return (Map<String, Object>) details.get("remote_cluster");
     }
 
     public void testStartsWithIndex() throws Exception {

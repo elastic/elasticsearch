@@ -26,7 +26,7 @@ setup:
         refresh: true
         body:
           - { "index": { "_index": "la_misuse", "_id": "1" } }
-          - { "id": "1", "msg": "alpha one", "note": "beta two" }
+          - { "id": "1", "msg": "alpha one", "note": "beta two", "uvalue": "5" }
 
 ---
 teardown:
@@ -64,6 +64,42 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | KEEP id, note* | MV_EXPAND _unmapped_fields'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
+
+---
+'CHANGE_POINT over an unmapped value is rejected because unmapped fields load as keyword':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_change_point, change_point ]
+      reason: "CHANGE_POINT is only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | CHANGE_POINT uvalue ON id'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'CHANGE_POINT only supports numeric values, found expression [uvalue] type [KEYWORD]' }
+
+---
+'CHANGE_POINT cannot read the _unmapped_fields column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_change_point, change_point ]
+      reason: "CHANGE_POINT is only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | KEEP id, note* | CHANGE_POINT _unmapped_fields ON id'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Unknown column [_unmapped_fields]' }

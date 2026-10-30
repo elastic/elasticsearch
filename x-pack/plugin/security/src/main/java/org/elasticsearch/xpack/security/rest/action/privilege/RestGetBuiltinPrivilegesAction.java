@@ -80,7 +80,9 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
                 @Override
                 public RestResponse buildResponse(GetBuiltinPrivilegesResponse response, XContentBuilder builder) throws Exception {
                     final GetBuiltinPrivilegesResponse translatedResponse = responseTranslator.translate(response);
-                    final String[] clusterPrivileges = maybeFilterCrossProjectPrivileges(translatedResponse.getClusterPrivileges());
+                    final String[] clusterPrivileges = maybeFilterBoostPrivileges(
+                        maybeFilterCrossProjectPrivileges(translatedResponse.getClusterPrivileges())
+                    );
                     builder.startObject();
                     builder.array("cluster", clusterPrivileges);
                     builder.array("index", translatedResponse.getIndexPrivileges());
@@ -131,6 +133,19 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
         }
         return Arrays.stream(clusterPrivileges)
             .filter(privilege -> false == crossProjectPrivileges.contains(privilege))
+            .toArray(String[]::new);
+    }
+
+    /**
+     * Filter out boost privileges in stateful, where the boost actions do not exist, otherwise return original array.
+     * In serverless, the response translator decides whether they are listed.
+     */
+    private String[] maybeFilterBoostPrivileges(String[] clusterPrivileges) {
+        if (DiscoveryNode.isStateless(settings)) {
+            return clusterPrivileges;
+        }
+        return Arrays.stream(clusterPrivileges)
+            .filter(privilege -> false == GetBuiltinPrivilegesResponseTranslator.BOOST_CLUSTER_PRIVILEGES.contains(privilege))
             .toArray(String[]::new);
     }
 }

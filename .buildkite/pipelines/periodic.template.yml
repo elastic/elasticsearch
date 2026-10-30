@@ -314,6 +314,7 @@ steps:
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
+          export amazon_s3_region=us-west-2
           export amazon_s3_base_path=$BUILDKITE_BRANCH
 
           .ci/scripts/run-gradle.sh --continue s3ThirdPartyTest

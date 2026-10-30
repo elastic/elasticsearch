@@ -59,6 +59,71 @@ class NativeLibraryCollectionPluginFuncTest extends AbstractGradleInternalPlugin
         collected('beta').exists()
     }
 
+    def "collects the library of every project that applied the build plugin under isolated projects"() {
+        given:
+        nativeLibraryProject('alpha')
+        nativeLibraryProject('beta')
+
+        when:
+        gradleRunner(":collect", "--isolated-projects").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        collected('alpha').exists()
+        collected('beta').exists()
+
+        when:
+        collected('alpha').delete()
+        collected('beta').delete()
+        def warm = gradleRunner(":collect", "--isolated-projects").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        warm.output.contains("Configuration cache entry reused")
+        collected('alpha').exists()
+        collected('beta').exists()
+
+        when:
+        file("alpha/build.gradle") << "\ntasks.register('unrelated')\n"
+        collected('alpha').delete()
+        collected('beta').delete()
+        gradleRunner(":collect", "--isolated-projects").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        collected('alpha').exists()
+        collected('beta').exists()
+    }
+
+    def "ignores a project that does not apply the build plugin, even if it has a native library"() {
+        given:
+        nativeLibraryProject('alpha')
+        lookalikeProject('gamma')
+
+        when:
+        gradleRunner("collect").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        collected('alpha').exists()
+        collected('gamma').exists() == false
+    }
+
+    /**
+     * A project that looks like a producer (same consumable configuration, same library layout)
+     * but never applies the plugin.
+     */
+    private void lookalikeProject(String name) {
+        settingsFile << """
+        include '${name}'
+        """
+        file("${name}/prebuilt/${PLATFORM}/lib${name}.so") << "built\n"
+        file("${name}/build.gradle") << """
+        import org.gradle.api.artifacts.type.ArtifactTypeDefinition
+
+        configurations.consumable('${NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION}') {
+          attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+        }
+        artifacts.add('${NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION}', layout.projectDirectory.dir('prebuilt'))
+        """
+    }
+
     /**
      * A project that builds a native library named after itself, so a collected tree can be told
      * apart from another project's. Applies the plugin and declares nothing else about collection.

@@ -13,11 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.OTLP_RETRY_INITIAL_BACKOFF;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT;
+import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE;
@@ -109,6 +112,14 @@ public class OtelSdkSettingsTests extends ESTestCase {
 
     public void testMaxSpansDefault() {
         assertThat(TELEMETRY_TRACING_MAX_SPANS.get(Settings.EMPTY), equalTo(500));
+    }
+
+    public void testMaxDepthDefault() {
+        assertThat(TELEMETRY_TRACING_MAX_DEPTH.get(Settings.EMPTY), equalTo(0));
+        for (String spanLimit : List.of("telemetry.tracing.max_spans", "telemetry.agent.transaction_max_spans")) {
+            Settings settings = Settings.builder().put(spanLimit, "500").build();
+            assertThat(spanLimit, TELEMETRY_TRACING_MAX_DEPTH.get(settings), equalTo(Integer.MAX_VALUE));
+        }
     }
 
     public void testEndpointFallsBackToAgentServerUrl() {

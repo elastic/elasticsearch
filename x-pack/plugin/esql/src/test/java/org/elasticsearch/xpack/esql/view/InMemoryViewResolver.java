@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
@@ -22,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -29,6 +31,7 @@ import static org.mockito.Mockito.mock;
 public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
     protected IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Executor searchExecutor;
 
     public InMemoryViewResolver(
         ThreadPool threadPool,
@@ -43,6 +46,7 @@ public class InMemoryViewResolver extends ViewResolver {
             projectResolver
         );
         this.metadata = metadata;
+        this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @Override
@@ -62,7 +66,9 @@ public class InMemoryViewResolver extends ViewResolver {
             clusterService,
             projectResolver
         );
-        action.execute(mock(Task.class), request, listener);
+        // Fork the response like ViewResolver#doEsqlResolveViewsRequest does: completing inline would resolve every view body on
+        // the caller's stack, which can overflow a 1MB thread stack on deeply nested views and leave the listener uncompleted.
+        action.execute(mock(Task.class), request, new ThreadedActionListener<>(searchExecutor, listener));
     }
 
     public void close() {

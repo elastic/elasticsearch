@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -58,10 +57,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -204,7 +200,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testSingleValueMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -222,7 +218,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // Present value, absent doc ({}), and explicit JSON null without null_value -> absent.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -239,7 +235,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testNullValueSubstitutionMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip").field("null_value", "0.0.0.0");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -257,7 +253,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // A single-element array {"f":["1.1.1.1"]} is a legal value for a multi_value=false field.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -275,7 +271,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // Every doc has an ip value; no absent docs. Exercises the dense (validity==null) wrap.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -292,7 +288,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -313,7 +309,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
     public void testIpv6MultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }), columnarSettings(), batch("ipv6 multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"2001:db8::1\"}"), doc("d2", 2L, "{}")));
     }
@@ -491,7 +487,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"1.1.1.1\",\"2.2.2.2\"]}"));
@@ -503,7 +499,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "ip");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(
@@ -629,13 +625,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // ip field with a null_value configured used to write two values instead of bailing.
         // The multi-value check now runs before null_value substitution.
         final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
-            b.startObject(FIELD)
-                .field("type", "ip")
-                .startObject("doc_values")
-                .field("multi_value", false)
-                .endObject()
-                .field("null_value", "0.0.0.0")
-                .endObject();
+            b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"192.168.0.1\",null]}"));
     }
@@ -645,13 +635,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         // be rejected. The null element is substituted (first write), so the subsequent real IP is a
         // second value and must trigger the multi_value=false violation.
         final MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
-            b.startObject(FIELD)
-                .field("type", "ip")
-                .startObject("doc_values")
-                .field("multi_value", false)
-                .endObject()
-                .field("null_value", "0.0.0.0")
-                .endObject();
+            b.startObject(FIELD).field("type", "ip").field("multi_value", false).field("null_value", "0.0.0.0").endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[null,\"192.168.0.1\"]}"));
     }

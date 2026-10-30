@@ -25,6 +25,7 @@ import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 
@@ -73,7 +74,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param qOffset the query minimum value (used as offset in correction)
      * @param constantCorrection precomputed centering correction term
      */
-    private record QuantizedQuery(byte[] queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
+    private record QuantizedQuery(ScoringQuery queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
 
     /**
      * Quantizes a projected query vector for the integer scoring path.
@@ -126,7 +127,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
         float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         float constantCorrection = centerOffset * (unsignedSum * invQScale + qMin * nDims);
-        return new QuantizedQuery(queryQuantized, invQScale, qMin, constantCorrection);
+        return new QuantizedQuery(new ScoringQuery(queryQuantized), invQScale, qMin, constantCorrection);
     }
 
     /**
@@ -134,8 +135,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * appropriate query path (float or integer), encapsulating query projection, optional
      * quantization, and scorer selection.
      *
-     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param matrix the projection matrix, used to project the query
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param indexInput input for reading posting list data (must be unwrapped for MemorySegment access)
@@ -146,8 +146,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @return a configured visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> create(
-        float[] wT,
-        int originalDim,
+        AshProjectionMatrix matrix,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
@@ -156,17 +155,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int queryBitsPerDim,
         CheckedIntFunction<float[], IOException> centroidReader
     ) throws IOException {
-        return createVisitor(
-            wT,
-            originalDim,
-            query,
-            similarityFunction,
-            indexInput,
-            acceptDocs,
-            bitsPerDim,
-            queryBitsPerDim,
-            centroidReader
-        );
+        return createVisitor(matrix, query, similarityFunction, indexInput, acceptDocs, bitsPerDim, queryBitsPerDim, centroidReader);
     }
 
     /**
@@ -174,8 +163,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * ({@code numSlices == 0}). The returned visitor translates vector ordinals to doc IDs via
      * {@link KnnVectorValues#ordToDoc} and restricts scoring to the {@code [startDoc, endDoc)} range.
      *
-     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param matrix the projection matrix, used to project the query
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param indexInput input for reading posting list data (must be unwrapped for MemorySegment access)
@@ -189,8 +177,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @return a configured sliced visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> createSliced(
-        float[] wT,
-        int originalDim,
+        AshProjectionMatrix matrix,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
@@ -203,8 +190,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int endDoc
     ) throws IOException {
         AshPostingsVisitor<?> base = createVisitor(
-            wT,
-            originalDim,
+            matrix,
             query,
             similarityFunction,
             indexInput,
@@ -217,8 +203,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     }
 
     private static AshPostingsVisitor<?> createVisitor(
-        float[] wT,
-        int originalDim,
+        AshProjectionMatrix matrix,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
@@ -227,17 +212,19 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int queryBitsPerDim,
         CheckedIntFunction<float[], IOException> centroidReader
     ) throws IOException {
-        int nDims = wT.length / originalDim;
-
-        // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
-        float[] queryTransformed = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        // Precompute query projection: queryTransformed = W^T @ query
+        float[] queryTransformed = matrix.projectQuery(query);
 
         if (queryBitsPerDim > 0) {
-            QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);
-            AshScorer<byte[]> scorer = ESVectorUtil.getAshIntegerVectorsScorer(indexInput, nDims, bitsPerDim, queryBitsPerDim);
+            QuantizedQuery qq = quantizeQuery(queryTransformed, matrix.nDims(), queryBitsPerDim, bitsPerDim);
+            AshScorer<ScoringQuery> scorer = ESVectorUtil.getAshIntegerVectorsScorer(
+                indexInput,
+                matrix.nDims(),
+                bitsPerDim,
+                queryBitsPerDim
+            );
             return new AshPostingsVisitor<>(
-                wT,
-                originalDim,
+                matrix.nDims(),
                 query,
                 similarityFunction,
                 scorer,
@@ -249,10 +236,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 centroidReader
             );
         } else {
-            AshScorer<float[]> scorer = ESVectorUtil.getAshFloatVectorsScorer(indexInput, nDims, bitsPerDim);
+            AshScorer<float[]> scorer = ESVectorUtil.getAshFloatVectorsScorer(indexInput, matrix.nDims(), bitsPerDim);
             return new AshPostingsVisitor<>(
-                wT,
-                originalDim,
+                matrix.nDims(),
                 query,
                 similarityFunction,
                 scorer,
@@ -347,8 +333,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     }
 
     /**
-     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param nDims number of projected dimensions
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param scorer the scorer to use for reading and scoring packed codes
@@ -360,8 +345,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
      */
     private AshPostingsVisitor(
-        float[] wT,
-        int originalDim,
+        int nDims,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         AshScorer<T> scorer,
@@ -372,7 +356,6 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         QuantizedQuery quantizedQuery,
         CheckedIntFunction<float[], IOException> centroidReader
     ) {
-        int nDims = wT.length / originalDim;
         this.indexInput = indexInput;
         this.acceptDocs = acceptDocs;
         this.packedCodeBytes = bitsPerDim * ((nDims + 7) >>> 3);

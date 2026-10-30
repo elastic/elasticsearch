@@ -2614,4 +2614,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             new WildcardFieldMaskingReader(roundtripMaskedFields, roundTripReader)
         );
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a flattened field are objects, not the scalar sample values.
+        return false;
+    }
 }

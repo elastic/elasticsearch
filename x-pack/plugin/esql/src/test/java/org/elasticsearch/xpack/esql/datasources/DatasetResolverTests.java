@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.junit.After;
 import org.junit.Before;
 
@@ -138,7 +139,8 @@ public class DatasetResolverTests extends ESTestCase {
         DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
 
         // The caller's wildcard and the view body's are the same pattern. Only the caller's can match the dataset, so it is the only
-        // relation the resolver spends a round-trip on, and the view body's relation is left as it is.
+        // relation resolved, and the view body's relation is left as it is. The view body's relation is only looked up to warn
+        // the caller that the view kept their setting from matching the dataset.
         UnresolvedRelation callers = relationOf("log*");
         UnresolvedRelation inView = relationOf("log*");
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
@@ -146,10 +148,49 @@ public class DatasetResolverTests extends ESTestCase {
         branches.put("logs_view", inView);
         BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
 
-        LogicalPlan rewritten = replaceDatasets(resolver, plan, project(), true);
+        IndexViewOrigins origins = new IndexViewOrigins(Map.of("log*", Set.of(List.of("logs_view"))));
+        LogicalPlan rewritten = replaceDatasets(resolver, plan, project(), true, origins);
         assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
         assertSame(inView, rewritten.children().get(1));
-        assertEquals("only the caller's wildcard is dispatched", 1, localCalls.get());
+        assertEquals("the caller's wildcard is resolved and the view body's is only looked up", 2, localCalls.get());
+        assertWarnings(
+            "SET wildcards_match_datasets=true does not affect the contents of view [logs_view], so its wildcards did not match "
+                + "dataset [logs]; use that setting inside the view definition if you wish to change the view behaviour"
+        );
+    }
+
+    /** Normal resolution evaluates date math before expanding wildcards, so the lookup does too. */
+    public void testDateMathWildcardInViewBranchIsLookedUp() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
+
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("other"));
+        branches.put("logs_view", relationOf("<log*>"));
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        IndexViewOrigins origins = new IndexViewOrigins(Map.of("<log*>", Set.of(List.of("logs_view"))));
+        replaceDatasets(resolver, plan, project(), true, origins);
+        assertEquals(1, localCalls.get());
+        assertWarnings(
+            "SET wildcards_match_datasets=true does not affect the contents of view [logs_view], so its wildcards did not match "
+                + "dataset [logs]; use that setting inside the view definition if you wish to change the view behaviour"
+        );
+    }
+
+    public void testWildcardInViewBranchIsNotLookedUpWhenCallerDoesNotMatchDatasets() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
+
+        UnresolvedRelation inView = relationOf("log*");
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("other"));
+        branches.put("logs_view", inView);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        LogicalPlan rewritten = replaceDatasets(resolver, plan, project(), false);
+        assertSame(inView, rewritten.children().get(1));
+        assertEquals("nothing could match a dataset, so nothing is dispatched", 0, localCalls.get());
     }
 
     public void testNoDatasetsRegisteredLeavesPlanUnchanged() {
@@ -187,6 +228,7 @@ public class DatasetResolverTests extends ESTestCase {
             project,
             true,
             Map.of(),
+            IndexViewOrigins.EMPTY,
             QueryPragmas.EMPTY,
             EsqlFlags.withMaxBranchCountPerMerge(cap),
             future
@@ -269,6 +311,7 @@ public class DatasetResolverTests extends ESTestCase {
                 project(),
                 false,
                 Map.of(),
+                IndexViewOrigins.EMPTY,
                 QueryPragmas.EMPTY,
                 EsqlFlags.DEFAULTS,
                 meteredAtCompletion.map(rewritten -> tracker.isMeteringCurrentThread())
@@ -294,8 +337,27 @@ public class DatasetResolverTests extends ESTestCase {
         ProjectMetadata project,
         boolean wildcardsMatchDatasets
     ) {
+        return replaceDatasets(resolver, plan, project, wildcardsMatchDatasets, IndexViewOrigins.EMPTY);
+    }
+
+    private LogicalPlan replaceDatasets(
+        DatasetResolver resolver,
+        LogicalPlan plan,
+        ProjectMetadata project,
+        boolean wildcardsMatchDatasets,
+        IndexViewOrigins indexViewOrigins
+    ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(plan, project, wildcardsMatchDatasets, Map.of(), QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
+        resolver.replaceDatasets(
+            plan,
+            project,
+            wildcardsMatchDatasets,
+            Map.of(),
+            indexViewOrigins,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            future
+        );
         return future.actionGet();
     }
 

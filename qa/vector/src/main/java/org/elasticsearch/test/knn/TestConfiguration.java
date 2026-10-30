@@ -89,6 +89,7 @@ public record TestConfiguration(
     int numDeletedDocs,
     long deleteSeed,
     float projectedDimsFraction,
+    int maxProjectedDims,
     String quantizationType
 ) {
 
@@ -144,6 +145,7 @@ public record TestConfiguration(
     static final ParseField EXACT_FIELD = new ParseField("exact");
     static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
     private static final ParseField PROJECTED_DIMS_FRACTION_FIELD = new ParseField("projected_dims_fraction");
+    private static final ParseField MAX_PROJECTED_DIMS_FIELD = new ParseField("max_projected_dims");
     private static final ParseField QUANTIZATION_TYPE_FIELD = new ParseField("quantization_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
@@ -228,6 +230,7 @@ public record TestConfiguration(
             ObjectParser.ValueType.VALUE_ARRAY
         );
         PARSER.declareFloat(Builder::setProjectedDimsFraction, PROJECTED_DIMS_FRACTION_FIELD);
+        PARSER.declareInt(Builder::setMaxProjectedDims, MAX_PROJECTED_DIMS_FIELD);
         PARSER.declareString(Builder::setQuantizationType, QUANTIZATION_TYPE_FIELD);
     }
 
@@ -493,6 +496,7 @@ public record TestConfiguration(
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
         private float projectedDimsFraction = 0.5f;
+        private int maxProjectedDims = 1024;
         private String quantizationType = "osq";
 
         /**
@@ -751,6 +755,10 @@ public record TestConfiguration(
 
         public void setProjectedDimsFraction(float projectedDimsFraction) {
             this.projectedDimsFraction = projectedDimsFraction;
+        }
+
+        public void setMaxProjectedDims(int maxProjectedDims) {
+            this.maxProjectedDims = maxProjectedDims;
         }
 
         public void setQuantizationType(String quantizationType) {
@@ -1056,6 +1064,7 @@ public record TestConfiguration(
                 numDeletedDocs,
                 deleteSeed,
                 projectedDimsFraction,
+                maxProjectedDims,
                 quantizationType
             );
         }

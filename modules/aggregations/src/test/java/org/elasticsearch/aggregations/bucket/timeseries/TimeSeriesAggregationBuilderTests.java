@@ -11,7 +11,25 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.elasticsearch.aggregations.bucket.AggregationBuilderTestCase;
 
+import java.util.List;
+
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+
 public class TimeSeriesAggregationBuilderTests extends AggregationBuilderTestCase<TimeSeriesAggregationBuilder> {
+
+    /**
+     * Every test here creates or parses a {@link TimeSeriesAggregationBuilder}, which emits the deprecation warning. It is asserted once in
+     * {@link #testDeprecationWarning} instead of in each test.
+     */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
+
+    public void testDeprecationWarning() {
+        new TimeSeriesAggregationBuilder(randomAlphaOfLength(10));
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
 
     @Override
     protected TimeSeriesAggregationBuilder createTestAggregatorBuilder() {

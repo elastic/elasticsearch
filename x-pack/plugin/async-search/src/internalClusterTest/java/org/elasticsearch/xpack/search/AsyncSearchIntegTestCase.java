@@ -171,6 +171,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         });
         ensureAllSearchContextsReleased();
 
+        // Wait for the replica of the just-created async results index to finish peer recovery. Restarting its node mid-recovery
+        // leaves an empty copy that is only reallocated after the 1m node-left delay,
+        // https://github.com/elastic/elasticsearch/issues/162607
+        ensureGreen(ASYNC_RESULTS_INDEX, indexName);
+
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
             @Override
             public void onNodeStarted(String nodeName) {

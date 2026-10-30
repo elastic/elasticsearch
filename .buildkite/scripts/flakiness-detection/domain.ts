@@ -234,17 +234,20 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Label-gated blocking
+// Blocking
 //
 // Flakiness detection reports rather than blocks: every batch step and the analyze step run through
 // never-fail.sh, which exits 0 whatever the wrapped command did (that script's header explains why a
-// soft_fail step is not an alternative). A team that trusts the signal can opt out of that for its own
-// PRs, and then proven flakiness turns the build red.
+// soft_fail step is not an alternative). Proven flakiness turns the build red on a non-PR build, on every
+// PR while BLOCK_ALL_PRS is on, and otherwise on a PR carrying one of BLOCKING_LABELS.
 //
 // The whole decision lives in the analyze step (entrypoints/analyze.ts `shouldBlock`), which is the only
-// place that has both the labels and deriveOutcome's verdict. Detection, resolution, batching and
-// reporting never look at labels.
+// place that has the build's PR number, labels and deriveOutcome's verdict. Detection, resolution, batching
+// and reporting never look at labels.
 // ---------------------------------------------------------------------------
+
+/** Makes proven flakiness fail every PR build; BLOCKING_LABELS is then a no-op. */
+export const BLOCK_ALL_PRS = false;
 
 /**
  * PR labels that make flakiness detection blocking. A team opts in by adding its GitHub label here.
@@ -275,7 +278,6 @@ export const FLAKINESS_PROVEN_EXIT_CODE = 42;
  *
  * Matching is exact, as in .buildkite/scripts/pull-request/pipeline.ts. Buildkite captures the variable
  * when the build is created, so labelling an open PR takes effect on its next build.
- * The manually-triggered pipeline has no PR and therefore no labels, so it is never blocking.
  */
 export function matchedBlockingLabels(labels: string): string[] {
   return labels

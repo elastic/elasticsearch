@@ -200,8 +200,12 @@ public class CsvTestsDataLoader {
         new TestDataset("nested_paths_unmapped", "mapping-nested_paths_unmapped.json", "nested_paths_unmapped.csv"),
         new TestDataset("mv_expand_mapped", "mapping-mv_expand_mapped.json", "mv_expand_mapped.csv"),
         new TestDataset("mv_expand_unmapped", "mapping-mv_expand_unmapped.json", "mv_expand_unmapped.csv"),
+        new TestDataset("change_point_mapped", "mapping-change_point_mapped.json", "change_point_mapped.csv"),
+        new TestDataset("change_point_unmapped", "mapping-change_point_unmapped.json", "change_point_unmapped.csv"),
         new TestDataset("flattened_paths_mapped", "mapping-flattened_paths_mapped.json", "flattened_paths_mapped.csv"),
         new TestDataset("flattened_paths_unmapped", "mapping-flattened_paths_unmapped.json", "flattened_paths_unmapped.csv"),
+        new TestDataset("unmapped_compound_outputs", "mapping-unmapped_compound_outputs.json", "unmapped_compound_outputs.csv"),
+        new TestDataset("unmapped_compound_inputs", "mapping-unmapped_compound_inputs.json", "unmapped_compound_inputs.csv"),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
         // a foo leaf only, a bar leaf only, foo / bar / deep.leaf across separate documents (synthetic source), and a bare scalar plus a
         // foo array. All share mapping-unmapped_multi.json (dynamic:false, only id mapped) so the rest lands in _source / _ignored_source.
@@ -355,19 +359,19 @@ public class CsvTestsDataLoader {
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V4),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V7),
         new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").asDataStream()
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V4),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V7),
         new TestDataset(
             "metrics-noexemplars",
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V4),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V7),
         // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s data stream)
         new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").asDataStream()
             .withSetting("k8s-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V4),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V7),
         new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
@@ -474,6 +478,13 @@ public class CsvTestsDataLoader {
         new TestDataset("path_lookup").withSetting("lookup-settings.json"),
         new TestDataset("flattened_typed").withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_DATATYPE),
         new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
+        new TestDataset("ts_dense_vector", "mapping-ts_dense_vector.json", "ts_dense_vector.csv", "ts_dense_vector-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS),
+        new TestDataset("unmapped_sink", "mapping-unmapped_sink.json", "unmapped_sink.csv", "unmapped-sink-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_UNMAPPED_SINK_LOAD),
+        new TestDataset("unmapped_sink", "mapping-unmapped_sink.json", "unmapped_sink.csv", "unmapped-sink-columnar-stored-settings.json")
+            .withIndex("unmapped_sink_columnar_stored")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_UNMAPPED_SINK_LOAD),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
         new TestDataset(
@@ -565,7 +576,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_country_wildcard"),
         new ViewConfig("no_mapping_view"),
         new ViewConfig("drop_unmapped_duration_wildcard_partial_mapping_view", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
-        new ViewConfig("nested_message_wildcard_view"),
+        new ViewConfig("view_partial_mapping_loads_event_duration", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("nested_partial_mapping_view"),
         new ViewConfig("view_partially_unmapped_sample_data"),
         new ViewConfig("view_partially_unmapped_conflicting_sample_data"),
@@ -579,6 +590,10 @@ public class CsvTestsDataLoader {
         ),
         new ViewConfig("view_with_fork", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
         new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
+        new ViewConfig(
+            "view_partial_mapping_retained_union",
+            List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)
+        ),
         new ViewConfig("fork_over_union_view", List.of(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS)),
         new ViewConfig("view_with_let", List.of(EsqlCapabilities.Cap.NAMED_SUBQUERY_LET))
     ).collect(toMap(ViewConfig::name, Function.identity()));

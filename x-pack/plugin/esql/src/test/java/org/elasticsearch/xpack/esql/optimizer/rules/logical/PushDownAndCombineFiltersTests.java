@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -27,8 +28,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -2135,13 +2138,17 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       |_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *       \_Project[[a{r}#5, gender{f}#12]]
      *         \_Eval[[$$SUM$a$0{r$}#21 / $$COUNT$a$1{r$}#22 AS a#5]]
-     *           \_Aggregate[[gender{f}#12],[SUM(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$0#21,
-     * COUNT(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$a$1#22, gender{f}#12]]
-     *             \_StubRelation[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,
+     *           \_Project[[$$SUM$a$0{r$}#21, $$COUNT$a$1{r$}#22, gender{f}#12]]
+     *             \_Filter[$$SUM$a$0{r$}#21 / $$COUNT$a$1{r$}#22 > 55000[INTEGER] OR
+     * $$gender$temp_name$26{r}#27 > $$count$temp_name$24{r}#25]
+     *               \_Aggregate[[gender{f}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$count$temp_name$24#25,
+     * COUNT(gender{f}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$gender$temp_name$26#27, SUM(salary{f}#15,true[BOOLEAN],
+     * PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$0#21, COUNT(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$a$1#22,
+     * gender{f}#12]]
+     *                 \_StubRelation[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,
      * job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
      */
-    public void testDontPushDown_OnRightSideOf_InlineStats() {
-        // a > 55000 even if it makes sense to have it pushed down on the right hand side, atm it cannot be done for inlinestats
+    public void testPushDown_OnRightSideOf_InlineStats() {
         var plan = plan("""
             FROM employees
             | INLINE STATS a = AVG(salary) BY gender
@@ -2167,7 +2174,20 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         // InlineJoin right side
         var right = as(ij.right(), Project.class);
         var eval = as(right.child(), Eval.class);
-        var aggregate = as(eval.child(), Aggregate.class);
+        var countsProject = as(eval.child(), Project.class);
+        var rightFilter = as(countsProject.child(), Filter.class);
+        var disjunctions = Predicates.splitOr(rightFilter.condition());
+        assertThat(disjunctions.size(), is(2));
+        // a is replaced with its definition, since the filter is evaluated below the Eval
+        var pushedGt = as(disjunctions.get(0), GreaterThan.class);
+        assertEquals(eval.fields().getFirst().child(), pushedGt.left());
+        assertEquals(55000, as(pushedGt.right(), Literal.class).value());
+        var multiValuedKey = as(disjunctions.get(1), GreaterThan.class);
+        var aggregate = as(rightFilter.child(), Aggregate.class);
+        var countKey = as(aliasedAggregate(aggregate, multiValuedKey.left()), Count.class);
+        assertEquals("gender", as(countKey.fields().getFirst(), FieldAttribute.class).name());
+        as(aliasedAggregate(aggregate, multiValuedKey.right()), Count.class);
+        assertThat(Expressions.names(countsProject.projections()), contains("$$SUM$a$0", "$$COUNT$a$1", "gender"));
         as(aggregate.child(), StubRelation.class);
     }
 
@@ -2187,9 +2207,14 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      * job.raw{f}#28, languages{f}#22, last_name{f}#23, long_noidx{f}#29, salary{f}#24]]
      *       \_Project[[avgByG{r}#9, gender{f}#21]]
      *         \_Eval[[$$SUM$avgByG$0{r$}#33 / $$COUNT$avgByG$1{r$}#34 AS avgByG#9]]
-     *           \_Aggregate[[gender{f}#21],[SUM(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avgByG$0#33,
-     * COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByG$1#34, gender{f}#21]]
-     *             \_StubRelation[[_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, gender{f}#21, hire_date{f}#26, job{f}#27,
+     *           \_Project[[$$SUM$avgByG$0{r$}#33, $$COUNT$avgByG$1{r$}#34, gender{f}#21]]
+     *             \_Filter[$$SUM$avgByG$0{r$}#33 / $$COUNT$avgByG$1{r$}#34 < 50000[INTEGER] OR
+     * $$gender$temp_name$37{r}#38 > $$count$temp_name$35{r}#36]
+     *               \_Aggregate[[gender{f}#21],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$count$temp_name$35#36,
+     * COUNT(gender{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$gender$temp_name$37#38, SUM(salary{f}#24,true[BOOLEAN],
+     * PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avgByG$0#33, COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     * $$COUNT$avgByG$1#34, gender{f}#21]]
+     *                 \_StubRelation[[_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, gender{f}#21, hire_date{f}#26, job{f}#27,
      * job.raw{f}#28, last_name{f}#23, long_noidx{f}#29, salary{f}#24, avgByL{r}#5, languages{f}#22]]
      *
      * First InlineJoin stubReplacedSubPlan:
@@ -2202,14 +2227,17 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      * Second InlineJoin stubReplacedSubPlan:
      * Project[[avgByG{r}#9, gender{f}#21]]
      * \_Eval[[$$SUM$avgByG$0{r$}#33 / $$COUNT$avgByG$1{r$}#34 AS avgByG#9]]
-     *   \_Aggregate[[gender{f}#21],[SUM(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avgByG$0#33,
-     * COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByG$1#34, gender{f}#21]]
-     *     \_Filter[ISNOTNULL(gender{f}#21)]
-     *       \_InlineJoin[LEFT,[languages{f}#22],[languages{r}#22]]
-     *         |_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
-     *         \_LocalRelation[[avgByL{r}#5, languages{f}#22],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@817a68ce]
+     *   \_Project[[$$SUM$avgByG$0{r$}#33, $$COUNT$avgByG$1{r$}#34, gender{f}#21]]
+     *     \_Filter[$$SUM$avgByG$0{r$}#33 / $$COUNT$avgByG$1{r$}#34 < 50000[INTEGER] OR
+     * $$gender$temp_name$37{r}#38 > $$count$temp_name$35{r}#36]
+     *       \_Aggregate[[gender{f}#21],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$count$temp_name$35#36, ..]]
+     *         \_Filter[ISNOTNULL(gender{f}#21)]
+     *           \_InlineJoin[LEFT,[languages{f}#22],[languages{r}#22]]
+     *             |_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     *             \_LocalRelation[[avgByL{r}#5, languages{f}#22],
+     * org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@817a68ce]
      */
-    public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeComplexAggFilters() {
+    public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_CopyOuterAggFilter() {
         var plan = plan("""
             FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
@@ -2223,7 +2251,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
             | WHERE gender IS NOT NULL
-            | INLINE STATS avgByG = AVG(salary) BY gender
+            | INLINE STATS avgByG = AVG(salary) BY gender, keeping only the groups where avgByG < 50000 or gender is multi-valued
             | WHERE languages > 3 AND avgByL > 40000 AND avgByG < 50000
             | KEEP avgB*, languages, gender, emp_no
          */
@@ -2305,7 +2333,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         // this is Second InlineJoin stubReplacedSubPlan
         firstSubPlan = firstSubPlan(newMainPlan, subPlansResults).stubReplacedSubPlan();
 
-        // first InlineJoin right side
+        // first InlineJoin right side, with avgByG < 50000 copied on top of its aggregate
         var right = as(ij.right(), Project.class);
         // What EsqlSession is doing
         var firstSubPlanProject = as(firstSubPlan, Project.class);
@@ -2313,8 +2341,16 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var eval = as(right.child(), Eval.class);
         var firstSubPlanEval = as(firstSubPlanProject.child(), Eval.class);
         assertEquals(eval.fields(), firstSubPlanEval.fields());
-        var aggregate = as(eval.child(), Aggregate.class);
-        var firstSubPlanAggregate = as(firstSubPlanEval.child(), Aggregate.class);
+        var countsProject = as(eval.child(), Project.class);
+        var firstSubPlanCountsProject = as(firstSubPlanEval.child(), Project.class);
+        assertEquals(countsProject.projections(), firstSubPlanCountsProject.projections());
+        var rightFilter = as(countsProject.child(), Filter.class);
+        var firstSubPlanRightFilter = as(firstSubPlanCountsProject.child(), Filter.class);
+        assertEquals(rightFilter.condition(), firstSubPlanRightFilter.condition());
+        var pushedLt = as(Predicates.splitOr(rightFilter.condition()).getFirst(), LessThan.class);
+        assertEquals(eval.fields().getFirst().child(), pushedLt.left());
+        var aggregate = as(rightFilter.child(), Aggregate.class);
+        var firstSubPlanAggregate = as(firstSubPlanRightFilter.child(), Aggregate.class);
         assertEquals(aggregate.groupings(), firstSubPlanAggregate.groupings());
         assertEquals(aggregate.aggregates(), firstSubPlanAggregate.aggregates());
 
@@ -2395,6 +2431,194 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
         // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
         assertEquals(left, firstSubPlanFilter);
+    }
+
+    public void testPushDown_AggFilter_FirstSeenShape_IntoInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS first_hired = MIN(hire_date) BY languages
+            | WHERE hire_date == first_hired AND first_hired >= "1990-01-01"
+            | KEEP emp_no, languages, hire_date
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var conjunctions = Predicates.splitAnd(commonFilter.condition());
+        assertThat(conjunctions.size(), is(2));
+        var equals = as(conjunctions.get(0), Equals.class);
+        assertEquals("hire_date", as(equals.left(), FieldAttribute.class).name());
+        assertEquals("first_hired", as(equals.right(), ReferenceAttribute.class).name());
+        var gte = as(conjunctions.get(1), GreaterThanOrEqual.class);
+        assertEquals("first_hired", as(gte.left(), ReferenceAttribute.class).name());
+
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        as(ij.left(), EsRelation.class);
+        var rightProject = as(ij.right(), Project.class);
+        assertThat(Expressions.names(rightProject.projections()), contains("first_hired", "languages"));
+        var rightFilter = as(rightProject.child(), Filter.class);
+        var disjunctions = Predicates.splitOr(rightFilter.condition());
+        assertThat(disjunctions.size(), is(2));
+        assertEquals(gte, disjunctions.get(0));
+        var multiValuedKey = as(disjunctions.get(1), GreaterThan.class);
+        var aggregate = as(rightFilter.child(), Aggregate.class);
+        var countKey = as(aliasedAggregate(aggregate, multiValuedKey.left()), Count.class);
+        assertEquals("languages", as(countKey.fields().getFirst(), FieldAttribute.class).name());
+        var countAll = as(aliasedAggregate(aggregate, multiValuedKey.right()), Count.class);
+        assertThat(countAll.fields().getFirst().foldable(), is(true));
+        as(aggregate.child(), StubRelation.class);
+
+        var firstSubPlan = InlineJoin.firstSubPlan(plan, new HashSet<LocalRelation>()).stubReplacedSubPlan();
+        var firstSubPlanProject = as(firstSubPlan, Project.class);
+        var firstSubPlanFilter = as(firstSubPlanProject.child(), Filter.class);
+        var firstSubPlanAggregate = as(firstSubPlanFilter.child(), Aggregate.class);
+        as(firstSubPlanAggregate.child(), EsRelation.class);
+    }
+
+    public void testPushDown_AggFilter_ReusesCountAll_IntoInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) BY languages
+            | WHERE c > 10
+            | KEEP emp_no, languages, c
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        var rightProject = as(ij.right(), Project.class);
+        var rightFilter = as(rightProject.child(), Filter.class);
+        var disjunctions = Predicates.splitOr(rightFilter.condition());
+        assertThat(disjunctions.size(), is(2));
+        var multiValuedKey = as(disjunctions.get(1), GreaterThan.class);
+        assertEquals("c", as(multiValuedKey.right(), ReferenceAttribute.class).name());
+        var aggregate = as(rightFilter.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()).size(), is(3));
+    }
+
+    public void testPushDown_AggFilter_OnDuplicateAggregate_IntoInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS m = MAX(salary), m2 = MAX(salary) BY languages
+            | WHERE m2 > 70000
+            | KEEP emp_no, languages, m, m2
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var gt = as(commonFilter.condition(), GreaterThan.class);
+        assertEquals("m2", as(gt.left(), ReferenceAttribute.class).name());
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        // The right side computes the duplicated MAX once and projects m2 as an alias of m.
+        var rightProject = as(ij.right(), Project.class);
+        var m2 = as(rightProject.projections().get(1), Alias.class);
+        assertEquals("m2", m2.name());
+        var rightFilter = as(rightProject.child(), Filter.class);
+        var disjunctions = Predicates.splitOr(rightFilter.condition());
+        assertThat(disjunctions.size(), is(2));
+        var copied = as(disjunctions.get(0), GreaterThan.class);
+        assertEquals(m2.child(), copied.left());
+        assertEquals(gt.right(), copied.right());
+        var aggregate = as(rightFilter.child(), Aggregate.class);
+        as(aliasedAggregate(aggregate, copied.left()), Max.class);
+        as(aggregate.child(), StubRelation.class);
+    }
+
+    private static Expression aliasedAggregate(Aggregate aggregate, Expression attribute) {
+        return aggregate.aggregates()
+            .stream()
+            .filter(ne -> ne instanceof Alias alias && alias.toAttribute().semanticEquals(attribute))
+            .map(ne -> ((Alias) ne).child())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no aggregate for " + attribute + " in " + aggregate));
+    }
+
+    public void testDontPushDown_IsNullAggFilter_PastInlineJoin() {
+        var condition = nullAcceptingAggFilterAboveInlineJoin("max_salary IS NULL");
+        var isNull = as(condition, IsNull.class);
+        assertEquals("max_salary", as(isNull.field(), ReferenceAttribute.class).name());
+    }
+
+    public void testDontPushDown_CoalesceAggFilter_PastInlineJoin() {
+        var condition = nullAcceptingAggFilterAboveInlineJoin("COALESCE(max_salary, 0) < 70000");
+        var lessThan = as(condition, LessThan.class);
+        var coalesce = as(lessThan.left(), Coalesce.class);
+        assertEquals("max_salary", as(coalesce.children().get(0), ReferenceAttribute.class).name());
+    }
+
+    /**
+     * The filter stays above the join, where left rows whose group the right side dropped get a null aggregate. A filter that is
+     * true on null would keep those rows, so pushing it into the right side would change the result.
+     * Returns the condition of the filter above the {@link InlineJoin}.
+     */
+    private Expression nullAcceptingAggFilterAboveInlineJoin(String condition) {
+        var plan = plan(Strings.format("""
+            FROM employees
+            | INLINE STATS max_salary = MAX(salary) BY languages
+            | WHERE %s
+            | KEEP emp_no, languages, max_salary
+            """, condition));
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        as(ij.left(), EsRelation.class);
+        var aggregate = as(ij.right(), Aggregate.class);
+        as(aggregate.child(), StubRelation.class);
+        return commonFilter.condition();
+    }
+
+    public void testDontPushDown_AggFilter_PastInlineJoinWithoutGrouping() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS max_salary = MAX(salary)
+            | WHERE max_salary > 70000
+            | KEEP emp_no, max_salary
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var gt = as(commonFilter.condition(), GreaterThan.class);
+        assertEquals("max_salary", as(gt.left(), ReferenceAttribute.class).name());
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        assertThat(ij.config().leftFields(), is(emptyList()));
+        var aggregate = as(ij.right(), Aggregate.class);
+        as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * {@link Random} is internal and cannot be written in a query, so the filters above the {@link InlineJoin} are built by hand.
+     */
+    public void testDontPushDown_RandomAggFilter_IntoInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS max_salary = MAX(salary) BY languages
+            | KEEP emp_no, languages, max_salary
+            """);
+        var ij = as(as(as(plan, Project.class).child(), Limit.class).child(), InlineJoin.class);
+        var aggregate = as(ij.right(), Aggregate.class);
+        var maxSalary = aggregate.output().getFirst();
+        assertEquals("max_salary", maxSalary.name());
+        var rule = new PushDownFilterIntoInlineJoinAggregate();
+        var random = new Random(EMPTY, Literal.integer(EMPTY, 100000));
+
+        var deterministic = new Filter(EMPTY, ij, new GreaterThan(EMPTY, maxSalary, Literal.integer(EMPTY, 70000)));
+        assertNotEquals(deterministic, rule.apply(deterministic, optimizerContext));
+
+        var randomInCondition = new Filter(EMPTY, ij, new GreaterThan(EMPTY, maxSalary, random));
+        assertEquals(randomInCondition, rule.apply(randomInCondition, optimizerContext));
+
+        var randomAlias = new Alias(EMPTY, "r", random);
+        var randomInAlias = new Filter(
+            EMPTY,
+            ij.replaceRight(new Eval(EMPTY, aggregate, List.of(randomAlias))),
+            new GreaterThan(EMPTY, maxSalary, randomAlias.toAttribute())
+        );
+        assertEquals(randomInAlias, rule.apply(randomInAlias, optimizerContext));
     }
 
     public void testPushDownFilterPastUriParts() {

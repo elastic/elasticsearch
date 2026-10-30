@@ -422,7 +422,8 @@ module org.elasticsearch.server {
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
             org.elasticsearch.xpack.diskbbq,
-            org.elasticsearch.xpack.stateless;
+            org.elasticsearch.xpack.stateless,
+            co.elastic.elasticsearch.serverless.datarecovery;
 
     exports org.elasticsearch.telemetry.instrumentation;
     exports org.elasticsearch.telemetry.tracing;
@@ -452,6 +453,7 @@ module org.elasticsearch.server {
             org.elasticsearch.features.InfrastructureFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures,
+            org.elasticsearch.snapshots.SnapshotEncryptedDataFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,

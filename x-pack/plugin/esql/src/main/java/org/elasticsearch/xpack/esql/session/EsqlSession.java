@@ -167,8 +167,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -552,6 +554,7 @@ public class EsqlSession {
                     verifyExemplarsQuery(viewResolution);
                 }
                 viewResolutionProfile.stop();
+                request.setViewSettings(viewResolution.viewSettings());
                 analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             }))
         );
@@ -580,19 +583,19 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyseAndExecute reached on an unmetered thread";
 
-        // Skip all telemetry and side effects in explain mode: the EXPLAIN command itself was
-        // already counted at parse time (planTelemetry.command(explain)). Traversing the inner
-        // query would inflate FeatureMetric.VIEW, FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc.
-        // with diagnostic invocations that are not real feature usage; and requestIpLocationDownloads
-        // must not trigger a real database download for a diagnostic call.
-        if (explainContext == null) {
+        // Skip all telemetry and side effects for diagnostic invocations: explain mode and the analyze-only pass
+        // that validates a view definition. The EXPLAIN command itself was already counted at parse time
+        // (planTelemetry.command(explain)). Traversing the inner query would inflate FeatureMetric.VIEW,
+        // FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc. with diagnostic invocations that are not real feature
+        // usage; and requestIpLocationDownloads must not trigger a real database download for a diagnostic call.
+        if (explainContext == null && request.analyzeOnly() == false) {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
             gatherLetMetrics(statement);
-            gatherSettingsMetrics(request, statement, resolved);
+            gatherSettingsMetrics(request, statement, resolved, viewResolution.viewSettings());
             // APM
-            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
+            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved, viewResolution.viewSettings());
             // Trigger IP location database downloads for any IP_LOCATION command
             requestIpLocationDownloads(viewResolution.plan());
         }
@@ -653,6 +656,26 @@ public class EsqlSession {
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
+                    if (request.analyzeOnly()) {
+                        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+                        executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+                        listener.onResponse(
+                            new Versioned<>(
+                                new Result(
+                                    analyzedPlan.inner().output(),
+                                    List.of(),
+                                    Map.of(),
+                                    finalConfiguration,
+                                    DriverCompletionInfo.EMPTY,
+                                    executionInfo,
+                                    null
+                                ),
+                                minimumVersion
+                            )
+                        );
+                        return;
+                    }
+
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path.
                     // Applies the translatable subset and drops the rest with a warning naming each clause.
@@ -671,7 +694,19 @@ public class EsqlSession {
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
                         // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
                         // pushed into the view's source indices as a Lucene query.
-                        plan = ViewRequestFilterRewriter.rewrite(afterDatasetFilter, request.filter(), finalConfiguration, minimumVersion);
+                        LogicalPlan afterViewFilter = ViewRequestFilterRewriter.rewrite(
+                            afterDatasetFilter,
+                            request.filter(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
+                        // Cap how far back METRICS_INFO and TS_INFO read
+                        plan = MetricsInfoTimeRangeRewriter.capTimeRange(
+                            afterViewFilter,
+                            flags.metricsInfoMaxTimeRange(),
+                            request.filter(),
+                            finalConfiguration.now()
+                        );
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;
@@ -1043,7 +1078,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
@@ -1530,9 +1565,15 @@ public class EsqlSession {
 
     /**
      * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
-     * and settings from the original statement plus any nodes introduced by view expansion.
+     * and settings from the original statement plus any nodes introduced by view expansion. The settings view
+     * definitions apply to their own bodies are recorded apart from the caller's.
      */
-    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings, ResolvedSettings resolved) {
+    private void gatherPlanTelemetry(
+        LogicalPlan plan,
+        List<QuerySetting> settings,
+        ResolvedSettings resolved,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
         // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
         // should not be counted as standalone STATS commands.
@@ -1562,6 +1603,7 @@ public class EsqlSession {
             settings.forEach(s -> planTelemetry.setting(s.name()));
         }
         planTelemetry.resolvedSettings(resolved);
+        planTelemetry.viewSettings(viewSettings.values());
     }
 
     /**
@@ -1598,7 +1640,12 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement, ResolvedSettings resolved) {
+    private void gatherSettingsMetrics(
+        EsqlQueryRequest request,
+        EsqlStatement statement,
+        ResolvedSettings resolved,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         if (metrics == null) {
             return;
         }
@@ -1607,6 +1654,7 @@ public class EsqlSession {
         // ignores settings that don't have a registered counter.
         suppliedSettingNames(request, statement).forEach(metrics::incSetting);
         metrics.incResolvedSettings(resolved);
+        metrics.incViewSettings(viewSettings.values());
     }
 
     /**
@@ -1738,6 +1786,7 @@ public class EsqlSession {
             projectMetadata,
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
             viewSettings,
+            indexViewOrigins,
             configuration.pragmas(),
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {

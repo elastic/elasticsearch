@@ -153,6 +153,8 @@ The `prefix_length` and `max_expansions` can be set in this case to control the 
 
 Fuzzy transpositions (`ab` → `ba`) are allowed by default but can be disabled by setting `fuzzy_transpositions` to `false`.
 
+Fuzzy matching builds a [`fuzzy` query](/reference/query-languages/query-dsl/query-dsl-fuzzy-query.md) for each term. If [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries) is `false`, {{es}} returns an error for a `match` query that sets `fuzziness`. If `lenient` is `true`, the query matches no documents in that field instead.
+
 ::::{note}
 Fuzzy matching is not applied to terms with synonyms or in cases where the analysis process produces multiple tokens at the same position. Under the hood these terms are expanded to a special synonym query that blends term frequencies, which does not support fuzzy expansion.
 ::::

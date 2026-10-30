@@ -366,7 +366,10 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             ) {
                 Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
                 aggregator.preCollection();
-                expectThrows(CircuitBreakingException.class, () -> context.searcher().search(context.query(), aggregator.asCollector()));
+                expectThrows(
+                    CircuitBreakingException.class,
+                    () -> context.searcher().search(context.query(), singleThreadedCollectorManager(aggregator.asCollector()))
+                );
             }
         }
         assertThat(breaker.getUsed(), equalTo(baseline));
@@ -408,7 +411,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             ) {
                 Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
                 aggregator.preCollection();
-                context.searcher().search(context.query(), aggregator.asCollector());
+                context.searcher().search(context.query(), singleThreadedCollectorManager(aggregator.asCollector()));
                 aggregator.postCollection();
                 InternalRoaringBitmap result = (InternalRoaringBitmap) aggregator.buildTopLevel();
                 assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(value)));
@@ -446,7 +449,10 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                 Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
                 assertTrue(((RoaringBitmapAggregator) aggregator).usesTermsIndex());
                 aggregator.preCollection();
-                expectThrows(TaskCancelledException.class, () -> context.searcher().search(context.query(), aggregator.asCollector()));
+                expectThrows(
+                    TaskCancelledException.class,
+                    () -> context.searcher().search(context.query(), singleThreadedCollectorManager(aggregator.asCollector()))
+                );
             }
         }
         assertThat(breaker.getUsed(), equalTo(baseline));

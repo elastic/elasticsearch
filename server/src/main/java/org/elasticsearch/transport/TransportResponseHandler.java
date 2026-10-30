@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 
 import java.util.concurrent.Executor;
 
@@ -30,6 +31,24 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleResponse(T response);
 
     void handleException(TransportException exp);
+
+    /**
+     * Reserves memory for a response of {@code bytes} that waits, serialized, for {@link #executor()} to read it. Called once the response
+     * is fully received, and not for a handler that reads on the transport worker. The reservation is closed once the response is read,
+     * before {@link #handleResponse}, so the handler can then charge what it keeps. Nothing is reserved by default.
+     *
+     * @throws org.elasticsearch.common.breaker.CircuitBreakingException to reject the response, which {@link #handleException} then gets
+     *         wrapped in a {@link RemoteTransportException}
+     */
+    default Releasable reserveResponseBytes(int bytes) {
+        return NO_RESERVATION;
+    }
+
+    /**
+     * Returned by {@link #reserveResponseBytes} when it reserves nothing. Closing it does nothing, so the transport can close it more than
+     * once without a wrapper.
+     */
+    Releasable NO_RESERVATION = () -> {};
 
     /**
      * Implementation of {@link TransportResponseHandler} that handles the empty response {@link ActionResponse.Empty}.

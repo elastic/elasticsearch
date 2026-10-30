@@ -267,6 +267,17 @@ final class ColumnarSourceWriter {
                             slot.present = true;
                             dirtySlots.add(slot);
                         }
+                        // Numeric doc values the ColumNAR codec stores are binary on disk but read as SORTED_NUMERIC; there are no
+                        // FieldInfos here to tell the readers so, so they ask for SORTED_NUMERIC and are served the values directly.
+                        if (field instanceof ColumnarNumericDocValuesField columnar) {
+                            SortedNumericSlot numericSlot = sortedNumericSlots.get(field.name());
+                            if (numericSlot != null) {
+                                if (numericSlot.count == 0) {
+                                    dirtySlots.add(numericSlot);
+                                }
+                                columnar.forEachValue(numericSlot::add);
+                            }
+                        }
                     }
                     case SORTED -> {
                         // A SORTED field may be registered as a SortedSetSlot (when first accessed

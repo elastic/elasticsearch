@@ -35,6 +35,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
@@ -158,7 +159,11 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
     }
 
     private IndexShard newColumnarPrimaryShardWithMapping(String mapping) throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("index").putMapping(mapping).settings(COLUMNAR_SETTINGS).primaryTerm(0, 1).build();
+        return newColumnarPrimaryShardWithMapping(mapping, COLUMNAR_SETTINGS);
+    }
+
+    private IndexShard newColumnarPrimaryShardWithMapping(String mapping, Settings settings) throws IOException {
+        IndexMetadata metadata = IndexMetadata.builder("index").putMapping(mapping).settings(settings).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         trackedShards.add(shard);
         recoverShardFromStore(shard);
@@ -734,7 +739,15 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
                 "score":  { "type": "double" }
               }
             }""";
-        IndexShard shard = newColumnarPrimaryShardWithMapping(numericMapping);
+        Settings settings = COLUMNAR_SETTINGS;
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()) {
+            // The batch path doesn't map numeric fields whose doc values the ColumNAR codec stores yet; they take the row path.
+            settings = Settings.builder()
+                .put(COLUMNAR_SETTINGS)
+                .put(IndexSettings.COLUMNAR_CODEC_NUMERIC_ENABLED_SETTING.getKey(), false)
+                .build();
+        }
+        IndexShard shard = newColumnarPrimaryShardWithMapping(numericMapping, settings);
 
         int numDocs = randomIntBetween(2, 20);
         BulkItemRequest[] items = new BulkItemRequest[numDocs];

@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
@@ -110,7 +111,7 @@ public class PerFieldFormatSupplier {
     private final DocValuesFormat tsdbDocValuesFormat;
     @Nullable
     private final DocValuesFormat idRandomAccessDocValuesFormat;
-    private final DocValuesFormat stringColumnarDocValuesFormat;
+    private final DocValuesFormat columnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -132,9 +133,13 @@ public class PerFieldFormatSupplier {
                 : null;
         // Built per supplier for the same reason the TSDB format is: the options it writes a string column
         // with are resolved against this index's mapping, so the format cannot be shared between indices.
-        this.stringColumnarDocValuesFormat = mapperService == null
+        this.columnarDocValuesFormat = mapperService == null
             ? null
-            : ColumnarDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveStringColumnOptions);
+            : ColumnarDocValuesFormatSelector.select(
+                mapperService.getIndexSettings(),
+                this::resolveColumnarFieldType,
+                this::resolveStringColumnOptions
+            );
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -261,8 +266,8 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
-        if (stringColumnarDocValuesFormat != null && columnarStringOptionsOf(field) != null) {
-            return stringColumnarDocValuesFormat;
+        if (columnarDocValuesFormat != null && (columnarStringOptionsOf(field) != null || columnarNumericTypeOf(field) != null)) {
+            return columnarDocValuesFormat;
         }
 
         if (useTSDBDocValuesFormat(field)) {
@@ -294,6 +299,33 @@ public class PerFieldFormatSupplier {
             }
         }
         return null;
+    }
+
+    /**
+     * The kind of ColumNAR column the named numeric field is written as, or {@code null} when the ColumNAR codec doesn't store
+     * it. Only {@link NumberFieldMapper} fields are stored as numeric columns.
+     */
+    @Nullable
+    ColumnarFieldType columnarNumericTypeOf(final String field) {
+        return mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+            ? numberFieldMapper.columnarNumericType()
+            : null;
+    }
+
+    /**
+     * The kind of column a field routed to the ColumNAR codec is written as, asked by the codec at write and merge. A field
+     * that is not stored by the codec is never asked, and asking about one fails rather than guessing.
+     */
+    ColumnarFieldType resolveColumnarFieldType(final FieldInfo fieldInfo) {
+        final String field = fieldInfo.getName();
+        if (columnarStringOptionsOf(field) != null) {
+            return ColumnarFieldType.STRING;
+        }
+        final ColumnarFieldType numericType = columnarNumericTypeOf(field);
+        if (numericType == null) {
+            throw new IllegalStateException("field [" + field + "] is written by the ColumNAR codec but its mapper has no column type");
+        }
+        return numericType;
     }
 
     /**

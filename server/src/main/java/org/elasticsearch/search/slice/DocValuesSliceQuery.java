@@ -23,6 +23,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 
 import java.io.IOException;
 
@@ -43,7 +44,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), getField());
+                final SortedNumericDocValues values = ColumnarNumericDocValues.getSortedNumeric(context.reader(), getField());
                 final DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 

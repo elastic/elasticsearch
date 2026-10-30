@@ -69,6 +69,13 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         this.skipIndex = skipIndex;
     }
 
+    /**
+     * Whether every document with a value has exactly one, so that a document's payload is always a single value.
+     */
+    public boolean singleValued() {
+        return singleValued;
+    }
+
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();

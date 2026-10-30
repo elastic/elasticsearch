@@ -41,6 +41,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -121,13 +122,19 @@ class DocumentLeafReader extends LeafReader {
     @Override
     public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
         checkField(field);
-        List<Number> values = document.getFields()
-            .stream()
-            .filter(f -> Objects.equals(f.name(), field))
-            .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
-            .map(IndexableField::numericValue)
-            .sorted()
-            .toList();
+        List<Long> values = new ArrayList<>();
+        for (IndexableField f : document.getFields()) {
+            if (Objects.equals(f.name(), field) == false) {
+                continue;
+            }
+            if (f.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC) {
+                values.add(f.numericValue().longValue());
+            } else if (f instanceof ColumnarNumericDocValuesField columnar) {
+                // Binary on disk, but read as SORTED_NUMERIC, and there are no FieldInfos here to tell the readers so.
+                columnar.forEachValue(values::add);
+            }
+        }
+        values.sort(null);
         return sortedNumericDocValues(values);
     }
 
@@ -333,7 +340,7 @@ class DocumentLeafReader extends LeafReader {
         };
     }
 
-    private static SortedNumericDocValues sortedNumericDocValues(List<Number> values) {
+    private static SortedNumericDocValues sortedNumericDocValues(List<? extends Number> values) {
         if (values.size() == 0) {
             return null;
         }

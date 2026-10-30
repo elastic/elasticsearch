@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IndexType;
@@ -131,6 +133,31 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
+    }
+
+    /**
+     * The metric fields aren't mapped in their own right, so the ColumNAR codec never stores them: in a strictly columnar index they
+     * keep writing {@code SORTED_NUMERIC}, unlike a numeric field mapped beside them.
+     */
+    public void testColumnarIndexKeepsMetricsSortedNumeric() throws Exception {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
+            b.startObject("field");
+            minimalMapping(b);
+            b.endObject();
+            b.startObject("plain").field("type", "double").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field").field("value_count", 14).field("sum", 100.0).endObject();
+            b.field("plain", 100.0);
+        }));
+
+        for (String metric : List.of("field.sum", "field.value_count")) {
+            IndexableField f = doc.rootDoc().getField(metric);
+            assertThat(metric, f.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_NUMERIC));
+        }
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()) {
+            assertThat(doc.rootDoc().getField("plain").fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+        }
     }
 
     /**

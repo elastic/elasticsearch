@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene.query;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
@@ -27,6 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -162,7 +162,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search
-                    final LongValues values = numberType.multiValueMode(DocValues.getSortedNumeric(reader, fieldName));
+                    final LongValues values = numberType.multiValueMode(ColumnarNumericDocValues.getSortedNumeric(reader, fieldName));
                     final LeafCollector leafCollector = new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) {}

@@ -681,7 +681,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitComparison(EsqlBaseParser.ComparisonContext ctx) {
+    public Expression visitValueExpression(EsqlBaseParser.ValueExpressionContext ctx) {
+        if (ctx.comparisonOperator() == null) {
+            return typedParsing(this, ctx.left, Expression.class);
+        }
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
@@ -710,7 +713,29 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx) {
-        return expression(ctx.booleanExpression());
+        List<EsqlBaseParser.BooleanExpressionContext> expressions = ctx.booleanExpression();
+        if (expressions.size() > 1) {
+            throw new ParsingException(
+                source(ctx),
+                "A list of expressions in parentheses is only supported as the left side of IN with a subquery, found [{}]",
+                ctx.getText()
+            );
+        }
+        return expression(expressions.getFirst());
+    }
+
+    /**
+     * The expressions of a parenthesized list such as {@code (a, b)}, or {@code null} when the value is not such a list.
+     * The list is only valid as the left side of {@code IN} with a subquery.
+     */
+    protected static List<EsqlBaseParser.BooleanExpressionContext> parenthesizedList(EsqlBaseParser.ValueExpressionContext ctx) {
+        if (ctx.comparisonOperator() == null
+            && ctx.left instanceof EsqlBaseParser.OperatorExpressionDefaultContext operator
+            && operator.primaryExpression() instanceof EsqlBaseParser.ParenthesizedExpressionContext parenthesized
+            && parenthesized.booleanExpression().size() > 1) {
+            return parenthesized.booleanExpression();
+        }
+        return null;
     }
 
     @Override
@@ -884,48 +909,65 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitLogicalIn(EsqlBaseParser.LogicalInContext ctx) {
-        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        Source source = source(ctx);
-        Expression e = expressions.size() == 2
-            ? new Equals(source, expressions.get(0), expressions.get(1))
-            : new In(source, expressions.get(0), expressions.subList(1, expressions.size()));
-        return ctx.NOT() == null ? e : new Not(source, e);
+    public Expression visitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx) {
+        EsqlBaseParser.ValueExpressionContext value = ctx.valueExpression();
+        EsqlBaseParser.PredicateContext predicate = ctx.predicate();
+        if (predicate == null) {
+            return typedParsing(this, value, Expression.class);
+        }
+        return switch (predicate) {
+            case EsqlBaseParser.LogicalInContext in -> logicalIn(ctx, value, in);
+            case EsqlBaseParser.LogicalInSubqueryContext in -> inSubquery(ctx, value, in);
+            case EsqlBaseParser.IsNullContext isNull -> isNull(ctx, value, isNull);
+            case EsqlBaseParser.LikeExpressionContext like -> regexExpression(
+                ctx,
+                value,
+                like.primaryExpression(),
+                like.NOT(),
+                like.LIKE().getText(),
+                DeferredRegexExpression.Variant.LIKE
+            );
+            case EsqlBaseParser.RlikeExpressionContext rlike -> regexExpression(
+                ctx,
+                value,
+                rlike.primaryExpression(),
+                rlike.NOT(),
+                rlike.RLIKE().getText(),
+                DeferredRegexExpression.Variant.RLIKE
+            );
+            case EsqlBaseParser.LikeListExpressionContext like -> likeList(ctx, value, like);
+            case EsqlBaseParser.RlikeListExpressionContext rlike -> rlikeList(ctx, value, rlike);
+            case EsqlBaseParser.MatchExpressionContext match -> matchOperator(ctx, value, match);
+            default -> throw new ParsingException(source(predicate), "Unknown predicate [{}]", predicate.getText());
+        };
     }
 
-    @Override
-    public Object visitIsNull(EsqlBaseParser.IsNullContext ctx) {
-        Expression exp = expression(ctx.valueExpression());
-        Source source = source(ctx.valueExpression(), ctx);
-        return ctx.NOT() != null ? new IsNotNull(source, exp) : new IsNull(source, exp);
+    private Expression logicalIn(ParserRuleContext ctx, EsqlBaseParser.ValueExpressionContext left, EsqlBaseParser.LogicalInContext in) {
+        Expression value = expression(left);
+        List<Expression> expressions = in.valueExpression().stream().map(this::expression).toList();
+        Source source = source(ctx);
+        Expression e = expressions.size() == 1 ? new Equals(source, value, expressions.getFirst()) : new In(source, value, expressions);
+        return in.NOT() == null ? e : new Not(source, e);
+    }
+
+    /**
+     * Builds {@code left [NOT] IN (subquery)}. Only the plan builder can parse the subquery, so it provides the implementation.
+     * {@link #parenthesizedList} tells a multi-column left side, {@code (a, b) IN (subquery)}, from a single value.
+     */
+    protected abstract Expression inSubquery(
+        ParserRuleContext ctx,
+        EsqlBaseParser.ValueExpressionContext left,
+        EsqlBaseParser.LogicalInSubqueryContext in
+    );
+
+    private Expression isNull(ParserRuleContext ctx, EsqlBaseParser.ValueExpressionContext left, EsqlBaseParser.IsNullContext isNull) {
+        Expression exp = expression(left);
+        Source source = source(left, ctx);
+        return isNull.NOT() != null ? new IsNotNull(source, exp) : new IsNull(source, exp);
     }
 
     private static String INVALID_WILDCARD = "invalid_wildcard";
     private static String INVALID_REGEX = "invalid_regex";
-
-    @Override
-    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
-        return regexExpression(
-            ctx,
-            ctx.valueExpression(),
-            ctx.primaryExpression(),
-            ctx.NOT(),
-            ctx.RLIKE().getText(),
-            DeferredRegexExpression.Variant.RLIKE
-        );
-    }
-
-    @Override
-    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
-        return regexExpression(
-            ctx,
-            ctx.valueExpression(),
-            ctx.primaryExpression(),
-            ctx.NOT(),
-            ctx.LIKE().getText(),
-            DeferredRegexExpression.Variant.LIKE
-        );
-    }
 
     /**
      * Shared builder for the single-value {@code LIKE}/{@code RLIKE} forms. A string literal known
@@ -993,12 +1035,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return not == null ? regex : new Not(source, regex);
     }
 
-    @Override
-    public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
+    private Expression likeList(
+        ParserRuleContext ctx,
+        EsqlBaseParser.ValueExpressionContext valueExpr,
+        EsqlBaseParser.LikeListExpressionContext like
+    ) {
         Source source = source(ctx);
-        String opname = ctx.LIKE().getText();
-        Expression left = expression(ctx.valueExpression());
-        List<EsqlBaseParser.StringOrParameterContext> right = ctx.stringOrParameter();
+        String opname = like.LIKE().getText();
+        Expression left = expression(valueExpr);
+        List<EsqlBaseParser.StringOrParameterContext> right = like.stringOrParameter();
         List<WildcardPattern> wildcardPatterns = right.stream()
             .map(x -> new WildcardPattern(stringFromStringOrParameter(source, opname, x, INVALID_WILDCARD)))
             .toList();
@@ -1006,22 +1051,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression e = wildcardPatterns.size() == 1
             ? new WildcardLike(source, left, wildcardPatterns.getFirst())
             : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
-        return ctx.NOT() == null ? e : new Not(source, e);
+        return like.NOT() == null ? e : new Not(source, e);
     }
 
-    @Override
-    public Expression visitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) {
+    private Expression rlikeList(
+        ParserRuleContext ctx,
+        EsqlBaseParser.ValueExpressionContext valueExpr,
+        EsqlBaseParser.RlikeListExpressionContext rlike
+    ) {
         Source source = source(ctx);
-        String opname = ctx.RLIKE().getText();
-        Expression left = expression(ctx.valueExpression());
-        List<EsqlBaseParser.StringOrParameterContext> right = ctx.stringOrParameter();
+        String opname = rlike.RLIKE().getText();
+        Expression left = expression(valueExpr);
+        List<EsqlBaseParser.StringOrParameterContext> right = rlike.stringOrParameter();
         List<RLikePattern> rLikePatterns = right.stream()
             .map(x -> new RLikePattern(stringFromStringOrParameter(source, opname, x, INVALID_REGEX)))
             .toList();
         Expression e = rLikePatterns.size() == 1
             ? new RLike(source, left, rLikePatterns.getFirst())
             : new RLikeList(source, left, new RLikePatternList(rLikePatterns));
-        return ctx.NOT() == null ? e : new Not(source, e);
+        return rlike.NOT() == null ? e : new Not(source, e);
     }
 
     /*
@@ -1477,8 +1525,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return new UnresolvedAttribute(source(ctx), String.valueOf(param.value()));
     }
 
-    @Override
-    public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        return new MatchOperator(source(ctx), expression(ctx.fieldExp), expression(ctx.matchQuery));
+    private Expression matchOperator(
+        ParserRuleContext ctx,
+        EsqlBaseParser.ValueExpressionContext left,
+        EsqlBaseParser.MatchExpressionContext match
+    ) {
+        // the grammar accepts any value on the left so that the parser does not have to look past it; only a field or a function is valid
+        if (left.comparisonOperator() != null || left.left instanceof EsqlBaseParser.OperatorExpressionDefaultContext == false) {
+            throw new ParsingException(
+                source(left),
+                "Invalid left side [{}] for the match operator [{}]: expected a field or a function",
+                left.getText(),
+                match.COLON().getText()
+            );
+        }
+        return new MatchOperator(source(ctx), expression(left), expression(match.matchQuery));
     }
 }

@@ -684,20 +684,20 @@ public class QualifierTests extends AbstractStatementParserTests {
         String sourceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx qualified ON x | ";
 
         expectError(sourceQuery + "EVAL x = [`qualified`].[field]", "no viable alternative at input '[`qualified`'");
-        expectError(sourceQuery + "EVAL x = [qual.ified].[field]", "no viable alternative at input '[qual.'");
-        expectError(sourceQuery + "EVAL x = [qualified][field]", "no viable alternative at input '[qualified]['");
-        expectError(sourceQuery + "EVAL x = [qualified.field]", "no viable alternative at input '[qualified.'");
-        expectError(sourceQuery + "EVAL x = [qualified]..[field]", "no viable alternative at input '[qualified]..'");
-        expectError(sourceQuery + "EVAL x = [field]", "no viable alternative at input '[field]'");
-        expectError(sourceQuery + "EVAL x = qualified.[field]", "no viable alternative at input 'qualified.['");
-        expectError(sourceQuery + "EVAL x = [qualified].field", "no viable alternative at input '[qualified].field'");
+        expectError(sourceQuery + "EVAL x = [qual.ified].[field]", "missing ']' at '.'");
+        expectError(sourceQuery + "EVAL x = [qualified][field]", "missing '.' at '['");
+        expectError(sourceQuery + "EVAL x = [qualified.field]", "missing ']' at '.'");
+        expectError(sourceQuery + "EVAL x = [qualified]..[field]", "extraneous input '.' expecting '['");
+        expectError(sourceQuery + "EVAL x = [field]", "mismatched input '<EOF>' expecting '.'");
+        expectError(sourceQuery + "EVAL x = qualified.[field]", "extraneous input '[' expecting {");
+        expectError(sourceQuery + "EVAL x = [qualified].field", "missing '[' at 'field'");
 
         expectError(sourceQuery + "EVAL [qualified].[function](x)", "mismatched input '('");
 
-        expectError(sourceQuery + "EVAL y = [qualified].[\"foo\"]", "no viable alternative at input '[qualified].[\"foo\"'");
-        expectError(sourceQuery + "EVAL y = [qualified].[TRUE]", "no viable alternative at input '[qualified].[TRUE'");
-        expectError(sourceQuery + "EVAL y = [qualified].[1]", "no viable alternative at input '[qualified].[1'");
-        expectError(sourceQuery + "EVAL y = [qualified].[1.2]", "no viable alternative at input '[qualified].[1.2'");
+        expectError(sourceQuery + "EVAL y = [qualified].[\"foo\"]", "mismatched input '\"foo\"' expecting {");
+        expectError(sourceQuery + "EVAL y = [qualified].[TRUE]", "mismatched input 'TRUE' expecting {");
+        expectError(sourceQuery + "EVAL y = [qualified].[1]", "mismatched input '1' expecting {");
+        expectError(sourceQuery + "EVAL y = [qualified].[1.2]", "mismatched input '1.2' expecting {");
         expectError(sourceQuery + "EVAL y = [\"foo\"].[field]", "mismatched input '.'");
         expectError(sourceQuery + "EVAL y = [FALSE].[field]", "mismatched input '.'");
         expectError(sourceQuery + "EVAL y = [1].[field]", "mismatched input '.'");

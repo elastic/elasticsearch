@@ -1512,6 +1512,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    private static String balancedAdditionTree(int levels) {
+        return balancedAdditionTree("a", levels);
+    }
+
+    private static String balancedAdditionTree(String leaf, int levels) {
+        String expr = leaf;
+        for (int i = 0; i < levels; i++) {
+            expr = "(" + expr + " + " + expr + ")";
+        }
+        return expr;
+    }
+
+    public void testBigBalancedOperatorTreeShouldNotFail() {
+        query("from test | eval y = " + balancedAdditionTree(17) + " | keep y");
+    }
+
     public void testBlockComments() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";
@@ -1838,9 +1854,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Binary operators are not part of primaryExpression, so they are not accepted on the RHS without parentheses.
         expectError("from a | where foo like \"a\" + \"b\"", "mismatched input '+' expecting {<EOF>, '|', 'and', '::', 'or'}");
         // Missing RHS.
-        expectError("from a | where foo like", "no viable alternative at input 'foo like'");
+        expectError("from a | where foo like", "no viable alternative at input 'like'");
         // A bare wildcard token is not a valid expression.
-        expectError("from a | where foo like *", "no viable alternative at input 'foo like *'");
+        expectError("from a | where foo like *", "no viable alternative at input 'like *'");
         // Array literals are not valid scalar patterns; the correct multi-pattern form is LIKE ("p1", "p2").
         // Without this check the list would silently fold to a garbled hex-string that matches nothing.
         expectError(
@@ -3557,9 +3573,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (Map.Entry<String, String> command : commands.entrySet()) {
             String cmd = command.getKey();
             String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
+            // a comma can follow the function call in eval, stats and sort, so the parser reports the missing parenthesis there
+            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok") || cmd.startsWith("where")
                 ? "mismatched input ',' expecting ')'"
-                : "no viable alternative at input 'fn(f1,";
+                : "missing ')' at ','";
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":1}, {\"option\":2})"),
                 LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
@@ -3584,10 +3601,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error2 = command.getValue()[1];
             String errorMessage1 = cmd.startsWith("dissect") || cmd.startsWith("grok")
                 ? "mismatched input '1' expecting {QUOTED_STRING"
-                : "no viable alternative at input 'fn(f1, { 1'";
+                : "mismatched input '1' expecting {QUOTED_STRING, '}'}";
             String errorMessage2 = cmd.startsWith("dissect") || cmd.startsWith("grok")
                 ? "mismatched input 'string' expecting {QUOTED_STRING"
-                : "no viable alternative at input 'fn(f1, {";
+                : "mismatched input 'string' expecting {QUOTED_STRING";
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, { 1:\"string\" })"),
                 LoggerMessageFormat.format(null, "line 1:{}: {}", error1, errorMessage1)
@@ -3694,7 +3711,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', '::', ',', 'metadata'}"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
-            Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
+            Map.entry("where x > {}", "line 1:23: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("stats agg() by {}", "line 1:28: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("sort {}", "line 1:18: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("keep {}", "line 1:18: token recognition error at: '{'"),
@@ -4306,10 +4323,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // test for (
         // With WHERE_IN_SUBQUERY enabled the parser has two IN alternatives (value list / subquery),
         // so error recovery emits a "no viable alternative" message instead of the single-alt one.
-        expectError("row a = 1 not in", "line 1:17: no viable alternative at input '1 not in'");
-        expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'a not in'");
-        expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'a not in ['");
-        expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'a not in 123'");
+        expectError("row a = 1 not in", "line 1:17: no viable alternative at input 'not in'");
+        expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'not in'");
+        expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'not in ['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'not in 123'");
         expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
         // test for [
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {

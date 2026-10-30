@@ -515,11 +515,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/163111
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  tasks:
-  - :modules:data-streams:yamlRestCompatTest
-  method: test {yaml=data_stream/120_data_streams_stats/Multiple data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/163288
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   tasks:
   - :x-pack:plugin:downsample:test

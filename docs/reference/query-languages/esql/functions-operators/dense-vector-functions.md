@@ -17,7 +17,7 @@ For more examples of these functions in action, refer to [the {{esql}} for searc
 k-nearest neighbor search.
 Dense vector functions work with [
 `dense_vector` fields](/reference/elasticsearch/mapping-reference/dense-vector.md)
-and runtime expressions.
+and `dense_vector` expressions.
 
 {{esql}} supports these vector functions:
 

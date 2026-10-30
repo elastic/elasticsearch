@@ -755,6 +755,7 @@ class NodeConstruction {
         DocumentParsingProvider documentParsingProvider,
         ProjectResolver projectResolver
     ) throws IOException {
+        analysisRegistry.watchSharingSetting(settingsModule.getClusterSettings());
 
         Settings settings = settingsModule.getSettings();
 

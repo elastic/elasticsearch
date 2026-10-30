@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
@@ -76,6 +78,21 @@ public final class AnalysisRegistry implements Closeable {
      */
     public static final FeatureFlag SHARED_ANALYZERS_FEATURE_FLAG = new FeatureFlag("shared_analyzers");
     private static final boolean SHARED_ANALYZERS_ENABLED = SHARED_ANALYZERS_FEATURE_FLAG.isEnabled();
+
+    /**
+     * Escape hatch: {@code false} makes subsequently built index analyzers private, as if the feature flag
+     * were off; already-shared analyzers stay shared until their indices close or are rebuilt. Deliberately
+     * {@link Setting.Property#Dynamic}, not operator-only: it can only restore legacy per-index behavior
+     * (losing the memory dedup), so cluster admins may self-serve a rollback.
+     */
+    public static final Setting<Boolean> SHARED_ANALYZERS_ENABLED_SETTING = Setting.boolSetting(
+        "indices.analysis.shared_analyzers.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private volatile boolean sharingEnabled = true;
 
     private final PrebuiltAnalysis prebuiltAnalysis;
     private final Map<String, Analyzer> cachedAnalyzer = new ConcurrentHashMap<>();
@@ -186,6 +203,17 @@ public final class AnalysisRegistry implements Closeable {
             preConfiguredTokenizers,
             preConfiguredAnalyzers
         );
+    }
+
+    /**
+     * Tracks {@link #SHARED_ANALYZERS_ENABLED_SETTING}, applying its current value immediately.
+     */
+    public void watchSharingSetting(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(SHARED_ANALYZERS_ENABLED_SETTING, enabled -> this.sharingEnabled = enabled);
+    }
+
+    private boolean sharingActive() {
+        return SHARED_ANALYZERS_ENABLED && sharingEnabled;
     }
 
     private static Settings getSettingsFromIndexSettings(IndexSettings indexSettings, String groupName) {
@@ -992,10 +1020,9 @@ public final class AnalysisRegistry implements Closeable {
         // analyzer's settings, BEFORE calling provider.build(). When the cache hits, we return the
         // shared analyzer without running provider.build() — which for synonym chains is the
         // expensive step that reads from the .synonyms system index or from the synonyms file.
-        // For inline _analyze calls (indexSettings == null), or when the sharing feature flag is
-        // disabled (release builds without the flag set), we bypass the cache entirely and build a
-        // fresh per-index analyzer.
-        if (indexSettings != null && SHARED_ANALYZERS_ENABLED) {
+        // For inline _analyze calls (indexSettings == null), or when sharing is inactive (feature
+        // flag or escape-hatch setting off), we bypass the cache and build a fresh per-index analyzer.
+        if (indexSettings != null && sharingActive()) {
             AnalyzerKey key = computeAnalyzerKey(analyzerFactory, analyzerSettings, tokenizers, charFilters, tokenFilters);
             CacheEntry cached = analyzerCache.get(key);
             if (cached != null) {
@@ -1351,9 +1378,9 @@ public final class AnalysisRegistry implements Closeable {
         }
         // Check-then-build, mirroring {@link #produceAnalyzer}. The tokenizer map is intentionally
         // empty in the key derivation: keyword vs whitespace normalizers use separate caches
-        // (passed in), so they cannot collide despite sharing the recipe. When the sharing feature
-        // flag is disabled we build a fresh per-index normalizer and never touch the cache.
-        if (indexSettings != null && SHARED_ANALYZERS_ENABLED) {
+        // (passed in), so they cannot collide despite sharing the recipe. When sharing is inactive
+        // we build a fresh per-index normalizer and never touch the cache.
+        if (indexSettings != null && sharingActive()) {
             AnalyzerKey key = computeAnalyzerKey(normalizerFactory, normalizerSettings, Map.of(), charFilters, tokenFilters);
             CacheEntry cached = cache.get(key);
             if (cached != null) {

@@ -103,6 +103,7 @@ abstract class AbstractVarColumn extends EscfColumn {
      */
     @Override
     public final int sizeInBytes(int row) {
+        assert row >= 0 && row < docCount : "row [" + row + "] out of range [0, " + docCount + ")";
         return valueLength(row);
     }
 

@@ -439,6 +439,64 @@ public final class Vocabulary {
     }
 
     /**
+     * What a column's terms were settled as before it is written: by a survey of its values, or by what the
+     * segments a merge reads had recorded. Exists so that "settled, and nothing worth naming" is told apart
+     * from "not settled": a survey that found no term is still a survey, and a writer handed one must not
+     * run another on the strength of its empty answer. {@link #terms()} is null in exactly that case.
+     *
+     * @param terms the terms worth naming, or null when the column holds none
+     */
+    public record Survey(Terms terms) {}
+
+    /**
+     * What one pass over a column yields when it is counted and surveyed together.
+     *
+     * @param totals what the column writer needs up front: documents, slots, nulls and the value lengths
+     * @param survey the terms worth naming, settled, so the writer does not survey again
+     */
+    public record Counted(StringColumnValues.Totals totals, Survey survey) {}
+
+    /**
+     * Counts and surveys {@code values} in one walk, which on ingest is the walk that pays: every value is
+     * copied out of the indexing buffer each time a cursor reaches it, and the count and the survey each
+     * need every value, so taking them together halves what the two cost.
+     *
+     * <p>The totals are what the writer's counting pass collects: a null slot is counted in them, as a slot
+     * and as a null, and is not offered to the survey, which has no term for it. A value is read once and
+     * serves both its length and the survey.
+     */
+    public static Counted countAndSurvey(StringColumnValues values, DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy)
+        throws IOException {
+        final Surveyor surveyor = new Surveyor(dictionaryPolicy, summaryPolicy);
+        int numDocsWithField = 0;
+        long numValues = 0;
+        long numNullSlots = 0;
+        int minLength = -1;
+        int maxLength = -1;
+        boolean oneSlotADocument = true;
+        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+            numDocsWithField++;
+            final int count = values.valueCount();
+            oneSlotADocument &= count == 1;
+            numValues += count;
+            numNullSlots += values.nullCount();
+            for (int i = 0; i < count; i++) {
+                values.nextValue();
+                final BytesRef value = values.value();
+                if (value != null) {
+                    minLength = minLength < 0 ? value.length : Math.min(minLength, value.length);
+                    maxLength = Math.max(maxLength, value.length);
+                }
+                surveyor.accept(value);
+            }
+        }
+        return new Counted(
+            new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument),
+            new Survey(surveyor.finish())
+        );
+    }
+
+    /**
      * Charges every tracked term the same number of occurrences and drops those that fall to zero,
      * reporting the bytes the dropped terms held. Survivors keep what is left of their counts, so a term
      * seen many times is not displaced by one seen once.

@@ -58,6 +58,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -156,6 +157,15 @@ public class AnalysisRegistryTests extends ESTestCase {
         return nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings(name, recipe));
     }
 
+    private IndexAnalyzers buildSharedNormalizerIndex(String name) throws IOException {
+        Settings recipe = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.normalizer.my_norm.type", "custom")
+            .putList("index.analysis.normalizer.my_norm.filter", "reverse")
+            .build();
+        return nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings(name, recipe));
+    }
+
     /** Hatch off stops sharing for subsequently built indices; back on resumes it. */
     public void testSharingEscapeHatch() throws IOException {
         assumeAnalyzerSharingEnabled();
@@ -181,6 +191,27 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers b = buildSharedRecipeIndex("b");
         assertNotSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
         IOUtils.close(a, b);
+    }
+
+    /** The escape hatch also gates the normalizer caches (keyword and whitespace variants), including eviction. */
+    public void testNormalizerSharingEscapeHatch() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+
+        clusterSettings.applySettings(sharingDisabled());
+        IndexAnalyzers a = buildSharedNormalizerIndex("a");
+        IndexAnalyzers b = buildSharedNormalizerIndex("b");
+        assertNotSame(a.getNormalizer("my_norm").analyzer(), b.getNormalizer("my_norm").analyzer());
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        IndexAnalyzers c = buildSharedNormalizerIndex("c");
+        IndexAnalyzers d = buildSharedNormalizerIndex("d");
+        assertSame(c.getNormalizer("my_norm").analyzer(), d.getNormalizer("my_norm").analyzer());
+        assertThat(nonEmptyRegistry.normalizerCacheSize(), greaterThan(0));
+
+        clusterSettings.applySettings(sharingDisabled());
+        IOUtils.close(a, b, c, d);
+        assertEquals(0, nonEmptyRegistry.normalizerCacheSize());
     }
 
     /** The release handle is captured at build time, so analyzers shared before the hatch flips off still evict on close. */

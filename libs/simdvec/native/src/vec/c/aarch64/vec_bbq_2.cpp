@@ -396,8 +396,293 @@ EXPORT void vec_dotd2q2_bulk_sparse_2(
     dotd2q2_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-// No tier-2 d2q4 kernels: the d2q4 functions resolve to the tier-1 (NEON) kernels on SVE CPUs as well,
-// which are faster than SVE versions on 128-bit SVE.
+// 2-bit doc x 4-bit query, both doc bit planes in one pass. The doc is two contiguous planes of
+// length/2 bytes (low bit, then high bit), the query four planes of length/2 bytes. UDOT applies
+// 2^(query bit + doc bit) as a weight; the eight plane pairs are spread over four accumulators to keep
+// the UDOT chains short, and summed before a single reduction. The accumulators here and in the pair and
+// batch kernels below are spelled out rather than kept in arrays driven by apply_indexed, because SVE
+// types are sizeless and cannot be array elements.
+static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
+    const int32_t bit_length = length / 2;
+    const int8_t* a_hi = a + bit_length;
+    const svuint8_t w1 = svdup_n_u8(1);
+    const svuint8_t w2 = svdup_n_u8(2);
+    const svuint8_t w4 = svdup_n_u8(4);
+    const svuint8_t w8 = svdup_n_u8(8);
+    const svuint8_t w16 = svdup_n_u8(16);
+
+    int r = 0;
+    svuint32_t acc0 = svdup_n_u32(0);
+    svuint32_t acc1 = svdup_n_u32(0);
+    svuint32_t acc2 = svdup_n_u32(0);
+    svuint32_t acc3 = svdup_n_u32(0);
+    // full-width steps without a predicate, then at most one predicated tail step
+    const auto step = [&](const svbool_t pg) {
+        const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
+        const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
+        const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
+        const svuint8_t q3 = svld1_u8(pg, (const uint8_t*)(query + r + 3 * bit_length));
+        const svuint8_t lo = svld1_u8(pg, (const uint8_t*)(a + r));
+        const svuint8_t hi = svld1_u8(pg, (const uint8_t*)(a_hi + r));
+
+        acc0 = dot_bit_weighted_sv(acc0, lo, q0, w1);
+        acc1 = dot_bit_weighted_sv(acc1, lo, q2, w4);
+        acc2 = dot_bit_weighted_sv(acc2, hi, q0, w2);
+        acc3 = dot_bit_weighted_sv(acc3, hi, q2, w8);
+        acc0 = dot_bit_weighted_sv(acc0, lo, q1, w2);
+        acc1 = dot_bit_weighted_sv(acc1, lo, q3, w8);
+        acc2 = dot_bit_weighted_sv(acc2, hi, q1, w4);
+        acc3 = dot_bit_weighted_sv(acc3, hi, q3, w16);
+    };
+    const int32_t full = bit_length - bit_length % (int32_t)svcntb();
+    for (; r < full; r += svcntb()) {
+        step(svptrue_b8());
+    }
+    if (r < bit_length) {
+        step(svwhilelt_b8(r, bit_length));
+    }
+    const svuint32_t acc = svadd_u32_x(svptrue_b32(), svadd_u32_x(svptrue_b32(), acc0, acc1), svadd_u32_x(svptrue_b32(), acc2, acc3));
+    return svaddv_u32(svptrue_b32(), acc);
+}
+
+// Two vectors in lockstep, for the remainder of a bulk call: few enough registers to avoid saving the
+// callee-saved ones, while the two vectors' UDOT chains run side by side.
+static inline void dotd2q4_inner_pair(
+    const int8_t* a0,
+    const int8_t* a1,
+    const int8_t* query,
+    const int32_t length,
+    int64_t* r0,
+    int64_t* r1
+) {
+    const int32_t bit_length = length / 2;
+    const svuint8_t w1 = svdup_n_u8(1);
+    const svuint8_t w2 = svdup_n_u8(2);
+    const svuint8_t w4 = svdup_n_u8(4);
+    const svuint8_t w8 = svdup_n_u8(8);
+    const svuint8_t w16 = svdup_n_u8(16);
+
+    int r = 0;
+    svuint32_t lo_acc0 = svdup_n_u32(0);
+    svuint32_t hi_acc0 = svdup_n_u32(0);
+    svuint32_t lo_acc1 = svdup_n_u32(0);
+    svuint32_t hi_acc1 = svdup_n_u32(0);
+    // full-width steps without a predicate, then at most one predicated tail step
+    const auto step = [&](const svbool_t pg) {
+        const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
+        const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
+        const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
+        const svuint8_t q3 = svld1_u8(pg, (const uint8_t*)(query + r + 3 * bit_length));
+        const svuint8_t lo0 = svld1_u8(pg, (const uint8_t*)(a0 + r));
+        const svuint8_t hi0 = svld1_u8(pg, (const uint8_t*)(a0 + bit_length + r));
+        const svuint8_t lo1 = svld1_u8(pg, (const uint8_t*)(a1 + r));
+        const svuint8_t hi1 = svld1_u8(pg, (const uint8_t*)(a1 + bit_length + r));
+
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q0, w1);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q0, w2);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q0, w1);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q0, w2);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q1, w2);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q1, w4);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q1, w2);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q1, w4);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q2, w4);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q2, w8);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q2, w4);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q2, w8);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q3, w8);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q3, w16);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q3, w8);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q3, w16);
+    };
+    const int32_t full = bit_length - bit_length % (int32_t)svcntb();
+    for (; r < full; r += svcntb()) {
+        step(svptrue_b8());
+    }
+    if (r < bit_length) {
+        step(svwhilelt_b8(r, bit_length));
+    }
+    *r0 = svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc0, hi_acc0));
+    *r1 = svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc1, hi_acc1));
+}
+
+EXPORT int64_t vec_dotd2q4_2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length
+) {
+    return dotd2q4_inner(a, query, length);
+}
+
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
+__attribute__((noinline)) static void dotd2q4_bulk4(
+    const TData* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count4,
+    f32_t* results
+) {
+    int c = 0;
+    const int32_t bit_length = length / 2;
+
+    // Four vectors per batch, each with one accumulator per doc bit plane so the UDOT chains stay short:
+    // the eight bit planes, the four query planes, the five weights and the eight accumulators fit in the
+    // 32 z registers. Using that many registers makes the function save the callee-saved ones, so it is
+    // kept out of line and only called with at least one full batch.
+    const svuint8_t w1 = svdup_n_u8(1);
+    const svuint8_t w2 = svdup_n_u8(2);
+    const svuint8_t w4 = svdup_n_u8(4);
+    const svuint8_t w8 = svdup_n_u8(8);
+    const svuint8_t w16 = svdup_n_u8(16);
+
+    for (; c < count4; c += 4) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        const int8_t* a1 = mapper(a, c + 1, offsets, pitch);
+        const int8_t* a2 = mapper(a, c + 2, offsets, pitch);
+        const int8_t* a3 = mapper(a, c + 3, offsets, pitch);
+
+        int r = 0;
+        svuint32_t lo_acc0 = svdup_n_u32(0);
+        svuint32_t hi_acc0 = svdup_n_u32(0);
+        svuint32_t lo_acc1 = svdup_n_u32(0);
+        svuint32_t hi_acc1 = svdup_n_u32(0);
+        svuint32_t lo_acc2 = svdup_n_u32(0);
+        svuint32_t hi_acc2 = svdup_n_u32(0);
+        svuint32_t lo_acc3 = svdup_n_u32(0);
+        svuint32_t hi_acc3 = svdup_n_u32(0);
+
+        // full-width steps without a predicate, then at most one predicated tail step
+        const auto step = [&](const svbool_t pg) {
+            const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
+            const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
+            const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
+            const svuint8_t q3 = svld1_u8(pg, (const uint8_t*)(query + r + 3 * bit_length));
+
+            const svuint8_t lo0 = svld1_u8(pg, (const uint8_t*)(a0 + r));
+            const svuint8_t hi0 = svld1_u8(pg, (const uint8_t*)(a0 + bit_length + r));
+            const svuint8_t lo1 = svld1_u8(pg, (const uint8_t*)(a1 + r));
+            const svuint8_t hi1 = svld1_u8(pg, (const uint8_t*)(a1 + bit_length + r));
+            const svuint8_t lo2 = svld1_u8(pg, (const uint8_t*)(a2 + r));
+            const svuint8_t hi2 = svld1_u8(pg, (const uint8_t*)(a2 + bit_length + r));
+            const svuint8_t lo3 = svld1_u8(pg, (const uint8_t*)(a3 + r));
+            const svuint8_t hi3 = svld1_u8(pg, (const uint8_t*)(a3 + bit_length + r));
+
+            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q0, w1);
+            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q1, w2);
+            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q2, w4);
+            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q3, w8);
+            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q0, w2);
+            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q1, w4);
+            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q2, w8);
+            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q3, w16);
+
+            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q0, w1);
+            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q1, w2);
+            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q2, w4);
+            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q3, w8);
+            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q0, w2);
+            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q1, w4);
+            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q2, w8);
+            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q3, w16);
+
+            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q0, w1);
+            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q1, w2);
+            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q2, w4);
+            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q3, w8);
+            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q0, w2);
+            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q1, w4);
+            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q2, w8);
+            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q3, w16);
+
+            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q0, w1);
+            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q1, w2);
+            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q2, w4);
+            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q3, w8);
+            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q0, w2);
+            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q1, w4);
+            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q2, w8);
+            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q3, w16);
+        };
+        const int32_t full = bit_length - bit_length % (int32_t)svcntb();
+        for (; r < full; r += svcntb()) {
+            step(svptrue_b8());
+        }
+        if (r < bit_length) {
+            step(svwhilelt_b8(r, bit_length));
+        }
+
+        results[out_mapper(offsets, c)] = (f32_t)svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc0, hi_acc0));
+        results[out_mapper(offsets, c + 1)] = (f32_t)svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc1, hi_acc1));
+        results[out_mapper(offsets, c + 2)] = (f32_t)svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc2, hi_acc2));
+        results[out_mapper(offsets, c + 3)] = (f32_t)svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc3, hi_acc3));
+    }
+}
+
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
+static inline void dotd2q4_inner_bulk(
+    const TData* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int32_t count4 = count & ~3;
+    if (count4 > 0) {
+        dotd2q4_bulk4<TData, mapper, out_mapper>(a, query, length, pitch, offsets, count4, results);
+    }
+    int c = count4;
+    if (c + 1 < count) {
+        int64_t r0, r1;
+        dotd2q4_inner_pair(mapper(a, c, offsets, pitch), mapper(a, c + 1, offsets, pitch), query, length, &r0, &r1);
+        results[out_mapper(offsets, c)] = (f32_t)r0;
+        results[out_mapper(offsets, c + 1)] = (f32_t)r1;
+        c += 2;
+    }
+    if (c < count) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[out_mapper(offsets, c)] = (f32_t)dotd2q4_inner(a0, query, length);
+    }
+}
+
+EXPORT void vec_dotd2q4_bulk_2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q4_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dotd2q4_bulk_masked_2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t mask,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q4_inner_bulk<int8_t, masked_mapper, masked_output>(
+        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+}
+
+EXPORT void vec_dotd2q4_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
+}
 
 EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
     const int32_t bit_length = length / 4;

@@ -119,6 +119,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
@@ -1510,6 +1511,79 @@ public class StatementParserTests extends AbstractStatementParserTests {
             containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
             () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
         );
+    }
+
+    private static final String MAX_BINARY_OPERATORS_ERROR =
+        "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ("
+            + EsqlParser.MAX_BINARY_OPERATORS
+            + ")";
+
+    private static String balancedAdditionTree(int levels) {
+        String expr = "a";
+        for (int i = 0; i < levels; i++) {
+            expr = "(" + expr + " + " + expr + ")";
+        }
+        return expr;
+    }
+
+    /** {@code ROW x0 = 1 + 1, x1 = 1 + 1, ...} with one binary operator per field. */
+    private static String fieldsWithOneOperatorEach(String prefix, int fields) {
+        return IntStream.range(0, fields).mapToObj(i -> prefix + i + " = 1 + 1").collect(Collectors.joining(", "));
+    }
+
+    public void testFlatOperatorChainFailsMaxBinaryOperators() {
+        expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + " - a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | where a > 0" + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + "::long".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testBalancedOperatorTreeFailsMaxBinaryOperators() {
+        // Reproduces https://github.com/elastic/esql-planning/issues/2297: shallow parenthesis nesting, but a huge number of operators
+        expectError("from test | eval y = " + balancedAdditionTree(17) + " | keep y", MAX_BINARY_OPERATORS_ERROR);
+        // 2^10 - 1 = 1023 operators
+        expectError("from test | eval y = " + balancedAdditionTree(10), MAX_BINARY_OPERATORS_ERROR);
+        // 2^9 - 1 = 511 operators
+        query("from test | eval y = " + balancedAdditionTree(9) + " | keep y");
+    }
+
+    public void testBinaryOperatorCountIsResetByComma() {
+        // Fields of a command are independent expressions, so any number of them is fine
+        query("row " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS));
+        query("from test | eval " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS) + " | keep x0");
+        // Arguments of a function call are independent expressions too
+        query("row x = coalesce(" + IntStream.range(0, 2300).mapToObj(i -> "1 + 1").collect(Collectors.joining(", ")) + ")");
+        // COUNT(*) is conservatively counted as a multiplication
+        query(
+            "from test | stats "
+                + IntStream.range(0, 5 * EsqlParser.MAX_BINARY_OPERATORS)
+                    .mapToObj(i -> "c" + i + " = count(*)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Two big trees in two fields are accepted, the same trees in one expression are not
+        String tree = balancedAdditionTree(9);
+        query("from test | eval x = " + tree + ", y = " + tree);
+        expectError("from test | eval x = " + tree + " + " + tree, MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByPipe() {
+        String tree = balancedAdditionTree(9);
+        // Each command is below the limit while the statement total is above it
+        query("from test | eval x = " + tree + " | eval y = " + tree + " | keep x");
+    }
+
+    public void testOperatorsWithoutSeparatorFailMaxBinaryOperators() {
+        String tree = balancedAdditionTree(9);
+        // The function call does not hide the operators from the check, because they are not separated by a comma
+        expectError("from test | eval x = abs(" + tree + " + " + tree + ")", MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | where " + tree + " > 0 and " + tree + " > 0", MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testOperatorLikeTokensInStringsAndCommentsAreNotCounted() {
+        String plusses = "+".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1);
+        query("row x = \"" + plusses + "\"");
+        query("row x = 1 // " + plusses);
+        query("row x = 1 /* " + plusses + " */");
     }
 
     public void testBlockComments() {

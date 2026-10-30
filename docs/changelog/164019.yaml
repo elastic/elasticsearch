@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 163730
-pr: 164019
-summary: Remap FILLNULL ids from each node's output
-type: bug

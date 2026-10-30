@@ -27,11 +27,14 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
+import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -80,6 +84,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
@@ -144,6 +149,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final ActivityLogger<EsqlLogContext> activityLogger;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
     private volatile boolean defaultAllowPartialResults;
+    private volatile TimeValue streamingConsumerTimeout;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
     private volatile int timeseriesResultTruncationMaxSize;
@@ -182,6 +188,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+        streamingConsumerTimeout = EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.get(clusterService.getSettings());
+        if (RestEsqlQueryAction.STREAMING_ENABLED) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT, v -> streamingConsumerTimeout = v);
+        }
         resultTruncationMaxSize = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
         resultTruncationDefaultSize = AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(clusterService.getSettings());
         timeseriesResultTruncationMaxSize = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
@@ -213,12 +224,42 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             request.allowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
-        PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
+        DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
+        AtomicBoolean outputComputeFinished = new AtomicBoolean(false);
+        AtomicReference<List<String>> startWarnings = new AtomicReference<>(List.of());
+        Function<Exception, PageStreamPublisher.StreamFooter> streamFailureFooter = ex -> {
+            DriverCompletionInfo work = completedWork.finish();
+            return failureFooter(
+                ex,
+                executionInfo,
+                work.withAdditionalWarnings(startWarnings.get()),
+                threadPool.getThreadContext(),
+                outputComputeFinished.get() ? work : null
+            );
+        };
+        PageStreamPublisher publisher = new PageStreamPublisher(
+            request.batchSize(),
+            streamingConsumerTimeout,
+            threadPool,
+            threadPool.generic(),
+            streamFailureFooter
+        );
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
             listener,
             new EsqlStreamLogContextBuilder(task, request, executionInfo, publisher, resultRef::get),
-            l -> innerExecute(task, request, executionInfo, publisher, resultRef, l)
+            l -> innerExecute(
+                task,
+                request,
+                executionInfo,
+                publisher,
+                resultRef,
+                completedWork,
+                outputComputeFinished,
+                startWarnings,
+                streamFailureFooter,
+                l
+            )
         );
     }
 
@@ -228,6 +269,10 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
+        DriverCompletionInfo.AtomicAccumulator completedWork,
+        AtomicBoolean outputComputeFinished,
+        AtomicReference<List<String>> startWarnings,
+        Function<Exception, PageStreamPublisher.StreamFooter> streamFailureFooter,
         ActionListener<ActionResponse.Empty> listener
     ) {
         EsqlFlags flags = computeService.createFlags();
@@ -235,7 +280,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
-        DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
 
         PlanRunner planRunner = new PlanRunner() {
             @Override
@@ -282,6 +326,10 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
                 Consumer<boolean[]> startCompute = nullColumns -> {
                     try {
+                        // A consumer timeout or a task cancellation while rows drain builds its error line on whichever thread raised it
+                        // (the timer's or the canceller's), which carries none of this request's response headers. Capture the
+                        // planning-time warnings here, while they are still in scope, so that error line can report them.
+                        startWarnings.set(footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY));
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
                         Exception startFailure = startStream(
                             request,
@@ -304,7 +352,23 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             foldCtx,
                             executionInfo,
                             planTimeProfile,
-                            resultListener
+                            resultListener.delegateFailureAndWrap((l, r) -> {
+                                completedWork.accumulate(r.completionInfo());
+                                outputComputeFinished.set(true);
+                                CancellableTask cancellableTask = (CancellableTask) task;
+                                cancellableTask.addListener(() -> {
+                                    TaskCancelledException cancelled = cancellableTask.getTaskCancelledException();
+                                    publisher.failStream(cancelled, streamFailureFooter.apply(cancelled));
+                                });
+                                publisher.addDrainedListener(l.delegateFailureAndWrap((l2, ignored) -> {
+                                    Exception streamFailure = publisher.failure();
+                                    if (streamFailure != null) {
+                                        l2.onFailure(streamFailure);
+                                    } else {
+                                        l2.onResponse(r);
+                                    }
+                                }), requestExecutor, threadPool.getThreadContext());
+                            })
                         );
                     } catch (Exception e) {
                         resultListener.onFailure(e);
@@ -581,12 +645,26 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         DriverCompletionInfo completedWork,
         ThreadContext threadContext
     ) {
+        return failureFooter(ex, executionInfo, completedWork, threadContext, null);
+    }
+
+    /**
+     * @param completionInfo the completion info to write on the error line, or {@code null} to omit it. Passed only
+     *                       when the output compute has finished, so the error line reports what compute did.
+     */
+    static PageStreamPublisher.StreamFooter failureFooter(
+        Exception ex,
+        EsqlExecutionInfo executionInfo,
+        DriverCompletionInfo completedWork,
+        ThreadContext threadContext,
+        @Nullable DriverCompletionInfo completionInfo
+    ) {
         return new PageStreamPublisher.StreamFooter(
             ExceptionsHelper.status(ex).getStatus(),
             tookMillis(executionInfo),
             executionInfo.isPartial() || completedWork.partial(),
             footerWarnings(threadContext, completedWork),
-            null,
+            completionInfo,
             null,
             ex,
             null

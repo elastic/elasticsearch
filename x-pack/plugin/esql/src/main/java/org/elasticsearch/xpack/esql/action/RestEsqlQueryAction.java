@@ -44,7 +44,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
      * {@link #responseParams()}, so {@link BaseRestHandler} rejects them as unrecognized parameters —
      * making the feature indistinguishable from one that was never added.
      */
-    static final boolean STREAMING_ENABLED = Build.current().isSnapshot();
+    public static final boolean STREAMING_ENABLED = Build.current().isSnapshot();
 
     private final EsqlCapabilities capabilities;
 

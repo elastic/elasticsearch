@@ -90,7 +90,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         // --- plugins lacking a *FuncTest ---
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
         "org.elasticsearch.gradle.internal.DependenciesInfoPlugin",
-        "org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin",
         "org.elasticsearch.gradle.internal.ElasticsearchBasePlugin",
         "org.elasticsearch.gradle.internal.EmbeddedProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin",

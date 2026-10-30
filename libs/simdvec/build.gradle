@@ -99,8 +99,8 @@ tasks.named('benchmark').configure {
 tasks.named('benchmarkTest').configure {
   dependsOn ':libs:native:native-libraries:extractLibs'
   jvmArgs '--add-modules=jdk.incubator.vector'
-
-  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
+  // es.nativelibs.path is set for every Test task by ElasticsearchJavaBasePlugin as a non-input property.
+  // Setting it here as a regular system property would make the absolute checkout path part of the cache key.
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

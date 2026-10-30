@@ -40,8 +40,8 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, FactorySettings> tokenFilterSettings() {
-        // max_code_len (double_metaphone) and max_variations (koelnerphonetik, haasephonetik) are encoder-specific;
-        // testDoubleMetaphoneMaxCodeLenIsKeyed and testMaxVariationsIsKeyed cover them.
+        // max_code_len and max_variations are each read by only some encoders, so they are probed against
+        // those encoders' own bases rather than the beider_morse one.
         return Map.of(
             "phonetic",
             settings(Map.of("encoder", "beider_morse")).ignored("encoder", "bm", "BeiderMorse")
@@ -63,6 +63,9 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
                 .affects("rule_type", "exact")
                 .affects("name_type", "ashkenazi")
                 .affects("replace", "false")
+                .alsoWith(settings(Map.of("encoder", "double_metaphone")).affects("max_code_len", 6))
+                .alsoWith(settings(Map.of("encoder", "koelnerphonetik")).affects("max_variations", 8))
+                .alsoWith(settings(Map.of("encoder", "haasephonetik")).affects("max_variations", 8))
         );
     }
 
@@ -89,6 +92,26 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         );
     }
 
+    /**
+     * The haasephonetik legacy mode is derived from the index creation version rather than a setting, so
+     * the settings contract above cannot probe it. Assert directly that the version changes the key for
+     * haasephonetik only; HaasePhonetikSharingTests proves the registry honors it end to end.
+     */
+    public void testHaaseLegacyVariationsIsKeyed() {
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, previous);
+        IndexVersion onOrAfterGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS,
+            IndexVersion.current()
+        );
+        Settings haase = Settings.builder().put("encoder", "haasephonetik").build();
+        assertNotEquals(phoneticKey(haase, beforeGate), phoneticKey(haase, onOrAfterGate));
+        assertEquals(phoneticKey(haase, beforeGate), phoneticKey(haase, previous));
+        assertEquals(phoneticKey(haase, onOrAfterGate), phoneticKey(haase, IndexVersion.current()));
+        Settings koelner = Settings.builder().put("encoder", "koelnerphonetik").build();
+        assertEquals(phoneticKey(koelner, beforeGate), phoneticKey(koelner, onOrAfterGate));
+    }
+
     /** caverphone is an alias for caverphone2, and the language set is used as a set. */
     public void testEquivalentSettingsShareKey() {
         assertEquals(
@@ -102,7 +125,14 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
     }
 
     private Object phoneticKey(Settings settings) {
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        return phoneticKey(settings, IndexVersion.current());
+    }
+
+    private Object phoneticKey(Settings settings, IndexVersion created) {
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, created).build()
+        );
         return new PhoneticTokenFilterFactory(idxSettings, null, "phonetic", settings).sharingKey();
     }
 

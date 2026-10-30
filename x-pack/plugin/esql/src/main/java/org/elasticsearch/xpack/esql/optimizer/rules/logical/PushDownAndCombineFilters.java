@@ -292,7 +292,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
      * In this context pushable means that we can push the filter down to the right side of a LEFT join
      * We do not check if the filter is pushable to Lucene or not here
      */
-    private static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
+    static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
         // traverse the filter tree
         // replace any reference to an attribute with a null literal
         Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, r.dataType()));

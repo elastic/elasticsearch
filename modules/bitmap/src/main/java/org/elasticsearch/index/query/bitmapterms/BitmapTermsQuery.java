@@ -30,6 +30,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
@@ -392,6 +393,41 @@ public class BitmapTermsQuery extends Query implements Accountable {
                 }
             }
             return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            assert offset <= doc : "offset=" + offset + " doc=" + doc + " upTo=" + upTo;
+            if (doc >= upTo) {
+                return;
+            }
+            while (true) {
+                if (draining) {
+                    // The enum is positioned on the current doc, so this fills [docID(), upTo) within the term and
+                    // leaves it on the first doc at or past upTo, or exhausted. Under the ascending sort this path
+                    // requires, every later term's docs are larger, so a term that reaches upTo ends the fill.
+                    postings.intoBitSet(upTo, bitSet, offset);
+                    if (postings.docID() != NO_MORE_DOCS) {
+                        doc = postings.docID();
+                        return;
+                    }
+                    draining = false;
+                }
+                if (merge.nextMatch() == false) {
+                    doc = NO_MORE_DOCS;
+                    return;
+                }
+                postings = merge.postings(postings);
+                // A matched term always holds at least one document, so this positions the enum rather than
+                // exhausting it; the next loop turn fills from there, starting the term's bits at its first doc.
+                postings.nextDoc();
+                draining = true;
+            }
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return draining ? postings.docIDRunEnd() : doc + 1;
         }
 
         /**

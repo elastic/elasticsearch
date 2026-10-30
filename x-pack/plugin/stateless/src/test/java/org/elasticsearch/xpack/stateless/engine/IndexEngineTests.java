@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,6 +38,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -72,6 +77,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +98,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -755,6 +762,53 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             int newFactor = factor + randomIntBetween(1, 5);
             clusterSettings.applySettings(Settings.builder().put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), newFactor).build());
             assertThat(scheduler.getMaxMergeCount(), equalTo(newFactor * maxConcurrentMerges));
+        }
+    }
+
+    /**
+     * {@link IndexEngine} overrides {@code wrapMergePolicy} to add relocation-abort behaviour, and {@code ThreadPoolMergeScheduler}
+     * requires the merges it runs to be {@link SizeTrackingOneMerge}s, so the merges the engine's policy produces must be of that type.
+     */
+    public void testMergePolicyProducesSizeTrackingMerges() throws Exception {
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, Settings.EMPTY, () -> 1L, new TieredMergePolicy()))) {
+            for (int i = 0; i < randomIntBetween(2, 5); i++) {
+                engine.index(randomDoc(String.valueOf(i)));
+                PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
+                engine.flush(true, true, flushFuture);
+                flushFuture.actionGet();
+            }
+            SegmentInfos segmentInfos = engine.getLastCommittedSegmentInfos();
+            Map<SegmentCommitInfo, Boolean> segmentsToMerge = new HashMap<>();
+            segmentInfos.forEach(info -> segmentsToMerge.put(info, Boolean.TRUE));
+
+            MergePolicy.MergeSpecification spec = engine.wrapMergePolicy(new TieredMergePolicy())
+                .findForcedMerges(segmentInfos, 1, segmentsToMerge, new MergePolicy.MergeContext() {
+                    @Override
+                    public int numDeletesToMerge(SegmentCommitInfo info) {
+                        return 0;
+                    }
+
+                    @Override
+                    public int numDeletedDocs(SegmentCommitInfo info) {
+                        return 0;
+                    }
+
+                    @Override
+                    public InfoStream getInfoStream() {
+                        return InfoStream.NO_OUTPUT;
+                    }
+
+                    @Override
+                    public Set<SegmentCommitInfo> getMergingSegments() {
+                        return Set.of();
+                    }
+                });
+
+            assertNotNull(spec);
+            assertThat(spec.merges, not(empty()));
+            for (MergePolicy.OneMerge merge : spec.merges) {
+                assertThat(merge, instanceOf(SizeTrackingOneMerge.class));
+            }
         }
     }
 

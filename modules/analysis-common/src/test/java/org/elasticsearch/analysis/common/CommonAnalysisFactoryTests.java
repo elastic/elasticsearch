@@ -521,6 +521,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // The two filters also never share; CommonAnalysisPluginTests covers that.
         // condition and predicate_token_filter compile a script and hyphenation_decompounder reads a patterns file
         // from the config directory, neither of which the contract's registry has; SharingKeyTests covers them.
+        // The synonym filters need the plugin's circuit breaker and synonyms services, which this harness's
+        // plugin does not have; SharingKeyTests covers their keys.
         return Set.of(
             tokenFilter("nGram"),
             tokenFilter("edgeNGram"),
@@ -528,13 +530,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             tokenizer("edgeNGram"),
             tokenFilter("condition"),
             tokenFilter("predicate_token_filter"),
-            tokenFilter("hyphenation_decompounder")
+            tokenFilter("hyphenation_decompounder"),
+            tokenFilter("synonym"),
+            tokenFilter("synonym_graph")
         );
-    }
-
-    @Override
-    protected Set<FactoryRef> factorySettingsPending() {
-        return Set.of(tokenFilter("synonym"), tokenFilter("synonym_graph"));
     }
 
     /**

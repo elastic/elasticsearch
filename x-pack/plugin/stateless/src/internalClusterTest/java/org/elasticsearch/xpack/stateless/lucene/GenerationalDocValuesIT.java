@@ -26,6 +26,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -1252,7 +1253,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         searchCacheService.forceEvict(fileCacheKey -> bccBlobName.equals(fileCacheKey.fileName()));
 
         // With ES-7496 resolved we can fully read the generational file without triggering a NoSuchFileException
-        try (var searcher = searchShard.acquireSearcher("test")) {
+        try (var searcher = searchShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
             readGenerationalDocValues(searcher);
         }
@@ -1374,7 +1375,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             var searchEngineTermAndGen = SearchEngineTestUtils.getCurrentPrimaryTermAndGeneration(searchEngine);
             assertThat(searchEngineTermAndGen.generation(), matcher);
 
-            try (var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation")) {
+            try (
+                var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation", SplitShardCountSummary.IRRELEVANT)
+            ) {
                 assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), matcher);
             }
         });

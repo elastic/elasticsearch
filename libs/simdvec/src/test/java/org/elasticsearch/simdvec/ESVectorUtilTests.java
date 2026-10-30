@@ -828,34 +828,46 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return vectors;
     }
 
+    // Bulk-path datasets arrive from DocValues.binaryValue(), whose BytesRef rarely starts at offset 0;
+    // encoding the test datasets behind a junk prefix exercises the offset arithmetic end to end.
+    private static final int VECTOR_BYTES_PREFIX = 13;
+
     private static BytesRef encodeFloatVectors(float[][] vectors) {
         int dims = vectors[0].length;
-        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.allocate(VECTOR_BYTES_PREFIX + vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.position(VECTOR_BYTES_PREFIX);
         var floatBuffer = buffer.asFloatBuffer();
         for (float[] vector : vectors) {
             floatBuffer.put(vector);
         }
-        return new BytesRef(buffer.array());
+        return new BytesRef(buffer.array(), VECTOR_BYTES_PREFIX, vectors.length * dims * Float.BYTES);
     }
 
     private static BytesRef encodeByteVectors(byte[][] vectors) {
         int dims = vectors[0].length;
-        byte[] bytes = new byte[vectors.length * dims];
-        int offset = 0;
+        byte[] bytes = new byte[VECTOR_BYTES_PREFIX + vectors.length * dims];
+        int offset = VECTOR_BYTES_PREFIX;
         for (byte[] vector : vectors) {
             System.arraycopy(vector, 0, bytes, offset, dims);
             offset += dims;
         }
-        return new BytesRef(bytes);
+        return new BytesRef(bytes, VECTOR_BYTES_PREFIX, vectors.length * dims);
     }
 
     private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
         int dims = vectors[0].length;
-        byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
+        byte[] buffer = new byte[VECTOR_BYTES_PREFIX + vectors.length * dims * BFloat16.BYTES];
         for (int i = 0; i < vectors.length; i++) {
-            ESVectorUtil.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
+            ESVectorUtil.floatToBFloat16(
+                vectors[i],
+                0,
+                buffer,
+                VECTOR_BYTES_PREFIX + i * dims * BFloat16.BYTES,
+                dims,
+                ByteOrder.LITTLE_ENDIAN
+            );
         }
-        return new BytesRef(buffer);
+        return new BytesRef(buffer, VECTOR_BYTES_PREFIX, vectors.length * dims * BFloat16.BYTES);
     }
 
     private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {

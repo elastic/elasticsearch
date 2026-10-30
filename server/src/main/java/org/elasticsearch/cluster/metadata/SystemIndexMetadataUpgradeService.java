@@ -85,8 +85,10 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     Set<Index> dataStreamIndices = new HashSet<>();
                     for (Map.Entry<String, DataStream> cursor : dataStreams.entrySet()) {
                         DataStream dataStream = cursor.getValue();
-                        if (localNodeNewlyElectedMaster || dataStream != previousDataStreams.get(cursor.getKey())) {
+                        if (localNodeNewlyElectedMaster) {
                             warnIfMatchesSystemIndexPattern(dataStream);
+                        }
+                        if (localNodeNewlyElectedMaster || dataStream != previousDataStreams.get(cursor.getKey())) {
                             if (requiresUpdate(dataStream)) {
                                 changedDataStreams.add(dataStream);
                             }
@@ -167,7 +169,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         final SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(dataStream.getName());
         if (matchingDescriptor != null) {
             logger.warn(
-                "data stream [{}] matches system index pattern [{}] but is not a system data stream; its backing indices are not restricted",
+                "data stream [{}] matches system index pattern [{}] but is not a system data stream; "
+                    + "its backing indices are not restricted",
                 dataStream.getName(),
                 matchingDescriptor.getIndexPattern()
             );

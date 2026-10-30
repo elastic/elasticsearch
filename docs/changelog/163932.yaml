@@ -1,5 +1,5 @@
-area: Infra/System Indices
+area: Data streams
 issues: []
 pr: 163932
-summary: Fail `DataStreams` matching System Indices pattern
+summary: Reject data streams matching system index patterns
 type: bug

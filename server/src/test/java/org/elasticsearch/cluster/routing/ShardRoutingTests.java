@@ -645,9 +645,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     /// Serializes a [RecoveryPriorityBeforeNonCriticalUnassigned] the way we used to before the introduction of
     /// [ShardRouting.RecoveryPriority#UNASSIGNED_RESTORING] and [ShardRouting.RecoveryPriority#UNASSIGNED_PERFORMANCE_SCALING],
-    /// deserializes
-    /// them to get a [ShardRouting.RecoveryPriority] using a [TransportVersion] from before that change, and assert that it is an
-    /// equivalent value.
+    /// deserializes them to get a [ShardRouting.RecoveryPriority] using a [TransportVersion] from before that change, and assert
+    /// that it is an equivalent value.
     public void testRecoveryPrioritySerialization_beforeNonCriticalUnassignedWriter() throws IOException {
         for (final var originalPriority : RecoveryPriorityBeforeNonCriticalUnassigned.values()) {
             final var version = ShardRouting.RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION;

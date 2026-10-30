@@ -345,6 +345,22 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(peakConcurrent.get(), equalTo(maxConcurrentRecoveries));
     }
 
+    /// [ThrottlingRecoveryService#doFillSlots] only peeks at the head of the queue, which is only correct if every
+    /// critical [ShardRouting.RecoveryPriority] ranks above every non-critical one.
+    public void testCriticalRecoveryPrioritiesRankAboveNonCriticalOnes() {
+        final var priorities = ShardRouting.RecoveryPriority.values();
+        for (final var higher : priorities) {
+            for (final var lower : priorities) {
+                if (higher.ordinal() < lower.ordinal() && ThrottlingRecoveryService.isCritical(lower)) {
+                    assertTrue(
+                        "critical priority " + lower + " ranks below non-critical priority " + higher,
+                        ThrottlingRecoveryService.isCritical(higher)
+                    );
+                }
+            }
+        }
+    }
+
     public void testRelocationRecoveriesMaxProportion() {
         final var taskQueue = new DeterministicTaskQueue();
         // Power-of-two limit to keep the derived proportion exactly representable through RatioValue's percent conversion.

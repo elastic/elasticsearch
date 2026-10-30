@@ -250,7 +250,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     private static void assertIncomingRecoveryLimitsMetrics(
         TestTelemetryPlugin telemetryPlugin,
         long expectedMaxConcurrentRecoveries,
-        long expectedMaxConcurrentRelocationRecoveries
+        long expectedMaxConcurrentNonCriticalRecoveries
     ) {
         telemetryPlugin.collect();
         assertThat(
@@ -259,7 +259,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         );
         assertThat(
             telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
-            equalTo(expectedMaxConcurrentRelocationRecoveries)
+            equalTo(expectedMaxConcurrentNonCriticalRecoveries)
         );
     }
 

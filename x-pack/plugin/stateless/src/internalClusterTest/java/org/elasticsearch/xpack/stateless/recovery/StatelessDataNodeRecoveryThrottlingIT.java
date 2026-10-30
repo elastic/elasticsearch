@@ -391,10 +391,10 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         ensureGreen(indexName);
     }
 
-    /// Simulates a node evacuation during a large reshard split recoveries: the split targets fill the incoming recovery
-    /// slots of the node receiving the evacuated shards, and hold them while their split sources (on another node, so
-    /// not cancelled by the evacuation) do the work. The relocations away from the shutting down node must take the next
-    /// free slots, ahead of the queued split targets.
+    /// Simulates a node evacuation during a large reshard: the split targets fill the incoming recovery slots of the
+    /// node receiving the evacuated shards, and hold them while their split sources (on another node, so not cancelled
+    /// by the evacuation) do the work. The relocations away from the shutting down node must take the next free slots,
+    /// ahead of the queued split targets.
     public void testRelocationsAwayFromShuttingDownNodeAreNotStarvedBySplitTargets() throws Exception {
         startMasterOnlyNode();
         final int maxConcurrentRecoveries = between(1, 3);
@@ -417,7 +417,8 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
                 splitSourceNode + "," + targetNode
             ).build()
         );
-        // All the split targets are allocated to the target node
+        // All the split sources are allocated to the split source node. Limiting the index to sourceShards shards per node then
+        // keeps the split targets off the split source node, so they are all allocated to the target node.
         final var reshardedIndex = randomIndexName();
         createIndex(
             reshardedIndex,

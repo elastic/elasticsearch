@@ -311,7 +311,7 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// `concurrentRelocations` is this source's share of the target's, split between all relocations to the target from
     /// any shutting-down source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
-    /// is a rough estimate that ignores other recoveries competing for the target's slots.
+    /// is a rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
     ///
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
     /// [SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previousPlan`) always yields an equal-share

@@ -580,31 +580,37 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return routingAllocation.getId();
         }
 
-        /// Returns whether this is a critical recovery, i.e. one for an index that the client expects to be available but
-        /// currently isn't. Relocations (whose source stay STARTED until they complete), recoveries of unassigned shards
-        /// added for performance reasons, and snapshot restores (whose index is expected to be unavailable until they complete,
-        /// which may take a long time) are ranked as non-critical. Non-critical recoveries are additionally limited by
-        /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING], so
-        /// that the node can always immediately start work on at least one new critical recovery.
-        ///
-        /// All the critical priorities rank above all the non-critical ones in [ShardRouting.RecoveryPriority], which
-        /// [#doFillSlots] relies on.
+        /// Returns whether this is a critical recovery, see [ThrottlingRecoveryService#isCritical(ShardRouting.RecoveryPriority)].
         boolean isCritical() {
             RecoveryState state = recoveryState();
-            return switch (state.getRecoveryPriority()) {
-                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
-                case RELOCATION_CAN_REMAIN_NO, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, RELOCATION_CAN_REMAIN_NOT_PREFERRED,
-                    RELOCATE_REBALANCING -> false;
-                case UNKNOWN -> {
-                    assert false : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
-                    yield false; // fall back to false, as we treat this as the lowest priority, so it is ordered more like a relocation
-                }
-            };
+            assert state.getRecoveryPriority() != ShardRouting.RecoveryPriority.UNKNOWN
+                : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
+            return ThrottlingRecoveryService.isCritical(state.getRecoveryPriority());
         }
 
         RecoverySchedulingListener.PriorityGroup priorityGroup() {
             return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
+    }
+
+    /// Returns whether a recovery with the given priority is critical, i.e. one for a shard copy that the client expects to be
+    /// available but currently isn't. Relocations (whose source stays STARTED until they complete), recoveries of unassigned
+    /// shards added for performance reasons, and snapshot restores (whose index is expected to be unavailable until they
+    /// complete, which may take a long time) are ranked as non-critical. Non-critical recoveries are additionally limited by
+    /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING], so
+    /// that the node can always immediately start work on at least one new critical recovery.
+    ///
+    /// All the critical priorities rank above all the non-critical ones in [ShardRouting.RecoveryPriority], which
+    /// [#doFillSlots] relies on.
+    // visible for testing
+    static boolean isCritical(ShardRouting.RecoveryPriority recoveryPriority) {
+        return switch (recoveryPriority) {
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
+            case RELOCATION_CAN_REMAIN_NO, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+                RELOCATE_REBALANCING -> false;
+            // UNKNOWN should never be seen in cluster state. We treat it here as the lowest priority.
+            case UNKNOWN -> false;
+        };
     }
 
     /// Helper class which manages throttling the number of running recoveries.
@@ -629,7 +635,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         private void decrementRunning(PendingRecovery recoveryNowFinished) {
             runningRecoveries--;
-            assert runningRecoveries >= 0 : "negative number of running unassigned recoveries " + runningRecoveries;
+            assert runningRecoveries >= 0 : "negative number of running recoveries " + runningRecoveries;
             if (recoveryNowFinished.isCritical() == false) {
                 runningNonCriticalRecoveries--;
                 assert runningNonCriticalRecoveries >= 0

@@ -67,7 +67,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     public static final String RECOVERY_GATE_NAME_ATTRIBUTE_KEY = "es_recovery_gate_name";
 
     public static final String INCOMING_RECOVERIES_LIMIT_METRIC = "es.recovery.dnrt.incoming.limit.current";
-    public static final String INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC = "es.recovery.dnrt.incoming.relocation.limit.current";
+    public static final String INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC = "es.recovery.dnrt.incoming.non_critical.limit.current";
     public static final String OUTGOING_RECOVERIES_LIMIT_METRIC = "es.recovery.dnrt.outgoing.limit.current";
 
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(
@@ -421,10 +421,10 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         );
         asyncGauges.add(
             meterRegistry.registerLongAsyncGauge(
-                INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC,
-                "The current effective concurrent incoming relocation recoveries limit on this node (Integer.MAX_VALUE when unbounded)",
+                INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC,
+                "The current effective concurrent incoming non-critical recoveries limit on this node (Integer.MAX_VALUE when unbounded)",
                 "unit",
-                () -> incomingRecoveryLimits.maxConcurrentRelocationRecoveries()
+                () -> incomingRecoveryLimits.maxConcurrentNonCriticalRecoveries()
             )
         );
         asyncGauges.add(

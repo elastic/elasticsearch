@@ -1,0 +1,564 @@
+version: 9.4.9
+released: false
+generated: 2026-10-30T00:13:05.049017302Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3078
+    summary: Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3080
+    summary: Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision)
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3081
+    summary: Mark ML controller non-dumpable before accepting commands
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3090
+    summary: Fix flaky concurrent LFU cache count invariant under lock timeouts
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3143
+    summary: Fail gracefully when restoring a categorizer with an out-of-range token ID
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3149
+    summary: Fail closed on incomplete `TorchScript` pre-load state-hook scan
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3189
+    summary: Stabilize uncertain trend forecasts
+    area: Machine Learning
+    type: bug
+    issues:
+      - 2772
+    source_repo: elastic/ml-cpp
+  - pr: 3209
+    summary: Detect level changes which coincide with detecting new seasonality
+    area: Machine Learning
+    type: bug
+    issues:
+      - 2730
+    source_repo: elastic/ml-cpp
+  - pr: 145996
+    summary: Fix `MvPercentile` precision on edge cases and unmute tests
+    area: ES|QL
+    type: bug
+    issues:
+      - 145888
+      - 162784
+      - 145889
+      - 162778
+      - 145886
+      - 162782
+      - 145887
+      - 162780
+  - pr: 152225
+    summary: Upgrade qa/vector opentelemetry dependency for security vulnerability
+    area: Search
+    type: upgrade
+    issues: []
+  - pr: 152610
+    summary: Prevent stale roles from being cached when a role cache invalidation races with an in-flight role resolution
+    area: Security
+    type: bug
+    issues:
+      - 152582
+  - pr: 155172
+    summary: Fix `InferIsNotNull`
+    area: ES|QL
+    type: bug
+    issues:
+      - 155101
+  - pr: 157746
+    summary: Honor `GetCheckpoint` timeout on node transport requests and add `settings.indexer_request_timeout`
+    area: Transform
+    type: bug
+    issues:
+      - 157745
+  - pr: 157956
+    summary: "Fix `CASE` with a single-value list condition, and report multivalued conditions with the standard `single-value function encountered multi-value` warning"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157957
+    summary: Catch REPLACE regex `StackOverflowError`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 158910
+    summary: Avoid nested listeners in doc-partitioning cache
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 159231
+    summary: Fork `top_hits` fetch context once per aggregator
+    area: Search
+    type: bug
+    issues:
+      - 158722
+  - pr: 159241
+    summary: Deduplicate terms lookup fetches and apply max_terms_count during rewrite
+    area: Search
+    type: bug
+    issues: []
+  - pr: 159351
+    summary: Apply field visibility to `constant_keyword`
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 159667
+    summary: Bound heap/allocation growth in analysis-phonetic
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 160144
+    summary: Return HTTP 400 for malformed `_resolve/index` request bodies
+    area: Search
+    type: bug
+    issues:
+      - 159955
+  - pr: 160167
+    summary: "[Inference API] Add support for thought signature for Gemini 3.x models"
+    area: Inference
+    type: bug
+    issues:
+      - 159760
+  - pr: 160484
+    summary: Release `top_hits` from old-connection batched aggs
+    area: Search
+    type: bug
+    issues: []
+  - pr: 160492
+    summary: Don't return unassigned shards in primary shard routing iterator
+    area: Distributed
+    type: bug
+    issues: []
+  - pr: 160494
+    summary: Upgrade reactor-core to 3.8.7
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 160525
+    summary: Reject node enrollment unless the HTTP leaf chains to the pinned CA and is within its validity period
+    area: Security
+    type: bug
+    issues: []
+  - pr: 160592
+    summary: Circuit-break before growing the array
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 160619
+    summary: Update jsoup to 1.23.2
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 160651
+    summary: Push down SORT `_score` ASC as ascending
+    area: ES|QL
+    type: bug
+    issues:
+      - 160650
+  - pr: 160674
+    summary: Respect template shard count when simulating templates
+    area: Templates
+    type: bug
+    issues: []
+  - pr: 160933
+    summary: Fix `BinaryDvConfirmedQuery.fromFuzzyQuery` with non-ASCII patterns
+    area: Search
+    type: bug
+    issues: []
+  - pr: 160941
+    summary: Support field collapse on keyword fields with high cardinality doc values
+    area: Search
+    type: bug
+    issues:
+      - 158753
+  - pr: 161117
+    summary: "TSDB: not all documents with invalid timestamps are redirected to the failure store"
+    area: Data streams
+    type: bug
+    issues:
+      - 161001
+  - pr: 161141
+    summary: Fix intermittent TLS handshake failures on aarch64 caused by a JDK race (JDK-8393730)
+    area: TLS
+    type: bug
+    issues:
+      - 160280
+  - pr: 161154
+    summary: Make GCS Storage retry on SSL exception
+    area: Network
+    type: enhancement
+    issues: []
+  - pr: 161156
+    summary: Fix inference field highlighting when values come from direct assignment and `copy_to`
+    area: Highlighting
+    type: bug
+    issues:
+      - 159964
+  - pr: 161168
+    summary: Ensure Vertex creates unique IDs for each tool call
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 161190
+    summary: Ensure Lucene operator status is immutable
+    area: ES|QL
+    type: bug
+    issues:
+      - 160823
+  - pr: 161242
+    summary: Validate TO_GEOHASH/GEOTILE/GEOHEX input
+    area: ES|QL
+    type: bug
+    issues:
+      - 160230
+      - 161209
+  - pr: 161250
+    summary: "Show the effective index mode and settings of the next backing index in `GET _data_stream`, and honor settings that a request explicitly unsets."
+    area: Data streams
+    type: bug
+    issues:
+      - 125685
+  - pr: 161254
+    summary: Fix deadlock in Microsoft Graph authz realm token acquisition
+    area: Security
+    type: bug
+    issues:
+      - 161197
+  - pr: 161282
+    summary: Cache output
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 161299
+    summary: Honor `index` and `doc_values` on `ip` fields in `time_series` indices
+    area: Mapping
+    type: bug
+    issues:
+      - 161300
+  - pr: 161310
+    summary: Bump snappy-java to 1.1.10.11
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 161326
+    summary: Upgrade Bouncy Castle to 1.86
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 161345
+    summary: Validate LZ4 transport block decompression to its declared length
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 161406
+    summary: Bump lz4 to 1.11.4
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 161455
+    summary: "Fix IN pushdown on ip, version, unsigned_long, date fields"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 161459
+    summary: Fix infinite loop in `FallbackSyntheticSourceBlockLoader`
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 161492
+    summary: Verify API key before decoding cross-cluster info
+    area: Security
+    type: bug
+    issues: []
+  - pr: 161556
+    summary: Release scroll contexts when index removed
+    area: Search
+    type: bug
+    issues:
+      - 161316
+  - pr: 161659
+    summary: Limit initial allocation in `SnapshotInfoCollector`
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 161726
+    summary: Fix case-insensitive empty term query on wildcard fields
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 161865
+    summary: Fix empty `BigArray` fill on a page boundary
+    area: ES|QL
+    type: bug
+    issues:
+      - 154778
+      - 154777
+  - pr: 161992
+    summary: Reject rollover migrating a data stream from a non-standard index mode to TSDB
+    area: TSDB
+    type: bug
+    issues:
+      - 161905
+  - pr: 162017
+    summary: Avoid quadratic failed response size when failure store redirects fail
+    area: Data streams
+    type: bug
+    issues:
+      - 157859
+  - pr: 162048
+    summary: "Fix continuous transforms not deleting old checkpoints from `.transform-internal-*` (causing the index to grow without bound) while their node's host has been up between about 107 and 214 days, and deleting checkpoints newer than the 10-day retention period at other times"
+    area: Transform
+    type: bug
+    issues:
+      - 161960
+  - pr: 162130
+    summary: Fix TS nulling converted metrics in multi-metric STATS
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 162131
+    summary: Bound script params in reindex and update-by-query task descriptions
+    area: Reindex
+    type: bug
+    issues: []
+  - pr: 162147
+    summary: Release empty percentile digest when the breaker trips
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 162158
+    summary: Improve memory usage in `ConcurrentSegmentSourceProvider`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 162171
+    summary: Fix streamed requests with secondary authentication being dispatched off the network thread
+    area: Authentication
+    type: bug
+    issues: []
+  - pr: 162302
+    summary: Apply fls to `constant_keyword` in new and reindexed percolate queries at runtime
+    area: Security
+    type: bug
+    issues:
+      - 161396
+  - pr: 162309
+    summary: Fail `AllocationActionListener` delegate only once
+    area: Allocation
+    type: bug
+    issues:
+      - 160180
+      - 152475
+  - pr: 162315
+    summary: Prevent SO in automatic KNN prefilter
+    area: Vector Search
+    type: bug
+    issues:
+      - 162295
+  - pr: 162376
+    summary: Fix use-after-close in `BlockArrowFormatter`
+    area: ES|QL
+    type: bug
+    issues:
+      - 153438
+  - pr: 162378
+    summary: Handle `IndexShardClosedException` and shutdown in `ReplicationOperation::updateCheckPoints`
+    area: Distributed
+    type: bug
+    issues:
+      - 158303
+  - pr: 162521
+    summary: Bind ES|QL lookup requests to their target shard
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 162532
+    summary: Fix knn nested pre-filter handling when querying inference fields
+    area: Search
+    type: bug
+    issues:
+      - 162043
+  - pr: 162600
+    summary: Upgrade bcutil-fips to 2.0.8
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 162658
+    summary: Skip the index sort range query optimization on indices with nested fields
+    area: Search
+    type: bug
+    issues: []
+  - pr: 162669
+    summary: Make downsample resume from the last indexed tsid work
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 162684
+    summary: Fix filtered alias handling in multi-nested knn queries
+    area: Search
+    type: bug
+    issues:
+      - 162572
+  - pr: 162833
+    summary: Return 400 when an `intervals` query rule expands to too many terms
+    area: Search
+    type: bug
+    issues:
+      - 162297
+  - pr: 162886
+    summary: Bound the query in `query_string` parse errors
+    area: Search
+    type: bug
+    issues: []
+  - pr: 162901
+    summary: Remove compromised `eMudhra` roots from the bundled JDK's cacerts
+    area: Packaging
+    type: bug
+    issues: []
+  - pr: 162994
+    summary: Bound the input in date parse errors
+    area: Search
+    type: bug
+    issues: []
+  - pr: 163033
+    summary: Bound the input in boolean and ip parse errors
+    area: Search
+    type: bug
+    issues: []
+  - pr: 163046
+    summary: Bump bundled JDK to 27.0.1.0.2 to address CVE-2026-91403 (compromised eMudhra intermediate CAs)
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 163107
+    summary: Fix `_search` error when the `suggest_field` URL parameter is set without `suggest_mode`
+    area: Suggesters
+    type: bug
+    issues:
+      - 162301
+  - pr: 163140
+    summary: Skip unready stats indices in cleanup
+    area: Machine Learning
+    type: bug
+    issues:
+      - 162947
+      - 162417
+      - 152311
+      - 162939
+      - 147656
+      - 159566
+  - pr: 163307
+    summary: Reject non-positive size in composite aggregation
+    area: Aggregations
+    type: bug
+    issues:
+      - 163038
+  - pr: 163386
+    summary: Propagate rest status
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 163586
+    summary: Validate `context_setup` in painless execute API
+    area: Infra/Scripting
+    type: bug
+    issues: []
+  - pr: 163627
+    summary: Bump bundled JDK to 27.0.1.0.3
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 163710
+    summary: Upgrade Jackson to 2.21.8
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 163732
+    summary: Fix NPE in datafeed delayed data check
+    area: Machine Learning
+    type: bug
+    issues: []

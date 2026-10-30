@@ -14,6 +14,7 @@ import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.internal.HeapBufferScratch;
 
 import java.io.IOException;
@@ -92,8 +93,9 @@ public class BBQDotProduct {
      *
      * @param query the query vector, of {@code queryBits * planeBytes} bytes
      */
-    public long dotProduct(byte[] query) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+    public long dotProduct(ScoringQuery query) throws IOException {
+        final byte[] q = query.bytes();
+        assert q.length == queryBytes : "query length " + q.length + " != " + queryBytes;
 
         /*
          * Basic generalized dot-product implementation using AND popcount on byte arrays
@@ -104,7 +106,7 @@ public class BBQDotProduct {
         long dot = 0;
         for (int qp = 0; qp < encoding.queryBits(); qp++) {
             for (int dp = 0; dp < encoding.dataBits(); dp++) {
-                int popCount = ESVectorUtil.andBitCount(query, qp * planeBytes, data, dp * planeBytes, planeBytes);
+                int popCount = ESVectorUtil.andBitCount(q, qp * planeBytes, data, dp * planeBytes, planeBytes);
                 dot += (long) popCount << (qp + dp);
             }
         }
@@ -115,7 +117,7 @@ public class BBQDotProduct {
      * Scores the next {@code count} data vectors into {@code scores[0..count)} and advances the
      * input past all of them.
      */
-    public void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
+    public void dotProductBulk(ScoringQuery query, int count, float[] scores) throws IOException {
         for (int i = 0; i < count; i++) {
             scores[i] = dotProduct(query);
         }
@@ -129,7 +131,7 @@ public class BBQDotProduct {
      * @param mask   bit {@code i} selects the vector at position {@code i}; no bit at or above {@code count} is set
      * @param scores receives the score at each selected position
      */
-    public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
+    public void dotProductBulkMasked(ScoringQuery query, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
             if (BulkMask.isSelected(mask, i)) {
                 scores[i] = dotProduct(query);
@@ -146,7 +148,8 @@ public class BBQDotProduct {
         }
 
         @Override
-        public long dotProduct(byte[] q) throws IOException {
+        public long dotProduct(ScoringQuery query) throws IOException {
+            final byte[] q = query.bytes();
             assert q.length == planeBytes : "length mismatch q " + q.length + " vs " + planeBytes;
             long ret = 0;
             int r = 0;
@@ -173,10 +176,10 @@ public class BBQDotProduct {
         }
 
         @Override
-        public long dotProduct(byte[] query) throws IOException {
+        public long dotProduct(ScoringQuery query) throws IOException {
             long dot = 0;
             for (int dp = 0; dp < encoding.dataBits(); dp++) {
-                dot += dotProductImpl(query) << dp;
+                dot += dotProductImpl(query.bytes()) << dp;
             }
             return dot;
         }

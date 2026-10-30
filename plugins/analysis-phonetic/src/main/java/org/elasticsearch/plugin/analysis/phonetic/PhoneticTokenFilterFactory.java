@@ -48,7 +48,6 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
     private final Object sharingKey;
-    private boolean legacyHaaseVariations;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -59,6 +58,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.maxVariations = 0;
         this.isDaitchMokotoff = false;
         this.replace = settings.getAsBoolean("replace", true);
+        boolean legacyHaaseVariations = false;
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
         String encodername = settings.get("encoder", "metaphone");
         if ("metaphone".equalsIgnoreCase(encodername)) {
@@ -104,8 +104,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                 this.encoder = new KoelnerPhonetik(maxVariations);
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
                 this.maxVariations = maxVariations(settings);
-                this.legacyHaaseVariations = indexSettings.getIndexVersionCreated()
-                    .before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
+                legacyHaaseVariations = indexSettings.getIndexVersionCreated().before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
                 this.encoder = new HaasePhonetik(maxVariations, legacyHaaseVariations);
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
@@ -115,9 +114,10 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
-        // The commons-codec encoders are built with their defaults, except the Koelner variants which take
-        // max_variations, so the class plus the keyed limits identifies the encoding; the language set is
-        // used as a set, so its order and duplicates do not matter.
+        // The encoder classes don't implement equals, so the key identifies an encoder by its class; that
+        // is sound only while every encoder constructor argument (max_variations and the Haase legacy
+        // flag) is itself a key component. The language set is used as a set, so its order and duplicates
+        // do not matter.
         this.sharingKey = new Key(
             encoder == null ? null : encoder.getClass(),
             replace,

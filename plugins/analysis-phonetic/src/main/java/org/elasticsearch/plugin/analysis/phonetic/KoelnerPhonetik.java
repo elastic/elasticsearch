@@ -91,6 +91,8 @@ public class KoelnerPhonetik implements StringEncoder {
     }
 
     /**
+     * @param maxVariations limit on the variations generated for one token, see {@code maxVariations}; between 1 and
+     *                      {@link #MAX_VARIATIONS_UPPER_BOUND}
      * @param legacyVariations emit the rule text rather than the matched text for anchored rules like {@code ^CH}, as before the fix,
      *                         so indices created earlier keep their indexed codes
      */

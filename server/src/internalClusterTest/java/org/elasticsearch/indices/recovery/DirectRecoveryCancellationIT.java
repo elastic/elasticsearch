@@ -682,7 +682,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
     /// Verifies that an unrelated cluster state update arriving after a started-recovery cancellation (while the
     /// master has not yet processed the resulting SHARD_FAILED) does not cause `failedAllocations` to be incorrectly
-    /// incremented. The data node resends the failure from `failedShardsCache` using a [RecoveryCancelledException].
+    /// incremented. The data node resends the failure from `pendingAllocationStates` using a [RecoveryCancelledException].
     public void testUnrelatedClusterStateUpdateAfterStartedCancellation() throws Exception {
         final var masterNode = internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
@@ -735,7 +735,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         safeAwait(firstCancellationFailureReceived);
 
         // Trigger an unrelated cluster state update. The data node sees shardId still INITIALIZING and resends
-        // the SHARD_FAILED from failedShardsCache using a RecoveryCancelledException.
+        // the SHARD_FAILED from pendingAllocationStates using a RecoveryCancelledException.
         assertAcked(
             clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
                 .setPersistentSettings(
@@ -890,7 +890,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             clusterService.state().routingTable().shardRoutingTable(shardId2).primaryShard().initializing()
         );
 
-        // Wait for all 3 expected SHARD_FAILEDs: one from the enqueue rejection and two resends from failedShardsCache.
+        // Wait for all 3 expected SHARD_FAILEDs: one from the enqueue rejection and two resends from pendingAllocationStates.
         safeAwait(allCancellationFailuresReceived);
 
         // Release all blocked SHARD_FAILED messages.

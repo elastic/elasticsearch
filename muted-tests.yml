@@ -246,6 +246,11 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/163488
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  method: testDeletesRemovedEndpoints_GivenSingleEndpointIsRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/164048
 
 # Examples:
 #

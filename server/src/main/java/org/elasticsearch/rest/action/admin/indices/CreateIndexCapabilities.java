@@ -62,6 +62,11 @@ public class CreateIndexCapabilities {
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     /**
+     * Support for the {@code index.sort} expression setting.
+     */
+    private static final String INDEX_SORT_EXPRESSION_CAPABILITY = "index_sort_expression";
+
+    /**
      * Support for {@code doc_values.on_failure=ignore}. Always advertised now that the feature is no longer behind a flag; kept so
      * mixed-version yaml tests still skip against older nodes where the capability was not yet advertised.
      */
@@ -94,6 +99,7 @@ public class CreateIndexCapabilities {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }
+        caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
         if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
             caps.add(FLATTENED_UNMAPPED_FIELDS_CAPABILITY);
         }

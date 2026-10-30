@@ -15,6 +15,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -32,10 +33,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -58,10 +61,36 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
+ * Alternatively the sort can be configured with the single `index.sort` expression setting, for example
+ * `@timestamp DESC MV_FIRST_MAX MISSING_LAST, host.name`. It is stored as is, the four settings above stay unset and their
+ * values are derived from the expression. It can't be combined with them.
+ *
 **/
 public final class IndexSortConfig {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
+
+    /**
+     * Expression that configures all index sort fields at once:
+     * {@code [field-name [ASC|DESC] [MV_FIRST_MIN|MV_FIRST_MAX] [MISSING_FIRST|MISSING_LAST]],...}.
+     * It is stored as is, so that reading back the settings returns what was written. The values of the {@code index.sort.*}
+     * settings are derived from it by {@link IndexSortConfigDefaults}. It has no default to report, which keeps
+     * {@code include_defaults} from emitting an {@code index.sort} value next to the nested {@code index.sort.*} settings.
+     */
+    public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort", "", s -> s, new Setting.Validator<String>() {
+        @Override
+        public void validate(String value) {
+            if (value.isEmpty()) {
+                return;
+            }
+            parseSortExpression(value);
+        }
+    }, Setting.Property.IndexScope, Setting.Property.Final, Setting.Property.ServerlessPublic) {
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            // Input only: never report the empty default, see the Javadoc above.
+        }
+    };
 
     /**
      * The list of field names
@@ -175,6 +204,11 @@ public final class IndexSortConfig {
                 return NO_SORT;
             }
 
+            String sortExpression = settings.get(INDEX_SORT_SETTING.getKey(), "");
+            if (sortExpression.isEmpty() == false) {
+                return parseSortExpression(sortExpression);
+            }
+
             // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
             // of index.sort.*, which causes infinite recursion (since we're already in the default value provider for those settings).
             // So we need to get the mode while bypassing the validation.
@@ -263,6 +297,74 @@ public final class IndexSortConfig {
         }
     }
 
+    /**
+     * Parses an {@link #INDEX_SORT_SETTING} expression into the equivalent values of the {@code index.sort.*} settings.
+     */
+    public static IndexSortConfigDefaults.SortDefault parseSortExpression(String expression) {
+        String key = INDEX_SORT_SETTING.getKey();
+        if (expression.isBlank()) {
+            throw new IllegalArgumentException("setting [" + key + "] must not be blank");
+        }
+        List<String> fields = new ArrayList<>();
+        List<String> orders = new ArrayList<>();
+        List<String> modes = new ArrayList<>();
+        List<String> missings = new ArrayList<>();
+        Set<String> seenFields = new HashSet<>();
+        for (String entry : expression.split(",", -1)) {
+            String[] tokens = Strings.tokenizeToStringArray(entry, " \t\n\r");
+            if (tokens.length == 0) {
+                throw new IllegalArgumentException("setting [" + key + "] contains an empty sort entry in [" + expression + "]");
+            }
+            String field = tokens[0];
+            if (seenFields.add(field) == false) {
+                throw new IllegalArgumentException("setting [" + key + "] contains field [" + field + "] more than once");
+            }
+            String order = null;
+            String mode = null;
+            String missing = null;
+            for (int i = 1; i < tokens.length; i++) {
+                String token = tokens[i].toUpperCase(Locale.ROOT);
+                switch (token) {
+                    case "ASC", "DESC" -> order = setOnce(key, entry, "sort order", order, token.toLowerCase(Locale.ROOT));
+                    case "MV_FIRST_MIN" -> mode = setOnce(key, entry, "multi-value mode", mode, "min");
+                    case "MV_FIRST_MAX" -> mode = setOnce(key, entry, "multi-value mode", mode, "max");
+                    case "MISSING_FIRST" -> missing = setOnce(key, entry, "missing value handling", missing, "_first");
+                    case "MISSING_LAST" -> missing = setOnce(key, entry, "missing value handling", missing, "_last");
+                    default -> throw new IllegalArgumentException(
+                        "setting ["
+                            + key
+                            + "] contains unknown keyword ["
+                            + tokens[i]
+                            + "] in ["
+                            + entry.trim()
+                            + "], expected one of [ASC, DESC, MV_FIRST_MIN, MV_FIRST_MAX, MISSING_FIRST, MISSING_LAST]"
+                    );
+                }
+            }
+            if (order == null) {
+                order = "asc";
+            }
+            if (mode == null) {
+                mode = order.equals("desc") ? "max" : "min";
+            }
+            if (missing == null) {
+                missing = "_last";
+            }
+            fields.add(field);
+            orders.add(order);
+            modes.add(mode);
+            missings.add(missing);
+        }
+        return new IndexSortConfigDefaults.SortDefault(fields, orders, modes, missings);
+    }
+
+    private static String setOnce(String key, String entry, String what, String current, String value) {
+        if (current != null) {
+            throw new IllegalArgumentException("setting [" + key + "] specifies the " + what + " more than once in [" + entry.trim() + "]");
+        }
+        return value;
+    }
+
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
             throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
@@ -295,6 +397,21 @@ public final class IndexSortConfig {
     }
 
     private static void validateSortSettings(Settings settings) {
+        boolean hasSortExpression = settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false;
+        if (hasSortExpression) {
+            for (Setting<?> setting : new Setting<?>[] {
+                INDEX_SORT_FIELD_SETTING,
+                INDEX_SORT_ORDER_SETTING,
+                INDEX_SORT_MODE_SETTING,
+                INDEX_SORT_MISSING_SETTING }) {
+                if (setting.exists(settings)) {
+                    throw new IllegalArgumentException(
+                        "setting [" + INDEX_SORT_SETTING.getKey() + "] cannot be combined with [" + setting.getKey() + "]"
+                    );
+                }
+            }
+        }
+
         if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
             for (Setting<?> setting : new Setting<?>[] { INDEX_SORT_ORDER_SETTING, INDEX_SORT_MODE_SETTING, INDEX_SORT_MISSING_SETTING }) {
                 if (setting.exists(settings)) {
@@ -305,9 +422,8 @@ public final class IndexSortConfig {
             }
         }
 
-        if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
-            List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
-            for (String field : fields) {
+        if (IndexSettings.SLICE_ENABLED.get(settings) && (INDEX_SORT_FIELD_SETTING.exists(settings) || hasSortExpression)) {
+            for (String field : INDEX_SORT_FIELD_SETTING.get(settings)) {
                 if (field.equals(RoutingFieldMapper.NAME)
                     || field.equals(SliceIndexing.FIELD_NAME)
                     || field.equals(SliceIndexing.SLICE_KEY_FIELD_NAME)

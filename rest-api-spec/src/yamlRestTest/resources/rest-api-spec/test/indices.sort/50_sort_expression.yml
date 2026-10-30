@@ -1,0 +1,184 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [index_sort_expression]
+      reason: index.sort expression setting is not supported on older nodes
+
+---
+"Sort expression configures the index sort":
+  - do:
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: "rank DESC MISSING_FIRST"
+          mappings:
+            properties:
+              rank:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: sorted_index
+        flat_settings: true
+
+  # The expression is stored as is, so that PUT and GET are idempotent, and the index.sort.* settings stay unset.
+  - match: { sorted_index.settings.index\.sort: "rank DESC MISSING_FIRST" }
+  - is_false: sorted_index.settings.index\.sort\.field
+  - is_false: sorted_index.settings.index\.sort\.order
+  - is_false: sorted_index.settings.index\.sort\.mode
+  - is_false: sorted_index.settings.index\.sort\.missing
+
+  # The expression has no default to report, the derived index.sort.* values are reported as defaults.
+  - do:
+      indices.get_settings:
+        index: sorted_index
+        include_defaults: true
+  - match: { sorted_index.defaults.index.sort.field: [ "rank" ] }
+  - match: { sorted_index.defaults.index.sort.order: [ "desc" ] }
+  - match: { sorted_index.defaults.index.sort.mode: [ "max" ] }
+  - match: { sorted_index.defaults.index.sort.missing: [ "_first" ] }
+
+  # Index a document without a rank first, then ranks in ascending order, and flush each into its own segment.
+  - do:
+      index: { index: sorted_index, id: "none", body: { other: 1 } }
+  - do:
+      indices.flush: { index: sorted_index }
+  - do:
+      index: { index: sorted_index, id: "1", body: { rank: 1 } }
+  - do:
+      indices.flush: { index: sorted_index }
+  - do:
+      index: { index: sorted_index, id: "2", body: { rank: 2 } }
+  - do:
+      indices.forcemerge: { index: sorted_index, max_num_segments: 1 }
+  - do:
+      indices.refresh: { index: sorted_index }
+
+  # Without an explicit sort, hits come back in index (sorted) order: missing first, then rank descending.
+  - do:
+      search:
+        index: sorted_index
+        body:
+          query: { match_all: {} }
+  - match: { hits.hits.0._id: "none" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Sort expression setting is idempotent across GET and PUT":
+  - do:
+      indices.create:
+        index: original_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: "rank DESC MISSING_FIRST, other MV_FIRST_MAX"
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: original_index
+        flat_settings: true
+  - set: { original_index.settings.index\.sort: stored_sort }
+  - match: { original_index.settings.index\.sort: "rank DESC MISSING_FIRST, other MV_FIRST_MAX" }
+
+  # Feeding the stored value back into a create request must be accepted and yield the same stored value.
+  - do:
+      indices.create:
+        index: copied_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: $stored_sort
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: copied_index
+        flat_settings: true
+  - match: { copied_index.settings.index\.sort: $stored_sort }
+  - is_false: copied_index.settings.index\.sort\.field
+
+---
+"Sort expression cannot be combined with index.sort.field":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "rank"
+            index.sort.field: "rank"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/cannot.be.combined.with.\\[index.sort.field\\]/" }
+
+---
+"Sort expression cannot sort on a field under a nested object":
+  - do:
+      catch: /cannot apply index sort to field \[nested_field\.foo\] under nested object \[nested_field\]/
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "nested_field.foo"
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested_field:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword
+
+---
+"Sort expression in an index template":
+  - do:
+      indices.put_index_template:
+        name: sorted_template
+        body:
+          index_patterns: [ "sorted_template_*" ]
+          template:
+            settings:
+              number_of_shards: 1
+              index.sort: "rank DESC, other"
+
+  - do:
+      indices.create:
+        index: sorted_template_index
+        body:
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: sorted_template_index
+        flat_settings: true
+  - match: { sorted_template_index.settings.index\.sort: "rank DESC, other" }
+  - is_false: sorted_template_index.settings.index\.sort\.field
+
+  - do:
+      indices.delete_index_template:
+        name: sorted_template

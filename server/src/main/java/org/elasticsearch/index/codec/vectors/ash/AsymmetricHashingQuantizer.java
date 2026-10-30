@@ -103,16 +103,16 @@ public final class AsymmetricHashingQuantizer {
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
-     * @param maxProjectedDims maximum number of projected dims
+     * @param maxProjectedDims
+     *        maximum number of projected dims
+     *        (calculated as {@code min(maxProjectedDims, originalDim * projectedDimsFraction)}
      * @param bitsPerDim bits per projected dimension in the body
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations refining the rotation of the PCA subspace (for LEARNED);
      *        zero keeps the rotation random
      * @param trainingFactor multiplier on dimension for training sample size
      * @param seed random seed
-     * @throws IllegalArgumentException if {@code nTrainingIterations} is negative, {@code bitsPerDim} is not a
-     *         {@linkplain IvfSegmentConfig.AshConfig#isValidBitsPerDim(int) valid ASH bit width} or
-     *         {@code projectedDimsFraction} is not in (0, 1]
+     * @throws IllegalArgumentException if any argument is outside its valid range
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,

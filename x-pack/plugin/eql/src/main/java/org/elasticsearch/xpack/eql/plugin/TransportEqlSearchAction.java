@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.activity.ActivityInterceptor;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -79,7 +79,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
-    private final ActivityInterceptor<EqlCaptureContext> activityInterceptor;
+    private final QueryInterceptor<EqlCaptureContext> activityInterceptor;
 
     @Inject
     public TransportEqlSearchAction(
@@ -118,7 +118,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
+        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
     }
 
     @Override
@@ -209,7 +209,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        ActivityInterceptor<EqlCaptureContext> activityInterceptor,
+        QueryInterceptor<EqlCaptureContext> activityInterceptor,
         ActionListener<EqlSearchResponse> operationListener
     ) {
         activityInterceptor.wrapAndRun(

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.sql.logging;
 
-import org.elasticsearch.common.logging.activity.ActivityCaptureContextBuilder;
+import org.elasticsearch.common.logging.activity.QueryCaptureContextBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
-public class SqlCaptureContextBuilder extends ActivityCaptureContextBuilder<SqlCaptureContext, SqlQueryRequest, SqlQueryResponse> {
+public class SqlCaptureContextBuilder extends QueryCaptureContextBuilder<SqlCaptureContext, SqlQueryRequest, SqlQueryResponse> {
 
     public SqlCaptureContextBuilder(Task task, SqlQueryRequest request) {
         super(task, request);

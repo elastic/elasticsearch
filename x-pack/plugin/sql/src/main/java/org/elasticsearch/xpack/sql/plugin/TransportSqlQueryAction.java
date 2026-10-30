@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.activity.ActivityInterceptor;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -81,7 +81,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final TransportService transportService;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
-    private final ActivityInterceptor<SqlCaptureContext> activityInterceptor;
+    private final QueryInterceptor<SqlCaptureContext> activityInterceptor;
     private volatile int maxQueryLength;
 
     @Inject
@@ -125,7 +125,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new SqlLogProducer(), logWriterProvider, fieldProvider);
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
+        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
     }
 
     @Override
@@ -164,7 +164,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         TransportService transportService,
         ClusterService clusterService,
         CrossProjectModeDecider crossProjectModeDecider,
-        ActivityInterceptor<SqlCaptureContext> activityInterceptor,
+        QueryInterceptor<SqlCaptureContext> activityInterceptor,
         int maxQueryLength
     ) {
         activityInterceptor.wrapAndRun(

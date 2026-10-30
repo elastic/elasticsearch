@@ -22,7 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.logging.activity.ActivityInterceptor;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.util.BigArrays;
@@ -121,7 +121,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    private final ActivityInterceptor<EsqlCaptureContext> activityInterceptor;
+    private final QueryInterceptor<EsqlCaptureContext> activityInterceptor;
     private final QueryMetricsListener metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
@@ -269,7 +269,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
+        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -831,7 +831,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return datasetResolver;
     }
 
-    public ActivityInterceptor<EsqlCaptureContext> activityInterceptor() {
+    public QueryInterceptor<EsqlCaptureContext> activityInterceptor() {
         return activityInterceptor;
     }
 }

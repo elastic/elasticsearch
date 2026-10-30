@@ -14,13 +14,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * An {@link ActivitySink} for tests whose switch and behaviour are supplied by the test, as {@link ActivitySink} is abstract.
+ * An {@link QuerySink} for tests whose switch and behaviour are supplied by the test, as {@link QuerySink} is abstract.
  */
-class TestActivitySink<C extends ActivityCaptureContext> extends ActivitySink<C> {
+class TestQuerySink<C extends QueryCaptureContext> extends QuerySink<C> {
     private final BooleanSupplier enabled;
     private final Consumer<C> consumer;
 
-    TestActivitySink(BooleanSupplier enabled, Consumer<C> consumer, Supplier<String> description) {
+    TestQuerySink(BooleanSupplier enabled, Consumer<C> consumer, Supplier<String> description) {
         super(description);
         this.enabled = enabled;
         this.consumer = consumer;

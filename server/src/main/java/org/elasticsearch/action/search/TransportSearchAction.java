@@ -62,8 +62,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.activity.ActivityInterceptor;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -200,7 +200,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final ActivityInterceptor<SearchCaptureContext> activityInterceptor;
+    private final QueryInterceptor<SearchCaptureContext> activityInterceptor;
 
     @Inject
     public TransportSearchAction(
@@ -275,7 +275,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
+        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

@@ -36,7 +36,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link QueryLogger}, as a sink of an {@link ActivityInterceptor}, that exercise {@link ClusterSettings}-backed
+ * Tests for {@link QueryLogger}, as a sink of an {@link QueryInterceptor}, that exercise {@link ClusterSettings}-backed
  * query log settings.
  */
 public class QueryLoggerTests extends ESTestCase {
@@ -48,7 +48,7 @@ public class QueryLoggerTests extends ESTestCase {
     private ActionLoggingFields loggingFields;
     private ActionLoggingFieldsProvider fieldProvider;
     private ActivityLogWriterProvider writerProvider;
-    private ActivityInterceptor<TestContext> interceptor;
+    private QueryInterceptor<TestContext> interceptor;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -64,7 +64,7 @@ public class QueryLoggerTests extends ESTestCase {
         writerProvider = mock(ActivityLogWriterProvider.class);
         when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        interceptor = new ActivityInterceptor<>(List.of(queryLogger()));
+        interceptor = new QueryInterceptor<>(List.of(queryLogger()));
     }
 
     private ESLogMessage randomMessage() {
@@ -115,7 +115,7 @@ public class QueryLoggerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testWrapDisabled() {
         ActionListener<String> listener = ActionListener.noop();
-        ActivityCaptureContextBuilder<TestContext, String, String> builder = mock(ActivityCaptureContextBuilder.class);
+        QueryCaptureContextBuilder<TestContext, String, String> builder = mock(QueryCaptureContextBuilder.class);
 
         ActionListener<String> wrapped = interceptor.wrap(listener, builder);
 
@@ -125,8 +125,8 @@ public class QueryLoggerTests extends ESTestCase {
 
     public void testExtraSinkCalledWhenQueryLogDisabled() {
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestActivitySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
-        var interceptor = new ActivityInterceptor<>(List.of(queryLogger(), sink));
+        var sink = new TestQuerySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
+        var interceptor = new QueryInterceptor<>(List.of(queryLogger(), sink));
         TestContext context = new TestContext(100);
 
         interceptor.notifySinks(context);
@@ -138,8 +138,8 @@ public class QueryLoggerTests extends ESTestCase {
     public void testExtraSinkAndQueryLogBothCalledWhenEnabled() {
         enableLogger();
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestActivitySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
-        var interceptor = new ActivityInterceptor<>(List.of(queryLogger(), sink));
+        var sink = new TestQuerySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
+        var interceptor = new QueryInterceptor<>(List.of(queryLogger(), sink));
         TestContext context = new TestContext(100);
         ESLogMessage randomMessage = randomMessage();
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
@@ -153,8 +153,8 @@ public class QueryLoggerTests extends ESTestCase {
     public void testDisabledExtraSinkIsSkippedWhileQueryLogIsEnabled() {
         enableLogger();
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestActivitySink<TestContext>(() -> false, accepted::add, () -> "test-sink");
-        var interceptor = new ActivityInterceptor<>(List.of(queryLogger(), sink));
+        var sink = new TestQuerySink<TestContext>(() -> false, accepted::add, () -> "test-sink");
+        var interceptor = new QueryInterceptor<>(List.of(queryLogger(), sink));
         TestContext context = new TestContext(100);
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage()));
 

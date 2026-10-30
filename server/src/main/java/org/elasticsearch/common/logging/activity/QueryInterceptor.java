@@ -20,33 +20,33 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Captures the activity of an action - its completion, whether successful or not - and hands it to the {@link ActivitySink}s.
+ * Captures a query action - its completion, whether successful or not - and hands it to the {@link QuerySink}s.
  * The context is built once and passed to every enabled sink. The interceptor neither logs nor knows what the sinks do: the
  * query log ({@link QueryLogger}) is one sink among others. Capturing is best effort: a failure to build the context or in a
  * sink is logged and never changes the outcome of the action.
  * Specific details are added in the specific context types for each action, such as search, ESQL query, etc.
  * @param <Context> Logging context type
  */
-// TODO: move the activity classes out of org.elasticsearch.common.logging. Capturing activity for sinks is no longer logging.
-public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
-    private static final Logger logger = LogManager.getLogger(ActivityInterceptor.class);
+// TODO: move these classes out of org.elasticsearch.common.logging.activity. Capturing queries for sinks is no longer logging.
+public final class QueryInterceptor<Context extends QueryCaptureContext> {
+    private static final Logger logger = LogManager.getLogger(QueryInterceptor.class);
 
-    private final List<ActivitySink<Context>> sinks;
+    private final List<QuerySink<Context>> sinks;
 
-    public ActivityInterceptor(List<ActivitySink<Context>> sinks) {
+    public QueryInterceptor(List<QuerySink<Context>> sinks) {
         this.sinks = List.copyOf(sinks);
     }
 
     private boolean anySinkEnabled() {
-        return sinks.stream().anyMatch(ActivityInterceptor::isEnabled);
+        return sinks.stream().anyMatch(QueryInterceptor::isEnabled);
     }
 
     /** A sink whose switch fails is treated as disabled: a sink must never fail the action. */
-    private static boolean isEnabled(ActivitySink<?> sink) {
+    private static boolean isEnabled(QuerySink<?> sink) {
         try {
             return sink.isEnabled();
         } catch (Exception e) {
-            logger.warn(() -> Strings.format("activity sink [%s] failed to report whether it is enabled", sink), e);
+            logger.warn(() -> Strings.format("query sink [%s] failed to report whether it is enabled", sink), e);
             return false;
         }
     }
@@ -59,7 +59,7 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
                     sink.accept(context);
                 } catch (Exception e) {
                     // a sink must never fail the action or starve the other sinks
-                    logger.warn(() -> Strings.format("activity sink [%s] failed", sink), e);
+                    logger.warn(() -> Strings.format("query sink [%s] failed", sink), e);
                 }
             }
         }
@@ -74,7 +74,7 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
         try {
             context = contextSupplier.get();
         } catch (Exception e) {
-            logger.warn("failed to build the activity context, the activity is not captured", e);
+            logger.warn("failed to build the query context, the query is not captured", e);
             return;
         }
         notifySinks(context);
@@ -85,10 +85,7 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
      * Both will be passed to the enabled sinks and then propagated to the delegate listener.
      * If no sink is enabled, it's a no-op.
      */
-    public <Req, R> ActionListener<R> wrap(
-        ActionListener<R> listener,
-        final ActivityCaptureContextBuilder<Context, Req, R> contextBuilder
-    ) {
+    public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final QueryCaptureContextBuilder<Context, Req, R> contextBuilder) {
         if (anySinkEnabled() == false) {
             return listener;
         }
@@ -107,7 +104,7 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
 
             @Override
             public String toString() {
-                return "ActivityInterceptor listener/" + delegate;
+                return "QueryInterceptor listener/" + delegate;
             }
         };
     }
@@ -122,7 +119,7 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
      */
     public <Req, R> void wrapAndRun(
         ActionListener<R> listener,
-        ActivityCaptureContextBuilder<Context, Req, R> contextBuilder,
+        QueryCaptureContextBuilder<Context, Req, R> contextBuilder,
         Consumer<ActionListener<R>> action
     ) {
         if (anySinkEnabled() == false) {

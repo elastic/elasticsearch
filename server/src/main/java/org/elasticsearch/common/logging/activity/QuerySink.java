@@ -12,7 +12,7 @@ package org.elasticsearch.common.logging.activity;
 import java.util.function.Supplier;
 
 /**
- * A downstream consumer of the completed context of an action handled by an {@link ActivityInterceptor}. The query log is one sink,
+ * A downstream consumer of the completed context of a query action handled by a {@link QueryInterceptor}. The query log is one sink,
  * a plugin that samples queries can be another. Each sink has its own switch, so any of them can be enabled or disabled
  * independently.
  * <p>
@@ -21,18 +21,18 @@ import java.util.function.Supplier;
  * <p>
  * Sinks run synchronously on the thread that completes the action, before the response is passed on. They must be fast,
  * must copy anything they need from the context (the response may be released once the call returns), and an exception they
- * throw is swallowed by the {@link ActivityInterceptor} so that it can never fail the action or starve the other sinks.
+ * throw is swallowed by the {@link QueryInterceptor} so that it can never fail the action or starve the other sinks.
  *
- * @param <C> the logging context type this sink handles
+ * @param <C> the query context type this sink handles
  */
-public abstract class ActivitySink<C extends ActivityCaptureContext> {
+public abstract class QuerySink<C extends QueryCaptureContext> {
     private final Supplier<String> description;
 
     /**
      * @param description describes the sink in {@link #toString()}, which is only used when reporting a failure of the sink, so it
      *                 is evaluated lazily
      */
-    protected ActivitySink(Supplier<String> description) {
+    protected QuerySink(Supplier<String> description) {
         this.description = description;
     }
 

@@ -21,11 +21,11 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class ActivitySinkTests extends ESTestCase {
+public class QuerySinkTests extends ESTestCase {
 
     public void testAcceptReceivesTheContext() {
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestActivitySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
+        var sink = new TestQuerySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
         var context = new TestContext(42);
 
         sink.accept(context);
@@ -35,7 +35,7 @@ public class ActivitySinkTests extends ESTestCase {
 
     public void testIsEnabledIsReadEachTime() {
         var enabled = new AtomicBoolean(false);
-        var sink = new TestActivitySink<TestContext>(enabled::get, context -> {}, () -> "test-sink");
+        var sink = new TestQuerySink<TestContext>(enabled::get, context -> {}, () -> "test-sink");
 
         assertFalse(sink.isEnabled());
         enabled.set(true);
@@ -44,7 +44,7 @@ public class ActivitySinkTests extends ESTestCase {
 
     public void testDescriptionIsEvaluatedLazily() {
         var evaluations = new AtomicInteger();
-        var sink = new TestActivitySink<TestContext>(() -> true, context -> {}, () -> {
+        var sink = new TestQuerySink<TestContext>(() -> true, context -> {}, () -> {
             evaluations.incrementAndGet();
             return "test-sink";
         });
@@ -54,9 +54,24 @@ public class ActivitySinkTests extends ESTestCase {
         assertThat(evaluations.get(), equalTo(1));
     }
 
-    private static class TestContext extends ActivityCaptureContext {
+    private static class TestContext extends QueryCaptureContext {
         TestContext(long tookInNanos) {
             super(mock(Task.class), "test", tookInNanos);
+        }
+
+        @Override
+        public String getQuery() {
+            return "";
+        }
+
+        @Override
+        public int getResultCount() {
+            return 0;
+        }
+
+        @Override
+        public String[] getIndices() {
+            return new String[0];
         }
     }
 }

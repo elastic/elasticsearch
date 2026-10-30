@@ -10,10 +10,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.activity.ActivityCaptureContextBuilder;
+import org.elasticsearch.common.logging.activity.QueryCaptureContextBuilder;
 import org.elasticsearch.tasks.Task;
 
-public class SearchCaptureContextBuilder extends ActivityCaptureContextBuilder<SearchCaptureContext, SearchRequest, SearchResponse> {
+public class SearchCaptureContextBuilder extends QueryCaptureContextBuilder<SearchCaptureContext, SearchRequest, SearchResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     public SearchCaptureContextBuilder(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request) {

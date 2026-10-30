@@ -25,12 +25,12 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
- * The query log. It is an {@link ActivitySink}, registered with the {@link ActivityInterceptor} of a query action like any other
+ * The query log. It is a {@link QuerySink}, registered with the {@link QueryInterceptor} of a query action like any other
  * sink. Its switch, threshold, level and system index filter are driven by the {@code elasticsearch.querylog.*} settings.
  * On {@link #accept} it uses its {@link ActivityLogProducer} to turn the context into an {@link ESLogMessage}, which it
  * hands to its {@link ActivityLogWriter}.
  */
-public class QueryLogger<Context extends QueryCaptureContext> extends ActivitySink<Context> {
+public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<Context> {
     /** Prefix for query log related settings */
     public static final String QUERY_LOGGER_SETTINGS_PREFIX = "elasticsearch.querylog.";
 

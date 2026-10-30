@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
-public class ActivityInterceptorTests extends ESTestCase {
+public class QueryInterceptorTests extends ESTestCase {
 
     private List<String> responses = new ArrayList<>();
     private List<Exception> failures = new ArrayList<>();
@@ -95,20 +95,20 @@ public class ActivityInterceptorTests extends ESTestCase {
     }
 
     public void testFailingSinkDoesNotFailTheActionOrStarveOthers() {
-        var failing = new TestActivitySink<TestContext>(
+        var failing = new TestQuerySink<TestContext>(
             () -> true,
             context -> { throw new IllegalStateException("sink failure"); },
             () -> "failing-sink"
         );
         var after = new RecordingSink(true);
 
-        try (var mockLog = MockLog.capture(ActivityInterceptor.class)) {
+        try (var mockLog = MockLog.capture(QueryInterceptor.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "failing sink is named in the warning",
-                    ActivityInterceptor.class.getCanonicalName(),
+                    QueryInterceptor.class.getCanonicalName(),
                     Level.WARN,
-                    "activity sink [failing-sink] failed"
+                    "query sink [failing-sink] failed"
                 )
             );
 
@@ -123,7 +123,7 @@ public class ActivityInterceptorTests extends ESTestCase {
     }
 
     public void testThrowingSinkSwitchDoesNotFailTheActionOrStarveOthers() {
-        var broken = new TestActivitySink<TestContext>(
+        var broken = new TestQuerySink<TestContext>(
             () -> { throw new IllegalStateException("switch failure"); },
             context -> fail("a sink with a throwing switch must not be called"),
             () -> "broken-sink"
@@ -189,24 +189,24 @@ public class ActivityInterceptorTests extends ESTestCase {
         assertFalse(sink.accepted.get(0).isSuccess());
     }
 
-    private static ActivityInterceptor<TestContext> interceptor(List<ActivitySink<TestContext>> sinks) {
-        return new ActivityInterceptor<>(sinks);
+    private static QueryInterceptor<TestContext> interceptor(List<QuerySink<TestContext>> sinks) {
+        return new QueryInterceptor<>(sinks);
     }
 
     /** A sink that records the contexts it is given. */
     private static class RecordingSink {
         final AtomicBoolean enabled;
         final List<TestContext> accepted = new ArrayList<>();
-        final ActivitySink<TestContext> sink;
+        final QuerySink<TestContext> sink;
 
         RecordingSink(boolean enabled) {
             this.enabled = new AtomicBoolean(enabled);
-            this.sink = new TestActivitySink<>(this.enabled::get, accepted::add, () -> "recording-sink");
+            this.sink = new TestQuerySink<>(this.enabled::get, accepted::add, () -> "recording-sink");
         }
     }
 
     /** A builder that fails to build the context, to check that this can never change the outcome of the action. */
-    private static class ThrowingContextBuilder extends ActivityCaptureContextBuilder<TestContext, String, String> {
+    private static class ThrowingContextBuilder extends QueryCaptureContextBuilder<TestContext, String, String> {
         ThrowingContextBuilder() {
             super(mock(Task.class), "request");
         }
@@ -222,7 +222,7 @@ public class ActivityInterceptorTests extends ESTestCase {
         }
     }
 
-    private static class TestContextBuilder extends ActivityCaptureContextBuilder<TestContext, String, String> {
+    private static class TestContextBuilder extends QueryCaptureContextBuilder<TestContext, String, String> {
         TestContextBuilder() {
             super(mock(Task.class), "request");
         }
@@ -238,13 +238,28 @@ public class ActivityInterceptorTests extends ESTestCase {
         }
     }
 
-    private static class TestContext extends ActivityCaptureContext {
+    private static class TestContext extends QueryCaptureContext {
         TestContext(long tookInNanos) {
             super(mock(Task.class), "test", tookInNanos);
         }
 
         TestContext(Exception error) {
             super(mock(Task.class), "test", 0, error);
+        }
+
+        @Override
+        public String getQuery() {
+            return "";
+        }
+
+        @Override
+        public int getResultCount() {
+            return 0;
+        }
+
+        @Override
+        public String[] getIndices() {
+            return new String[0];
         }
     }
 }

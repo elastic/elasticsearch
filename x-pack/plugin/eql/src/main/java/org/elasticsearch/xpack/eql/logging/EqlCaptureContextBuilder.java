@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.eql.logging;
 
-import org.elasticsearch.common.logging.activity.ActivityCaptureContextBuilder;
+import org.elasticsearch.common.logging.activity.QueryCaptureContextBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
-public class EqlCaptureContextBuilder extends ActivityCaptureContextBuilder<EqlCaptureContext, EqlSearchRequest, EqlSearchResponse> {
+public class EqlCaptureContextBuilder extends QueryCaptureContextBuilder<EqlCaptureContext, EqlSearchRequest, EqlSearchResponse> {
 
     public EqlCaptureContextBuilder(Task task, EqlSearchRequest request) {
         super(task, request);

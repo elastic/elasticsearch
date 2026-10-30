@@ -112,6 +112,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(QueryString.class)
         .binaryConfig(QueryString::new)
+        // Allowed after EVAL, LOOKUP JOIN and similar commands, unless they redefine an indexed field.
+        .capabilities("relaxed_position_check")
         .name("qstr");
 
     private final Configuration configuration;

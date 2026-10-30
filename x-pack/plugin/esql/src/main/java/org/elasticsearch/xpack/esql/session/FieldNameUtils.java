@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
@@ -85,6 +87,12 @@ public class FieldNameUtils {
         Latest.NAME.toLowerCase(Locale.ROOT)
     );
 
+    // QSTR and KQL call names, which need all fields because they name their fields inside a query string.
+    private static final Set<String> QUERY_STRING_FUNCTIONS = Set.of(
+        QueryString.DEFINITION.name().toLowerCase(Locale.ROOT),
+        Kql.DEFINITION.name().toLowerCase(Locale.ROOT)
+    );
+
     // Full-text function-call names whose first argument is the field a no-ON HIGHLIGHT would target. The `:` operator
     // parses to a Match directly, but the MATCH(...) / MATCH_PHRASE(...) call forms are still UnresolvedFunctions here.
     private static final String HIGHLIGHT_MATCH = "match";
@@ -117,6 +125,17 @@ public class FieldNameUtils {
             }
             projectAll.set(true);
         });
+
+        // QSTR and KQL name their fields inside a query string, which is not a reference, so collecting only referenced fields
+        // would leave those fields out of the resolved mapping. The shadowing check in FullTextFunction reads the index fields
+        // from that mapping, and would not see an EVAL that redefines a field named only in the query string.
+        if (projectAll.get() == false) {
+            parsed.forEachExpressionDown(UnresolvedFunction.class, uf -> {
+                if (QUERY_STRING_FUNCTIONS.contains(uf.name().toLowerCase(Locale.ROOT))) {
+                    projectAll.set(true);
+                }
+            });
+        }
 
         // DEDUP dedupes on the full row, so it implicitly needs every field of its child --
         // unless its subtree already narrows the schema, in which case the explicit-collection path below

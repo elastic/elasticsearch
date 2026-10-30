@@ -2304,7 +2304,8 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test | stats c = count(id) by title | inline stats m = max(c) by title | where match(title, \"Meditation\")",
             containsString("[MATCH] function cannot be used after STATS")
         );
-        // KQL/QSTR are unaffected: their own stricter allow-list rejects INLINE STATS regardless
+        // KQL/QSTR stay rejected: they have no attribute references, so the optimizer pushes them into the INLINE STATS
+        // aggregate's input and changes its result. MATCH references a field and stays above the aggregate.
         fullText().error(
             "from test | inline stats m = max(id) by category | where kql(\"title: Meditation\")",
             containsString("[KQL] function cannot be used after INLINE")
@@ -2424,8 +2425,14 @@ public class VerifierTests extends AnalyzerTestCase {
         checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
     }
 
+    // Commands below either have no reachable index (SHOW, ROW) or can never have a filter pushed past them
+    // regardless of field-name shadowing (LIMIT, STATS, MV_EXPAND): see
+    // testNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands for the commands that pushdown can
+    // safely commute a non-field-based full-text function past, and
+    // testNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField for why some of those same commands
+    // are still rejected when they redefine a field the function's query string could be targeting.
     private void checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) {
-        // Source commands
+        // Source commands: no index reachable at all
         defaultAnalyzer().error(
             "show info | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after SHOW")
@@ -2435,32 +2442,7 @@ public class VerifierTests extends AnalyzerTestCase {
             containsString("[" + functionName + "] function cannot be used after ROW")
         );
 
-        // Processing commands
-        fullText().error(
-            "from test | dissect title \"%{foo}\" | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after DISSECT")
-        );
-        fullText().error(
-            "from test | drop body | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after DROP")
-        );
-        fullText().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
-            .error(
-                "from test | enrich languages on category with lang = language_name | where " + functionInvocation,
-                containsString("[" + functionName + "] function cannot be used after ENRICH")
-            );
-        fullText().error(
-            "from test | eval z = 2 | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after EVAL")
-        );
-        fullText().error(
-            "from test | grok body \"%{WORD:foo}\" | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after GROK")
-        );
-        fullText().error(
-            "from test | keep category | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after KEEP")
-        );
+        // Processing commands that structurally block pushdown to Lucene, independent of shadowing
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after LIMIT")
@@ -2468,10 +2450,6 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().error(
             "from test | mv_expand body | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
-        );
-        fullText().error(
-            "from test | rename body as full_body | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after RENAME")
         );
         fullText().error(
             "from test | STATS c = COUNT(*) BY category | where " + functionInvocation,
@@ -2487,17 +2465,193 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test | limit 10 | mv_expand body | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
         );
+        // KEEP doesn't block the function, but the earlier MV_EXPAND still does.
         fullText().error(
             "from test | mv_expand body | keep body | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after KEEP")
+            containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
         );
+        // RENAME to a name that shadows nothing doesn't block the function, but the earlier STATS still does.
         fullText().error(
             "from test | STATS c = COUNT(id) BY category | rename c as total_categories | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after RENAME")
+            containsString("[" + functionName + "] function cannot be used after STATS")
+        );
+    }
+
+    /**
+     * QSTR/KQL search fields named in their query string against the index mapping directly, not through ES|QL's
+     * attribute resolution. {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters}
+     * can therefore commute them past EVAL/ENRICH/GROK/DISSECT/KEEP/DROP/RENAME/LOOKUP JOIN exactly like any other
+     * filter with no attribute references - see
+     * {@link #testNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField} for the one case (the command
+     * redefines a name that collides with a real indexed field) where that commuting would silently change meaning
+     * and the function must still be rejected.
+     */
+    public void testNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands() throws Exception {
+        checkNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands("qstr(\"title: Meditation\")");
+        checkNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands("kql(\"title: Meditation\")");
+    }
+
+    private void checkNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands(String functionInvocation) throws Exception {
+        fullText().query("from test | dissect title \"%{foo}\" | where " + functionInvocation);
+        fullText().query("from test | drop body | where " + functionInvocation);
+        fullText().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .query("from test | enrich languages on category with lang = language_name | where " + functionInvocation);
+        fullText().query("from test | eval z = 2 | where " + functionInvocation);
+        fullText().query("from test | grok body \"%{WORD:foo}\" | where " + functionInvocation);
+        fullText().query("from test | keep category | where " + functionInvocation);
+        fullText().query("from test | rename body as full_body | where " + functionInvocation);
+        fullText().query("from test | rename title as name | drop category | where " + functionInvocation);
+        fullText().addLookupIndex("full_text_lookup_safe", fullTextLookupNoOverlap())
+            .query("from test | eval join_key = id | lookup join full_text_lookup_safe on join_key | where " + functionInvocation);
+    }
+
+    /**
+     * QSTR/KQL read the index mapping, not ES|QL columns, so dropping a column does not stop the query string from
+     * searching that field. This is accepted on purpose, the same as the query string right after {@code FROM}.
+     */
+    public void testNonFieldBasedFullTextFunctionsMaySearchColumnsRemovedByProjection() throws Exception {
+        for (String fn : List.of("qstr", "kql")) {
+            fullText().query("from test | drop title | where " + fn + "(\"title: Meditation\")");
+            fullText().query("from test | keep category | where " + fn + "(\"title: Meditation\")");
+            fullText().query("from test | rename title as name | where " + fn + "(\"title: Meditation\")");
+        }
+    }
+
+    /**
+     * Mirror image of {@link #testNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands}: the same
+     * commands are rejected again when they introduce an attribute whose name collides with a real indexed field,
+     * because QSTR/KQL's query-string field reference is opaque text the optimizer can't track - unlike MATCH,
+     * which references a real attribute and is protected by
+     * {@code PushDownAndCombineFilters}'s own attribute-dependency checks.
+     */
+    public void testNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField() throws Exception {
+        checkNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField("QSTR");
+        checkNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField("KQL");
+    }
+
+    private void checkNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField(String functionName) {
+        String fn = functionName.toLowerCase(Locale.ROOT);
+        fullText().error(
+            "from test | eval title = \"constant\" | where " + fn + "(\"title: Meditation\")",
+            allOf(containsString("[" + functionName + "] function cannot be used after EVAL"), containsString("[title]"))
         );
         fullText().error(
-            "from test | rename title as name | drop category | where " + functionInvocation,
-            containsString("[" + functionName + "] function cannot be used after DROP")
+            "from test | rename body as title | where " + fn + "(\"title: Meditation\")",
+            allOf(containsString("[" + functionName + "] function cannot be used after RENAME"), containsString("[title]"))
+        );
+        fullText().error(
+            "from test | grok body \"%{WORD:title}\" | where " + fn + "(\"title: Meditation\")",
+            allOf(containsString("[" + functionName + "] function cannot be used after GROK"), containsString("[title]"))
+        );
+        fullText().error(
+            "from test | dissect body \"%{title}\" | where " + fn + "(\"title: Meditation\")",
+            allOf(containsString("[" + functionName + "] function cannot be used after DISSECT"), containsString("[title]"))
+        );
+        fullText().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .error(
+                "from test | enrich languages on category with title = language_name | where " + fn + "(\"title: Meditation\")",
+                allOf(containsString("[" + functionName + "] function cannot be used after ENRICH"), containsString("[title]"))
+            );
+        fullText().addLookupIndex("full_text_lookup_shadow", fullTextLookupWithOverlap())
+            .error(
+                "from test | eval join_key = id | lookup join full_text_lookup_shadow on join_key | where "
+                    + fn
+                    + "(\"category: Meditation\")",
+                allOf(containsString("[" + functionName + "] function cannot be used after LOOKUP JOIN"), containsString("[category]"))
+            );
+    }
+
+    /**
+     * The command is named from the first word of its source text, which can be followed by a line break.
+     */
+    public void testNonFieldBasedFullTextFunctionsShadowMessageNamesCommandAcrossLineBreak() throws Exception {
+        fullText().error(
+            "from test | eval\n title = \"constant\" | where qstr(\"title: Meditation\")",
+            containsString("[QSTR] function cannot be used after EVAL because [title] redefines a field used by the index")
+        );
+    }
+
+    /**
+     * COMPLETION (like RERANK) appends its output as a column named by the user, which collides with an indexed field of
+     * that name.
+     */
+    public void testNonFieldBasedFullTextFunctionsRejectedWhenInferenceCommandShadowsIndexedField() throws Exception {
+        for (String fn : List.of("qstr", "kql")) {
+            String function = fn.toUpperCase(Locale.ROOT);
+            fullText().addAnalysisTestsInferenceResolution()
+                .error(
+                    "from test | completion title = concat(\"x\", body) with { \"inference_id\" : \"completion-inference-id\" }"
+                        + " | where "
+                        + fn
+                        + "(\"title: Meditation\")",
+                    allOf(containsString("[" + function + "] function cannot be used after COMPLETION"), containsString("[title]"))
+                );
+            fullText().addAnalysisTestsInferenceResolution()
+                .query(
+                    "from test | completion answer = concat(\"x\", body) with { \"inference_id\" : \"completion-inference-id\" }"
+                        + " | where "
+                        + fn
+                        + "(\"title: Meditation\")"
+                );
+        }
+    }
+
+    /**
+     * URI_PARTS (like USER_AGENT, IP_LOCATION and REGISTERED_DOMAIN) names its output columns {@code <prefix>.<part>}, which
+     * collide with an indexed field of that name, as with ECS {@code url.domain}.
+     */
+    public void testNonFieldBasedFullTextFunctionsRejectedWhenCompoundOutputCommandShadowsIndexedField() throws Exception {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        Map<String, EsField> mapping = Map.of(
+            "uri",
+            new EsField("uri", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "url.domain",
+            new EsField("url.domain", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        for (String fn : List.of("qstr", "kql")) {
+            TestAnalyzer analyzer = analyzer().addIndex("logs", IndexResolution.valid(EsIndexGenerator.esIndex("logs", mapping)))
+                .stripErrorPrefix(true);
+            analyzer.error(
+                "from logs | uri_parts url = uri | where " + fn + "(\"url.domain: example.com\")",
+                allOf(
+                    containsString("[" + fn.toUpperCase(Locale.ROOT) + "] function cannot be used after URI_PARTS"),
+                    containsString("[url.domain]")
+                )
+            );
+            analyzer.query("from logs | uri_parts other = uri | where " + fn + "(\"url.domain: example.com\")");
+        }
+    }
+
+    /**
+     * A LOOKUP JOIN target for {@link #testNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands}: its
+     * fields don't collide with any field in {@code mapping-full_text_search.json} (id, title, body, tags,
+     * category, published_date, vector, semantic), so joining it in is safe for a trailing QSTR/KQL.
+     */
+    private static IndexResolution fullTextLookupNoOverlap() {
+        Map<String, EsField> mapping = Map.of(
+            "join_key",
+            new EsField("join_key", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "extra",
+            new EsField("extra", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return IndexResolution.valid(
+            EsIndexGenerator.esIndex("full_text_lookup_safe", mapping, Map.of("full_text_lookup_safe", IndexMode.LOOKUP))
+        );
+    }
+
+    /**
+     * A LOOKUP JOIN target for {@link #testNonFieldBasedFullTextFunctionsRejectedWhenShadowingIndexedField}: its
+     * {@code category} field has the same name as (and shadows) the primary index's own {@code category} field.
+     */
+    private static IndexResolution fullTextLookupWithOverlap() {
+        Map<String, EsField> mapping = Map.of(
+            "join_key",
+            new EsField("join_key", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "category",
+            new EsField("category", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return IndexResolution.valid(
+            EsIndexGenerator.esIndex("full_text_lookup_shadow", mapping, Map.of("full_text_lookup_shadow", IndexMode.LOOKUP))
         );
     }
 

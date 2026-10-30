@@ -114,9 +114,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainFailuresLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/151602
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793

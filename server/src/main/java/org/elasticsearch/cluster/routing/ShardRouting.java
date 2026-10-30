@@ -143,6 +143,24 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             return isValidForUnassigned;
         }
 
+        /// Returns whether a recovery with this priority is critical, i.e. one for a shard copy that the client expects
+        /// to be available but currently isn't. Relocations (whose source stays active until they complete), recoveries
+        /// of unassigned shards added for performance reasons, and snapshot restores (whose index is expected to be
+        /// unavailable until they complete, which may take a long time) are non-critical. Note that non-critical recoveries
+        /// are subject to additional throttling (see [org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings]).
+        ///
+        /// All the critical priorities must rank above all the non-critical ones, which
+        /// [org.elasticsearch.indices.recovery.ThrottlingRecoveryService] relies on when dispatching queued recoveries.
+        public boolean isCritical() {
+            return switch (this) {
+                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
+                case RELOCATION_CAN_REMAIN_NO, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+                    RELOCATE_REBALANCING -> false;
+                // UNKNOWN should never be seen in cluster state. We treat it here as the lowest priority.
+                case UNKNOWN -> false;
+            };
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {

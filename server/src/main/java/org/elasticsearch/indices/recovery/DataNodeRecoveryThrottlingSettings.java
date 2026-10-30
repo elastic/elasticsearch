@@ -54,7 +54,7 @@ import java.util.function.IntConsumer;
 /// this max limit that non-critical recoveries may use. These are recoveries whose delay does not cause additional
 /// unavailability: relocations, recoveries of unassigned shards added for performance reasons, and snapshot restores
 /// (which may take a long time, and whose index is expected to be unavailable until they complete). See
-/// `ThrottlingRecoveryService.PendingRecovery#isCritical`.
+/// [org.elasticsearch.cluster.routing.ShardRouting.RecoveryPriority#isCritical()].
 ///
 /// ## Source (outgoing) side
 ///

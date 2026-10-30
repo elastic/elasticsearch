@@ -39,6 +39,41 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
 
+    public void testHeapBasedLimitRejectsZero() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.0).build()
+            )
+        );
+    }
+
+    public void testRelocationRecoveriesMaxProportionRejectsZero() {
+        for (final var zeroValue : List.of("0", "0%")) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(
+                    Settings.builder()
+                        .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), zeroValue)
+                        .build()
+                )
+            );
+        }
+    }
+
+    public void testNonCriticalRecoveriesMaxProportionRejectsZero() {
+        for (final var zeroValue : List.of("0", "0%")) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.get(
+                    Settings.builder()
+                        .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), zeroValue)
+                        .build()
+                )
+            );
+        }
+    }
+
     public void testEffectiveMaxConcurrentRecoveries() {
         final int maxConcurrent = randomIntBetween(1, 100);
         // Unknown heap size, only the static limit applies.

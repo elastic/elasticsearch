@@ -60,7 +60,7 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 /// by the [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
 /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
 /// controls the max proportion of those concurrent recovery slots that may be used for non-critical recoveries (see
-/// [PendingRecovery#isCritical()]). Slots above this limit are kept free for critical recoveries.
+/// [ShardRouting.RecoveryPriority#isCritical()]). Slots above this limit are kept free for critical recoveries.
 ///
 /// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
@@ -580,37 +580,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return routingAllocation.getId();
         }
 
-        /// Returns whether this is a critical recovery, see [ThrottlingRecoveryService#isCritical(ShardRouting.RecoveryPriority)].
+        /// Returns whether this is a critical recovery, see [ShardRouting.RecoveryPriority#isCritical()].
         boolean isCritical() {
             RecoveryState state = recoveryState();
             assert state.getRecoveryPriority() != ShardRouting.RecoveryPriority.UNKNOWN
                 : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
-            return ThrottlingRecoveryService.isCritical(state.getRecoveryPriority());
+            return state.getRecoveryPriority().isCritical();
         }
 
         RecoverySchedulingListener.PriorityGroup priorityGroup() {
             return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
-    }
-
-    /// Returns whether a recovery with the given priority is critical, i.e. one for a shard copy that the client expects to be
-    /// available but currently isn't. Relocations (whose source stays STARTED until they complete), recoveries of unassigned
-    /// shards added for performance reasons, and snapshot restores (whose index is expected to be unavailable until they
-    /// complete, which may take a long time) are ranked as non-critical. Non-critical recoveries are additionally limited by
-    /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING].
-    /// Slots above that limit can only be used by critical recoveries.
-    ///
-    /// All the critical priorities rank above all the non-critical ones in [ShardRouting.RecoveryPriority], which
-    /// [#doFillSlots] relies on.
-    // visible for testing
-    static boolean isCritical(ShardRouting.RecoveryPriority recoveryPriority) {
-        return switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
-            case RELOCATION_CAN_REMAIN_NO, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, RELOCATION_CAN_REMAIN_NOT_PREFERRED,
-                RELOCATE_REBALANCING -> false;
-            // UNKNOWN should never be seen in cluster state. We treat it here as the lowest priority.
-            case UNKNOWN -> false;
-        };
     }
 
     /// Helper class which manages throttling the number of running recoveries.

@@ -669,4 +669,17 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             }
         }
     }
+
+    /// `ThrottlingRecoveryService` only peeks at the head of its queue of pending recoveries, which is only correct if
+    /// every critical [ShardRouting.RecoveryPriority] ranks above every non-critical one.
+    public void testCriticalRecoveryPrioritiesRankAboveNonCriticalOnes() {
+        final var priorities = ShardRouting.RecoveryPriority.values();
+        for (final var higher : priorities) {
+            for (final var lower : priorities) {
+                if (higher.ordinal() < lower.ordinal() && lower.isCritical()) {
+                    assertTrue("critical priority " + lower + " ranks below non-critical priority " + higher, higher.isCritical());
+                }
+            }
+        }
+    }
 }

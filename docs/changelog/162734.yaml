@@ -1,0 +1,6 @@
+pr: 162734
+summary: Allow exact floating point values to convert to integer and long in ConvertProcessor
+area: Ingest Node
+type: bug
+issues:
+  - 128160

@@ -33,6 +33,9 @@ public final class ConvertProcessor extends AbstractProcessor {
         INTEGER {
             @Override
             public Object convert(Object value) {
+                if (value instanceof Number number) {
+                    return convertNumberToInteger(number, value);
+                }
                 try {
                     String strValue = value.toString();
                     if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
@@ -48,6 +51,9 @@ public final class ConvertProcessor extends AbstractProcessor {
         LONG {
             @Override
             public Object convert(Object value) {
+                if (value instanceof Number number) {
+                    return convertNumberToLong(number, value);
+                }
                 try {
                     String strValue = value.toString();
                     if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
@@ -149,6 +155,65 @@ public final class ConvertProcessor extends AbstractProcessor {
                 );
             }
         }
+    }
+
+    private static final long MAX_EXACT_FLOAT_AS_INT = (1L << 24) - 1;
+    private static final long MAX_EXACT_DOUBLE_AS_LONG = (1L << 53) - 1;
+
+    private static boolean isExactInteger(float f) {
+        return Float.isFinite(f) && Math.abs(f) <= MAX_EXACT_FLOAT_AS_INT && f == (float) (int) f;
+    }
+
+    private static boolean isExactInteger(double d) {
+        return Double.isFinite(d) && d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE && d == (double) (int) d;
+    }
+
+    private static boolean isExactLong(float f) {
+        return Float.isFinite(f) && Math.abs(f) <= MAX_EXACT_FLOAT_AS_INT && f == (float) (long) f;
+    }
+
+    private static boolean isExactLong(double d) {
+        return Double.isFinite(d) && Math.abs(d) <= MAX_EXACT_DOUBLE_AS_LONG && d == (double) (long) d;
+    }
+
+    private static Object convertNumberToInteger(Number number, Object originalValue) {
+        if (number instanceof Byte || number instanceof Short || number instanceof Integer) {
+            return number.intValue();
+        }
+        if (number instanceof Long l) {
+            if (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {
+                return l.intValue();
+            }
+            throw new IllegalArgumentException("unable to convert [" + originalValue + "] to integer");
+        }
+        if (number instanceof Float f) {
+            if (isExactInteger(f)) {
+                return f.intValue();
+            }
+            throw new IllegalArgumentException("unable to convert [" + originalValue + "] to integer");
+        }
+        double d = number.doubleValue();
+        if (isExactInteger(d)) {
+            return (int) d;
+        }
+        throw new IllegalArgumentException("unable to convert [" + originalValue + "] to integer");
+    }
+
+    private static Object convertNumberToLong(Number number, Object originalValue) {
+        if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {
+            return number.longValue();
+        }
+        if (number instanceof Float f) {
+            if (isExactLong(f)) {
+                return f.longValue();
+            }
+            throw new IllegalArgumentException("unable to convert [" + originalValue + "] to long");
+        }
+        double d = number.doubleValue();
+        if (isExactLong(d)) {
+            return (long) d;
+        }
+        throw new IllegalArgumentException("unable to convert [" + originalValue + "] to long");
     }
 
     public static final String TYPE = "convert";

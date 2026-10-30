@@ -601,6 +601,38 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(targetField, Integer.class), equalTo(randomInt));
     }
 
+    public void testConvertExactDoubleToInteger() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("value", 123.0d);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "value", "value", Type.INTEGER, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("value", Integer.class), equalTo(123));
+    }
+
+    public void testConvertInexactDoubleToIntegerThrows() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("value", 123.45d);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "value", "value", Type.INTEGER, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("unable to convert [123.45] to integer"));
+    }
+
+    public void testConvertExactDoubleToLong() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("value", 9007199254740991.0d);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "value", "value", Type.LONG, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("value", Long.class), equalTo(9007199254740991L));
+    }
+
+    public void testConvertDoubleAboveMaxSafeIntegerToLongThrows() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("value", 9007199254740993.0d);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "value", "value", Type.LONG, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), containsString("unable to convert"));
+    }
+
     /**
      * This class encapsulates a matrix of tests for converting between different numeric types, including string representations of
      * numbers, and including conversion to {@link Type#AUTO}.
@@ -644,8 +676,8 @@ public class ConvertProcessorTests extends ESTestCase {
             String,680564693277057720000000000000000000000.0,STRING,String,680564693277057720000000000000000000000.0
             Integer,123,INTEGER,Integer,123
             Long,123,INTEGER,Integer,123
-            Float,123.0,INTEGER,THROWS,
-            Double,123.0,INTEGER,THROWS,
+            Float,123.0,INTEGER,Integer,123
+            Double,123.0,INTEGER,Integer,123
             String,123,INTEGER,Integer,123
             String,0x7b,INTEGER,Integer,123
             String,123.0,INTEGER,THROWS,
@@ -657,7 +689,7 @@ public class ConvertProcessorTests extends ESTestCase {
             String,0x1.edcdp6,INTEGER,THROWS,
             Integer,16777217,INTEGER,Integer,16777217
             Long,16777217,INTEGER,Integer,16777217
-            Double,1.6777217E7,INTEGER,THROWS,
+            Double,1.6777217E7,INTEGER,Integer,16777217
             String,16777217,INTEGER,Integer,16777217
             String,16777217.0,INTEGER,THROWS,
             Long,2147483648,INTEGER,THROWS,
@@ -673,8 +705,8 @@ public class ConvertProcessorTests extends ESTestCase {
             String,680564693277057720000000000000000000000.0,INTEGER,THROWS,
             Integer,123,LONG,Long,123
             Long,123,LONG,Long,123
-            Float,123.0,LONG,THROWS,
-            Double,123.0,LONG,THROWS,
+            Float,123.0,LONG,Long,123
+            Double,123.0,LONG,Long,123
             String,123,LONG,Long,123
             String,0x7b,LONG,Long,123
             String,123.0,LONG,THROWS,
@@ -686,11 +718,11 @@ public class ConvertProcessorTests extends ESTestCase {
             String,0x1.edcdp6,LONG,THROWS,
             Integer,16777217,LONG,Long,16777217
             Long,16777217,LONG,Long,16777217
-            Double,1.6777217E7,LONG,THROWS,
+            Double,1.6777217E7,LONG,Long,16777217
             String,16777217,LONG,Long,16777217
             String,16777217.0,LONG,THROWS,
             Long,2147483648,LONG,Long,2147483648
-            Double,2.147483648E9,LONG,THROWS,
+            Double,2.147483648E9,LONG,Long,2147483648
             String,2147483648,LONG,Long,2147483648
             String,2147483648.0,LONG,THROWS,
             Long,9007199254740993,LONG,Long,9007199254740993

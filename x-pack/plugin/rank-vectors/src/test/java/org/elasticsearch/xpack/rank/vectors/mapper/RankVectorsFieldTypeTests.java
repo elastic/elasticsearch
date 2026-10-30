@@ -61,6 +61,15 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
         assertFalse(fft.isSearchable());
         RankVectorsFieldType bft = createByteFieldType();
         assertFalse(bft.isSearchable());
+        RankVectorsFieldType indexed = new RankVectorsFieldType(
+            "f",
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            RankVectorsFieldMapper.MUVERA_TOKEN_DIMS,
+            true,
+            licenseState,
+            Collections.emptyMap()
+        );
+        assertTrue(indexed.isSearchable());
     }
 
     public void testIsAggregatable() {

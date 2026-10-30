@@ -26,6 +26,7 @@ import java.util.Objects;
 /** Input for one explicit-query-vector MUVERA recall evaluation. */
 public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
 
+    private static final double UNIT_MAGNITUDE_TOLERANCE = 1e-3;
     public static final int MAX_K = 1_000;
     public static final int MAX_NUM_CANDIDATES = 10_000;
     public static final int MAX_QUERY_VECTORS = 256;
@@ -71,10 +72,18 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
             if (queryVector[i] == null || queryVector[i].length == 0) {
                 throw new IllegalArgumentException("[query_vector] vector [" + i + "] must not be empty");
             }
+            double squaredMagnitude = 0d;
             for (float value : queryVector[i]) {
                 if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[query_vector] contains a non-finite value");
                 }
+                squaredMagnitude += (double) value * value;
+            }
+            double magnitude = Math.sqrt(squaredMagnitude);
+            if (Math.abs(magnitude - 1d) > UNIT_MAGNITUDE_TOLERANCE) {
+                throw new IllegalArgumentException(
+                    "[query_vector] vector [" + i + "] must have unit magnitude; magnitude was [" + magnitude + "]"
+                );
             }
         }
         if (k < 1 || k > MAX_K) {

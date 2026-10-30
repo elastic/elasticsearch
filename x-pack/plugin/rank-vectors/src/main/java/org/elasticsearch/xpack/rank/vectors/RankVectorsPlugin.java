@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.mapper.FieldMapper.notInMultiFields;
+import static org.elasticsearch.xpack.rank.vectors.RankVectorsFeatures.RANK_VECTORS_MUVERA_INDEXING;
 import static org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.CONTENT_TYPE;
 
 public class RankVectorsPlugin extends Plugin implements MapperPlugin, SearchPlugin, ActionPlugin {
@@ -78,6 +79,7 @@ public class RankVectorsPlugin extends Plugin implements MapperPlugin, SearchPlu
                 getLicenseState(),
                 INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
                 DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
+                c.clusterHasFeature(RANK_VECTORS_MUVERA_INDEXING),
                 c.getVectorsFormatProviders()
             );
         }, notInMultiFields(CONTENT_TYPE)));

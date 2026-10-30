@@ -350,11 +350,6 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
             b.field("type", "rank_vectors");
             b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
             b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "muvera");
-            b.field("encoding_version", RankVectorsFieldMapper.MUVERA_ENCODING_VERSION);
-            b.field("encoding_profile", RankVectorsFieldMapper.MUVERA_ENCODING_PROFILE);
-            b.endObject();
         });
     }
 }

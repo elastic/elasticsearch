@@ -57,6 +57,14 @@ public class RankVectorsEvalSpecTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("[allow_exact] must be true"));
     }
 
+    public void testRequiresUnitQueryVectors() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1f, 1f } }, 1, 1, true)
+        );
+        assertThat(exception.getMessage(), containsString("must have unit magnitude"));
+    }
+
     public void testCaps() {
         expectThrows(IllegalArgumentException.class, () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1f } }, 1001, 1001, true));
         expectThrows(IllegalArgumentException.class, () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1f } }, 1, 10001, true));

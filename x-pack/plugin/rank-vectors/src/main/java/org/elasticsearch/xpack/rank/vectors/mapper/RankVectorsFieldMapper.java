@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -65,7 +64,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -89,7 +87,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
     static final int MUVERA_R_REPS = 64;
     static final long MUVERA_SEED = 42L;
     private static final int MUVERA_VECTORS_PER_CLUSTER = 384;
-    private static final String MUVERA_INDEX_OPTIONS_TYPE = "muvera";
     private static final MuveraEncoder MUVERA_ENCODER = new MuveraEncoder(
         MUVERA_TOKEN_DIMS,
         MUVERA_K_SIM,
@@ -97,18 +94,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         MUVERA_R_REPS,
         MUVERA_SEED
     );
-    private static final Set<String> MUVERA_INDEX_OPTION_FIELDS = Set.of(
-        "type",
-        "encoding_version",
-        "encoding_profile",
-        "k_sim",
-        "d_proj",
-        "r_reps",
-        "seed",
-        "output_dims"
-    );
-
-    record MuveraIndexOptions(int encodingVersion, String encodingProfile, int kSim, int dProj, int rReps, long seed, int outputDims) {}
 
     /**
      * Maximum number of vectors accepted in a single rank vectors value, whether it is a document's field value or a
@@ -169,27 +154,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
                 }
             });
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, false);
-        private final Parameter<MuveraIndexOptions> indexOptions = new Parameter<>(
-            "index_options",
-            false,
-            () -> null,
-            (n, c, o) -> parseIndexOptions(n, o, c),
-            m -> toType(m).fieldType().indexOptions,
-            (b, n, v) -> {
-                b.startObject(n);
-                b.field("type", MUVERA_INDEX_OPTIONS_TYPE);
-                b.field("encoding_version", v.encodingVersion());
-                b.field("encoding_profile", v.encodingProfile());
-                b.field("k_sim", v.kSim());
-                b.field("d_proj", v.dProj());
-                b.field("r_reps", v.rReps());
-                b.field("seed", v.seed());
-                b.field("output_dims", v.outputDims());
-                b.endObject();
-            },
-            Objects::toString
-        ).setSerializerCheck((id, ic, v) -> v != null)
-            .setMergeValidator((previous, current, conflicts) -> Objects.equals(previous, current));
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final IndexVersion indexCreatedVersion;
@@ -197,6 +161,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         private final XPackLicenseState licenseState;
         private final boolean isExcludeSourceVectors;
         private final boolean experimentalFeaturesEnabled;
+        private final boolean muveraIndexingSupported;
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
         public Builder(
@@ -206,6 +171,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             XPackLicenseState licenseState,
             boolean isExcludeSourceVectors,
             boolean experimentalFeaturesEnabled,
+            boolean muveraIndexingSupported,
             List<VectorsFormatProvider> vectorsFormatProviders
         ) {
             super(name);
@@ -214,6 +180,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             this.licenseState = licenseState;
             this.isExcludeSourceVectors = isExcludeSourceVectors;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
+            this.muveraIndexingSupported = muveraIndexingSupported;
             this.vectorsFormatProviders = vectorsFormatProviders;
         }
 
@@ -224,7 +191,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { elementType, dims, indexed, indexOptions, meta };
+            return new Parameter<?>[] { elementType, dims, indexed, meta };
         }
 
         @Override
@@ -250,7 +217,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
                     elementType.getValue(),
                     dims.getValue(),
                     indexed.getValue(),
-                    indexOptions.getValue(),
                     licenseState,
                     meta.getValue()
                 ),
@@ -260,6 +226,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
                 licenseState,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
+                muveraIndexingSupported,
                 vectorsFormatProviders,
                 indexed.getValue() ? MUVERA_ENCODER : null
             );
@@ -267,14 +234,15 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
 
         private void validateMuveraConfiguration() {
             if (indexed.getValue() == false) {
-                if (indexOptions.getValue() != null) {
-                    throw new IllegalArgumentException("[index_options] requires [index] to be [true]");
-                }
                 return;
             }
-            if (indexOptions.getValue() == null) {
+            if (muveraIndexingSupported == false) {
                 throw new IllegalArgumentException(
-                    "Field [index] set to [true] requires [index_options.type] to be [" + MUVERA_INDEX_OPTIONS_TYPE + "]"
+                    "Cannot create indexed rank_vectors field ["
+                        + leafName()
+                        + "] until all nodes support feature ["
+                        + RANK_VECTORS_MUVERA_INDEXING.id()
+                        + "]"
                 );
             }
             if (elementType.getValue() != ElementType.FLOAT) {
@@ -304,100 +272,12 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
                 throw new IllegalArgumentException("Indexed MUVERA rank_vectors fields require the [bbq_disk] vector format provider");
             }
         }
-
-        private static MuveraIndexOptions parseIndexOptions(String fieldName, Object node, MappingParserContext context) {
-            if (context.clusterHasFeature(RANK_VECTORS_MUVERA_INDEXING) == false) {
-                throw new MapperParsingException(
-                    "Cannot create indexed MUVERA rank_vectors field ["
-                        + fieldName
-                        + "] until all nodes support feature ["
-                        + RANK_VECTORS_MUVERA_INDEXING.id()
-                        + "]"
-                );
-            }
-            Map<String, Object> options = XContentMapValues.nodeMapValue(node, "index_options");
-            if (MUVERA_INDEX_OPTIONS_TYPE.equals(options.get("type")) == false) {
-                throw new MapperParsingException(
-                    "[index_options.type] on field [" + fieldName + "] must be [" + MUVERA_INDEX_OPTIONS_TYPE + "]"
-                );
-            }
-            Set<String> unknownFields = new java.util.HashSet<>(options.keySet());
-            unknownFields.removeAll(MUVERA_INDEX_OPTION_FIELDS);
-            if (unknownFields.isEmpty() == false) {
-                throw new MapperParsingException("Unknown MUVERA index option fields " + unknownFields + " on field [" + fieldName + "]");
-            }
-            if (options.containsKey("encoding_version") == false || options.containsKey("encoding_profile") == false) {
-                throw new MapperParsingException(
-                    "MUVERA [index_options] on field [" + fieldName + "] require explicit [encoding_version] and [encoding_profile]"
-                );
-            }
-            int encodingVersion = integerOption(options, "encoding_version", MUVERA_ENCODING_VERSION);
-            String encodingProfile = Objects.toString(options.get("encoding_profile"));
-            int kSim = integerOption(options, "k_sim", MUVERA_K_SIM);
-            int dProj = integerOption(options, "d_proj", MUVERA_D_PROJ);
-            int rReps = integerOption(options, "r_reps", MUVERA_R_REPS);
-            long seed = longOption(options, "seed", MUVERA_SEED);
-            int outputDims = integerOption(options, "output_dims", MUVERA_FDE_DIMS);
-            if (encodingVersion != MUVERA_ENCODING_VERSION
-                || encodingProfile.equals(MUVERA_ENCODING_PROFILE) == false
-                || kSim != MUVERA_K_SIM
-                || dProj != MUVERA_D_PROJ
-                || rReps != MUVERA_R_REPS
-                || seed != MUVERA_SEED
-                || outputDims != MUVERA_FDE_DIMS) {
-                throw new MapperParsingException(
-                    "Unsupported MUVERA profile on field ["
-                        + fieldName
-                        + "]; supported encoding identity is [version="
-                        + MUVERA_ENCODING_VERSION
-                        + ", profile="
-                        + MUVERA_ENCODING_PROFILE
-                        + ", token_dims="
-                        + MUVERA_TOKEN_DIMS
-                        + ", k_sim="
-                        + MUVERA_K_SIM
-                        + ", d_proj="
-                        + MUVERA_D_PROJ
-                        + ", r_reps="
-                        + MUVERA_R_REPS
-                        + ", seed="
-                        + MUVERA_SEED
-                        + ", output_dims="
-                        + MUVERA_FDE_DIMS
-                        + "]"
-                );
-            }
-            return new MuveraIndexOptions(encodingVersion, encodingProfile, kSim, dProj, rReps, seed, outputDims);
-        }
-
-        private static int integerOption(Map<String, Object> options, String name, int defaultValue) {
-            Object value = options.get(name);
-            if (value == null) {
-                return defaultValue;
-            }
-            if (value instanceof Integer integer) {
-                return integer;
-            }
-            throw new MapperParsingException("MUVERA index option [" + name + "] must be an integer");
-        }
-
-        private static long longOption(Map<String, Object> options, String name, long defaultValue) {
-            Object value = options.get(name);
-            if (value == null) {
-                return defaultValue;
-            }
-            if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
-                return ((Number) value).longValue();
-            }
-            throw new MapperParsingException("MUVERA index option [" + name + "] must be an integer in the signed 64-bit range");
-        }
     }
 
     public static final class RankVectorsFieldType extends SimpleMappedFieldType {
         private final Element element;
         private final Integer dims;
         private final boolean indexed;
-        private final MuveraIndexOptions indexOptions;
         private final XPackLicenseState licenseState;
 
         public RankVectorsFieldType(
@@ -407,7 +287,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            this(name, elementType, dims, false, null, licenseState, meta);
+            this(name, elementType, dims, false, licenseState, meta);
         }
 
         public RankVectorsFieldType(
@@ -415,7 +295,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             ElementType elementType,
             Integer dims,
             boolean indexed,
-            MuveraIndexOptions indexOptions,
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
@@ -423,7 +302,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             this.element = Element.getElement(elementType);
             this.dims = dims;
             this.indexed = indexed;
-            this.indexOptions = indexOptions;
             this.licenseState = licenseState;
         }
 
@@ -434,7 +312,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
 
         @Override
         public boolean isSearchable() {
-            return false;
+            return indexed;
         }
 
         @Override
@@ -500,7 +378,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
-            if (indexed == false || indexOptions == null) {
+            if (indexed == false) {
                 throw new IllegalArgumentException("Field [" + name() + "] is not indexed for approximate MaxSim search");
             }
             return new MuveraMaxSimQuery(name(), queryVectors, k, numCandidates, filter);
@@ -519,7 +397,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
-            if (indexed == false || indexOptions == null) {
+            if (indexed == false) {
                 throw new IllegalArgumentException("Field [" + name() + "] is not indexed with MUVERA");
             }
             return new MuveraCandidateQuery(name(), queryVectors, numCandidates);
@@ -534,15 +412,15 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         }
 
         public boolean isMuveraIndexed() {
-            return indexed && indexOptions != null;
+            return indexed;
         }
 
         public String getMuveraEncodingProfile() {
-            return indexOptions == null ? null : indexOptions.encodingProfile();
+            return indexed ? MUVERA_ENCODING_PROFILE : null;
         }
 
         public int getMuveraEncodingVersion() {
-            return indexOptions == null ? -1 : indexOptions.encodingVersion();
+            return indexed ? MUVERA_ENCODING_VERSION : -1;
         }
     }
 
@@ -551,6 +429,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
     private final XPackLicenseState licenseState;
     private final boolean isExcludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
+    private final boolean muveraIndexingSupported;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     @Nullable
     private final DenseVectorFieldMapper.DenseVectorIndexOptions muveraCandidateIndexOptions;
@@ -564,6 +443,16 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         return MUVERA_ENCODER.encodeQuery(queryVectors, checkCancelled);
     }
 
+    /** Returns the immutable encoding profile used by newly indexed rank-vectors fields. */
+    public static String muveraEncodingProfile() {
+        return MUVERA_ENCODING_PROFILE;
+    }
+
+    /** Returns the immutable encoding version used by newly indexed rank-vectors fields. */
+    public static int muveraEncodingVersion() {
+        return MUVERA_ENCODING_VERSION;
+    }
+
     private RankVectorsFieldMapper(
         String simpleName,
         MappedFieldType fieldType,
@@ -573,6 +462,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         XPackLicenseState licenseState,
         boolean isExcludeSourceVectors,
         boolean experimentalFeaturesEnabled,
+        boolean muveraIndexingSupported,
         List<VectorsFormatProvider> vectorsFormatProviders,
         MuveraEncoder muveraEncoder
     ) {
@@ -582,6 +472,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         this.licenseState = licenseState;
         this.isExcludeSourceVectors = isExcludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
+        this.muveraIndexingSupported = muveraIndexingSupported;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.muveraEncoder = muveraEncoder;
         this.muveraCandidateIndexOptions = muveraEncoder == null ? null : createMuveraCandidateIndexOptions();
@@ -790,6 +681,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             licenseState,
             isExcludeSourceVectors,
             experimentalFeaturesEnabled,
+            muveraIndexingSupported,
             vectorsFormatProviders
         ).init(this);
     }

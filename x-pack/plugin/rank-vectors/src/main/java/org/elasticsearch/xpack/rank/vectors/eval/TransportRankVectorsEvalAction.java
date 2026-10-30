@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +45,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.rank.vectors.RankVectorsPlugin;
+import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
 import org.elasticsearch.xpack.rank.vectors.query.ExactRankVectorsQueryBuilder;
 import org.elasticsearch.xpack.rank.vectors.query.RankVectorsCandidateQueryBuilder;
 import org.elasticsearch.xpack.rank.vectors.query.RankVectorsQueryBuilder;
@@ -373,7 +373,10 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                     documentCount,
                     exactWork,
                     saturatingMultiply(spec.numCandidates(), primaryShards),
-                    saturatingMultiply(saturatingMultiply(spec.numCandidates(), primaryShards), spec.queryVector().length),
+                    saturatingMultiply(
+                        saturatingMultiply(saturatingMultiply(spec.numCandidates(), primaryShards), spec.queryVector().length),
+                        ASSUMED_DOCUMENT_VECTORS
+                    ),
                     primaryShards,
                     "muvera",
                     mappingInfo.encodingProfile,
@@ -490,7 +493,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
 
     private record Identity(String index, String id) {}
 
-    private record MappingInfo(int dimensions, String elementType, Map<?, ?> indexOptions, String encodingProfile, int encodingVersion) {
+    private record MappingInfo(int dimensions, String elementType, String encodingProfile, int encodingVersion) {
         private static MappingInfo from(Map<?, ?> mapping) {
             if ("rank_vectors".equals(mapping.get("type")) == false || Boolean.TRUE.equals(mapping.get("index")) == false) {
                 throw new IllegalArgumentException("field must be an indexed [rank_vectors] field");
@@ -503,22 +506,12 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                 throw new IllegalArgumentException("rank_vectors field must declare [dims]");
             }
             Number dimensions = (Number) mapping.get("dims");
-            if (mapping.get("index_options") instanceof Map<?, ?> == false) {
-                throw new IllegalArgumentException("rank_vectors field must use MUVERA index options");
-            }
-            Map<?, ?> options = (Map<?, ?>) mapping.get("index_options");
-            if ("muvera".equals(options.get("type")) == false) {
-                throw new IllegalArgumentException("rank_vectors field must use MUVERA index options");
-            }
-            String profile = Objects.toString(options.get("encoding_profile"), "");
-            if (Strings.hasText(profile) == false) {
-                throw new IllegalArgumentException("MUVERA [encoding_profile] is required");
-            }
-            if (options.get("encoding_version") instanceof Number == false) {
-                throw new IllegalArgumentException("MUVERA [encoding_version] is required");
-            }
-            Number version = (Number) options.get("encoding_version");
-            return new MappingInfo(dimensions.intValue(), elementType, Map.copyOf(options), profile, version.intValue());
+            return new MappingInfo(
+                dimensions.intValue(),
+                elementType,
+                RankVectorsFieldMapper.muveraEncodingProfile(),
+                RankVectorsFieldMapper.muveraEncodingVersion()
+            );
         }
     }
 }

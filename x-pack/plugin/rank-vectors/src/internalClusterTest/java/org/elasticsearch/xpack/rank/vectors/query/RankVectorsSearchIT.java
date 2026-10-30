@@ -39,6 +39,7 @@ public class RankVectorsSearchIT extends ESIntegTestCase {
 
     public void testQueryAndRetrieverAcrossShards() throws Exception {
         createIndex();
+        assertTrue(client().prepareFieldCaps(INDEX).setFields(FIELD).get().getField(FIELD).get("rank_vectors").isSearchable());
         indexDocument("exact", routingKeyForShard(INDEX, 0), "en", unitTokens(0, 1));
         indexDocument("partial", routingKeyForShard(INDEX, 1), "en", unitTokens(0, 2));
         indexDocument("filtered-out", routingKeyForShard(INDEX, 1), "fr", unitTokens(0, 1));
@@ -70,11 +71,6 @@ public class RankVectorsSearchIT extends ESIntegTestCase {
                 .field("type", "rank_vectors")
                 .field("dims", DIMS)
                 .field("index", true)
-                .startObject("index_options")
-                .field("type", "muvera")
-                .field("encoding_version", 1)
-                .field("encoding_profile", "muvera_v1")
-                .endObject()
                 .endObject()
                 .startObject("vectors_alias")
                 .field("type", "alias")

@@ -121,19 +121,14 @@ public class ColumnarNumericDocValuesTests extends MapperServiceTestCase {
                 } else if (expectedType == DocValuesType.BINARY && leafHasMultipleValues(leaf, expected)) {
                     assertThat("a multi-valued column doesn't unwrap", DocValues.unwrapSingleton(values), nullValue());
                 }
+                final long[][] byDoc = new long[leaf.maxDoc()][];
                 for (int doc = 0; doc < leaf.maxDoc(); doc++) {
                     assertTrue(ids.advanceExact(doc));
                     final long id = ids.longValue();
-                    if (values.advanceExact(doc)) {
-                        final long[] read = new long[values.docValueCount()];
-                        for (int i = 0; i < read.length; i++) {
-                            read[i] = values.nextValue();
-                        }
-                        actual.put(id, read);
-                    } else {
-                        actual.put(id, new long[0]);
-                    }
+                    byDoc[doc] = values.advanceExact(doc) ? readValues(values) : new long[0];
+                    actual.put(id, byDoc[doc]);
                 }
+                assertIterates(ColumnarNumericDocValues.getSortedNumeric(leaf, "field"), byDoc);
             }
             assertThat(actual.keySet(), equalTo(expected.keySet()));
             for (Map.Entry<Long, long[]> doc : expected.entrySet()) {
@@ -142,6 +137,45 @@ public class ColumnarNumericDocValuesTests extends MapperServiceTestCase {
                 assertArrayEquals("doc " + doc.getKey(), sorted, actual.get(doc.getKey()));
             }
         });
+    }
+
+    private static long[] readValues(SortedNumericDocValues values) throws IOException {
+        final long[] read = new long[values.docValueCount()];
+        for (int i = 0; i < read.length; i++) {
+            read[i] = values.nextValue();
+        }
+        return read;
+    }
+
+    /**
+     * Walks {@code values} with a random mix of {@link SortedNumericDocValues#nextDoc} and {@link SortedNumericDocValues#advance},
+     * which land on a document without {@code advanceExact}, and checks each lands on the next document with values and reads
+     * the same values {@code advanceExact} did.
+     */
+    private static void assertIterates(SortedNumericDocValues values, long[][] byDoc) throws IOException {
+        int previous = -1;
+        while (true) {
+            final int target = previous + between(1, 3);
+            final boolean advance = target < byDoc.length && randomBoolean();
+            final int doc = advance ? values.advance(target) : values.nextDoc();
+            assertThat(values.docID(), equalTo(doc));
+            assertThat(doc, equalTo(nextWithValues(byDoc, advance ? target : previous + 1)));
+            if (doc == SortedNumericDocValues.NO_MORE_DOCS) {
+                return;
+            }
+            assertArrayEquals("doc " + doc, byDoc[doc], readValues(values));
+            previous = doc;
+        }
+    }
+
+    /** The first document at or after {@code from} with a value, or {@code NO_MORE_DOCS}. */
+    private static int nextWithValues(long[][] byDoc, int from) {
+        for (int doc = from; doc < byDoc.length; doc++) {
+            if (byDoc[doc].length > 0) {
+                return doc;
+            }
+        }
+        return SortedNumericDocValues.NO_MORE_DOCS;
     }
 
     /** Whether any document of {@code leaf} holds more than one value, which decides whether its column can be single-valued. */

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -70,13 +72,24 @@ public class ColumnarNumericCodecTests extends ESSingleNodeTestCase {
     public void testAgreesWithoutTheCodec() throws IOException {
         final String type = randomFrom(TYPES);
         final boolean indexed = randomBoolean();
-        final String mapping = Strings.format("""
-            {"properties":{"@timestamp":{"type":"date"},"n":{"type":"%s","index":%s}}}""", type, indexed);
+        // multi_value=false writes no offsets companion, and takes only documents holding at most one value.
+        final boolean multiValue = randomBoolean();
+        final boolean ignoreMalformed = randomBoolean();
+        final String nullValue = randomBoolean() ? null : randomFrom(valuesFor(type));
+        final String mapping = Strings.format(
+            """
+                {"properties":{"@timestamp":{"type":"date"},"n":{"type":"%s","index":%s,"multi_value":%s,"ignore_malformed":%s%s}}}""",
+            type,
+            indexed,
+            multiValue,
+            ignoreMalformed,
+            nullValue == null ? "" : ",\"null_value\":" + nullValue
+        );
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(WITH_CODEC, mode, true, mapping);
         createIndex(WITHOUT_CODEC, mode, false, mapping);
 
-        final List<String> sources = randomSources(type);
+        final List<String> sources = randomSources(type, multiValue, ignoreMalformed);
         final int firstBatch = between(1, sources.size());
         indexSources(sources.subList(0, firstBatch), 0);
         refresh();
@@ -119,6 +132,41 @@ public class ColumnarNumericCodecTests extends ESSingleNodeTestCase {
             assertEquals("sort " + order, sortValues(WITHOUT_CODEC, order), sortValues(WITH_CODEC, order));
         }
         assertEquals(aggregations(WITHOUT_CODEC), aggregations(WITH_CODEC));
+        assertEquals(docValueFields(WITHOUT_CODEC), docValueFields(WITH_CODEC));
+        final int slices = between(2, 4);
+        for (int slice = 0; slice < slices; slice++) {
+            assertEquals("slice " + slice, sliceIds(WITHOUT_CODEC, slice, slices), sliceIds(WITH_CODEC, slice, slices));
+        }
+    }
+
+    /** Each document's values for {@code n} as {@code docvalue_fields} fetches them from the doc values, by id. */
+    private Map<String, List<Object>> docValueFields(String index) {
+        final Map<String, List<Object>> values = new HashMap<>();
+        assertResponse(client().prepareSearch(index).addDocValueField("n").setSize(100), response -> {
+            for (SearchHit hit : response.getHits()) {
+                values.put(hit.getId(), hit.field("n") == null ? List.of() : hit.field("n").getValues());
+            }
+        });
+        return values;
+    }
+
+    /** The ids of the documents in one slice of a scroll sliced on {@code n}, which hashes the field's doc values. */
+    private List<String> sliceIds(String index, int slice, int slices) {
+        final List<String> ids = new ArrayList<>();
+        final SearchRequestBuilder search = client().prepareSearch(index)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .slice(new SliceBuilder("n", slice, slices))
+            .setSize(100);
+        final String[] scrollId = new String[1];
+        assertResponse(search, response -> {
+            scrollId[0] = response.getScrollId();
+            for (SearchHit hit : response.getHits()) {
+                ids.add(hit.getId());
+            }
+        });
+        client().prepareClearScroll().addScrollId(scrollId[0]).get();
+        ids.sort(null);
+        return ids;
     }
 
     /**
@@ -198,17 +246,22 @@ public class ColumnarNumericCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Random documents for a field of {@code type}: absent, a single value, or an array that may repeat values, hold nulls or
-     * be empty, which the codec has to reproduce through {@code _source} in order.
+     * Random documents for a field of {@code type}: absent, a single value, or, if {@code multiValue}, an array that may repeat
+     * values, hold nulls or be empty, which the codec has to reproduce through {@code _source} in order. If
+     * {@code ignoreMalformed}, some documents hold a value the field can't parse, which it ignores.
      */
-    private List<String> randomSources(String type) {
+    private List<String> randomSources(String type, boolean multiValue, boolean ignoreMalformed) {
         final List<String> values = valuesFor(type);
         final int docs = between(2, 60);
         final List<String> sources = new ArrayList<>(docs);
         for (int i = 0; i < docs; i++) {
             final String timestamp = "\"@timestamp\":\"2024-01-01T00:00:" + String.format(Locale.ROOT, "%02d", i) + "Z\"";
+            int shape = between(0, 4);
+            if ((shape == 3 && multiValue == false) || (shape == 4 && ignoreMalformed == false)) {
+                shape = 1;
+            }
             // The last document always has a value, so there are doc values to look at whichever documents are deleted.
-            sources.add(switch (i == docs - 1 ? 1 : between(0, 3)) {
+            sources.add(switch (i == docs - 1 ? 1 : shape) {
                 case 0 -> "{" + timestamp + "}";
                 case 1 -> "{" + timestamp + ",\"n\":" + randomFrom(values) + "}";
                 case 2 -> "{" + timestamp + ",\"n\":null}";
@@ -219,6 +272,7 @@ public class ColumnarNumericCodecTests extends ESSingleNodeTestCase {
                     }
                     yield "{" + timestamp + ",\"n\":[" + String.join(",", Arrays.asList(array)) + "]}";
                 }
+                case 4 -> "{" + timestamp + ",\"n\":\"not a number\"}";
                 default -> throw new AssertionError();
             });
         }

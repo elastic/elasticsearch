@@ -142,6 +142,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     public static final String SHARD_BEING_RESTORED_REASON = "primary shard is being restored from a snapshot";
 
+    public static final String SHARD_BEING_RESHARDED_REASON = "cannot snapshot a shard during resharding";
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
@@ -218,8 +220,30 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * When {@code true}, any create-snapshot request that omits {@code encrypted_data} is rejected if the cluster
+     * contains encrypted project data, instead of silently excluding that data from the snapshot.
+     */
+    public static final Setting<Boolean> ENCRYPTED_DATA_REQUIRED_SETTING = Setting.boolSetting(
+        "snapshot.encrypted_data.required",
+        false,
+        value -> {
+            if (value && SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[snapshot.encrypted_data.required] can only be enabled when the snapshot_encrypted_data feature flag is enabled"
+                );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
     private volatile boolean monotonicEndTime;
+
+    private volatile boolean encryptedDataRequired;
+
+    private SnapshotGlobalStateTransformer snapshotGlobalStateTransformer = SnapshotGlobalStateTransformer.NOOP;
 
     public SnapshotsService(
         Settings settings,
@@ -247,6 +271,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
             monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
+            if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled()) {
+                encryptedDataRequired = ENCRYPTED_DATA_REQUIRED_SETTING.get(settings);
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(ENCRYPTED_DATA_REQUIRED_SETTING, b -> encryptedDataRequired = b);
+            }
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -284,6 +313,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
 
         this.shardSnapshotUpdateCompletionHandler = this::handleShardSnapshotUpdateCompletion;
+    }
+
+    public void setSnapshotGlobalStateTransformer(SnapshotGlobalStateTransformer transformer) {
+        this.snapshotGlobalStateTransformer = Objects.requireNonNull(transformer);
+    }
+
+    private boolean missingRequiredEncryptedData(ProjectId projectId, Metadata metadata, @Nullable SnapshotEncryptedData encryptedData) {
+        return encryptedData == null && encryptedDataRequired && snapshotGlobalStateTransformer.containsEncryptedData(projectId, metadata);
     }
 
     @Override
@@ -332,6 +369,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         if (repository.isReadOnly()) {
             listener.onFailure(
                 new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
+            );
+            return;
+        }
+        if (request.encryptedData() != null && snapshotGlobalStateTransformer == SnapshotGlobalStateTransformer.NOOP) {
+            listener.onFailure(new IllegalArgumentException("[encrypted_data] is not supported by this cluster"));
+            return;
+        }
+        if (request.includeGlobalState()
+            && missingRequiredEncryptedData(projectId, clusterService.state().metadata(), request.encryptedData())) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "the cluster contains encrypted project data and [snapshot.encrypted_data.required] is true; "
+                        + "supply [encrypted_data] to include the data in the snapshot"
+                )
             );
             return;
         }
@@ -540,6 +591,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             allShardCountsListener
         );
         snapshotInfoListener.addListener(ActionListener.wrap(snapshotInfo -> {
+            if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false && snapshotInfo.hasEncryptedData()) {
+                throw new SnapshotException(
+                    targetSnapshot,
+                    "Can't clone snapshot [" + sourceSnapshot + "] because it contains encrypted data, which this cluster does not support"
+                );
+            }
             for (IndexId indexId : indices) {
                 if (RestoreService.failed(snapshotInfo, indexId.getName())) {
                     throw new SnapshotException(
@@ -619,11 +676,28 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         // shard snapshot state was based on all previous existing operations in progress
                         // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
                         updatedEntries.add(updatedEntry);
-                        return SnapshotsServiceUtils.updateWithSnapshots(
+                        final ClusterState updatedState = SnapshotsServiceUtils.updateWithSnapshots(
                             currentState,
                             snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(projectId, repoName, updatedEntries),
                             null
                         );
+                        final SnapshotInfo source = snapshotInfoListener.result();
+                        if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false || source.encryptedDataType() == null) {
+                            return updatedState;
+                        }
+                        // Password not needed since it's already encrypted, only metadata needed (id and type) to know how to decrypt
+                        final var encryptedData = new SnapshotEncryptedData(
+                            source.encryptedDataType(),
+                            null,
+                            source.encryptedDataPasswordId()
+                        );
+                        return ClusterState.builder(updatedState)
+                            .putCustom(
+                                SnapshotsInProgressEncryptedData.TYPE,
+                                SnapshotsInProgressEncryptedData.get(updatedState)
+                                    .withAddedEntries(Map.of(cloneEntry.snapshot(), encryptedData))
+                            )
+                            .build();
                     }
                     return currentState;
                 }
@@ -1437,8 +1511,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 externalChangesBatcher.processExternalChanges(
                     newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
-                        || (event.routingTableChanged()
-                            && SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(snapshotsInProgress, event))
+                        || (event.routingTableChanged() && SnapshotsServiceUtils.waitingShardsNeedUpdate(snapshotsInProgress, event))
                 );
 
                 if (newMaster
@@ -1997,6 +2070,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus shardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
                     generation,
                     shardRouting,
+                    initialState.metadata().getProject(entry.projectId()).index(index),
                     nodeIdRemovalPredicate,
                     entry.partial(),
                     restoreInProgress
@@ -2172,6 +2246,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
 
             final Map<ProjectId, RegisteredPolicySnapshots.Builder> registeredPolicySnapshotsBuilders = new HashMap<>();
+            final Map<Snapshot, SnapshotEncryptedData> encryptedData = new HashMap<>();
             // Handle the tasks to create new snapshots (CreateSnapshotTask tasks).
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
@@ -2189,6 +2264,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         ).addIfSnapshotIsSLMInitiated(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
+                            if (task.createSnapshotRequest.encryptedData() != null && snapshotsInProgress.snapshot(task.snapshot) != null) {
+                                encryptedData.put(task.snapshot, task.createSnapshotRequest.encryptedData());
+                            }
                         } else {
                             // Repository data changed in between starting the task and executing this cluster state update.
                             // Register a callback to resubmit the task after the cluster state is successfully published.
@@ -2216,7 +2294,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             registeredPolicySnapshotsBuilders.forEach(
                 (projectId, builder) -> metadataBuilder.getProject(projectId).putCustom(RegisteredPolicySnapshots.TYPE, builder.build())
             );
-            return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).metadata(metadataBuilder).build();
+            final ClusterState.Builder builder = ClusterState.builder(state)
+                .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+                .metadata(metadataBuilder);
+            if (encryptedData.isEmpty() == false) {
+                builder.putCustom(
+                    SnapshotsInProgressEncryptedData.TYPE,
+                    SnapshotsInProgressEncryptedData.get(state).withAddedEntries(encryptedData)
+                );
+            }
+            return builder.build();
         }
 
         private SnapshotsInProgress createSnapshot(
@@ -2599,7 +2686,33 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                final SnapshotEncryptedData encryptedData = SnapshotsInProgressEncryptedData.get(clusterService.state()).get(snapshot);
+                SnapshotEncryptedData recordedEncryptedData = null;
+                if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() && entry.includeGlobalState()) {
+                    if (entry.isClone()) {
+                        // a clone copies the source snapshot's global metadata, which is already in its snapshot form
+                        recordedEncryptedData = encryptedData;
+                    } else {
+                        if (missingRequiredEncryptedData(projectId, metaForSnapshot, encryptedData)) {
+                            throw new IllegalArgumentException(
+                                "the snapshot contains encrypted project data but no [encrypted_data] was supplied and "
+                                    + "[snapshot.encrypted_data.required] is true, so the snapshot was not written to the repository"
+                            );
+                        }
+                        final Metadata transformed = snapshotGlobalStateTransformer.transformForSnapshot(
+                            projectId,
+                            metaForSnapshot,
+                            encryptedData
+                        );
+                        if (transformed != metaForSnapshot) {
+                            recordedEncryptedData = encryptedData != null
+                                ? encryptedData
+                                : new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_NONE, null, null);
+                        }
+                        metaForSnapshot = transformed;
+                    }
+                }
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -2648,7 +2761,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.includeGlobalState(),
                     entry.userMetadata(),
                     entry.startTime(),
-                    indexSnapshotDetails
+                    indexSnapshotDetails,
+                    recordedEncryptedData == null ? null : recordedEncryptedData.type(),
+                    recordedEncryptedData == null ? null : recordedEncryptedData.passwordId()
                 );
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);

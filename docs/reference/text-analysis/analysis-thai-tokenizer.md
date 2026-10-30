@@ -35,3 +35,4 @@ The above sentence would produce the following terms:
 ## Configuration [_configuration_20]
 
 The `thai` tokenizer is not configurable.
+

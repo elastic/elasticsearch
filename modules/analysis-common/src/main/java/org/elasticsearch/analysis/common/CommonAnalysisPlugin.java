@@ -95,7 +95,6 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
-import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.th.ThaiNormalizationFilter;
 import org.apache.lucene.analysis.th.ThaiRepeatFilter;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
@@ -498,15 +497,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.add(new PreBuiltAnalyzerProviderFactory("spanish", CachingStrategy.LUCENE, SpanishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("swedish", CachingStrategy.LUCENE, SwedishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("turkish", CachingStrategy.LUCENE, TurkishAnalyzer::new));
-        // Lucene 10.6 changed ThaiAnalyzer's output, so older indices keep the 10.5 chain. INDEX caching builds one analyzer per
-        // distinct index.version.created seen on the node (not one per side of the gate); that is expected, not a leak.
-        analyzers.add(
-            PreBuiltAnalyzerProviderFactory.indexVersion(
-                "thai",
-                CachingStrategy.INDEX,
-                version -> version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? new ThaiAnalyzer() : new LegacyThaiAnalyzer()
-            )
-        );
+        analyzers.add(ThaiAnalyzerProvider.preBuiltFactory());
         return analyzers;
     }
 

@@ -57,7 +57,7 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
         // analyzers are version-invariant (PreBuiltAnalyzers#create ignores the version); a
         // version-sensitive component folds the version into its own factory sharingKey() instead. See
         // AnalysisRegistryTests#testVersionInvariantAnalyzersShareAcrossVersions.
-        // Version-sensitive prebuilt analyzers (PreBuiltAnalyzerProviderFactory#indexVersion) key on the provider instead.
+        // Version-sensitive prebuilt analyzers key on the provider instead.
         return shareByName ? analyzer : this;
     }
 }

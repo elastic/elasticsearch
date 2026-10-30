@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 
 /**
  * Provider for the {@code thai} analyzer type. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} get
@@ -28,6 +29,15 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer
 
     private final Analyzer analyzer;
     private final Object sharingKey;
+
+    static PreBuiltAnalyzerProviderFactory preBuiltFactory() {
+        return PreBuiltAnalyzerProviderFactory.luceneVersion(
+            "thai",
+            version -> version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.luceneVersion())
+                ? new ThaiAnalyzer()
+                : new LegacyThaiAnalyzer()
+        );
+    }
 
     ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);

@@ -61,17 +61,19 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.apply(IndexVersion.current()), versionInvariant);
     }
 
-    /**
-     * For analyzers whose behavior depends on the index version. Use {@link PreBuiltCacheFactory.CachingStrategy#INDEX}; instances
-     * are only shared by indices created at the same version. A static method rather than a constructor because a
-     * {@code Function} overload next to the {@code Supplier} one would make {@code SomeAnalyzer::new} ambiguous.
-     */
-    public static PreBuiltAnalyzerProviderFactory indexVersion(
-        String name,
-        PreBuiltCacheFactory.CachingStrategy cache,
-        Function<IndexVersion, Analyzer> create
-    ) {
-        return new PreBuiltAnalyzerProviderFactory(name, cache, create, false);
+    /** For analyzers whose behavior may vary with the Lucene version. */
+    public static PreBuiltAnalyzerProviderFactory luceneVersion(String name, Function<org.apache.lucene.util.Version, Analyzer> create) {
+        return new PreBuiltAnalyzerProviderFactory(
+            name,
+            PreBuiltCacheFactory.CachingStrategy.LUCENE,
+            create.compose(IndexVersion::luceneVersion),
+            false
+        );
+    }
+
+    /** For analyzers whose behavior may vary with the Elasticsearch index version. */
+    public static PreBuiltAnalyzerProviderFactory indexVersion(String name, Function<IndexVersion, Analyzer> create) {
+        return new PreBuiltAnalyzerProviderFactory(name, PreBuiltCacheFactory.CachingStrategy.INDEX, create, false);
     }
 
     @Override

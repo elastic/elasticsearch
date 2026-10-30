@@ -142,7 +142,6 @@ public class FactorySharingKeyTests extends ESTestCase {
         try (
             PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.indexVersion(
                 "versioned",
-                CachingStrategy.INDEX,
                 version -> new StandardAnalyzer()
             )
         ) {
@@ -151,6 +150,26 @@ public class FactorySharingKeyTests extends ESTestCase {
             assertEquals(current.sharingKey(), factory.get(indexSettings(), env, "versioned", Settings.EMPTY).sharingKey());
             assertEquals(old.sharingKey(), factory.get(indexSettings(previous), env, "versioned", Settings.EMPTY).sharingKey());
             assertNotEquals(current.sharingKey(), old.sharingKey());
+        }
+    }
+
+    /** Different Elasticsearch index versions backed by the same Lucene version resolve the same prebuilt analyzer provider. */
+    public void testLuceneVersionPrebuiltAnalyzerSharesAcrossIndexVersions() throws IOException {
+        Environment env = env();
+        IndexVersion first = IndexVersions.UPGRADE_TO_LUCENE_10_5_2;
+        IndexVersion second = IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS;
+        assertNotEquals(first, second);
+        assertEquals(first.luceneVersion(), second.luceneVersion());
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.luceneVersion(
+                "versioned",
+                version -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> firstProvider = factory.get(indexSettings(first), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> secondProvider = factory.get(indexSettings(second), env, "versioned", Settings.EMPTY);
+            assertSame(firstProvider, secondProvider);
+            assertEquals(firstProvider.sharingKey(), secondProvider.sharingKey());
         }
     }
 

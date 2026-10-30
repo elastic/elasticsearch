@@ -212,12 +212,23 @@ public class SharingKeyTests extends ESTestCase {
         }
     }
 
-    /** The prebuilt {@code thai} analyzer is version-sensitive too; its default name-based sharing key would collapse the two sides. */
-    public void testPrebuiltThaiAnalyzerDoesNotShareAcrossThaiGate() throws IOException {
-        Analyzer legacy = buildPrebuilt(IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0), "thai");
+    /**
+     * The prebuilt {@code thai} analyzer is version-sensitive too; its default name-based sharing key would collapse the two sides.
+     * Distinct Elasticsearch index versions using the same Lucene version should still share the same analyzer instance.
+     */
+    public void testPrebuiltThaiAnalyzerCachesByLuceneVersion() throws IOException {
+        IndexVersion firstLegacyVersion = IndexVersions.UPGRADE_TO_LUCENE_10_5_2;
+        IndexVersion secondLegacyVersion = IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS;
+        assertNotEquals(firstLegacyVersion, secondLegacyVersion);
+        assertEquals(firstLegacyVersion.luceneVersion(), secondLegacyVersion.luceneVersion());
+
+        Analyzer legacy = buildPrebuilt(firstLegacyVersion, "thai");
+        Analyzer otherLegacy = buildPrebuilt(secondLegacyVersion, "thai");
         Analyzer current = buildPrebuilt(IndexVersion.current(), "thai");
         assertThat(legacy, instanceOf(LegacyThaiAnalyzer.class));
+        assertSame(legacy, otherLegacy);
         assertThat(current, instanceOf(ThaiAnalyzer.class));
+        assertNotSame(legacy, current);
         assertSame(current, buildPrebuilt(IndexVersion.current(), "thai"));
     }
 

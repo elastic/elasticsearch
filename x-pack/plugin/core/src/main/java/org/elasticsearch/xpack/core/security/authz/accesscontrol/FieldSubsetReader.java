@@ -10,6 +10,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -368,6 +369,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
+    }
+
+    @Override
+    public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
+            return null;
+        }
+        return super.getDocValuesSkipper(field);
     }
 
     /**

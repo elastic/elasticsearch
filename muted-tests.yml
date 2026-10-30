@@ -509,3 +509,8 @@ tests:
   - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
   issue: https://github.com/elastic/elasticsearch/issues/164095
+- class: org.elasticsearch.xpack.esql.optimizer.GoldenGcTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testStaleTestDirectoriesNameNoMethodOfTheSuite
+  issue: https://github.com/elastic/elasticsearch/issues/164167

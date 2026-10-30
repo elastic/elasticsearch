@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -178,7 +179,7 @@ public class InternalEngine extends Engine {
     // TODO: move the following two to the stateless plugin
     private final AtomicLong lastUnsafeSegmentGenerationForGets;
     // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
-    private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
+    private final AtomicLong preCommitSegmentGeneration;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -253,6 +254,8 @@ public class InternalEngine extends Engine {
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE = "realtime_get_for_update";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
+
+    public static final String TOO_MANY_DOCS_MESSAGE_PREFIX = "Number of documents in the shard cannot exceed [";
 
     @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
@@ -329,6 +332,7 @@ public class InternalEngine extends Engine {
             this.externalReaderManager = wrapForAssertions(externalReaderManager, engineConfig);
             internalReaderManager.addListener(versionMap);
             this.lastUnsafeSegmentGenerationForGets = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
+            this.preCommitSegmentGeneration = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
@@ -1186,15 +1190,22 @@ public class InternalEngine extends Engine {
         if (versionMap.isUnsafeForGets()) {
             synchronized (versionMap) {
                 if (versionMap.isUnsafeForGets()) {
-                    refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
-                    // After the refresh, the doc that triggered it must now be part of the last commit.
-                    // In rare cases, there could be other flush cycles completed in between the above line
-                    // and the line below which push the last commit generation further. But that's OK.
-                    // The invariant here is that doc is available within the generations of commits upto
-                    // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
-                    // which means the search shard needs to wait for extra generations and these generations
-                    // are guaranteed to happen since they are all committed.
-                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
+                    final long safeGeneration = versionMap.safeGenerationForGets(lastCommittedSegmentInfos.getGeneration());
+                    if (safeGeneration != -1) {
+                        // Every unsafe operation is already contained in a committed generation, so there is nothing
+                        // to refresh or flush: gets just need to wait for that generation.
+                        lastUnsafeSegmentGenerationForGets.accumulateAndGet(safeGeneration, Math::max);
+                    } else {
+                        refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
+                        // After the refresh, the doc that triggered it must now be part of the last commit.
+                        // In rare cases, there could be other flush cycles completed in between the above line
+                        // and the line below which push the last commit generation further. But that's OK.
+                        // The invariant here is that doc is available within the generations of commits upto
+                        // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
+                        // which means the search shard needs to wait for extra generations and these generations
+                        // are guaranteed to happen since they are all committed.
+                        lastUnsafeSegmentGenerationForGets.accumulateAndGet(lastCommittedSegmentInfos.getGeneration(), Math::max);
+                    }
                 }
                 versionMap.enforceSafeAccess();
             }
@@ -2471,7 +2482,7 @@ public class InternalEngine extends Engine {
             releaseInFlightDocs(addingDocs);
             return new IllegalArgumentException(
                 Strings.format(
-                    "Number of documents in the shard cannot exceed [%d]; for more information, see [%s]",
+                    TOO_MANY_DOCS_MESSAGE_PREFIX + "%d]; for more information, see [%s]",
                     maxDocs,
                     ReferenceDocs.LUCENE_MAX_DOCS_LIMIT
                 )
@@ -2479,6 +2490,16 @@ public class InternalEngine extends Engine {
         } else {
             return null;
         }
+    }
+
+    /**
+     * The shard-full failure is a plain {@link IllegalArgumentException} so clients keep the same status and error type,
+     * which means it can only be recognised by its message.
+     */
+    public static boolean isTooManyDocsFailure(Throwable failure) {
+        return failure instanceof IllegalArgumentException
+            && failure.getMessage() != null
+            && failure.getMessage().startsWith(TOO_MANY_DOCS_MESSAGE_PREFIX);
     }
 
     private void releaseInFlightDocs(int numDocs) {
@@ -3641,10 +3662,11 @@ public class InternalEngine extends Engine {
     /**
      * Allows subclasses to wrap the {@link MergePolicy} before it is installed on the writer. It is applied last, so the
      * returned policy is the outermost one and the {@code OneMerge}s it produces are the instances the {@link IndexWriter}
-     * actually executes. The default implementation returns the policy unchanged.
+     * actually executes. The default implementation wraps merges in a {@link SizeTrackingOneMerge}; overrides should do the same
+     * (e.g. by extending it) so that the merged segment size is recorded for merge metrics.
      */
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
-        return mergePolicy;
+        return new OneMergeWrappingMergePolicy(mergePolicy, SizeTrackingOneMerge::new);
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */
@@ -4477,6 +4499,11 @@ public class InternalEngine extends Engine {
         checkGenerationFlushed(generation, listener);
     }
 
+    /**
+     * The segment generation up to which (inclusive) commits contain every operation that was indexed while the
+     * live version map was unsafe. Such operations have no version map entry, so a real-time get that misses the
+     * version map is only safe to serve from a searcher that includes this generation. Monotonically increasing.
+     */
     public long getLastUnsafeSegmentGenerationForGets() {
         return lastUnsafeSegmentGenerationForGets.get();
     }

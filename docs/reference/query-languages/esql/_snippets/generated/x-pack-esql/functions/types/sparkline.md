@@ -4,7 +4,31 @@
 
 | aggregation | key | buckets | from | to | result |
 | --- | --- | --- | --- | --- | --- |
+| double | date | integer | date | date | double |
+| double | date | integer | date | keyword | double |
+| double | date | integer | date | text | double |
+| double | date | integer | keyword | date | double |
+| double | date | integer | keyword | keyword | double |
+| double | date | integer | keyword | text | double |
+| double | date | integer | text | date | double |
+| double | date | integer | text | keyword | double |
 | double | date | integer | text | text | double |
 | integer | date | integer | date | date | integer |
+| integer | date | integer | date | keyword | integer |
+| integer | date | integer | date | text | integer |
+| integer | date | integer | keyword | date | integer |
+| integer | date | integer | keyword | keyword | integer |
+| integer | date | integer | keyword | text | integer |
+| integer | date | integer | text | date | integer |
+| integer | date | integer | text | keyword | integer |
+| integer | date | integer | text | text | integer |
+| long | date | integer | date | date | long |
+| long | date | integer | date | keyword | long |
+| long | date | integer | date | text | long |
+| long | date | integer | keyword | date | long |
 | long | date | integer | keyword | keyword | long |
+| long | date | integer | keyword | text | long |
+| long | date | integer | text | date | long |
+| long | date | integer | text | keyword | long |
+| long | date | integer | text | text | long |
 

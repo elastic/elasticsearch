@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
+
 /**
  * Profile results from a single {@link Driver}.
  *
@@ -32,7 +34,14 @@ import java.util.List;
  * @param startMillis Millis since epoch when the driver started.
  * @param stopMillis Millis since epoch when the driver stopped.
  * @param tookNanos Nanos between creation and completion of the {@link Driver}.
- * @param cpuNanos Nanos this {@link Driver} has been running on the cpu. Does not include async or waiting time.
+ * @param cpuNanos Thread CPU nanos this {@link Driver} has used. Does not include async or waiting time, time spent
+ *                 waiting for a core, or time blocked inside an operator. 0 if the JVM can't measure thread CPU time.
+ *                 Includes the thread CPU time its operators used on other threads
+ *                 ({@link DriverContext#meteredCpu}) and the driver's own work just outside the span
+ *                 {@code driverNanos} covers, such as finishing after its loop, so it can exceed {@code driverNanos}.
+ * @param driverNanos Nanos this {@link Driver} has held a thread. Unlike {@code cpuNanos} this includes time the thread
+ *                    waited for a core, GC pauses and time blocked inside an operator. Does not include async or
+ *                    waiting time.
  * @param iterations The number of times the driver has moved a single page up the chain of operators as far as it'll go.
  * @param operators Status of each {@link Operator} in the driver when it finished.
  */
@@ -44,6 +53,7 @@ public record DriverProfile(
     long stopMillis,
     long tookNanos,
     long cpuNanos,
+    long driverNanos,
     long iterations,
     List<OperatorStatus> operators,
     DriverSleeps sleeps
@@ -61,6 +71,7 @@ public record DriverProfile(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
+            in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0,
             in.readVLong(),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
             DriverSleeps.read(in)
@@ -80,6 +91,9 @@ public record DriverProfile(
         out.writeVLong(stopMillis);
         out.writeVLong(tookNanos);
         out.writeVLong(cpuNanos);
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NANOS)) {
+            out.writeVLong(driverNanos);
+        }
         out.writeVLong(iterations);
         out.writeCollection(operators);
         sleeps.writeTo(out);
@@ -100,6 +114,10 @@ public record DriverProfile(
             b.field("cpu_nanos", cpuNanos);
             if (b.humanReadable()) {
                 b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
+            }
+            b.field("driver_nanos", driverNanos);
+            if (b.humanReadable()) {
+                b.field("driver_time", TimeValue.timeValueNanos(driverNanos));
             }
             b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
             b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());

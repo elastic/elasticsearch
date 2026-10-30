@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
@@ -30,7 +29,7 @@ import java.util.function.Function;
  * scope, is known there. The two-arg constructor binds a single fixed policy for every path (used by tests and
  * any caller that does not need per-scope backoff).
  */
-class RetryableStorageProvider implements StorageProvider {
+class RetryableStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final RetryScheduler retryScheduler;
@@ -69,6 +68,16 @@ class RetryableStorageProvider implements StorageProvider {
     }
 
     @Override
+    protected StorageProvider delegate() {
+        return delegate;
+    }
+
+    @Override
+    public StorageEntry objectMetadata(StoragePath path) throws IOException {
+        return policyFor(path).execute(() -> delegate.objectMetadata(path), "objectMetadata", path);
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path) {
         return new RetryableStorageObject(delegate.newObject(path), policyFor(path), retryScheduler);
     }
@@ -84,9 +93,20 @@ class RetryableStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new RetryableStorageObject(delegate.newObject(path, length, lastModified, version), policyFor(path), retryScheduler);
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /** The retry unit is unchanged; only the prefix handed to the delegate is narrower. */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         RetryPolicy policy = policyFor(prefix);
-        StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, recursive), "listObjects", prefix);
+        StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, namePrefix, recursive), "listObjects", prefix);
         return new RetryableStorageIterator(iterator, policy, prefix);
     }
 
@@ -99,21 +119,6 @@ class RetryableStorageProvider implements StorageProvider {
     @Override
     public boolean exists(StoragePath path) throws IOException {
         return policyFor(path).execute(() -> delegate.exists(path), "exists", path);
-    }
-
-    @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
-    }
-
-    @Override
-    public boolean supportsStableMetadata() {
-        return delegate.supportsStableMetadata();
-    }
-
-    @Override
-    public boolean listsInKeyOrder() {
-        return delegate.listsInKeyOrder();
     }
 
     @Override

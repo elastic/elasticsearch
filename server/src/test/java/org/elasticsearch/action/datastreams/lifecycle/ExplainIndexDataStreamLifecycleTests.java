@@ -35,24 +35,27 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
     public void testGetGenerationTime() {
         long now = System.currentTimeMillis();
         {
-            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-                randomAlphaOfLengthBetween(10, 30),
-                randomBoolean(),
-                now,
-                randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
-                null,
-                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-                randomBoolean()
-                    ? new ErrorEntry(
-                        System.currentTimeMillis(),
-                        new NullPointerException("bad times").getMessage(),
-                        System.currentTimeMillis(),
-                        randomIntBetween(0, 30)
-                    )
-                    : null,
-                null,
-                false
-            );
+            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ManagedResponseBuilder().index(
+                randomAlphaOfLengthBetween(10, 30)
+            )
+                .internalDataStream(randomBoolean())
+                .indexCreationDate(now)
+                .rolloverDate(randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null)
+                .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .error(
+                    randomBoolean()
+                        ? new ErrorEntry(
+                            System.currentTimeMillis(),
+                            new NullPointerException("bad times").getMessage(),
+                            System.currentTimeMillis(),
+                            randomIntBetween(0, 30)
+                        )
+                        : null
+                )
+                .minimumLifecycleEnabled(false)
+                .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+                .build();
+
             assertThat(explainIndexDataStreamLifecycle.getGenerationTime(() -> now + 50L), is(nullValue()));
             explainIndexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 randomAlphaOfLengthBetween(10, 30),
@@ -70,7 +73,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                     )
                     : null,
                 null,
-                false
+                false,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             assertThat(explainIndexDataStreamLifecycle.getGenerationTime(() -> now + 500L), is(TimeValue.timeValueMillis(400)));
         }
@@ -85,17 +89,15 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
 
         {
             // should always be gte 0
-            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-                "my-index",
-                randomBoolean(),
-                now,
-                now + 80L, // rolled over in the future (clocks are funny that way)
-                TimeValue.timeValueMillis(now + 100L),
-                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-                null,
-                null,
-                false
-            );
+            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ManagedResponseBuilder().index("my-index")
+                .internalDataStream(randomBoolean())
+                .indexCreationDate(now)
+                .rolloverDate(now + 80L) // created in the future (clocks are funny that way)
+                .generationDate(TimeValue.timeValueMillis(now + 100L))
+                .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+                .minimumLifecycleEnabled(false)
+                .build();
             assertThat(indexDataStreamLifecycle.getGenerationTime(() -> now), is(TimeValue.ZERO));
         }
     }
@@ -123,17 +125,13 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
 
         {
             // should always be gte 0
-            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-                "my-index",
-                randomBoolean(),
-                now + 80L, // created in the future (clocks are funny that way)
-                null,
-                null,
-                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-                null,
-                null,
-                false
-            );
+            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ManagedResponseBuilder().index("my-index")
+                .internalDataStream(randomBoolean())
+                .indexCreationDate(now + 80L) // created in the future (clocks are funny that way)
+                .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+                .minimumLifecycleEnabled(false)
+                .build();
             assertThat(indexDataStreamLifecycle.getTimeSinceIndexCreation(() -> now), is(TimeValue.ZERO));
         }
     }
@@ -168,70 +166,89 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
 
         {
             // should always be gte 0
-            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-                "my-index",
-                randomBoolean(),
-                now - 50L,
-                now + 100L, // rolled over in the future
-                TimeValue.timeValueMillis(now),
-                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-                null,
-                null,
-                false
-            );
+            ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ManagedResponseBuilder().index("my-index")
+                .internalDataStream(randomBoolean())
+                .indexCreationDate(now - 50L)
+                .rolloverDate(now + 100L) // rolled over in the future
+                .generationDate(TimeValue.timeValueMillis(now))
+                .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+                .minimumLifecycleEnabled(false)
+                .build();
             assertThat(indexDataStreamLifecycle.getTimeSinceRollover(() -> now), is(TimeValue.ZERO));
         }
     }
 
     @SuppressWarnings("unchecked")
     public void testFrozenTransitionXContent() throws IOException {
-        ExplainIndexDataStreamLifecycle withFrozen = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-            "my-index",
-            randomBoolean(),
-            System.currentTimeMillis(),
-            null,
-            null,
-            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-            null,
-            FrozenTransitionStatus.NOT_SUPPORTED,
-            false
-        );
+        ExplainIndexDataStreamLifecycle withFrozen = new ManagedResponseBuilder().index("my-index")
+            .internalDataStream(randomBoolean())
+            .indexCreationDate(System.currentTimeMillis())
+            .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+            .frozenTransitionStatus(FrozenTransitionStatus.NOT_SUPPORTED)
+            .minimumLifecycleEnabled(false)
+            .build();
         Map<String, Object> withFrozenMap = getXContentMap(withFrozen, null, null);
         assertThat(withFrozenMap.get("frozen_transition_status"), is("not_supported"));
         assertThat(withFrozenMap.containsKey("frozen"), is(false));
 
-        ExplainIndexDataStreamLifecycle withoutFrozen = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-            "my-index",
-            randomBoolean(),
-            System.currentTimeMillis(),
-            null,
-            null,
-            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-            null,
-            null,
-            false
-        );
+        ExplainIndexDataStreamLifecycle withoutFrozen = new ManagedResponseBuilder().index("my-index")
+            .internalDataStream(randomBoolean())
+            .indexCreationDate(System.currentTimeMillis())
+            .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+            .minimumLifecycleEnabled(false)
+            .build();
         Map<String, Object> withoutFrozenMap = getXContentMap(withoutFrozen, null, null);
         assertThat(withoutFrozenMap.containsKey("frozen_transition_status"), is(false));
     }
 
     public void testOldTransportVersionDropsFrozenTransitionStatus() throws IOException {
-        ExplainIndexDataStreamLifecycle withFrozen = ExplainIndexDataStreamLifecycle.managedIndexResponse(
-            "my-index",
-            randomBoolean(),
-            System.currentTimeMillis(),
-            null,
-            null,
-            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
-            null,
-            FrozenTransitionStatus.RUNNING,
-            false
-        );
+        ExplainIndexDataStreamLifecycle withFrozen = new ManagedResponseBuilder().index("my-index")
+            .internalDataStream(randomBoolean())
+            .indexCreationDate(System.currentTimeMillis())
+            .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .tailMergeDate(randomBoolean() ? randomNonNegativeLong() : null)
+            .frozenTransitionStatus(FrozenTransitionStatus.RUNNING)
+            .minimumLifecycleEnabled(false)
+            .build();
+
         ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
             withFrozen,
             TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_FROZEN_TRANSITION)
         );
         assertThat(roundTripped.getFrozenTransitionStatus(), is(nullValue()));
+    }
+
+    public void testTailMergeDate() throws IOException {
+        long timestamp = randomNonNegativeLong();
+        ExplainIndexDataStreamLifecycle withTimestamp = new ManagedResponseBuilder().index("my-index")
+            .internalDataStream(randomBoolean())
+            .indexCreationDate(System.currentTimeMillis())
+            .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .tailMergeDate(timestamp)
+            .minimumLifecycleEnabled(randomBoolean())
+            .build();
+        Map<String, Object> xContent = getXContentMap(withTimestamp, null, null);
+        assertThat(xContent.get("tail_merge_date_millis"), is(timestamp));
+        assertThat(copyInstance(withTimestamp), is(withTimestamp));
+        ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
+            withTimestamp,
+            TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_TAIL_MERGE_DATE)
+        );
+        assertThat(roundTripped.getTailMergeDate(), is(nullValue()));
+
+        ExplainIndexDataStreamLifecycle withoutTimestamp = new ManagedResponseBuilder().index("my-index")
+            .internalDataStream(randomBoolean())
+            .indexCreationDate(System.currentTimeMillis())
+            .lifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .tailMergeDate(null)
+            .minimumLifecycleEnabled(randomBoolean())
+            .build();
+        Map<String, Object> withoutTimestampMap = getXContentMap(withoutTimestamp, null, null);
+        assertThat(withoutTimestampMap.containsKey("tail_merge_date_millis"), is(false));
+        assertThat(withoutTimestampMap.containsKey("tail_merge_date"), is(false));
     }
 
     public void testUnmanagedReasonXContent() throws IOException {
@@ -469,7 +486,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         @Nullable DataStreamLifecycle lifecycle,
         boolean isSystemDataStream,
         @Nullable FrozenTransitionStatus frozenTransitionStatus,
-        boolean lifecycleEnabledByDefault
+        boolean minimumLifecycleEnabled
     ) {
         return ExplainIndexDataStreamLifecycle.managedIndexResponse(
             randomAlphaOfLengthBetween(10, 30),
@@ -487,8 +504,91 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 )
                 : null,
             frozenTransitionStatus,
-            lifecycleEnabledByDefault
+            minimumLifecycleEnabled,
+            randomBoolean() ? randomNonNegativeLong() : null
         );
+    }
+
+    /**
+     * Builder to construct a managed lifecycle explain response, only used in tests where we do not set all the fields.
+     */
+    private static class ManagedResponseBuilder {
+
+        private String index;
+        private boolean isInternalDataStream;
+        private @Nullable Long indexCreationDate;
+        private @Nullable Long rolloverDate;
+        private @Nullable TimeValue generationDate;
+        private @Nullable DataStreamLifecycle lifecycle;
+        private @Nullable ErrorEntry error;
+        private @Nullable FrozenTransitionStatus frozenTransitionStatus;
+        private boolean minimumLifecycleEnabled;
+        private @Nullable Long tailMergeDate;
+
+        public ManagedResponseBuilder index(String index) {
+            this.index = index;
+            return this;
+        }
+
+        public ManagedResponseBuilder internalDataStream(boolean internalDataStream) {
+            isInternalDataStream = internalDataStream;
+            return this;
+        }
+
+        public ManagedResponseBuilder indexCreationDate(@Nullable Long indexCreationDate) {
+            this.indexCreationDate = indexCreationDate;
+            return this;
+        }
+
+        public ManagedResponseBuilder rolloverDate(@Nullable Long rolloverDate) {
+            this.rolloverDate = rolloverDate;
+            return this;
+        }
+
+        public ManagedResponseBuilder generationDate(@Nullable TimeValue generationDate) {
+            this.generationDate = generationDate;
+            return this;
+        }
+
+        public ManagedResponseBuilder lifecycle(@Nullable DataStreamLifecycle lifecycle) {
+            this.lifecycle = lifecycle;
+            return this;
+        }
+
+        public ManagedResponseBuilder error(@Nullable ErrorEntry error) {
+            this.error = error;
+            return this;
+        }
+
+        public ManagedResponseBuilder frozenTransitionStatus(@Nullable FrozenTransitionStatus frozenTransitionStatus) {
+            this.frozenTransitionStatus = frozenTransitionStatus;
+            return this;
+        }
+
+        public ManagedResponseBuilder minimumLifecycleEnabled(boolean minimumLifecycleEnabled) {
+            this.minimumLifecycleEnabled = minimumLifecycleEnabled;
+            return this;
+        }
+
+        public ManagedResponseBuilder tailMergeDate(@Nullable Long tailMergeDate) {
+            this.tailMergeDate = tailMergeDate;
+            return this;
+        }
+
+        ExplainIndexDataStreamLifecycle build() {
+            return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                index,
+                isInternalDataStream,
+                indexCreationDate,
+                rolloverDate,
+                generationDate,
+                lifecycle,
+                error,
+                frozenTransitionStatus,
+                minimumLifecycleEnabled,
+                tailMergeDate
+            );
+        }
     }
 
 }

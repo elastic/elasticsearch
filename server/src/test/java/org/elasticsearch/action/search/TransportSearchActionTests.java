@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -28,6 +30,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -55,18 +58,24 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -81,11 +90,16 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -143,6 +157,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
@@ -154,9 +169,13 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -574,7 +593,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 service,
-                null
+                null,
+                newLimitedBreaker(ByteSizeValue.ofMb(100))
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -651,7 +671,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    newLimitedBreaker(ByteSizeValue.ofMb(100))
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -709,7 +730,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    newLimitedBreaker(ByteSizeValue.ofMb(100))
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -799,7 +821,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    newLimitedBreaker(ByteSizeValue.ofMb(100))
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -904,7 +927,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    newLimitedBreaker(ByteSizeValue.ofMb(100))
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -957,7 +981,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    newLimitedBreaker(ByteSizeValue.ofMb(100))
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1032,7 +1057,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    newLimitedBreaker(ByteSizeValue.ofMb(100))
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1061,6 +1087,385 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             });
             assertEquals(0, service.getConnectionManager().size());
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    /** A single remote cluster's hits stay on this node until the response built from them is released, so they stay charged until then. */
+    public void testCCSRemoteReduceKeepsSingleClusterHitsCharged() throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        Tuple<SearchResponse, Exception> result = ccsRemoteReduceOneHitPerCluster(1, breaker);
+        assertNull(result.v2());
+        SearchResponse response = result.v1();
+        try {
+            assertEquals(1, response.getHits().getHits().length);
+            assertTrue(response.hasCoordinatorFetchCharge());
+            long hitsBytes = SearchResponseMerger.estimateHitBytes(response.getHits().getHits(), Set.of());
+            assertThat(hitsBytes, greaterThan(0L));
+            assertThat(breaker.getUsed(), equalTo(hitsBytes));
+        } finally {
+            response.decRef();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A trip fails the search even though every cluster can be skipped, with one cluster or several. With several, it trips on the second
+     * response and releases the first.
+     */
+    public void testCCSRemoteReduceFailsWhenCoordinatorBreakerTrips() throws Exception {
+        assertCoordinatorBreakerTripFailsSearch(1, ByteSizeValue.ZERO);
+        long oneResponse = oneHitResponseBytes();
+        assertCoordinatorBreakerTripFailsSearch(2, ByteSizeValue.ofBytes(oneResponse + oneResponse / 2));
+    }
+
+    private void assertCoordinatorBreakerTripFailsSearch(int numClusters, ByteSizeValue limit) throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(limit);
+        Tuple<SearchResponse, Exception> result = ccsRemoteReduceOneHitPerCluster(numClusters, breaker);
+        assertNull(result.v1());
+        assertThat(result.v2(), instanceOf(CircuitBreakingException.class));
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        // The merger is released after the listener is notified.
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * Once a trip has failed the search, a cluster that answers later is marked successful but is neither held for the merge nor reported
+     * as a partial result, and a cluster that fails later does not replace the trip as the failure the search returns.
+     */
+    public void testCCSListenerStopsHoldingResponsesOnceTripped() {
+        long oneResponse = oneHitResponseBytes();
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(oneResponse + oneResponse / 2));
+        CCSListeners ccs = new CCSListeners(breaker, 10, "held", "tripped", "late", "failed");
+
+        ActionListener.respondAndRelease(ccs.listeners.get("held"), oneHitResponse());
+        assertThat(ccs.merger.numResponses(), equalTo(1));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+        ActionListener.respondAndRelease(ccs.listeners.get("tripped"), oneHitResponse());
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        ActionListener.respondAndRelease(ccs.listeners.get("late"), oneHitResponse());
+        assertThat(ccs.merger.numResponses(), equalTo(1));
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(ccs.clusters.getCluster("late").getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(ccs.reported, contains("held"));
+        ccs.listeners.get("failed").onFailure(new ElasticsearchException("boom"));
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, ccs.future::actionGet);
+        assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A trip after another failure becomes the failure the search returns, so the caller gets a 429.
+     */
+    public void testCCSListenerTripReplacesEarlierFailure() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(oneHitResponseBytes() / 2));
+        CCSListeners ccs = new CCSListeners(breaker, 10, "failed", "tripped");
+
+        ccs.listeners.get("failed").onFailure(new ElasticsearchException("boom"));
+        ActionListener.respondAndRelease(ccs.listeners.get("tripped"), oneHitResponse());
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(ccs.merger.numResponses(), equalTo(0));
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, ccs.future::actionGet);
+        assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(ExceptionsHelper.unwrapCause(e.getSuppressed()[0]).getMessage(), equalTo("boom"));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A failure that is not a trip leaves the clusters that answer later as they were: their responses are still held and reported, so
+     * async search keeps them in the partial results it returns with the failure.
+     */
+    public void testCCSListenerKeepsResponsesAfterOtherFailures() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        CCSListeners ccs = new CCSListeners(breaker, 10, "failed", "late");
+
+        ccs.listeners.get("failed").onFailure(new ElasticsearchException("boom"));
+        ActionListener.respondAndRelease(ccs.listeners.get("late"), oneHitResponse());
+        assertThat(ccs.merger.numResponses(), equalTo(1));
+        assertThat(ccs.reported, contains("late"));
+        assertThat(ccs.clusters.getCluster("late").getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+
+        Exception e = expectThrows(Exception.class, ccs.future::actionGet);
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), equalTo("boom"));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The hits the merged response keeps stay charged once the listener has closed the merger, which releases the rest, until the
+     * response is released. Each response is charged while it waits for the others.
+     */
+    public void testCCSListenerKeepsMergedHitsCharged() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        CCSListeners ccs = new CCSListeners(breaker, 2, "first", "second");
+        SearchResponse first = SearchResponseMergerTests.responseWithHits("first", 3, 100f);
+        SearchResponse second = SearchResponseMergerTests.responseWithHits("second", 3, 50f);
+        long firstBytes = TransportMultiSearchAction.estimateActualBytes(first);
+        long reserved = firstBytes + TransportMultiSearchAction.estimateActualBytes(second);
+
+        ActionListener.respondAndRelease(ccs.listeners.get("first"), first);
+        assertThat(breaker.getUsed(), equalTo(firstBytes));
+        ActionListener.respondAndRelease(ccs.listeners.get("second"), second);
+
+        SearchResponse merged = ccs.future.actionGet();
+        try {
+            // Only the first cluster's hits make the top 2.
+            assertThat(merged.getHits().getHits().length, equalTo(2));
+            long keptBytes = SearchResponseMerger.estimateHitBytes(merged.getHits().getHits(), Set.of());
+            assertThat(keptBytes, lessThan(reserved));
+            assertThat(breaker.getUsed(), equalTo(keptBytes));
+        } finally {
+            merged.decRef();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The merger async search uses for partial results merges responses the main merger already holds and charges, so it must not charge
+     * them again.
+     */
+    public void testPartialResultsMergerIsNotCharged() throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        SearchTask task = newSearchTask();
+        Tuple<SearchResponse, Exception> result = ccsRemoteReduce(2, breaker, task, new SearchRequest(), remote -> {});
+        assertNull(result.v2());
+        try {
+            assertThat(result.v1().getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+        } finally {
+            result.v1().decRef();
+        }
+        // The merger is released after the listener is notified.
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+
+        try (SearchResponseMerger partialResults = task.getSearchResponseMergerSupplier().get()) {
+            SearchResponse response = oneHitResponse();
+            try {
+                partialResults.add(response);
+            } finally {
+                response.decRef();
+            }
+            assertThat(partialResults.numResponses(), equalTo(1));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * A remote response read over the transport records the size of its aggregations as the remote wrote them, so the merger doesn't
+     * serialize them again to estimate them.
+     */
+    public void testRemoteResponsesReadOverTheTransportKnowTheirAggregationsSize() throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        SearchTask task = newSearchTask();
+        List<Long> written = new CopyOnWriteArrayList<>();
+        List<Long> measured = new CopyOnWriteArrayList<>();
+        // Sees the cluster responses that the merger holds.
+        task.setProgressListener(new SearchProgressListener() {
+            @Override
+            protected void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {
+                measured.add(searchResponse.serializedAggregationsBytes());
+            }
+        });
+        Tuple<SearchResponse, Exception> result = ccsRemoteReduce(
+            2,
+            breaker,
+            task,
+            new SearchRequest().source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("max").field("f"))),
+            remote -> remote.addRequestHandlingBehavior(TransportSearchAction.TYPE.name(), (handler, request, channel, t) -> {
+                SearchResponse response = responseWithAggregations();
+                try {
+                    written.add(DelayableWriteable.getUncompressedSerializedSize(response.getAggregations()));
+                    channel.sendResponse(response);
+                } finally {
+                    response.decRef();
+                }
+            })
+        );
+        assertNull(result.v2());
+        result.v1().decRef();
+        assertThat(written, hasSize(2));
+        assertThat(written, everyItem(greaterThan(0L)));
+        assertThat(measured, containsInAnyOrder(written.toArray()));
+    }
+
+    private static SearchResponse responseWithAggregations() {
+        SearchHits hits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+        try {
+            return new SearchResponse(
+                hits,
+                InternalAggregations.from(List.of(new Max("max", randomDouble(), DocValueFormat.RAW, Map.of()))),
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null,
+                null,
+                null
+            );
+        } finally {
+            hits.decRef();
+        }
+    }
+
+    private static SearchTask newSearchTask() {
+        return new SearchTask(2, "search", "search", () -> "desc", new TaskId("n", 1), Collections.emptyMap());
+    }
+
+    /** Listeners for a minimize_roundtrips search over remote clusters that can't be skipped, merged with a breaker. */
+    private static final class CCSListeners {
+        final SearchResponse.Clusters clusters;
+        final SearchResponseMerger merger;
+        final PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+        final List<String> reported = new CopyOnWriteArrayList<>();
+        final Map<String, ActionListener<SearchResponse>> listeners = new HashMap<>();
+
+        CCSListeners(CircuitBreaker breaker, int size, String... aliases) {
+            Map<String, OriginalIndices> remoteIndices = new HashMap<>();
+            for (String alias : aliases) {
+                remoteIndices.put(alias, new OriginalIndices(new String[] { "index" }, IndicesOptions.lenientExpandOpen()));
+            }
+            clusters = new SearchResponse.Clusters(null, remoteIndices, true, alias -> false);
+            merger = TransportSearchAction.createSearchResponseMerger(
+                new SearchSourceBuilder().size(size),
+                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none(),
+                breaker
+            );
+            // Async search keeps the responses it is told about as its partial results.
+            SearchProgressListener progressListener = new SearchProgressListener() {
+                @Override
+                protected void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {
+                    reported.add(clusterAlias);
+                }
+            };
+            CountDown countDown = new CountDown(aliases.length);
+            AtomicReference<Exception> exceptions = new AtomicReference<>();
+            // Takes a reference to the merged response, as the REST layer does until the response is written.
+            ActionListener<SearchResponse> original = ActionListener.wrap(response -> {
+                response.mustIncRef();
+                future.onResponse(response);
+            }, future::onFailure);
+            for (String alias : aliases) {
+                listeners.put(
+                    alias,
+                    TransportSearchAction.createCCSListener(
+                        alias,
+                        false,
+                        countDown,
+                        exceptions,
+                        merger,
+                        clusters,
+                        progressListener,
+                        original
+                    )
+                );
+            }
+        }
+    }
+
+    /** The estimate of {@link #oneHitResponse()}, as the merger charges it. */
+    private static long oneHitResponseBytes() {
+        SearchResponse response = oneHitResponse();
+        try {
+            return TransportMultiSearchAction.estimateActualBytes(response);
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /** The response the remote clusters started by {@link #startTransport} return for the {@code null_target} preference. */
+    private static SearchResponse oneHitResponse() {
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(0) }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1F);
+        try {
+            return SearchResponseUtils.successfulResponse(searchHits);
+        } finally {
+            searchHits.decRef();
+        }
+    }
+
+    /**
+     * Runs a search with minimize_roundtrips over {@code numClusters} remote clusters, which can all be skipped and each return one hit.
+     *
+     * @return the response, which the caller must release, or the failure
+     */
+    private Tuple<SearchResponse, Exception> ccsRemoteReduceOneHitPerCluster(int numClusters, CircuitBreaker breaker) throws Exception {
+        // The remote clusters started by startTransport answer this preference with one hit.
+        return ccsRemoteReduce(numClusters, breaker, newSearchTask(), new SearchRequest().preference("null_target"), remote -> {});
+    }
+
+    /**
+     * Runs {@code searchRequest} with minimize_roundtrips over {@code numClusters} remote clusters, which can all be skipped, after
+     * {@code setUpRemote} has run on each of them.
+     *
+     * @return the response, which the caller must release, or the failure
+     */
+    private Tuple<SearchResponse, Exception> ccsRemoteReduce(
+        int numClusters,
+        CircuitBreaker breaker,
+        SearchTask task,
+        SearchRequest searchRequest,
+        Consumer<MockTransportService> setUpRemote
+    ) throws Exception {
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, true);
+        for (MockTransportService remote : mockTransportServices) {
+            setUpRemote.accept(remote);
+        }
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                builder.build(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            CountDownLatch latch = new CountDownLatch(1);
+            SetOnce<SearchResponse> response = new SetOnce<>();
+            SetOnce<Exception> failure = new SetOnce<>();
+            LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+                r.incRef();
+                response.set(r);
+            }, failure::set), latch);
+            TransportSearchAction.ccsRemoteReduce(
+                task,
+                task.getParentTaskId(),
+                searchRequest,
+                createMockResolvedIndices(null, remoteIndicesByCluster),
+                new SearchResponse.Clusters(null, remoteIndicesByCluster, true, alias -> true),
+                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+                // Reduces the aggregations the request asks for.
+                searchRequest.source() == null || searchRequest.source().aggregations() == null
+                    ? emptyReduceContextBuilder()
+                    : emptyReduceContextBuilder(searchRequest.source().aggregations()),
+                service.getRemoteClusterService(),
+                threadPool,
+                listener,
+                (r, l) -> fail("no local indices to search"),
+                service,
+                // Connects to a remote cluster that isn't connected yet, instead of skipping it.
+                TimeValue.timeValueSeconds(30),
+                breaker
+            );
+            // As long as the search may wait to connect.
+            awaitLatch(latch, 30, TimeUnit.SECONDS);
+            return Tuple.tuple(response.get(), failure.get());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();
@@ -1350,7 +1755,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    null
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1367,7 +1773,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    null
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1388,7 +1795,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    null
                 )
             ) {
                 assertEquals(0, source.from());
@@ -2151,12 +2559,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        TransportSearchAction.validateAndResolveSearchSliceRouting(
-            request,
-            Map.of(metadata.getIndex(), metadata),
-            request.indices(),
-            false
-        );
+        TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(metadata.getIndex(), metadata), request.indices());
         assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
     }
 
@@ -2177,18 +2580,16 @@ public class TransportSearchActionTests extends ESTestCase {
             () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
                 request,
                 Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
+                request.indices()
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [slice] instead"));
+        assertThat(e.getMessage(), containsString("use [_slice] instead"));
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
+    public void testValidateAndResolveSearchSliceRoutingAcceptsSliceWhenDisabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-disabled-index");
-        request.routing("s1");
         request.searchSlice("s1");
         IndexMetadata metadata = IndexMetadata.builder("slice-disabled-index")
             .settings(
@@ -2197,16 +2598,14 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
-            )
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices()
         );
-        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertEquals("s1", requestedSlice);
+        assertEquals("s1", request.routing());
+        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
@@ -2232,8 +2631,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled, disabled.getIndex(), disabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("s1,s2", requestedSlice);
         assertEquals("s1,s2", request.routing());
@@ -2254,8 +2652,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
         assertNull(request.routing());
@@ -2266,7 +2663,7 @@ public class TransportSearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest("remote:idx");
         request.routing("s1");
         request.searchSlice("s1");
-        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices(), true);
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices());
         assertEquals("s1", requestedSlice);
         assertEquals("s1", request.routing());
     }
@@ -2287,8 +2684,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertNull(requestedSlice);
         assertNull(request.routing());
@@ -2311,8 +2707,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("tenant-a", requestedSlice);
         assertEquals("tenant-a", request.searchSlice());
@@ -2473,6 +2868,41 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    public void testIgnoreIndicesWithoutSlices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
+        for (String index : List.of("sliced", "plain")) {
+            project.put(
+                IndexMetadata.builder(index)
+                    .settings(
+                        settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexSettings.SLICE_ENABLED.getKey(), index.equals("sliced"))
+                    )
+                    .build(),
+                false
+            );
+        }
+        final ProjectState projectState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .build()
+            .projectState(projectId);
+        final String[] indices = new String[] { "sliced", "plain" };
+
+        final SearchRequest named = new SearchRequest(indices).searchSlice(randomFrom("s1", "s1,s2"));
+        assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, named, indices), arrayContaining("sliced"));
+
+        // every slice, no slice or a routing value searches every index
+        for (SearchRequest request : List.of(
+            new SearchRequest(indices).searchSlice(SliceIndexing.SLICE_ALL),
+            new SearchRequest(indices),
+            new SearchRequest(indices).routing("s1")
+        )) {
+            assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, request, indices), arrayContaining(indices));
+        }
     }
 
     /**

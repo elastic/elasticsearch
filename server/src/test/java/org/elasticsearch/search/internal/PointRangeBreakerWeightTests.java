@@ -27,8 +27,11 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
@@ -56,6 +59,7 @@ import static org.elasticsearch.search.internal.BreakerWeightTestUtils.conjuncti
 import static org.elasticsearch.search.internal.BreakerWeightTestUtils.newContextIndexSearcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PointRangeBreakerWeightTests extends ESTestCase {
 
@@ -426,6 +430,276 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
             vector[dim] = docId + dim;
         }
         return vector;
+    }
+
+    /**
+     * Two callers scoring the same leaf each own what they were charged: one releasing must not release the other's.
+     */
+    public void testScopesOnTheSameLeafReleaseIndependently() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        LeafReaderContext leaf = reader.leaves().get(0);
+        LeafExecutionScope first = new LeafExecutionScope();
+        LeafExecutionScope second = new LeafExecutionScope();
+
+        captureCharge(first, denseSearch.weight(), leaf);
+        long singleCharge = breaker.getUsed();
+        assertThat("building a scorer inside a scope must charge execution RAM", singleCharge, greaterThan(0L));
+        captureCharge(second, denseSearch.weight(), leaf);
+        assertThat(breaker.getUsed(), equalTo(2 * singleCharge));
+
+        first.release();
+        assertThat("releasing one scope must leave the other scope's charge", breaker.getUsed(), equalTo(singleCharge));
+        first.release();
+        assertThat("a repeated release must not release twice", breaker.getUsed(), equalTo(singleCharge));
+        second.release();
+        assertThat(breaker.getUsed(), equalTo(0L));
+        denseSearch.searcher().close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A caller that rebuilds its scorer releases first, so it holds one charge however often it rebuilds. */
+    public void testScopeIsReusableAfterRelease() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        LeafReaderContext leaf = reader.leaves().get(0);
+        LeafExecutionScope scope = new LeafExecutionScope();
+
+        captureCharge(scope, denseSearch.weight(), leaf);
+        long singleCharge = breaker.getUsed();
+        assertThat(singleCharge, greaterThan(0L));
+        for (int rebuild = 0; rebuild < 3; rebuild++) {
+            scope.release();
+            captureCharge(scope, denseSearch.weight(), leaf);
+            assertThat(breaker.getUsed(), equalTo(singleCharge));
+        }
+        scope.release();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testSearcherCloseReleasesScopedChargeOnce() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        LeafExecutionScope scope = new LeafExecutionScope();
+        captureCharge(scope, denseSearch.weight(), reader.leaves().get(0));
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        denseSearch.searcher().close();
+        assertThat("closing the searcher must release what scopes still hold", breaker.getUsed(), equalTo(0L));
+        scope.release();
+        assertThat("a scope released after the searcher closed must release nothing", breaker.getUsed(), equalTo(0L));
+    }
+
+    /** The scope only owns what is charged while {@code capture} runs, including when the build fails. */
+    public void testChargeOutsideCaptureBelongsToTheLeaf() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        LeafReaderContext leaf = reader.leaves().get(0);
+        LeafExecutionScope scope = new LeafExecutionScope();
+
+        expectThrows(IllegalStateException.class, () -> scope.capture(() -> { throw new IllegalStateException("build failed"); }));
+        chargeAgainst(denseSearch.weight(), leaf);
+        long leafCharge = breaker.getUsed();
+        assertThat(leafCharge, greaterThan(0L));
+        scope.release();
+        assertThat("the scope must not own a charge made after capture returned", breaker.getUsed(), equalTo(leafCharge));
+
+        denseSearch.searcher().close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A scope owns charges of a single searcher; a charge from another searcher belongs to that searcher's leaf. */
+    public void testScopeOwnsChargesOfOneSearcher() throws IOException {
+        TrackingCircuitBreaker firstBreaker = new TrackingCircuitBreaker(-1L);
+        TrackingCircuitBreaker secondBreaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch first = newDenseSearch(reader, firstBreaker);
+        DenseSearch second = newDenseSearch(reader, secondBreaker);
+        LeafReaderContext leaf = reader.leaves().get(0);
+        LeafExecutionScope scope = new LeafExecutionScope();
+
+        scope.capture(() -> {
+            chargeAgainst(first.weight(), leaf);
+            chargeAgainst(second.weight(), leaf);
+            return null;
+        });
+        assertThat(firstBreaker.getUsed(), greaterThan(0L));
+        assertThat(secondBreaker.getUsed(), greaterThan(0L));
+
+        scope.release();
+        assertThat(firstBreaker.getUsed(), equalTo(0L));
+        assertThat("the scope must not own the second searcher's charge", secondBreaker.getUsed(), greaterThan(0L));
+        second.searcher().close();
+        assertThat(secondBreaker.getUsed(), equalTo(0L));
+        first.searcher().close();
+    }
+
+    public void testNestedCaptureRestoresTheOuterScope() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        LeafReaderContext leaf = reader.leaves().get(0);
+        LeafExecutionScope outer = new LeafExecutionScope();
+        LeafExecutionScope inner = new LeafExecutionScope();
+
+        outer.capture(() -> {
+            captureCharge(inner, denseSearch.weight(), leaf);
+            chargeAgainst(denseSearch.weight(), leaf);
+            return null;
+        });
+        long bothCharges = breaker.getUsed();
+        inner.release();
+        assertThat("each scope must own exactly one of the two charges", breaker.getUsed(), equalTo(bothCharges / 2));
+        outer.release();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTrippedChargeIsNotOwnedByTheScope() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(100L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+        LeafExecutionScope scope = new LeafExecutionScope();
+        expectThrows(CircuitBreakingException.class, () -> captureCharge(scope, denseSearch.weight(), reader.leaves().get(0)));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        scope.release();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A searcher derived with {@link ContextIndexSearcher#withQueryCache} charges the searcher it was derived from, which is the
+     * one that releases the charge.
+     */
+    public void testDerivedSearcherSharesBreakerAndAccounting() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+        searcher.setCircuitBreaker(breaker);
+        ContextIndexSearcher derived = searcher.withQueryCache(null);
+        assertSame(breaker, ContextIndexSearcher.circuitBreakerOrNull(derived));
+        expectThrows(IllegalStateException.class, () -> derived.setCircuitBreaker(new TrackingCircuitBreaker(-1L)));
+        assertSame(breaker, ContextIndexSearcher.circuitBreakerOrNull(derived));
+
+        Weight weight = derived.createWeight(derived.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        LeafReaderContext leaf = reader.leaves().get(0);
+
+        LeafExecutionScope scope = new LeafExecutionScope();
+        captureCharge(scope, weight, leaf);
+        assertThat("a weight of the derived searcher must charge execution RAM", breaker.getUsed(), greaterThan(0L));
+        scope.release();
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        chargeAgainst(weight, leaf);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        derived.close();
+        assertThat("the derived searcher does not hold the charge", breaker.getUsed(), greaterThan(0L));
+        searcher.close();
+        assertThat("closing the original searcher must release what the derived one charged", breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Swapping the breaker of the original searcher swaps it for the searchers derived from it. */
+    public void testDerivedSearcherFollowsBreakerSwap() throws IOException {
+        TrackingCircuitBreaker first = new TrackingCircuitBreaker(-1L);
+        TrackingCircuitBreaker second = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+        searcher.setCircuitBreaker(first);
+        ContextIndexSearcher derived = searcher.withQueryCache(null);
+        Weight weight = derived.createWeight(derived.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        LeafReaderContext leaf = reader.leaves().get(0);
+
+        chargeAgainst(weight, leaf);
+        assertThat(first.getUsed(), greaterThan(0L));
+        searcher.setCircuitBreaker(second);
+        assertThat("swapping the breaker must release what the previous one holds", first.getUsed(), equalTo(0L));
+        assertSame(second, ContextIndexSearcher.circuitBreakerOrNull(derived));
+
+        chargeAgainst(weight, leaf);
+        assertThat(first.getUsed(), equalTo(0L));
+        assertThat(second.getUsed(), greaterThan(0L));
+        searcher.close();
+        assertThat(second.getUsed(), equalTo(0L));
+    }
+
+    /** A clause served from the query cache builds nothing, so only the search that fills the cache is charged. */
+    public void testClauseServedFromQueryCacheIsNotCharged() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = newQueryCache();
+        Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
+        try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
+            searcher.setCircuitBreaker(breaker);
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat("filling the cache builds the result set", breaker.charges(), hasSize(1));
+            assertThat(queryCache.getCacheCount(), equalTo(1L));
+
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(queryCache.getHitCount(), equalTo(1L));
+            assertThat("a cached clause must not be charged", breaker.charges(), hasSize(1));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /** Scorers built for a leaf that is already cached, as concurrent readers of one segment do, are not charged. */
+    public void testScorersOfACachedLeafAreNotCharged() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = newQueryCache();
+        try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
+            searcher.setCircuitBreaker(breaker);
+            Weight weight = searcher.createWeight(searcher.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            LeafReaderContext leaf = reader.leaves().get(0);
+
+            LeafExecutionScope first = new LeafExecutionScope();
+            captureCharge(first, weight, leaf);
+            assertThat("filling the cache builds the result set", breaker.getUsed(), greaterThan(0L));
+            assertThat(queryCache.getCacheCount(), equalTo(1L));
+            first.release();
+
+            LeafExecutionScope second = new LeafExecutionScope();
+            LeafExecutionScope third = new LeafExecutionScope();
+            captureCharge(second, weight, leaf);
+            captureCharge(third, weight, leaf);
+            assertThat(queryCache.getHitCount(), equalTo(2L));
+            assertThat("a cached leaf must not be charged", breaker.getUsed(), equalTo(0L));
+            assertThat(breaker.charges(), hasSize(1));
+            second.release();
+            third.release();
+        }
+    }
+
+    /** A clause that the cache does not keep is built by every search, so every search is charged. */
+    public void testClauseTheCacheDoesNotKeepIsChargedEveryTime() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = newQueryCache();
+        Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
+        try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, false)) {
+            searcher.setCircuitBreaker(breaker);
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(queryCache.getCacheCount(), equalTo(0L));
+            assertThat(breaker.charges(), hasSize(2));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /** A cache that accepts every leaf and never skips caching for being too costly. */
+    private static LRUQueryCache newQueryCache() {
+        return new LRUQueryCache(10, Long.MAX_VALUE, leaf -> true, Float.POSITIVE_INFINITY);
+    }
+
+    /** A searcher that caches point range queries only when {@code cacheRanges} is set, and no other query. */
+    private ContextIndexSearcher newCachingSearcher(LRUQueryCache queryCache, boolean cacheRanges) throws IOException {
+        QueryCachingPolicy policy = new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {}
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return cacheRanges && query instanceof PointRangeQuery;
+            }
+        };
+        return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(), queryCache, policy, false);
+    }
+
+    /** Builds a scorer for {@code ctx} inside {@code scope}, the way a caller that drives its own scorers does. */
+    private static void captureCharge(LeafExecutionScope scope, Weight weight, LeafReaderContext ctx) throws IOException {
+        scope.capture(() -> {
+            chargeAgainst(weight, ctx);
+            return null;
+        });
     }
 
     private static Collector blockOnFirstDoc(CountDownLatch entered, CountDownLatch release) {

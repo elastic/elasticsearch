@@ -1,0 +1,255 @@
+---
+# kibana_system can read service accounts so that Kibana can name the account a workload runs as. It must not be able
+# to read their tokens, or to create, change, or delete them. The elastic/kibana service account shares this role
+# descriptor; ServiceAccountIT covers it directly.
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "kibana_read_sa_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: kibana_read_worker
+        body: >
+          {
+            "roles": ["kibana_read_sa_monitor"],
+            "description": "Runs a workload",
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: kibana_read_worker
+        name: kibana-read-worker-token
+
+  - do:
+      security.put_user:
+        username: "kibana_sa_reader"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["kibana_system"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "kibana_sa_reader"
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: kibana_read_worker
+        name: kibana-read-worker-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: kibana_read_worker
+        name: kibana-forbidden-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: kibana_read_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: kibana_forbidden_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "kibana_read_sa_monitor"
+        ignore: 404
+
+---
+"Test kibana_system can query service accounts":
+  - do:
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/kibana_read_worker" } }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { service_accounts.0.username: "apps/kibana_read_worker" }
+  - match: { service_accounts.0.type: user_managed }
+  - match: { service_accounts.0.roles: ["kibana_read_sa_monitor"] }
+  - match: { service_accounts.0.description: "Runs a workload" }
+
+---
+"Test kibana_system can get service accounts":
+  - do:
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.get_service_accounts:
+        namespace: apps
+        service: kibana_read_worker
+  - length: { '': 1 }
+  - match: { "apps/kibana_read_worker.type": "user_managed" }
+
+  - do:
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.get_service_accounts:
+        namespace: elastic
+        service: fleet-server
+  - length: { '': 1 }
+  - match: { "elastic/fleet-server.type": "built_in" }
+
+---
+"Test kibana_system cannot read service account tokens":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.get_service_credentials:
+        namespace: apps
+        service: kibana_read_worker
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.get_service_credentials:
+        namespace: elastic
+        service: fleet-server
+
+---
+"Test kibana_system cannot create, update, or delete service accounts":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: kibana_forbidden_worker
+        body: >
+          {
+            "roles": ["kibana_read_sa_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: kibana_read_worker
+        body: >
+          {
+            "roles": ["kibana_read_sa_monitor"],
+            "enabled": false
+          }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: kibana_read_worker
+
+  # The account is unchanged
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "prefix": { "username": "apps/kibana_" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "apps/kibana_read_worker" }
+  - match: { service_accounts.0.enabled: true }
+
+---
+"Test kibana_system cannot create or delete service account tokens":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.create_service_token:
+        namespace: apps
+        service: kibana_read_worker
+        name: kibana-forbidden-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: kibana-forbidden-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.delete_service_token:
+        namespace: apps
+        service: kibana_read_worker
+        name: kibana-read-worker-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.clear_cached_service_tokens:
+        namespace: apps
+        service: kibana_read_worker
+        name: kibana-read-worker-token
+
+  # The tokens are unchanged
+  - do:
+      security.get_service_credentials:
+        namespace: apps
+        service: kibana_read_worker
+  - match: { "count": 1 }
+  - match: { "tokens": { "kibana-read-worker-token": {} } }
+
+---
+"Test kibana_system is not granted read_security":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.get_user: {}
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic a2liYW5hX3NhX3JlYWRlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # kibana_sa_reader
+      security.get_role: {}

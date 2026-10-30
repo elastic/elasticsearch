@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+
+import java.util.Map;
 
 public class FileDataSourceConfigurationTests extends ESTestCase {
 
@@ -31,5 +34,25 @@ public class FileDataSourceConfigurationTests extends ESTestCase {
         assertFalse(FileDataSourceConfiguration.isManagedIdentityAuth("static_credentials"));
         assertFalse(FileDataSourceConfiguration.isManagedIdentityAuth(null));
         assertFalse(FileDataSourceConfiguration.isManagedIdentityAuth(42));
+    }
+
+    public void testDatasetAuditSettings() {
+        for (var field : FileDataSourceValidator.DATASET_FIELDS) {
+            var request = new PutDatasetAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "dataset",
+                "datasource",
+                "resource",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -397,7 +398,6 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public ParseResult parse(DocumentParserContext context) throws IOException {
-        SearchExecutionContext executionContext = this.searchExecutionContext.get();
         if (context.doc().getField(queryBuilderField.fullPath()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -405,20 +405,35 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        executionContext = PercolateQueryBuilder.newPercolateSearchContext(executionContext, isMapUnmappedFieldAsText());
+        var executionContext = PercolateQueryBuilder.newPercolateSearchContext(
+            this.searchExecutionContext.get(),
+            isMapUnmappedFieldAsText()
+        );
 
         QueryBuilder queryBuilder = parseQueryBuilder(context);
-        // Fetching of terms, shapes and indexed scripts happen during this rewrite:
+        // Resolve terms lookups and indexed shapes without folding constant fields; constant fields need to be folded at runtime rather
+        // than index time because of FLS.
+        QueryRewriteContext fetchContext = new QueryRewriteContext(
+            executionContext.getParserConfig(),
+            executionContext.getClient(),
+            executionContext::nowInMillis
+        );
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, executionContext, future);
+        Rewriteable.rewriteAndFetch(queryBuilder, fetchContext, future);
         queryBuilder = future.actionGet();
 
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, clusterTransportVersion.get(), queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
+        QueryBuilder queryBuilderForProcessing = Rewriteable.rewrite(queryBuilder, executionContext);
         Query query = queryBuilderForProcessing.toQuery(executionContext);
-        processQuery(query, context);
+        if (executionContext.containsConstantField()) {
+            // The percolate result can depend on the executing user's FLS rules, including in negated clauses, so neither candidate pruning
+            // nor verification may be cached here.
+            context.doc().add(new StringField(extractionResultField.fullPath(), EXTRACTION_FAILED, Field.Store.NO));
+        } else {
+            processQuery(query, context);
+        }
         return new ParseResult.Indexed();
     }
 

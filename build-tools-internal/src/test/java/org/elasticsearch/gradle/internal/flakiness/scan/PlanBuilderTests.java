@@ -256,7 +256,7 @@ public class PlanBuilderTests {
     private static FlakinessTargets.OwnedSourceSet runnableOwner(String project, Path outputDir, List<String> tasks) {
         return new FlakinessTargets.OwnedSourceSet(
             project,
-            new SourceSetDisposition("test", outputDir, Kinds.TEST, tasks, tasks.size(), null)
+            new SourceSetDisposition("test", outputDir, Kinds.TEST, tasks, tasks, null)
         );
     }
 
@@ -264,7 +264,7 @@ public class PlanBuilderTests {
         // Candidates existed but none can run here - the shape a bwc-only or packaging-only source set has.
         return new FlakinessTargets.OwnedSourceSet(
             project,
-            new SourceSetDisposition("test", outputDir, Kinds.TEST, List.of(), 3, skipReason)
+            new SourceSetDisposition("test", outputDir, Kinds.TEST, List.of(), List.of("ignoredA", "ignoredB", "ignoredC"), skipReason)
         );
     }
 
@@ -292,22 +292,27 @@ public class PlanBuilderTests {
     }
 
     private static BaseTarget javaTarget(String project, String fqcn) {
-        return new BaseTarget(project, "test", "test", fqcn, null, null, List.of(project + ":test"), 1, null);
+        List<String> tasks = List.of(project + ":test");
+        return new BaseTarget(project, "test", "test", fqcn, null, null, tasks, tasks, null);
     }
 
     private static BaseTarget unrunnable(String project, String fqcn, String skipReason) {
-        return new BaseTarget(project, "test", "test", fqcn, null, null, List.of(), 12, skipReason);
+        return new BaseTarget(project, "test", "test", fqcn, null, null, List.of(), List.of(project + ":test"), skipReason);
     }
 
     private static BaseTarget yamlSuiteTarget(String project, String suitePath) {
         String sourceSet = Kinds.SS_YAML_REST_TEST;
         List<String> tasks = List.of(project + ":" + sourceSet);
-        return new BaseTarget(project, sourceSet, Kinds.YAML_REST_TEST_SUITE, null, suitePath, null, tasks, 1, null);
+        return new BaseTarget(project, sourceSet, Kinds.YAML_REST_TEST_SUITE, null, suitePath, null, tasks, tasks, null);
     }
 
     private static BaseTarget cappedFanOut(String project, String fqcn, List<String> selected, int candidateTasks) {
         String sourceSet = Kinds.SS_JAVA_REST_TEST;
-        return new BaseTarget(project, sourceSet, Kinds.JAVA_REST_TEST, fqcn, null, null, selected, candidateTasks, null);
+        List<String> candidateTaskPaths = new java.util.ArrayList<>(selected);
+        while (candidateTaskPaths.size() < candidateTasks) {
+            candidateTaskPaths.add(project + ":candidate" + candidateTaskPaths.size());
+        }
+        return new BaseTarget(project, sourceSet, Kinds.JAVA_REST_TEST, fqcn, null, null, selected, candidateTaskPaths, null);
     }
 
     // Duplicated in ClassHierarchyScannerTests; local ASM builders are the convention here (see

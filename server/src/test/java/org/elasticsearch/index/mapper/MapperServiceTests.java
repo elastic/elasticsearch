@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -23,12 +24,15 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -37,15 +41,20 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MapperServiceTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new FeatureProbeFieldMapper.Plugin());
+    }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
@@ -236,6 +245,65 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.endObject();
         }))));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
+    }
+
+    /**
+     * Data nodes apply a mapping the master already validated and persisted through {@link MapperService#updateMapping}, parsing it as
+     * a recovered mapping. That deliberately enforces no parse-time field limits: the master enforced them when it wrote the mapping, and
+     * a data node must not fail to apply it because a limit was lowered afterwards.
+     */
+    public void testUpdateMappingDoesNotEnforceTotalFieldsLimit() throws IOException {
+        MapperService totalFieldsLimited = createMapperService(
+            Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build(),
+            mapping(b -> {})
+        );
+        updateMapping(totalFieldsLimited, mapping(b -> {
+            b.startObject("a").field("type", "keyword").endObject();
+            b.startObject("b").field("type", "keyword").endObject();
+            b.startObject("c").field("type", "keyword").endObject();
+        }));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("a"));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("b"));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("c"));
+    }
+
+    /** See {@link #testUpdateMappingDoesNotEnforceTotalFieldsLimit}. */
+    public void testUpdateMappingDoesNotEnforceFieldNameLengthLimit() throws IOException {
+        MapperService nameLengthLimited = createMapperService(
+            Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 3).build(),
+            mapping(b -> {})
+        );
+        updateMapping(nameLengthLimited, mapping(b -> b.startObject("much_longer_than_three").field("type", "keyword").endObject()));
+        assertNotNull(nameLengthLimited.mappingLookup().getFieldType("much_longer_than_three"));
+    }
+
+    /**
+     * {@link MapperService#updateMapping} runs on the cluster applier thread, where the cluster state cannot be read to answer
+     * a feature check. The master node already checked features before persisting the mapping, so parsing in
+     * {@link MapperService#updateMapping} must not perform another feature check.
+     */
+    public void testUpdateMappingDoesNotCheckClusterFeatures() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> {
+            throw new AssertionError("cluster feature [" + f.id() + "] must not be checked while applying a persisted mapping");
+        }).build();
+
+        updateMapping(
+            mapperService,
+            mapping(b -> b.startObject("p").field("type", FeatureProbeFieldMapper.CONTENT_TYPE).field("gated", true).endObject())
+        );
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("p");
+        assertThat(mapper, instanceOf(FeatureProbeFieldMapper.class));
+        assertTrue(((FeatureProbeFieldMapper) mapper).gated());
+    }
+
+    private static void updateMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {
+        IndexMetadata current = mapperService.getIndexSettings().getIndexMetadata();
+        IndexMetadata updated = IndexMetadata.builder(current)
+            .mappingVersion(current.getMappingVersion() + 1)
+            .putMapping(new MappingMetadata(new CompressedXContent(BytesReference.bytes(mapping))))
+            .build();
+        mapperService.updateMapping(current, updated);
     }
 
     public void testPartitionedConstraints() throws IOException {
@@ -521,8 +589,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
                 boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
                 boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+                // _slice_key is mapped only on slice-enabled indices, like the time-series fields on time-series indices.
+                boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
+                boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
+                    && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
 
-                if (isTimeSeriesField && isTimeSeriesMode == false) {
+                if ((isTimeSeriesField && isTimeSeriesMode == false)
+                    || (isSliceOnlyField && isSliceEnabled == false)
+                    || isAbsentUnmappedSink) {
                     assertFalse(
                         "Expected "
                             + builtIn

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162545
+summary: "ESQL:DS: Bind external sources to registered datasets on data nodes"
+type: bug

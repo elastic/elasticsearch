@@ -123,6 +123,13 @@ An implicit window adapts to the time range and step. A fixed window doesn't: wh
 such as `[5m]` with a step of `1h`, each step only reflects the last 5 minutes and ignores the samples in between.
 A fixed window is only useful when you need exactly that window, such as the rate over the last 5 minutes.
 
+### Time range durations [esql-promql-time-range-durations]
+
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+
+A duration, such as in a range selector, can be the difference of two RFC 3339 timestamp parameters. For example,
+`[?_tend - ?_tstart]` spans the time range of the date picker in Kibana.
+
 ## Best practices [esql-promql-best-practices]
 
 % This section serves both human readers and AI agents that write PROMQL queries.
@@ -135,6 +142,7 @@ A fixed window is only useful when you need exactly that window, such as the rat
 - Omit range selectors, also when porting a Prometheus query: write `rate(http_requests_total)` instead of
   `rate(http_requests_total[5m])`, so the window adapts to the time range and step.
   Refer to [Implicit range selectors](#esql-promql-implicit-range-selectors).
+  The exception is a value over the whole time range. Refer to [Single-value results](#esql-promql-single-value).
 - Name the result, such as `http_rate=(...)`. Otherwise, the value column is named after the expression text,
   which changes whenever the expression is reformatted, so later commands can't reliably reference it.
 - Match the function to the metric type: use `rate`, `irate`, or `increase` for counters, and functions such as
@@ -149,17 +157,28 @@ A fixed window is only useful when you need exactly that window, such as the rat
 ### Single-value results [esql-promql-single-value]
 
 A range query returns a value for every step. To get a single value per series, such as for a metric or gauge chart
-or a ranking, use an [instant query](#esql-promql-instant-query) for the current value. In Kibana, set `time=?_tend`
-to evaluate the expression at the end of the time range of the date picker
-(refer to [time range parameters](docs-content://explore-analyze/query-filter/languages/esql-kibana.md)):
+or a ranking, use an [instant query](#esql-promql-instant-query). In Kibana, set `time=?_tend` to evaluate the
+expression at the end of the time range of the date picker
+(refer to [time range parameters](docs-content://explore-analyze/query-filter/languages/esql-kibana.md)).
 
-```esql
-PROMQL index=metrics-generic.prometheus-* time=?_tend http_rate=(sum(rate(http_requests_total)))
-```
+- For the current value, such as the current request rate, omit the range selector:
 
-There's no reliable way yet to get a value over the whole time range, such as a total. Summing the steps of a range
-query, such as with `STATS SUM(...)`, overstates it when the step is shorter than `scrape_interval`, as the windows of
-the steps overlap.
+  ```esql
+  PROMQL index=metrics-generic.prometheus-* time=?_tend http_rate=(sum(rate(http_requests_total)))
+  ```
+
+- For a value over the whole time range, such as the total number of requests, use a range selector that spans the
+  time range, `[?_tend - ?_tstart]` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`:
+
+  ```esql
+  PROMQL index=metrics-generic.prometheus-* time=?_tend
+    total_requests=(sum(increase(http_requests_total[?_tend - ?_tstart])))
+  ```
+
+  This is also how to port a Grafana query that uses the `$__range` variable, or its `$__range_s` and
+  `$__range_ms` variants: replace the range selector, such as `[$__range]` or `[${__range_s}s]`, with
+  `[?_tend - ?_tstart]`, and set `time=?_tend`.
+  Refer to [Time range durations](#esql-promql-time-range-durations).
 
 ## Limitations [esql-promql-limitations]
 

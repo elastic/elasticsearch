@@ -486,29 +486,20 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; FROM circular_view");
             request.allowPartialResults(false);
             var executionInfo = createEsqlExecutionInfo(randomBoolean());
-            AtomicReference<Exception> failure = new AtomicReference<>();
-            executeEsql(
-                planExecutor,
-                MOCK_TRANSPORT_ACTION_SERVICES,
-                viewService,
-                request,
-                executionInfo,
-                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Versioned<Result> result) {
-                        fail("this shouldn't happen");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        failure.set(e);
-                    }
-                }
+            Exception failure = ESTestCase.<Versioned<Result>>safeAwaitFailure(
+                listener -> executeEsql(
+                    planExecutor,
+                    MOCK_TRANSPORT_ACTION_SERVICES,
+                    viewService,
+                    request,
+                    executionInfo,
+                    (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                    listener
+                )
             );
 
-            assertThat(failure.get(), instanceOf(VerificationException.class));
-            assertThat(failure.get().getMessage(), containsString("circular view reference 'circular_view'"));
+            assertThat(failure, instanceOf(VerificationException.class));
+            assertThat(failure.getMessage(), containsString("circular view reference 'circular_view'"));
             assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
             assertEquals(0, planExecutor.metrics().stats().get("settings.time_zone"));
             assertEquals(0, planExecutor.metrics().stats().get("resolved_settings.time_zone.default"));

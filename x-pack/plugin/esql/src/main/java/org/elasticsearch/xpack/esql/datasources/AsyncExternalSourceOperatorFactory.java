@@ -1055,10 +1055,34 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * pre-encode every {@code _rowPosition} value it emits with that id. Caller must ensure the
      * reader implements {@link ColumnExtractorAware}; this is validated at
      * {@link Builder#build} time.
+     * <p>
+     * If registration fails (notably {@link SourceExtractors.ClosedException} when the driver finished while this
+     * unit was being opened), the extractor is closed here, outside the registry's monitor, because nothing else
+     * references it.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
         ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink(driverContext));
-        return sourceExtractorsFor(driverContext).register(extractor);
+        try {
+            return sourceExtractorsFor(driverContext).register(extractor);
+        } catch (Exception e) {
+            Releasables.closeWhileHandlingException(extractor);
+            throw e;
+        }
+    }
+
+    /**
+     * Whether {@code e} is the expected race of a driver that finished while this producer was opening its next
+     * unit: the extract operator closed the {@link SourceExtractors} registry, which only happens after the driver
+     * closed the source and so finished {@code buffer}. A closed registry with a live buffer is a wiring bug and
+     * is not matched, so it still fails the query instead of silently truncating results. A match is logged at
+     * {@code DEBUG} so the frequency of the race stays observable even though the exception is dropped.
+     */
+    private static boolean isRegistryClosedAfterBufferFinished(Throwable e, AsyncExternalSourceBuffer buffer) {
+        if (e instanceof SourceExtractors.ClosedException && buffer.noMoreInputs()) {
+            logger.debug("driver finished while the source was opening its next unit; ending the source without a failure");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -2351,9 +2375,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Advance the iteration position to the next unit (slice-queue leaf or multi-file file) and
      * open a fresh page iterator for it. Returns {@code false} if iteration is exhausted or the
-     * buffer has been finished externally.
+     * buffer has been finished externally, including when the driver finished while this unit was opening and its
+     * extractor could no longer be registered.
      */
     private boolean advanceToNextUnit(ProducerState state) throws IOException {
+        try {
+            return advanceToNextUnitUnguarded(state);
+        } catch (SourceExtractors.ClosedException e) {
+            // The driver finished while this unit was opening (the open paths already released the iterator).
+            if (isRegistryClosedAfterBufferFinished(e, state.buffer)) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private boolean advanceToNextUnitUnguarded(ProducerState state) throws IOException {
         while (true) {
             if (noFurtherCandidates()) {
                 return false;
@@ -2759,7 +2796,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             StoragePath filePath = files.path(fileIndex);
             long size = files.size(fileIndex);
             long mtime = files.lastModifiedMillis(fileIndex);
-            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime, files.version(fileIndex));
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             state.buffer.trackStorageObject(obj);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
@@ -3061,7 +3098,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(capturing);
-            buffer.onFailure(e);
+            if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {
+                buffer.onFailure(e);
+            }
             driverContext.removeAsyncAction();
             releaseOperator();
         });
@@ -3153,7 +3192,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private ActionListener<Void> failureListener(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         return ActionListener.wrap(v -> {}, e -> {
-            buffer.onFailure(e);
+            if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {
+                buffer.onFailure(e);
+            }
             driverContext.removeAsyncAction();
             releaseOperator();
         });

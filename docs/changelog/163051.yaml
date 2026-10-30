@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 163051
+summary: Use `BucketedSort` for numeric sorted `top_hits`
+type: enhancement

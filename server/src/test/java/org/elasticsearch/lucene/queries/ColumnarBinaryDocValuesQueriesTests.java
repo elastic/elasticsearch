@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -36,9 +37,11 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.ScanBudget;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -73,8 +76,12 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
         "zzz*",       // nothing the column holds
         "" };
 
-    private static Query wildcard(String field, String pattern) {
-        return ColumnarBinaryDocValuesQueries.INSTANCE.wildcard(field, pattern, false, NoopCircuitBreaker.INSTANCE);
+    private static Query wildcard(String field, String pattern, boolean singleValued) {
+        return queries(singleValued).wildcard(field, pattern, false, NoopCircuitBreaker.INSTANCE);
+    }
+
+    private static ColumnarBinaryDocValuesQueries queries(boolean singleValued) {
+        return singleValued ? ColumnarBinaryDocValuesQueries.SINGLE_VALUED : ColumnarBinaryDocValuesQueries.PAYLOAD;
     }
 
     /**
@@ -82,22 +89,36 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
      * bisects or searches for bytes rather than running an automaton over every distinct value.
      */
     public void testWildcardNarrowsToTheCheapestQuery() {
-        assertEquals(ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED), wildcard(FIELD, "alpha"));
-        assertEquals(ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al"), ScanBudget.UNLIMITED), wildcard(FIELD, "al*"));
+        final boolean singleValued = randomBoolean();
+        assertEquals(
+            ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), singleValued, ScanBudget.UNLIMITED),
+            wildcard(FIELD, "alpha", singleValued)
+        );
+        assertEquals(
+            ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al"), singleValued, ScanBudget.UNLIMITED),
+            wildcard(FIELD, "al*", singleValued)
+        );
         // Every value, which is a prefix of no bytes rather than an automaton.
-        assertEquals(ColumnarStringTermQuery.prefix(FIELD, new BytesRef(""), ScanBudget.UNLIMITED), wildcard(FIELD, "*"));
-        assertEquals(ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph"), ScanBudget.UNLIMITED), wildcard(FIELD, "*lph*"));
+        assertEquals(
+            ColumnarStringTermQuery.prefix(FIELD, new BytesRef(""), singleValued, ScanBudget.UNLIMITED),
+            wildcard(FIELD, "*", singleValued)
+        );
+        assertEquals(
+            ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph"), singleValued, ScanBudget.UNLIMITED),
+            wildcard(FIELD, "*lph*", singleValued)
+        );
     }
 
     /** A pattern that names none of those shapes stays an automaton. */
     public void testWildcardKeepsTheAutomatonWhereItHasTo() {
+        final boolean singleValued = randomBoolean();
         // The empty pattern too: Lucene reads it as naming no value, not as naming the value of no bytes.
         for (String pattern : new String[] { "*pha", "al*a", "alph?", "**", "a*b*c", "al\\*pha", "*a?c*", "" }) {
-            assertThat("pattern [" + pattern + "]", wildcard(FIELD, pattern), instanceOf(ColumnarStringAutomatonQuery.class));
+            assertThat("pattern [" + pattern + "]", wildcard(FIELD, pattern, singleValued), instanceOf(ColumnarStringAutomatonQuery.class));
         }
         // Case folding is the automaton's business, so even a plain pattern stays one.
         assertThat(
-            ColumnarBinaryDocValuesQueries.INSTANCE.wildcard(FIELD, "alpha", true, NoopCircuitBreaker.INSTANCE),
+            queries(singleValued).wildcard(FIELD, "alpha", true, NoopCircuitBreaker.INSTANCE),
             instanceOf(ColumnarStringAutomatonQuery.class)
         );
     }
@@ -108,10 +129,11 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
      * filter would be handed to the wrong one.
      */
     public void testCacheIdentityFollowsThePattern() {
-        assertEquals(wildcard(FIELD, "al*a"), wildcard(FIELD, "al*a"));
-        assertEquals(wildcard(FIELD, "al*a").hashCode(), wildcard(FIELD, "al*a").hashCode());
-        assertNotEquals(wildcard(FIELD, "al*a"), wildcard(FIELD, "al*b"));
-        assertNotEquals(wildcard(FIELD, "al*a"), wildcard("other", "al*a"));
+        final boolean singleValued = randomBoolean();
+        assertEquals(wildcard(FIELD, "al*a", singleValued), wildcard(FIELD, "al*a", singleValued));
+        assertEquals(wildcard(FIELD, "al*a", singleValued).hashCode(), wildcard(FIELD, "al*a", singleValued).hashCode());
+        assertNotEquals(wildcard(FIELD, "al*a", singleValued), wildcard(FIELD, "al*b", singleValued));
+        assertNotEquals(wildcard(FIELD, "al*a", singleValued), wildcard("other", "al*a", singleValued));
     }
 
     /** Few distinct values, so the column carries a dictionary and a pattern is run once a term. */
@@ -148,11 +170,12 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
 
     /** A field this segment holds no value for matches nothing, whatever shape the pattern narrows to. */
     public void testFieldAbsentFromTheSegment() throws IOException {
+        final boolean singleValued = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(singleValued)))) {
                 for (int d = 0; d < 200; d++) {
                     final Document doc = new Document();
-                    doc.add(payloadField("other", "v" + d));
+                    doc.add(singleValued ? new BinaryDocValuesField("other", new BytesRef("v" + d)) : payloadField("other", "v" + d));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -160,7 +183,35 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 for (String pattern : PATTERNS) {
-                    assertEquals("pattern [" + pattern + "]", List.of(), found(searcher, wildcard(FIELD, pattern)));
+                    assertEquals("pattern [" + pattern + "]", List.of(), found(searcher, wildcard(FIELD, pattern, singleValued)));
+                }
+            }
+        }
+    }
+
+    public void testQueriesBuiltForTheOtherFramingAreRejectedOnAColumn() throws IOException {
+        final boolean singleValued = randomBoolean();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(singleValued)))) {
+                for (int d = 0; d < 50; d++) {
+                    final String value = TERMS[d % TERMS.length];
+                    final Document doc = new Document();
+                    doc.add(singleValued ? new BinaryDocValuesField(FIELD, new BytesRef(value)) : payloadField(FIELD, value));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final ColumnarBinaryDocValuesQueries other = queries(singleValued == false);
+                final List<Query> queries = List.of(
+                    other.term(FIELD, new BytesRef("alpha")),
+                    other.prefix(FIELD, "al", false),
+                    other.terms(FIELD, List.of(new BytesRef("alpha"), new BytesRef("beta"))),
+                    other.range(FIELD, new BytesRef("a"), new BytesRef("b"), true, true),
+                    other.regexp(FIELD, "al.*", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null)
+                );
+                for (Query query : queries) {
+                    expectThrows(AssertionError.class, () -> searcher.search(query, 1));
                 }
             }
         }
@@ -170,16 +221,13 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
     private void assertPatterns(List<String> values) throws IOException {
         for (boolean singleValued : new boolean[] { false, true }) {
             try (Directory dir = newDirectory()) {
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(singleValued))
+                    .setMergePolicy(new LogDocMergePolicy());
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                     for (String value : values) {
                         final Document doc = new Document();
                         if (value != null) {
-                            doc.add(
-                                singleValued
-                                    ? new SingleValuedColumnarBinaryDocValuesField(FIELD, new BytesRef(value))
-                                    : payloadField(FIELD, value)
-                            );
+                            doc.add(singleValued ? new BinaryDocValuesField(FIELD, new BytesRef(value)) : payloadField(FIELD, value));
                         }
                         writer.addDocument(doc);
                     }
@@ -191,7 +239,7 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
                         assertEquals(
                             "pattern [" + pattern + "] singleValued=" + singleValued,
                             accepted(values, pattern),
-                            found(searcher, wildcard(FIELD, pattern))
+                            found(searcher, wildcard(FIELD, pattern, singleValued))
                         );
                     }
                 }
@@ -246,9 +294,14 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
     }
 
     /** Every doc-values field through the columnar format, which is what makes the field a column. */
-    private static Codec columnarCodec() {
+    private static Codec columnarCodec(boolean singleValued) {
         final Codec base = TestUtil.getDefaultCodec();
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat(field -> ColumnarFieldType.STRING);
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat(
+            (fieldName, type) -> NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued))
+        );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
                 @Override

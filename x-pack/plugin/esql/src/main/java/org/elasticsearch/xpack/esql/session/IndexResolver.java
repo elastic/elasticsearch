@@ -32,6 +32,8 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -202,6 +205,57 @@ public class IndexResolver {
     }
 
     /**
+     * Resolves the exemplar data streams of a query run with {@code SET exemplars=true} to all of their fields. Their pattern is
+     * derived from the resolved time series indices (see {@link ExemplarsRewriter#exemplarIndexPattern}), so unlike a
+     * user-written pattern some of them may not exist: field caps tolerates that, but executing the query against them would not. So
+     * field caps is asked which indices it resolved each expression to, and only the expressions that resolved to something become the
+     * original indices of the relation (see {@link #RESOLVED_EXPRESSIONS}). Field caps only reports that when every cluster involved
+     * supports it; otherwise the resolution fails.
+     * <p>
+     * The relation is a regular one, not a time series one, so none of the time series or unmapped field handling of
+     * {@link #resolveMainIndicesVersioned} applies; {@code requestFilter} and {@code minimumVersion} work like there.
+     */
+    public void resolveExemplarDataStreamsVersioned(
+        String indexPattern,
+        QueryBuilder requestFilter,
+        TransportVersion minimumVersion,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        doResolveIndices(
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
+            indexPattern,
+            true, /* the derived data streams may not exist */
+            minimumVersion,
+            false,
+            false,
+            false,
+            false,
+            false,
+            null,
+            RESOLVED_EXPRESSIONS,
+            listener
+        );
+    }
+
+    /**
+     * Original indices for a pattern whose expressions may not all exist: per cluster, the requested expressions that field caps
+     * resolved to at least one index. Requires the field caps response to carry that resolution information, which the coordinating
+     * node only includes when it was requested and all clusters involved are recent enough to provide it.
+     */
+    static final OriginalIndexExtractor RESOLVED_EXPRESSIONS = (indexPattern, fieldCapabilitiesResponse) -> {
+        if (fieldCapabilitiesResponse.getResolvedLocally() == null) {
+            // the coordinating node leaves the resolution information out unless all nodes of all clusters involved support the
+            // transport version [resolved_fields_caps], which was introduced in 9.3.0
+            throw new VerificationException(
+                "When querying exemplars, all nodes in all involved clusters must be at least at version 9.3.0; "
+                    + "cannot resolve which of [{}] exist otherwise",
+                indexPattern
+            );
+        }
+        return Maps.transformValues(EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse), v -> List.copyOf(v.expression()));
+    };
+
+    /**
      * Like {@code IndexResolver#resolveIndicesVersioned} but for flat (CPS) queries. Set
      * {@code lenient} to allow targets to be missing — used for {@code ViewShadowRelation}
      * lookups, where finding nothing is the expected outcome when no remote project has an
@@ -226,6 +280,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
@@ -245,8 +300,17 @@ public class IndexResolver {
                 v -> List.copyOf(v.expression())
             ),
             listener.delegateResponse((l, e) -> {
+                if (e instanceof IllegalArgumentException
+                    && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
+                    l.onResponse(new Versioned<>(IndexResolution.empty(indexPattern), TransportVersion.minimumCompatible()));
+                    return;
+                }
                 var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
-                l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
+                if (infe != null) {
+                    l.onFailure(new VerificationException(EsqlCCSUtils.unknownIndexError(infe.getIndex().getName(), indexViewOrigins)));
+                    return;
+                }
+                l.onFailure(e);
             })
         );
     }
@@ -265,7 +329,7 @@ public class IndexResolver {
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
-        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
+        ActionListener<EsqlResolveFieldsResponse> responseHandler = listener.delegateFailureAndWrap((l, response) -> {
             if (routingInfoCapture != null) {
                 TargetProjects tp = request.getResolvedTargetProjects();
                 if (tp != null) {
@@ -304,7 +368,10 @@ public class IndexResolver {
                     info.minTransportVersion()
                 )
             );
-        }));
+        });
+        // Meter the response handling (mergedMappings can take tens of ms for wide mappings) as planning CPU of the query
+        // that dispatched this request, if one is metering this thread.
+        client.execute(EsqlResolveFieldsAction.TYPE, request, PlanningCpuTracker.inheritMeteredCpu(responseHandler));
     }
 
     /**
@@ -549,6 +616,7 @@ public class IndexResolver {
             type = UNSUPPORTED;
         }
         boolean aggregatable = first.isAggregatable();
+        boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -568,11 +636,12 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldsInfo.caps, indexDedupCache);
+                    return conflictingTypes(name, fullName, fieldsInfo.caps, indexDedupCache, timeSeriesFieldType);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
+                isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
             }
         }
 
@@ -594,7 +663,7 @@ public class IndexResolver {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
     }
 
     /**
@@ -728,7 +797,8 @@ public class IndexResolver {
         String fullName,
         FieldCapabilitiesResponse fieldCapsResponse,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
-        @Nullable Map<Set<String>, Set<String>> indexDedupCache
+        @Nullable Map<Set<String>, Set<String>> indexDedupCache,
+        EsField.TimeSeriesFieldType timeSeriesFieldType
     ) {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
@@ -742,11 +812,11 @@ public class IndexResolver {
             }
         }
         if (indexDedupCache != null) {
-            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache);
+            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType);
         }
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));
-        return new InvalidMappedField(name, stringKeyed);
+        return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
     }
 
     private static boolean useCompactInvalidMappedField(@Nullable TransportVersion minTransportVersion) {

@@ -304,6 +304,27 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             errorLine.get("status"),
             equalTo(re.getResponse().getStatusLine().getStatusCode())
         );
+
+        assertThat("pre-header error line must carry took", errorLine, hasKey("took"));
+        assertThat("took must be non-negative", (int) errorLine.get("took"), greaterThan(-1));
+        assertThat("pre-header error line must carry warnings", errorLine, hasKey("warnings"));
+        assertThat("root_cause must be present (standard ES error shape)", error, hasKey("root_cause"));
+        assertThat(errorLine, not(hasKey("documents_found")));
+        assertThat(errorLine, not(hasKey("values_loaded")));
+        assertThat(errorLine, not(hasKey("rows_emitted")));
+
+        Request syncRequest = new Request("POST", "/_query");
+        syncRequest.setJsonEntity("{\"query\": \"FROM stream-test | EVAL x = unknown_function(value)\"}");
+        ResponseException syncRe = expectThrows(ResponseException.class, () -> client().performRequest(syncRequest));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncBody = (Map<String, Object>) entityAsMap(syncRe.getResponse()).get("error");
+        assertThat("streaming error type must match sync", error.get("type"), equalTo(syncBody.get("type")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> streamRoot = ((List<Map<String, Object>>) error.get("root_cause")).get(0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncRoot = ((List<Map<String, Object>>) syncBody.get("root_cause")).get(0);
+        assertThat("streaming root_cause type must match sync", streamRoot.get("type"), equalTo(syncRoot.get("type")));
+        assertThat("streaming root_cause reason must match sync", streamRoot.get("reason"), equalTo(syncRoot.get("reason")));
     }
 
     public void testOmittedBatchSizeDefaultsToHundred() throws IOException {
@@ -496,7 +517,6 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testUnmappedFieldsLoadAllRejected() {
-        assumeTrue("LOAD_ALL requires a snapshot build", Build.current().isSnapshot());
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(
@@ -670,6 +690,52 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertFalse("sparse_field is empty and must still be dropped", trimmedNames.contains("sparse_field"));
 
         assertColumnPopulatedInEveryRow(lines, trimmedNames.indexOf("agg_field"), "agg_field");
+        assertStreamAgreesWithQuery(query);
+    }
+
+    public void testDropNullColumnsKeepsUnmappedLoadedField() throws IOException {
+        Request createIndex = new Request("PUT", "/stream-test-unmapped");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "value":        { "type": "integer" },
+                  "sparse_field": { "type": "keyword" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex));
+
+        Request bulk = new Request("POST", "/_bulk?index=stream-test-unmapped&refresh=true");
+        bulk.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "unmapped_message": "one"}
+            {"index": {"_id": "2"}}
+            {"value": 2, "unmapped_message": "two"}
+            {"index": {"_id": "3"}}
+            {"value": 3, "unmapped_message": "three"}
+            {"index": {"_id": "4"}}
+            {"value": 4, "unmapped_message": "four"}
+            """);
+        assertOK(client().performRequest(bulk));
+
+        String query = "SET unmapped_fields=\"LOAD\"; FROM stream-test-unmapped | SORT value | LIMIT 100 "
+            + "| KEEP value, unmapped_message, sparse_field";
+        List<Map<String, Object>> lines = stream(streamBody(query), "drop_null_columns=true", "batch_size=2");
+
+        Map<String, Object> header = lines.get(0);
+        assertThat("all_columns must list all three requested fields", columnList(header, "all_columns"), hasSize(3));
+
+        List<String> trimmedNames = columnNames(header, "columns");
+        assertTrue(
+            "unmapped_message is loaded from _source, invisible to field_caps, and must not be dropped",
+            trimmedNames.contains("unmapped_message")
+        );
+        assertFalse("sparse_field is empty and must still be dropped", trimmedNames.contains("sparse_field"));
+
+        assertColumnPopulatedInEveryRow(lines, trimmedNames.indexOf("unmapped_message"), "unmapped_message");
         assertStreamAgreesWithQuery(query);
     }
 

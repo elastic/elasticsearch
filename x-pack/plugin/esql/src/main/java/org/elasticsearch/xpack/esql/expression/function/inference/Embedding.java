@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -196,7 +198,16 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         if (inputOptions != null) {
             TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
                 try {
-                    inputDataType();
+                    var inputDataType = inputDataType();
+                    if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(inputDataType) == false) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "Unsupported type [%s], must be one of %s",
+                                inputDataType,
+                                InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES
+                            )
+                        );
+                    }
                     inputTimeout();
                 } catch (IllegalArgumentException e) {
                     throw new InvalidArgumentException("Invalid options for EMBEDDING: " + e.getMessage());

@@ -12,7 +12,7 @@ package org.elasticsearch.gradle.internal.testfixtures;
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -20,6 +20,7 @@ import org.gradle.api.Project;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class TestFixturesDeployPlugin implements Plugin<Project> {
@@ -29,7 +30,9 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
+        // registers the docker support service and the docker availability check for the DockerBuildTask tasks below
+        project.getPluginManager().apply(DockerSupportPlugin.class);
         var buildParams = loadBuildParams(project).get();
         NamedDomainObjectContainer<TestFixtureDeployment> fixtures = project.container(TestFixtureDeployment.class);
         project.getExtensions().add("dockerFixtures", fixtures);

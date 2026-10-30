@@ -58,6 +58,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -72,6 +73,9 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
@@ -88,6 +92,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -219,7 +224,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // Charges a response sent to another node, such as a CCS search with minimize_roundtrips, until it is written.
+        super(
+            TYPE.name(),
+            true,
+            transportService,
+            actionFilters,
+            SearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
@@ -321,11 +335,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    /**
+     * Validates the slice/routing combination of a search request. A {@code _slice} is accepted even when none of the targeted
+     * indices is slice-enabled: indices without slices hold no document of any slice, so they contribute no hits.
+     */
     static String validateAndResolveSearchSliceRouting(
         SearchRequest searchRequest,
         Map<Index, IndexMetadata> concreteLocalIndicesMetadata,
-        String[] requestedIndices,
-        boolean hasRemoteIndices
+        String[] requestedIndices
     ) {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             return null;
@@ -344,8 +361,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.routing(),
             requestedSlice,
             "search request",
-            target,
-            hasRemoteIndices
+            target
         );
         return requestedSlice;
     }
@@ -677,7 +693,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                         searchPhaseProvider.apply(l)
                                     ),
                                     transportService,
-                                    forceConnectTimeoutSecs
+                                    forceConnectTimeoutSecs,
+                                    circuitBreaker
                                 );
                             }
                         })
@@ -956,7 +973,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
         TransportService transportService,
-        TimeValue forceConnectTimeoutSecs
+        TimeValue forceConnectTimeoutSecs,
+        CircuitBreaker circuitBreaker
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
@@ -1006,6 +1024,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     // propagate the directory metrics reported by the remote cluster so the header reflects the remote's bytes read
                     mergedResponse.setDirectoryMetrics(searchResponse.getDirectoryMetrics());
+                    try {
+                        // The hits stay on this node until the response is written.
+                        mergedResponse.adoptCoordinatorFetchCharge(chargeRemoteHits(mergedResponse.getHits(), circuitBreaker));
+                    } catch (CircuitBreakingException e) {
+                        // Same as in createCCSListener: not the cluster's failure, so the search fails even if it could be skipped.
+                        mergedResponse.decRef();
+                        listener.onFailure(e);
+                        return;
+                    }
                     ActionListener.respondAndRelease(listener, mergedResponse);
                 }
 
@@ -1048,10 +1075,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.source(),
                 timeProvider,
                 aggReduceContextBuilder,
-                searchCoordinatorContext
+                searchCoordinatorContext,
+                circuitBreaker
             );
+            // Partial results merge responses that searchResponseMerger already holds and charges, so their merger gets no breaker.
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchCoordinatorContext)
+                () -> createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    aggReduceContextBuilder,
+                    searchCoordinatorContext,
+                    null
+                )
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = resolvedIndices.getRemoteClusterIndices().size() + (resolvedIndices.getLocalIndices() == null ? 0 : 1);
@@ -1132,6 +1167,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    /**
+     * Charges the hits of a single remote cluster's response, which this node keeps until the response is written, as
+     * {@link SearchResponseMerger} does for several clusters. Only hits are charged.
+     *
+     * @return the charge, to release with the response that keeps the hits, or {@code null} if there are none
+     * @throws CircuitBreakingException if this node cannot hold the hits
+     */
+    @Nullable
+    static Releasable chargeRemoteHits(SearchHits hits, CircuitBreaker circuitBreaker) {
+        long bytes = SearchResponseMerger.estimateHitBytes(hits.getHits(), Set.of());
+        if (bytes == 0L) {
+            return null;
+        }
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, SearchResponseMerger.BREAKER_LABEL);
+        return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, SearchResponseMerger.BREAKER_LABEL));
+    }
+
     static SearchProfileResults getSearchProfileResults(SearchResponse searchResponse, SearchCoordinatorContext searchCoordinatorContext) {
         Map<String, SearchProfileShardResult> profileResults = searchResponse.getSearchProfileShardResults();
         SearchProfileResults profile = profileResults == null || profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
@@ -1147,7 +1199,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        SearchCoordinatorContext searchCoordinatorContext
+        SearchCoordinatorContext searchCoordinatorContext,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         final int from;
         final int size;
@@ -1166,7 +1219,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchCoordinatorContext);
+        return new SearchResponseMerger(
+            from,
+            size,
+            trackTotalHitsUpTo,
+            timeProvider,
+            aggReduceContextBuilder,
+            searchCoordinatorContext,
+            circuitBreaker
+        );
     }
 
     /**
@@ -1583,7 +1644,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * Only used for ccs_minimize_roundtrips=true pathway
      */
-    private static ActionListener<SearchResponse> createCCSListener(
+    static ActionListener<SearchResponse> createCCSListener(
         String clusterAlias,
         boolean shouldSkipOnFailure,
         CountDown countDown,
@@ -1604,8 +1665,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
+                // The cluster answered, so it is marked successful even if this node then has no room for its response.
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
-                searchResponseMerger.add(searchResponse);
+                if (searchTripped()) {
+                    // The search has tripped, so holding the response would be for nothing.
+                    return;
+                }
+                try {
+                    searchResponseMerger.add(searchResponse);
+                } catch (CircuitBreakingException e) {
+                    // This node cannot hold the response, which is not a failure of the cluster that sent it, so it fails the search
+                    // even if the cluster could be skipped.
+                    failSearch(e);
+                    return;
+                }
                 progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
             }
 
@@ -1906,12 +1979,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
         }
-        validateAndResolveSearchSliceRouting(
-            searchRequest,
-            resolvedIndices.getConcreteLocalIndicesMetadata(),
-            searchRequest.indices(),
-            remoteShardIterators.isEmpty() == false
-        );
+        validateAndResolveSearchSliceRouting(searchRequest, resolvedIndices.getConcreteLocalIndicesMetadata(), searchRequest.indices());
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
@@ -2475,15 +2543,33 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false && isTaskCancelled == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
-
-                if (exceptions.compareAndSet(null, exception) == false) {
-                    exceptions.accumulateAndGet(exception, (previous, current) -> {
-                        current.addSuppressed(previous);
-                        return current;
-                    });
-                }
+                failSearch(exception);
             }
             maybeFinish();
+        }
+
+        /**
+         * Makes the search fail with {@code exception} once every cluster has answered, whatever the other clusters return. A circuit
+         * breaker trip on this node stays the primary failure, so the search fails with a 429 even if other clusters fail after it.
+         */
+        protected final void failSearch(Exception exception) {
+            if (exceptions.compareAndSet(null, exception) == false) {
+                exceptions.accumulateAndGet(exception, (previous, current) -> {
+                    if (previous instanceof CircuitBreakingException) {
+                        previous.addSuppressed(current);
+                        return previous;
+                    }
+                    current.addSuppressed(previous);
+                    return current;
+                });
+            }
+        }
+
+        /**
+         * Whether a circuit breaker on this node has failed the search, see {@link #failSearch}.
+         */
+        protected final boolean searchTripped() {
+            return exceptions.get() instanceof CircuitBreakingException;
         }
 
         private void maybeFinish() {
@@ -2601,6 +2687,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
 
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
+                final IndexMetadata indexMetadata = projectState.metadata().index(shardId.getIndex());
+                // A deleted index has no target nodes, so this iterator is never sent and IRRELEVANT is never serialized.
+                final SplitShardCountSummary splitShardCountSummary = indexMetadata == null
+                    ? SplitShardCountSummary.IRRELEVANT
+                    : SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
                 iterators.add(
                     new SearchShardIterator(
                         localClusterAlias,
@@ -2617,10 +2708,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // In context of PIT the searcher is reused or can be recreated only in read-only scenarios.
                         // If a searcher is reused, this value won't be used
                         // (it was calculated and used when PIT was created).
-                        // If the searcher is recreated, which will happen when PITs are relocatable, then we should supply
-                        // the same summary when recreating the search that was first used in order to produce the same
-                        // filtering decision. See ES-13264 for the work needed when relocatable PITs land.
-                        SplitShardCountSummary.UNSET
+                        // If the search is recreated via PIT relocation, the summary is supplied through OpenPITReshardingState.
+                        splitShardCountSummary
                     )
                 );
             }
@@ -2646,6 +2735,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean shouldSort
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
+        concreteIndices = ignoreIndicesWithoutSlices(projectState, searchRequest, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
             projectState.metadata(),
             searchRequest.routing(),
@@ -2683,6 +2773,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
+    }
+
+    /**
+     * Indices without slices hold no document of any slice, so a request that names slices does not search them.
+     */
+    static String[] ignoreIndicesWithoutSlices(ProjectState projectState, SearchRequest searchRequest, String[] concreteIndices) {
+        if (searchRequest.isRoutingFromSlice() == false || searchRequest.routing() == null) {
+            return concreteIndices;
+        }
+        final ProjectMetadata project = projectState.metadata();
+        return Arrays.stream(concreteIndices)
+            .filter(index -> IndexSettings.SLICE_ENABLED.get(project.index(index).getSettings()))
+            .toArray(String[]::new);
     }
 
     static String[] ignoreBlockedIndices(ProjectState projectState, String[] concreteIndices) {

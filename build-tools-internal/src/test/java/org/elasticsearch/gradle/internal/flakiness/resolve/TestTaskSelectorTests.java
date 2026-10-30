@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -48,6 +49,7 @@ public class TestTaskSelectorTests {
         assertThat(s.taskPaths(), contains(":proj:test"));
         // Honest reporting: the other candidate existed, we deliberately chose the conventional task.
         assertThat(s.candidateCount(), equalTo(2));
+        assertThat(s.candidateTaskPaths(), containsInAnyOrder(":proj:someOtherTest", ":proj:test"));
     }
 
     @Test
@@ -96,6 +98,7 @@ public class TestTaskSelectorTests {
         assertThat(s.runnable(), is(true));
         assertThat(s.taskPaths(), contains(":proj:v9.6.0#bwcTest", ":proj:v9.5.1#bwcTest"));
         assertThat(s.candidateCount(), equalTo(3));
+        assertThat(s.candidateTaskPaths(), contains(":proj:v9.6.0#bwcTest", ":proj:v9.5.1#bwcTest", ":proj:bcUpgradeTest"));
     }
 
     @Test
@@ -110,6 +113,17 @@ public class TestTaskSelectorTests {
 
         assertThat(s.taskPaths(), contains(":proj:v10.0.0#bwcTest", ":proj:v9.6.0#bwcTest", ":proj:v9.5.1#bwcTest"));
         assertThat(s.candidateCount(), equalTo(6));
+        assertThat(
+            s.candidateTaskPaths(),
+            contains(
+                ":proj:v10.0.0#bwcTest",
+                ":proj:v9.6.0#bwcTest",
+                ":proj:v9.5.1#bwcTest",
+                ":proj:v8.19.10#bwcTest",
+                ":proj:v8.19.9#bwcTest",
+                ":proj:v8.19.2#bwcTest"
+            )
+        );
         // Reordering the input does not change the selection.
         List<TestTaskInfo> reversed = new ArrayList<>(tasks);
         Collections.reverse(reversed);
@@ -144,6 +158,7 @@ public class TestTaskSelectorTests {
         assertThat(s.taskPaths(), is(empty()));
         // The candidate count is still reported honestly, so the report can say what was rejected.
         assertThat(s.candidateCount(), equalTo(2));
+        assertThat(s.candidateTaskPaths(), contains(":proj:destructiveDistroUpgradeTest.v8.0.0.default-rpm", ":proj:destructiveDistroTest.default-deb"));
     }
 
     @Test
@@ -165,6 +180,7 @@ public class TestTaskSelectorTests {
         TestTaskSelector.Selection s = TestTaskSelector.select("test", TEST_OUT, List.of(), 2);
         assertThat(s.skipReason(), equalTo(TestTaskSelector.REASON_NO_RUNNABLE_TASK));
         assertThat(s.candidateCount(), equalTo(0));
+        assertThat(s.candidateTaskPaths(), is(empty()));
     }
 
     @Test

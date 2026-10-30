@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * What the schema cache charges for the objects it retains — acceptance coverage for long keyword/text
- * extrema under-weigh ({@code }).
+ * extrema under-weigh.
  */
 public class SchemaCacheWeightAccountingTests extends ESTestCase {
 

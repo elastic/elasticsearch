@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
@@ -60,21 +59,20 @@ public class RequestUtilsTests extends ESTestCase {
     }
 
     public void testDecorateWithAuthHeader() throws URISyntaxException {
-        var httpPost = new HttpPost(new URI("https://example.com/v1/embeddings"));
+        var httpPost = SimpleRequestBuilder.post(new URI("https://example.com/v1/embeddings")).build();
         decorateWithAuthHeader(httpPost, new SecureString(SECRET.toCharArray()));
 
         assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", SECRET)));
     }
 
-    public void testJsonEntity_WritesTheSerializedObject() throws IOException {
+    public void testJsonEntity_WritesTheSerializedObject() {
         ToXContentObject object = (builder, params) -> builder.startObject().field("key", "value").endObject();
 
         var entity = jsonEntity(object);
 
-        assertThat(EntityUtils.toString(entity, StandardCharsets.UTF_8), is("""
+        assertThat(new String(entity, StandardCharsets.UTF_8), is("""
             {"key":"value"}"""));
-        assertTrue("entity must be repeatable so the request can be retried", entity.isRepeatable());
     }
 
     public void testJsonEntity_WhenSerializationFails_Throws() {

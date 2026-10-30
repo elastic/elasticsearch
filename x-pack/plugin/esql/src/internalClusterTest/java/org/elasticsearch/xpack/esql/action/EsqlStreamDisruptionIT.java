@@ -23,16 +23,20 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -61,6 +65,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -68,17 +73,22 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.assertStreamInvariants;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the ES|QL streaming API under network disruption.
- * Tests the pre-stream fault (non-200 HTTP status + single NDJSON error line) and
- * post-stream fault (error as the last NDJSON line, HTTP 200 already flushed) regimes.
+ * Tests the fault-before-first-page case (non-200 HTTP status and a single NDJSON error line) and
+ * the fault-after-first-page case (HTTP 200, at least one values line, and an error as the last
+ * NDJSON line). The response is only sent once the first page arrives, so a 200 response never ends
+ * in an error with no values lines.
  *
  * {@code numClientNodes = 1} gives a stable shard-free node to pin the REST client to and
  * ensures every compute request is a genuine inter-node transport hop. Real Netty HTTP is
@@ -128,6 +138,14 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, SINK_INACTIVE_INTERVAL)
+            .put(
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(),
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getDefault(Settings.EMPTY)
+            )
+            .put(
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(),
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
+            )
             .build();
         logger.info("settings {}", settings);
         return settings;
@@ -370,8 +388,8 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertThat("terminal must be an error line", outcome.terminal(), equalTo(Terminal.ERROR));
     }
 
-    private void assertPostStreamFaultBecomesErrorLine(String action) throws Exception {
-        AtomicLong faultHits = failActionOnAllNodes(action, "injected failure for post-stream test");
+    private void assertFaultBeforeFirstPageYieldsHttpError(String action) throws Exception {
+        AtomicLong faultHits = failActionOnAllNodes(action, "injected failure before the first page");
         StreamOutcome outcome = stream(
             streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"),
             null,
@@ -381,19 +399,103 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertThat("injected fault on [" + action + "] was never invoked; " + describe(outcome), faultHits.get(), greaterThan(0L));
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
-        assertThat("HTTP status must be 200 because it was already flushed", outcome.httpStatus(), equalTo(200));
-        assertThat("stream must have started with a columns line", outcome.lines().get(0), hasKey("columns"));
-        assertThat("error after stream start must arrive as last NDJSON line", outcome.terminal(), equalTo(Terminal.ERROR));
-        assertNotEquals("in-body status must not be 200", 200, ((Number) outcome.terminalLine().get("status")).intValue());
+        assertNotEquals("a fault before the first page must produce a non-200 HTTP status", 200, (int) outcome.httpStatus());
+        assertThat(outcome.terminal(), equalTo(Terminal.ERROR));
         assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
     }
 
-    public void testFaultAfterStreamStartYieldsErrorAsLastLine() throws Exception {
-        assertPostStreamFaultBecomesErrorLine(ExchangeService.OPEN_EXCHANGE_ACTION_NAME);
+    public void testOpenExchangeFaultBeforeFirstPageYieldsHttpError() throws Exception {
+        assertFaultBeforeFirstPageYieldsHttpError(ExchangeService.OPEN_EXCHANGE_ACTION_NAME);
     }
 
-    public void testExchangeFaultAfterStreamStartYieldsErrorAsLastLine() throws Exception {
-        assertPostStreamFaultBecomesErrorLine(ExchangeService.EXCHANGE_ACTION_NAME);
+    public void testExchangeFaultBeforeFirstPageYieldsHttpError() throws Exception {
+        assertFaultBeforeFirstPageYieldsHttpError(ExchangeService.EXCHANGE_ACTION_NAME);
+    }
+
+    public void testExchangeFaultAfterFirstPageYieldsErrorAsLastLine() throws Exception {
+        AtomicLong faultHits = new AtomicLong();
+        AtomicBoolean firstFetchPassed = new AtomicBoolean();
+        AtomicBoolean failing = new AtomicBoolean();
+        List<TransportChannel> held = new ArrayList<>();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+                    // One fetch delivers the first page; parking the rest keeps the exchange from draining before the fault is armed.
+                    if (firstFetchPassed.compareAndSet(false, true)) {
+                        handler.messageReceived(request, channel, task);
+                        return;
+                    }
+                    synchronized (held) {
+                        if (failing.get() == false) {
+                            held.add(channel);
+                            return;
+                        }
+                    }
+                    faultHits.incrementAndGet();
+                    channel.sendResponse(new RuntimeException("injected failure after the first page"));
+                });
+        }
+        StreamOutcome outcome = streamPausingAt(1, streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), true, () -> {
+            List<TransportChannel> toFail;
+            synchronized (held) {
+                failing.set(true);
+                toFail = List.copyOf(held);
+                held.clear();
+            }
+            for (TransportChannel channel : toFail) {
+                faultHits.incrementAndGet();
+                channel.sendResponse(new RuntimeException("injected failure after the first page"));
+            }
+        }, "batch_size=5", "allow_partial_results=false");
+        assertServerFullyCleanedUp();
+        assertStreamInvariants(outcome, false, 1000);
+        assertThat(outcome.httpStatus(), equalTo(200));
+        assertThat("line 1 must be a values line", outcome.lines().get(1), hasKey("values"));
+        assertThat("the exchange fault must be hit after the first page", faultHits.get(), greaterThan(0L));
+        assertThat("an exchange fault after the first page must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
+        assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
+    }
+
+    public void testBreakerTripBeforeFirstPageYieldsHttpError() throws Exception {
+        setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
+        StreamOutcome outcome;
+        try {
+            outcome = stream(
+                streamBody("FROM " + STREAM_INDEX + " | STATS c = COUNT_DISTINCT(value) BY tag"),
+                null,
+                "batch_size=5",
+                "allow_partial_results=false"
+            );
+        } finally {
+            setRequestCircuitBreakerLimit(null);
+        }
+        assertServerFullyCleanedUp();
+        assertStreamInvariants(outcome, false, 10);
+        assertThat(
+            "a breaker trip before the first page must surface as HTTP 429",
+            outcome.httpStatus(),
+            equalTo(RestStatus.TOO_MANY_REQUESTS.getStatus())
+        );
+        assertThat(outcome.terminal(), equalTo(Terminal.ERROR));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailureFooterCarriesCompletedSubPlanWarnings() throws Exception {
+        String query = "FROM "
+            + FAIL_INDEX
+            + " | INLINE STATS m = MAX(TO_INTEGER(CONCAT(\"a\", TO_STRING(x)))) | KEEP fail_me, m | LIMIT 100";
+        StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=false");
+        assertServerFullyCleanedUp();
+        assertThat(describe(outcome), outcome.terminal(), equalTo(Terminal.ERROR));
+
+        Map<String, Object> footer = outcome.terminalLine();
+        logger.info("--> failure footer: {}", footer);
+        List<String> warnings = (List<String>) footer.get("warnings");
+        assertThat(warnings, hasItem(containsString("evaluation of [TO_INTEGER(")));
+        assertThat(footer, hasKey("took"));
+        Map<String, Object> error = (Map<String, Object>) footer.get("error");
+        assertThat(error, hasKey("root_cause"));
+        assertThat(footer, not(hasKey("documents_found")));
     }
 
     private void assertShardFailureMidStream(boolean allowPartial) throws Exception {

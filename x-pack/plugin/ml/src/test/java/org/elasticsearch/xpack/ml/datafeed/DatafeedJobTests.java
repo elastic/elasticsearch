@@ -355,6 +355,28 @@ public class DatafeedJobTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
+    public void testRealtimeRunGivenStopDuringDelayedDataCheckShouldNotWriteAnnotation() throws Exception {
+        flushJobResponse = new FlushJobAction.Response(true, Instant.ofEpochMilli(2000));
+        Bucket bucket = mock(Bucket.class);
+        when(bucket.getTimestamp()).thenReturn(new Date(2000));
+        when(bucket.getEpoch()).thenReturn(2L);
+        when(bucket.getBucketSpan()).thenReturn(4L);
+        when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
+        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
+        currentTime = 3 * DELAYED_DATA_FREQ_HALF;
+        DatafeedJob datafeedJob = createDatafeedJob(100, 1000, 1000, -1, false, DELAYED_DATA_FREQ);
+        when(delayedDataDetector.detectMissingData(2000)).thenAnswer(invocation -> {
+            datafeedJob.stop();
+            return Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(10, bucket));
+        });
+
+        datafeedJob.runRealtime();
+
+        verify(delayedDataDetector).detectMissingData(2000);
+        verify(delayedDataDetector).cancel();
+        verify(client, never()).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
+    }
+
     public void testRealtimeRun() throws Exception {
         flushJobResponse = new FlushJobAction.Response(true, Instant.ofEpochMilli(2000));
         Bucket bucket = mock(Bucket.class);

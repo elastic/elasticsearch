@@ -131,11 +131,14 @@ public class DistributionLayoutExtension {
         // Historical behaviour: the original Groovy libFiles copied all libraries into a single copy spec, and the
         // tools/server-launcher entry's eachFile { it.permissions.unix(0755) } leaked the 0755 file mode onto the copy
         // action so that every subsequent into(...) entry inherited 0755 (the archive default is filePermissions(0644)).
-        // That makes the plugin/tool/entitlement/platform lib jars 0755 in the shipped ARCHIVES only - the deb/rpm
-        // packages ship them 0644 because ospackage imposes its own file mode. The typed
-        // DistributionPermissions.serverLauncher() action below does not leak, so we reproduce the leak explicitly here
-        // for archives to keep the distribution byte-identical. TODO(follow-up): drop this and normalise these jars to
-        // 0644 - see vault note projects/elasticsearch/notes/distribution-lib-jar-permissions-0755-leak.
+        // The eachFile only set 0755 when a file named server-launcher(.exe) was actually copied, i.e. only when the
+        // Linux native launcher binary was included - so the leak occurred ONLY in the Linux archives. The windows/darwin
+        // archives and the integ-test zip never included the native binary, so their subsequent lib jars stayed 0644.
+        // The deb/rpm packages also ship them 0644 (ospackage imposes its own file mode). The typed
+        // DistributionPermissions.serverLauncher() action below does not leak, so we reproduce the leak explicitly here -
+        // gated on the native launcher being present AND on being an archive - to keep the distribution byte-identical.
+        // TODO(follow-up): drop this and normalise these jars to 0644 - see vault note
+        // projects/elasticsearch/notes/distribution-lib-jar-permissions-0755-leak.
         boolean leakedServerLauncherPermissions = false;
         for (RegisteredLibrary library : registeredLibraries) {
             boolean inheritExecutable = reproduceServerLauncherPermissionLeak && leakedServerLauncherPermissions;
@@ -169,7 +172,13 @@ public class DistributionLayoutExtension {
                 default -> throw new IllegalArgumentException("Unexpected distribution library layout [" + library.layout() + "]");
             }
             if (library.layout() == DistributionLibraries.Layout.SERVER_LAUNCHER) {
-                leakedServerLauncherPermissions = true;
+                // The leak only fired when the native server-launcher binary was actually copied (Linux only).
+                leakedServerLauncherPermissions = DistributionLibraries.linuxServerLauncherNativeConfiguration(
+                    os,
+                    architecture,
+                    library.nativeX64Configuration(),
+                    library.nativeAarch64Configuration()
+                ) != null;
             }
         }
         return spec;

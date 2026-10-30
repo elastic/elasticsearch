@@ -96,9 +96,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainFailuresLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/151602
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
@@ -449,11 +446,6 @@ tests:
   - :x-pack:qa:rolling-upgrade:v9.2.8#yamlBwcTest
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357
-- class: org.elasticsearch.xpack.stateless.cache.SearchShardRecoveryWarmingTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
-  issue: https://github.com/elastic/elasticsearch/issues/163504
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.19.24#yamlRestTest
@@ -463,12 +455,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest
   issue: https://github.com/elastic/elasticsearch/issues/163562
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.24#yamlRestTest
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/142793
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -533,3 +519,8 @@ tests:
   tasks:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164050
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
+  issue: https://github.com/elastic/elasticsearch/issues/164095

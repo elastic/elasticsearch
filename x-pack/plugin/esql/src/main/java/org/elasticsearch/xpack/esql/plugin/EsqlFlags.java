@@ -122,10 +122,10 @@ public class EsqlFlags {
     );
 
     /**
-     * Cap on how far back {@code METRICS_INFO} and {@code TS_INFO} scans data. When specified, the time range of
+     * Cap on how far back {@code METRICS_INFO} and {@code TS_INFO} scan data. When specified, the time range of
      * these commands is narrowed to the most recent part of the range of the request filter: {@code [max(t1, t2 - cap), t2]} for a
      * request filter with the range {@code [t1, t2]}, and {@code [now - cap, now]} when the request filter has no complete range.
-     * If a time range that is narrowed, a warning is returned. Defaults to uncapped.
+     * A warning is returned if the time range is narrowed. Defaults to uncapped.
      */
     public static final Setting<TimeValue> ESQL_METRICS_INFO_MAX_TIME_RANGE = Setting.timeSetting(
         "esql.query.metrics_info_max_time_range",

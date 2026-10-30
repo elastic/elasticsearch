@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.time.Instant;
@@ -73,29 +74,33 @@ final class MetricsInfoTimeRangeRewriter {
         if (requested != null && from.isAfter(requested.start()) == false) {
             return plan;
         }
-        var rewritten = plan.transformUp(EsRelation.class, r -> {
-            if (r.indexMode().isTsdb() == false) {
-                return r;
+        var rewritten = plan.transformUp(UnaryPlan.class, p -> {
+            if (p instanceof TsInfo || p instanceof MetricsInfo) {
+                LogicalPlan capped = p.child().transformUp(EsRelation.class, r -> capRelation(r, from));
+                return capped == p.child() ? p : p.replaceChild(capped);
             }
-            Attribute timestamp = r.output()
-                .stream()
-                .filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name()))
-                .findFirst()
-                .orElse(null);
-            if (timestamp == null) {
-                return r;
-            }
-            Literal bound = lowerBound(r.source(), timestamp.dataType(), from);
-            if (bound == null) {
-                return r;
-            }
-            return new Filter(r.source(), r, new GreaterThanOrEqual(r.source(), timestamp, bound, ZoneOffset.UTC));
+            return p;
         });
         if (rewritten != plan) {
             rewritten.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
-            HeaderWarning.addWarning("The time range of METRICS_INFO and TS_INFO was narrowed to the most recent [{}]", maxTimeRange);
+            HeaderWarning.addWarning("METRICS_INFO and TS_INFO are limited to the most recent [{}]", maxTimeRange);
         }
         return rewritten;
+    }
+
+    private static LogicalPlan capRelation(EsRelation r, Instant from) {
+        if (r.indexMode().isTsdb() == false) {
+            return r;
+        }
+        Attribute timestamp = r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst().orElse(null);
+        if (timestamp == null) {
+            return r;
+        }
+        Literal bound = lowerBound(r.source(), timestamp.dataType(), from);
+        if (bound == null) {
+            return r;
+        }
+        return new Filter(r.source(), r, new GreaterThanOrEqual(r.source(), timestamp, bound, ZoneOffset.UTC));
     }
 
     @Nullable

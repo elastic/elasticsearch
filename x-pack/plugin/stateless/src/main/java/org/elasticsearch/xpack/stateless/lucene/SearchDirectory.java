@@ -116,6 +116,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     @Nullable
     private volatile VectorFillPolicy vectorFillPolicy;
+    /**
+     * Size of the ranges used by the activation-time header/footer/metadata warming, or {@code -1} to use
+     * {@link #objectStoreRangeSizeOverride} (see {@code FastSearchActivationSettings}).
+     */
+    private volatile long warmingRangeSizeOverride = -1L;
+    /**
+     * Whether an activation-time fill override was ever set on this directory: its cache-miss readers then read the fill size at each
+     * fill, so that {@link #clearActivationFillOverrides()} also applies to inputs opened during the activation.
+     */
+    private volatile boolean dynamicFillSize = false;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -492,7 +502,32 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     public void setObjectStoreRangeSizeOverride(long rangeSize) {
         assert rangeSize > 0 : rangeSize;
+        this.dynamicFillSize = true;
         this.objectStoreRangeSizeOverride = Math.min(rangeSize, cacheService.getRangeSize());
+    }
+
+    /**
+     * Makes the recovery warming of this directory (header/footer/metadata warming at activation) fill the cache with ranges of
+     * {@code rangeSize} bytes, independently of the query fill size. Capped at the cache range size.
+     */
+    public void setWarmingRangeSizeOverride(long rangeSize) {
+        assert rangeSize > 0 : rangeSize;
+        this.warmingRangeSizeOverride = Math.min(rangeSize, cacheService.getRangeSize());
+    }
+
+    /**
+     * Ends the activation-time fill overrides: later cache misses (including on inputs opened before) and warming fill whole cache ranges
+     * again and inputs opened afterwards use the default vector fill. Inputs opened during the activation keep their vector policy.
+     */
+    public void clearActivationFillOverrides() {
+        this.objectStoreRangeSizeOverride = -1L;
+        this.warmingRangeSizeOverride = -1L;
+        this.vectorFillPolicy = null;
+    }
+
+    private long warmingRangeSize() {
+        final long override = warmingRangeSizeOverride;
+        return override > 0 ? override : objectStoreRangeSize();
     }
 
     /**
@@ -518,6 +553,21 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+        if (dynamicFillSize) {
+            return cacheBlobReaderService.getCacheBlobReader(
+                shardId,
+                this::getBlobContainer,
+                blobFile,
+                objectStoreUploadTracker,
+                totalBytesWarmedFromObjectStore::add,
+                totalBytesWarmedFromIndexing::add,
+                BlobCacheMetrics.CachePopulationReason.CacheMiss,
+                cacheService.getShardReadThreadPoolExecutor(),
+                fileName,
+                false,
+                this::objectStoreRangeSize
+            );
+        }
         return getCacheBlobReader(
             fileName,
             blobFile,
@@ -539,7 +589,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
-            objectStoreRangeSize()
+            warmingRangeSize()
         );
     }
 

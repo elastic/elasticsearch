@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 
 /**
  * Service to get a {@link CacheBlobReader} for a shard and a {@link BlobLocation}. Automatically switches to fetching from the primary
@@ -139,18 +140,77 @@ public class CacheBlobReaderService {
         boolean speculativeFill,
         long objectStoreRangeSize
     ) {
-        assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
-            : "cache-miss reads serve blocked searches and can never be speculative";
-        final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
         final long rangeSize = objectStoreRangeSize;
         assert rangeSize > 0 && rangeSize <= cacheService.getRangeSize() : rangeSize;
-        var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
+        return getCacheBlobReader(
+            shardId,
+            blobFile,
+            tracker,
+            totalBytesReadFromObjectStore,
+            totalBytesReadFromIndexing,
+            cachePopulationReason,
+            fileName,
+            speculativeFill,
             getObjectStoreCacheBlobReader(
                 blobContainer.apply(blobFile.primaryTerm()),
                 blobFile.blobName(),
                 rangeSize,
                 objectStoreFetchExecutor
-            ),
+            )
+        );
+    }
+
+    /**
+     * Same as {@link #getCacheBlobReader(ShardId, LongFunction, BlobFile, MutableObjectStoreUploadTracker, LongConsumer, LongConsumer,
+     * BlobCacheMetrics.CachePopulationReason, Executor, String, boolean, long)} but the object store fill size is read at each fill.
+     */
+    public CacheBlobReader getCacheBlobReader(
+        ShardId shardId,
+        LongFunction<BlobContainer> blobContainer,
+        BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
+        LongConsumer totalBytesReadFromObjectStore,
+        LongConsumer totalBytesReadFromIndexing,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        Executor objectStoreFetchExecutor,
+        String fileName,
+        boolean speculativeFill,
+        LongSupplier objectStoreRangeSize
+    ) {
+        return getCacheBlobReader(
+            shardId,
+            blobFile,
+            tracker,
+            totalBytesReadFromObjectStore,
+            totalBytesReadFromIndexing,
+            cachePopulationReason,
+            fileName,
+            speculativeFill,
+            new ObjectStoreCacheBlobReader(
+                blobContainer.apply(blobFile.primaryTerm()),
+                blobFile.blobName(),
+                objectStoreRangeSize,
+                objectStoreFetchExecutor
+            )
+        );
+    }
+
+    private CacheBlobReader getCacheBlobReader(
+        ShardId shardId,
+        BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
+        LongConsumer totalBytesReadFromObjectStore,
+        LongConsumer totalBytesReadFromIndexing,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        String fileName,
+        boolean speculativeFill,
+        CacheBlobReader objectStoreReader
+    ) {
+        assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
+            : "cache-miss reads serve blocked searches and can never be speculative";
+        final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
+        var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
+            objectStoreReader,
             createReadCompleteCallback(fileName, totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);

@@ -309,6 +309,15 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
             this.bytesPerSecond = bps;
         }
 
+        /**
+         * Step 2b harness brackets. {@code perConnectionBps > 0}: every request streams at most {@code perConnectionBps} on its own
+         * connection, and all requests of the node share {@code bytesPerSecond} (the configured bandwidth becomes the aggregate cap);
+         * otherwise the configured bandwidth is one shared pipe (the default). {@code jitterSigma > 0}: the first-byte latency of each
+         * request is lognormal with median L and shape sigma (sigma = ln(3) / 2.326 = 0.472 gives p99 = 3 L).
+         */
+        static volatile long perConnectionBps = 0L;
+        static volatile double jitterSigma = 0.0d;
+
         /** Re-entrant calls (a wrapped container method delegating to another wrapped method) must not pay latency twice. */
         private static final ThreadLocal<Boolean> IN_CALL = ThreadLocal.withInitial(() -> false);
 
@@ -323,6 +332,10 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
 
         private void firstByte() {
             long l = latencyNanos;
+            final double sigma = jitterSigma;
+            if (l > 0 && sigma > 0) {
+                l = (long) (l * Math.exp(sigma * java.util.concurrent.ThreadLocalRandom.current().nextGaussian()));
+            }
             if (l > 0) {
                 sleepUntil(System.nanoTime() + l);
             }
@@ -330,6 +343,14 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
 
         /** Node-wide shared pipe: each chunk reserves size/BW on a timeline and waits for its slot. */
         private void pace(long n) {
+            pace(n, null);
+        }
+
+        /**
+         * As {@link #pace(long)}; with a per-connection bandwidth the chunk also reserves size/per-connection-BW on the request's own
+         * timeline {@code connection}, and waits for the later of the two slots.
+         */
+        private void pace(long n, AtomicLong connection) {
             long bps = bytesPerSecond;
             if (bps <= 0 || n <= 0) {
                 return;
@@ -337,6 +358,11 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
             final long cost = n * 1_000_000_000L / bps;
             final long now = System.nanoTime();
             long due = pipeFreeAt.accumulateAndGet(cost, (prev, c) -> Math.max(prev, now) + c);
+            final long perConnection = perConnectionBps;
+            if (perConnection > 0 && connection != null) {
+                final long connCost = n * 1_000_000_000L / perConnection;
+                due = Math.max(due, connection.accumulateAndGet(connCost, (prev, c) -> Math.max(prev, now) + c));
+            }
             if (due - System.nanoTime() > 500_000L) {
                 sleepUntil(due);
             }
@@ -371,7 +397,7 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
             }
             Req r = start("PUT", blob, size);
             firstByte();
-            pace(size);
+            pace(size, new AtomicLong());
             IN_CALL.set(true);
             try {
                 run.run();
@@ -399,13 +425,14 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
                 IN_CALL.set(false);
             }
             r.tFirstByte = System.nanoTime();
+            final AtomicLong connection = new AtomicLong();
             return new FilterInputStream(in) {
                 @Override
                 public int read() throws IOException {
                     int b = super.read();
                     if (b >= 0) {
                         r.bytes.incrementAndGet();
-                        pace(1);
+                        pace(1, connection);
                     } else {
                         r.tEnd = System.nanoTime();
                     }
@@ -417,7 +444,7 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
                     int n = super.read(b, off, len);
                     if (n > 0) {
                         r.bytes.addAndGet(n);
-                        pace(n);
+                        pace(n, connection);
                     } else if (n < 0) {
                         r.tEnd = System.nanoTime();
                     }

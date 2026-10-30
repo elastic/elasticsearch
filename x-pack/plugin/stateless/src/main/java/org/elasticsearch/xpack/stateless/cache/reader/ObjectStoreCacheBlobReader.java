@@ -18,6 +18,7 @@ import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedExcept
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.Executor;
+import java.util.function.LongSupplier;
 
 /**
  * A {@link CacheBlobReader} that fetches region-aligned data from the object store.
@@ -26,10 +27,18 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
 
     private final BlobContainer blobContainer;
     private final String blobName;
-    private final long cacheRangeSize;
+    private final LongSupplier cacheRangeSize;
     private final Executor fetchExecutor;
 
     public ObjectStoreCacheBlobReader(BlobContainer blobContainer, String blobName, long cacheRangeSize, Executor fetchExecutor) {
+        this(blobContainer, blobName, () -> cacheRangeSize, fetchExecutor);
+    }
+
+    /**
+     * A reader whose fill size is read at each fill, so that a temporary (activation-time) fill size can be reverted for inputs that are
+     * already open (see {@code FastSearchActivationSettings#FAST_ACTIVATION_FILL_WINDOW_SETTING}).
+     */
+    public ObjectStoreCacheBlobReader(BlobContainer blobContainer, String blobName, LongSupplier cacheRangeSize, Executor fetchExecutor) {
         this.blobContainer = blobContainer;
         this.blobName = blobName;
         this.cacheRangeSize = cacheRangeSize;
@@ -38,12 +47,12 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
 
     @Override
     public ByteRange getRange(long position, int length, long remainingFileLength) {
-        return BlobCacheUtils.computeRange(cacheRangeSize, position, length);
+        return BlobCacheUtils.computeRange(cacheRangeSize.getAsLong(), position, length);
     }
 
     @Override
     public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
-        return BlobCacheUtils.computeRange(Math.max(cacheRangeSize, minRangeSize), position, length);
+        return BlobCacheUtils.computeRange(Math.max(cacheRangeSize.getAsLong(), minRangeSize), position, length);
     }
 
     protected InputStream getRangeInputStream(long position, int length) throws IOException {
@@ -66,7 +75,7 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
             + "blobFile="
             + blobContainer.path().add(blobName).buildAsString()
             + ", cacheRangeSize="
-            + cacheRangeSize
+            + cacheRangeSize.getAsLong()
             + '}';
     }
 }

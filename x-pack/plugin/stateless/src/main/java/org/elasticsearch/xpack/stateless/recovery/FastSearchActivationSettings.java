@@ -11,6 +11,9 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+
+import java.util.Locale;
 
 /**
  * Settings of the (prototype) fast cold activation path of a stateless search shard ("cheap shards").
@@ -46,7 +49,8 @@ public final class FastSearchActivationSettings {
 
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_RANGE_SIZE_SETTING = new Setting<>(
         "stateless.cheap_shard.fast_activation.range_size",
-        ByteSizeValue.ofKb(128).getStringRep(),
+        // 1 MiB: the measured best first fill (steps 2-3); 128 KiB multiplied the dependent query fills
+        ByteSizeValue.ofMb(1).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.cheap_shard.fast_activation.range_size"),
         value -> {
             if (value.getBytes() <= 0L || value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
@@ -85,6 +89,78 @@ public final class FastSearchActivationSettings {
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING = Setting.byteSizeSetting(
         "stateless.cheap_shard.fast_activation.vector_whole_file_max",
         ByteSizeValue.ofMb(64),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How a fast-activated search shard finds the commit to open.
+     */
+    public enum Discovery {
+        /**
+         * Register with the indexing shard (one transport round trip) and recover from the commit it returns (step 2). Needs a resident
+         * indexing shard with an engine; falls back to object store discovery (LIST + header reads) otherwise.
+         */
+        REGISTRATION,
+        /**
+         * Read the {@link org.elasticsearch.xpack.stateless.commits.CommitPointer} of the shard's current primary term with one GET and
+         * open its commit, without asking the indexing shard; registration then runs in the background (step 2b). Falls back to object
+         * store discovery if the pointer is missing, corrupt or does not match the cluster state.
+         */
+        POINTER
+    }
+
+    public static final Setting<Discovery> FAST_ACTIVATION_DISCOVERY_SETTING = new Setting<>(
+        "stateless.cheap_shard.fast_activation.discovery",
+        Discovery.REGISTRATION.name().toLowerCase(Locale.ROOT),
+        s -> Discovery.valueOf(s.toUpperCase(Locale.ROOT)),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Whether indexing shards (over)write a {@link org.elasticsearch.xpack.stateless.commits.CommitPointer} after each uploaded batched
+     * compound commit. Read on the index nodes, at each upload.
+     */
+    public static final Setting<Boolean> COMMIT_POINTER_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cheap_shard.commit_pointer.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Fill size of the activation-time header/footer/metadata warming (independent of the query fill {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}),
+     * so that reading 1 KiB headers does not pull a whole query fill. Whole small blobs are still fetched with one GET each.
+     */
+    public static final Setting<ByteSizeValue> FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING = new Setting<>(
+        "stateless.cheap_shard.fast_activation.header_range_size",
+        // measured (step 2b, d100k): 64 KiB doubles the GETs of the open prefetch (headers of a < 16 MiB BCC are not replicated next
+        // to its header, so each one is its own small fill) and was 30-40% slower than 1 MiB on a thread-bound prefetch pool
+        ByteSizeValue.ofMb(1).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.cheap_shard.fast_activation.header_range_size"),
+        value -> {
+            if (value.getBytes() <= 0L || value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
+                throw new SettingsException(
+                    "setting [{}] must be greater than zero and must be multiple of {}",
+                    "stateless.cheap_shard.fast_activation.header_range_size",
+                    SharedBytes.PAGE_SIZE
+                );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How long after the start of a fast activation the small fill sizes (query fill, header fill, vector policy) apply to the shard.
+     * Afterwards cache misses of the shard fill whole cache ranges again, also on inputs opened during the activation. {@code 0} keeps
+     * the small fills for the lifetime of the shard (steps 2-3 behaviour).
+     */
+    public static final Setting<TimeValue> FAST_ACTIVATION_FILL_WINDOW_SETTING = Setting.timeSetting(
+        "stateless.cheap_shard.fast_activation.fill_window",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

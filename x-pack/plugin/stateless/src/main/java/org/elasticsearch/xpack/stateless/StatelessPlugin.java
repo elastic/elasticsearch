@@ -173,6 +173,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessPersisted
 import org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
 import org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
+import org.elasticsearch.xpack.stateless.commits.CommitPointerPublisher;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import org.elasticsearch.xpack.stateless.commits.HollowIndexEngineDeletionPolicy;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -1457,6 +1458,10 @@ public class StatelessPlugin extends Plugin
             FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING,
+            FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_FILL_WINDOW_SETTING,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
@@ -1627,6 +1632,14 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
+            indexModule.addIndexEventListener(
+                new CommitPointerPublisher(
+                    statelessCommitService,
+                    objectStoreService.get(),
+                    clusterService.get(),
+                    threadPool.get().executor(SHARD_WRITE_THREAD_POOL)
+                )
+            );
             indexModule.addIndexEventListener(
                 new StatelessIndexNodeRecoveryListener(
                     threadPool.get(),

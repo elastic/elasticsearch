@@ -14,13 +14,16 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -31,7 +34,9 @@ import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.CommitPointer;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -92,8 +97,15 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         assert store.hasReferences();
         try {
             final var existingBlobContainer = initializeBlobContainer(indexShard, store);
-            if (clusterService.getClusterSettings().get(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING)) {
-                fastRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+            final var clusterSettings = clusterService.getClusterSettings();
+            if (clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING) && existingBlobContainer != null) {
+                if (clusterSettings.get(
+                    FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING
+                ) == FastSearchActivationSettings.Discovery.POINTER) {
+                    pointerRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+                } else {
+                    fastRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+                }
             } else {
                 beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
             }
@@ -112,13 +124,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
     private void fastRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener) {
         assert blobContainer != null : indexShard.routingEntry();
         final var clusterSettings = clusterService.getClusterSettings();
-        final long rangeSize = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING).getBytes();
         final long wholeBlobThreshold = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING)
             .getBytes();
-        final var vectorFillPolicy = new VectorFillPolicy(
-            clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING).getBytes(),
-            clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING).getBytes()
-        );
         final var fallback = new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -157,8 +164,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                             response.getLatestUploadedBatchedCompoundCommitTermAndGen()
                         );
                         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
-                        searchDirectory.setObjectStoreRangeSizeOverride(rangeSize);
-                        searchDirectory.setVectorFillPolicy(vectorFillPolicy);
+                        applyActivationFillSettings(searchDirectory);
                         searchDirectory.updateLatestUploadedBcc(response.getLatestUploadedBatchedCompoundCommitTermAndGen());
                         searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), response.getNodeId());
                         searchDirectory.updateCommit(compoundCommit);
@@ -185,6 +191,159 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                 }
             }
         );
+    }
+
+    /**
+     * Installs the activation-time fill sizes on the directory (query fill, header/footer warming fill, vector policy) and schedules
+     * their end after {@link FastSearchActivationSettings#FAST_ACTIVATION_FILL_WINDOW_SETTING}.
+     */
+    private void applyActivationFillSettings(SearchDirectory searchDirectory) {
+        final var clusterSettings = clusterService.getClusterSettings();
+        searchDirectory.setObjectStoreRangeSizeOverride(
+            clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING).getBytes()
+        );
+        searchDirectory.setWarmingRangeSizeOverride(
+            clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING).getBytes()
+        );
+        searchDirectory.setVectorFillPolicy(
+            new VectorFillPolicy(
+                clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING).getBytes(),
+                clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING).getBytes()
+            )
+        );
+        final TimeValue window = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_FILL_WINDOW_SETTING);
+        if (window.millis() > 0) {
+            final var threadPool = clusterService.threadPool();
+            threadPool.schedule(searchDirectory::clearActivationFillOverrides, window, threadPool.generic());
+        }
+    }
+
+    /**
+     * Pointer-based activation (prototype, step 2b, see {@link FastSearchActivationSettings.Discovery#POINTER}): reads the shard's
+     * {@link CommitPointer} for the primary term known from the cluster state with one GET (no LIST, no BCC/CC header read), validates
+     * it and opens its commit, using the replicated header/footer ranges it carries for the warming. The indexing shard is not
+     * contacted on the activation path: registration runs in the background and only (a) lets the indexing shard retain the commit's
+     * blobs for this search shard and run its stale-commit check with the pointer's term/generations, and (b) delivers a newer commit
+     * than the pointer's (if any) once the engine is open. Falls back to {@link #beforeRecoveryOnSearchShard} (object store discovery
+     * and blocking registration) if the pointer is missing, unreadable or does not match, or if warming its commit fails.
+     */
+    private void pointerRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener) {
+        final long knownPrimaryTerm = indexShard.getOperationPrimaryTerm();
+        final ActionListener<Void> fallback = ActionListener.wrap(ignored -> {
+            try {
+                beforeRecoveryOnSearchShard(indexShard, blobContainer, listener);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }, listener::onFailure);
+
+        CommitPointer pointer = null;
+        String invalid;
+        logger.debug("{} fast activation: reading commit pointer of term [{}]", indexShard.shardId(), knownPrimaryTerm);
+        try {
+            pointer = CommitPointer.read(blobContainer, knownPrimaryTerm);
+            invalid = pointer == null
+                ? "no commit pointer for term [" + knownPrimaryTerm + "]"
+                : pointer.validate(indexShard.shardId(), knownPrimaryTerm);
+        } catch (Exception e) {
+            invalid = "commit pointer unreadable: " + e;
+        }
+        if (invalid != null) {
+            logger.info("{} fast activation: {}, discovering the commit in the object store", indexShard.shardId(), invalid);
+            fallback.onResponse(null);
+            return;
+        }
+        final CommitPointer commitPointer = pointer;
+        final StatelessCompoundCommit compoundCommit = commitPointer.compoundCommit();
+        logger.debug(
+            "{} fast activation: read commit pointer {} in BCC {} with {} replicated file ranges",
+            indexShard.shardId(),
+            compoundCommit.toShortDescription(),
+            commitPointer.batchedCompoundCommitTermAndGeneration(),
+            commitPointer.replicatedFileRanges().size()
+        );
+        ActionListener.run(listener, l -> {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+            applyActivationFillSettings(searchDirectory);
+            searchDirectory.updateLatestUploadedBcc(commitPointer.batchedCompoundCommitTermAndGeneration());
+            searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), commitPointer.writerNodeId());
+            searchDirectory.updateCommit(compoundCommit, commitPointer.replicatedFileRanges());
+            registerInBackground(indexShard, commitPointer);
+            final long wholeBlobThreshold = clusterService.getClusterSettings()
+                .get(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING)
+                .getBytes();
+            warmingService.warmCacheForFastSearchActivation(
+                indexShard,
+                compoundCommit,
+                searchDirectory,
+                wholeBlobThreshold,
+                ActionListener.wrap(ignored -> l.onResponse(null), e -> {
+                    // e.g. a blob of the pointed commit is gone (deleted after a newer commit): discover the latest commit instead
+                    logger.info(
+                        () -> format("%s fast activation from commit pointer failed, discovering the commit", indexShard.shardId()),
+                        e
+                    );
+                    fallback.onResponse(null);
+                })
+            );
+        });
+    }
+
+    /**
+     * Commits returned by a background registration that are newer than the commit the shard was opened from, delivered to the search
+     * engine as a new commit notification once it exists (see {@link #afterIndexShardRecovery}).
+     */
+    private final Map<IndexShard, NewCommitNotification> pendingRegistrationCommits = ConcurrentCollections.newConcurrentMap();
+
+    private void registerInBackground(IndexShard indexShard, CommitPointer pointer) {
+        recoveryCommitRegistrationHandler.register(
+            pointer.batchedCompoundCommitTermAndGeneration(),
+            pointer.compoundCommit().primaryTermAndGeneration(),
+            indexShard.shardId(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(RegisterCommitResponse response) {
+                    final var commit = response.getCompoundCommit();
+                    logger.debug(
+                        "{} fast activation: background registration done, indexing shard commit {}",
+                        indexShard.shardId(),
+                        commit == null ? "none" : commit.toShortDescription()
+                    );
+                    if (commit == null || commit.generation() <= pointer.compoundCommit().generation()) {
+                        return;
+                    }
+                    final var notification = new NewCommitNotification(
+                        commit,
+                        commit.getContainingBccBlobFile().termAndGeneration().generation(),
+                        response.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                        clusterService.state().version(),
+                        response.getNodeId()
+                    );
+                    pendingRegistrationCommits.put(indexShard, notification);
+                    if (indexShard.getEngineOrNull() instanceof SearchEngine) {
+                        deliverPendingRegistrationCommit(indexShard);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(() -> format("%s fast activation: background registration failed", indexShard.shardId()), e);
+                }
+            }
+        );
+    }
+
+    private void deliverPendingRegistrationCommit(IndexShard indexShard) {
+        final var notification = pendingRegistrationCommits.remove(indexShard);
+        if (notification != null && indexShard.getEngineOrNull() instanceof SearchEngine searchEngine) {
+            searchEngine.onCommitNotification(
+                notification,
+                ActionListener.wrap(
+                    ignored -> {},
+                    e -> logger.debug(() -> format("%s failed to apply commit from background registration", indexShard.shardId()), e)
+                )
+            );
+        }
     }
 
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
@@ -338,7 +497,17 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
     @Override
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         assert indexShard.routingEntry().isSearchable();
-        afterSearchShardRecovery(indexShard, listener);
+        afterSearchShardRecovery(indexShard, listener.delegateFailure((l, v) -> {
+            deliverPendingRegistrationCommit(indexShard);
+            l.onResponse(v);
+        }));
+    }
+
+    @Override
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null) {
+            pendingRegistrationCommits.remove(indexShard);
+        }
     }
 
     private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {

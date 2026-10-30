@@ -254,6 +254,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
+    /**
+     * The current file name to {@link BlobFileRanges} map of the directory (read-only view).
+     */
+    public Map<String, BlobFileRanges> getFileRangesByName() {
+        return Collections.unmodifiableMap(getCurrentMetadata());
+    }
+
     public Collection<BlobFileRanges> getBlobFileRanges() {
         return Collections.unmodifiableCollection(getCurrentMetadata().values());
     }

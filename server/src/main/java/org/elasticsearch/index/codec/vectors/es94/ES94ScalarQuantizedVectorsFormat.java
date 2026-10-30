@@ -21,6 +21,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -241,13 +242,18 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return getFloatVectorValues(field, DataAccessHint.RANDOM);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
             FloatVectorValues floatVectorValues = super.getFloatVectorValues(field);
             if (floatVectorValues == null) {
                 return null;
             }
             // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
             // raw vectors
-            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field));
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field, access));
         }
     }
 

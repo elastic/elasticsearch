@@ -79,8 +79,8 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
             assertThat(row.get(7).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(8).value, equalTo(localNode.getId()));
-            assertThat(row.get(70).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(71).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(71).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(72).value, equalTo(shardStats.getStatePath()));
         }
     }
 
@@ -100,6 +100,7 @@ public class RestShardsActionTests extends ESTestCase {
         assertThat(headers.get(34).value, equalTo("indexing.index_total"));
         assertThat(headers.get(35).value, equalTo("indexing.index_failed"));
         assertThat(headers.get(36).value, equalTo("indexing.index_failed_due_to_version_conflict"));
+        assertThat(headers.get(37).value, equalTo("indexing.index_failed_due_to_too_many_docs"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(shardRoutings.size()));
@@ -119,6 +120,7 @@ public class RestShardsActionTests extends ESTestCase {
                 row.get(36).value,
                 equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedDueToVersionConflictCount())
             );
+            assertThat(row.get(37).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedDueToTooManyDocsCount()));
         }
     }
 
@@ -140,6 +142,7 @@ public class RestShardsActionTests extends ESTestCase {
                 commonStats.indexing.add(
                     new IndexingStats(
                         new IndexingStats.Stats(
+                            randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),

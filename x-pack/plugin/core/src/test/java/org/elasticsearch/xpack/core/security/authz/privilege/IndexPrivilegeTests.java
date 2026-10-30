@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
@@ -226,6 +229,54 @@ public class IndexPrivilegeTests extends ESTestCase {
             assertThat(actual.name(), equalTo(Set.of("all", "read", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
+        }
+    }
+
+    /** Singleton unions rely on built-in privilege automata having already been minimized. */
+    public void testNamedPrivilegeAutomataAreMinimal() {
+        for (IndexPrivilege privilege : IndexPrivilege.values().values()) {
+            final Automaton automaton = privilege.getAutomaton();
+            assertTrue(privilege.name().toString(), automaton.isDeterministic());
+            final Automaton minimized = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            assertEquals(privilege.name().toString(), minimized.getNumStates(), automaton.getNumStates());
+        }
+    }
+
+    /** Each selector partition can reuse its single automaton while retaining a separate privilege wrapper. */
+    public void testReusesNamedAutomataAcrossSelectors() {
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(Set.of("read", "read_failure_store", "manage"));
+        assertThat(resolved, containsInAnyOrder(IndexPrivilege.READ, IndexPrivilege.READ_FAILURE_STORE, IndexPrivilege.MANAGE));
+        for (IndexPrivilege privilege : resolved) {
+            final IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege.name().iterator().next());
+            assertThat(privilege, not(sameInstance(named)));
+            assertThat(privilege.getAutomaton(), sameInstance(named.getAutomaton()));
+            assertThat(privilege.getSelectorPredicate(), equalTo(named.getSelectorPredicate()));
+        }
+    }
+
+    /** Raw actions produce one minimal automaton that can be reused without changing the granted actions. */
+    public void testReusesRawActionAutomata() {
+        Automatons.updateConfiguration(Settings.EMPTY);
+        try {
+            for (Set<String> actions : List.of(
+                Set.of("indices:data/read/search"),
+                Set.of("indices:data/read/search", "indices:data/read/field_caps")
+            )) {
+                final Automaton expected = Automatons.patterns(actions.stream().map(Privilege::actionToPattern).toList());
+                final IndexPrivilege resolved = resolvePrivilegeAndAssertSingleton(actions);
+                assertThat(resolved.name(), equalTo(actions));
+                assertThat(resolved.getAutomaton(), sameInstance(expected));
+                assertThat(resolved.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+                for (String action : actions) {
+                    assertTrue(resolved.predicate().test(action));
+                    assertTrue(resolved.predicate().test(action + "[s]"));
+                }
+                assertFalse(resolved.predicate().test("indices:data/write/index"));
+                assertFalse(resolved.predicate().test("indices:data/read/get"));
+                assertFalse(resolved.predicate().test("cluster:monitor/health"));
+            }
+        } finally {
+            Automatons.updateConfiguration(Settings.EMPTY);
         }
     }
 

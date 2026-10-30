@@ -692,7 +692,8 @@ public final class IndexPrivilege extends Privilege {
             names.addAll(actions);
             automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toList()));
         }
-        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
+        final Automaton automaton = automata.size() == 1 ? automata.iterator().next() : unionAndMinimize(automata);
+        return new IndexPrivilege(names, automaton, selectorPredicate);
     }
 
     static Map<String, IndexPrivilege> values() {

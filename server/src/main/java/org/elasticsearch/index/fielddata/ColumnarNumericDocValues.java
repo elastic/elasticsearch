@@ -61,8 +61,12 @@ public final class ColumnarNumericDocValues {
     }
 
     /**
-     * A column whose documents all hold one value is served as a singleton, as Lucene serves such a {@code SORTED_NUMERIC}
-     * field, so that readers keep their single-valued fast paths.
+     * A column whose documents all hold one value is served as a singleton, matching an optimization Lucene applies to a
+     * {@code SORTED_NUMERIC} field whose segment has at most one value per document. It isn't needed for correctness, since every
+     * reader also handles the multi-valued form, but readers branch on {@link DocValues#unwrapSingleton} for their single-valued
+     * fast paths (for example the ES|QL block loaders and {@code SingleValueMatchQuery}), and tests assert on which path ran, such
+     * as the {@code ...FromDocValues.Singleton} loader names that ES|QL profiles report. Serving the column the same way keeps
+     * those paths and expectations the same whichever layout stores the field.
      */
     private static SortedNumericDocValues adapt(BinaryDocValues binary) {
         if (binary instanceof ColumnarNumericBinaryDocValues column && column.singleValued()) {

@@ -126,6 +126,11 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+            return reader.getVectorCount(fieldInfo);
+        }
+
+        @Override
         public void close() throws IOException {
             reader.close();
         }

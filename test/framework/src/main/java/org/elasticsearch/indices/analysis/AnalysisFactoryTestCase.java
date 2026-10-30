@@ -384,6 +384,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         final Map<String, Object> base;
         final List<SettingCase> settings = new ArrayList<>();
         final Map<String, String> covered = new LinkedHashMap<>();
+        final List<FactorySettings> variants = new ArrayList<>();
         String probeText;
 
         private FactorySettings(boolean neverShares, Map<String, Object> base) {
@@ -415,6 +416,17 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         /** Text for the {@link #ignored} output check; defaults to a mixed-script corpus. */
         public FactorySettings probe(String text) {
             this.probeText = Objects.requireNonNull(text);
+            return this;
+        }
+
+        /**
+         * Probes further settings against a different base. For settings only some bases read, such as
+         * one encoder of several behind a single factory name, which cannot be declared against the
+         * primary base.
+         */
+        public FactorySettings alsoWith(FactorySettings variant) {
+            assert variant.variants.isEmpty() : "variants do not nest";
+            variants.add(variant);
             return this;
         }
     }
@@ -557,30 +569,42 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     continue;
                 }
                 assertSame(kind + " [" + type + "] two identical configurations must produce the same shared instance", reference, again);
-                for (SettingCase setting : decl.settings) {
-                    for (Object value : setting.values()) {
-                        Map<String, Object> varied = new LinkedHashMap<>(decl.base);
-                        varied.put(setting.name(), value);
-                        Analyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a").analyzer();
-                        String where = kind + " [" + type + "] setting [" + setting.name() + "]=" + value;
-                        if (setting.affectsInstance()) {
-                            assertNotSame(
-                                where + " must produce a distinct instance; it is not folded into sharingKey()",
-                                reference,
-                                other
-                            );
-                        } else {
-                            assertSame(where + " is declared ignored and must not change the instance, but it did", reference, other);
-                            // misclassification guard: must tokenize like an unshared build of the varied config
-                            Analyzer fresh = build(isolated, chainSettings(kind, type, varied), tracked).get("a").analyzer();
-                            String probe = decl.probeText != null ? decl.probeText : DEFAULT_PROBE_TEXT;
-                            assertEquals(
-                                where
-                                    + " is declared ignored, but a from-scratch build of that configuration tokenizes differently"
-                                    + " — fold the setting into sharingKey()",
-                                SharedAnalyzerTestCase.terms(reference, probe),
-                                SharedAnalyzerTestCase.terms(fresh, probe)
-                            );
+                List<FactorySettings> probes = new ArrayList<>();
+                probes.add(decl);
+                probes.addAll(decl.variants);
+                for (FactorySettings probe : probes) {
+                    Analyzer probeReference = probe == decl
+                        ? reference
+                        : build(registry, chainSettings(kind, type, probe.base), tracked).get("a").analyzer();
+                    for (SettingCase setting : probe.settings) {
+                        for (Object value : setting.values()) {
+                            Map<String, Object> varied = new LinkedHashMap<>(probe.base);
+                            varied.put(setting.name(), value);
+                            Analyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a").analyzer();
+                            String where = kind + " [" + type + "] base " + probe.base + " setting [" + setting.name() + "]=" + value;
+                            if (setting.affectsInstance()) {
+                                assertNotSame(
+                                    where + " must produce a distinct instance; it is not folded into sharingKey()",
+                                    probeReference,
+                                    other
+                                );
+                            } else {
+                                assertSame(
+                                    where + " is declared ignored and must not change the instance, but it did",
+                                    probeReference,
+                                    other
+                                );
+                                // misclassification guard: must tokenize like an unshared build of the varied config
+                                Analyzer fresh = build(isolated, chainSettings(kind, type, varied), tracked).get("a").analyzer();
+                                String probeText = probe.probeText != null ? probe.probeText : DEFAULT_PROBE_TEXT;
+                                assertEquals(
+                                    where
+                                        + " is declared ignored, but a from-scratch build of that configuration tokenizes differently"
+                                        + " — fold the setting into sharingKey()",
+                                    SharedAnalyzerTestCase.terms(probeReference, probeText),
+                                    SharedAnalyzerTestCase.terms(fresh, probeText)
+                                );
+                            }
                         }
                     }
                 }

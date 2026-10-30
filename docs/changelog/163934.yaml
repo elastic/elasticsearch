@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163934
+summary: Read METRICS_INFO fields from doc values
+type: enhancement

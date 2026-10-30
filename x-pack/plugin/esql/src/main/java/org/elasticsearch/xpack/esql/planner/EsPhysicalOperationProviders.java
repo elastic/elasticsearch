@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -155,6 +156,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * Convert a {@link QueryBuilder} into a real {@link Query lucene query}.
          */
         public abstract Query toQuery(QueryBuilder queryBuilder);
+
+        /**
+         * A {@link Query lucene query} for the documents that have a value for {@code fieldName}. Unlike {@link #toQuery}
+         * it leaves the state of the shard's search context alone, so drivers can call it while they run.
+         */
+        public abstract Query existsQuery(String fieldName);
 
         public abstract IndexSettings indexSettings();
 
@@ -797,7 +804,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            targetChunkRows
+            targetChunkRows,
+            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold())
         );
     }
 
@@ -879,6 +887,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     .build();
             }
             return query;
+        }
+
+        @Override
+        public Query existsQuery(String fieldName) {
+            MappedFieldType fieldType = fieldType(fieldName);
+            return fieldType == null ? new MatchNoDocsQuery("unmapped field [" + fieldName + "]") : fieldType.existsQuery(ctx);
         }
 
         @Override

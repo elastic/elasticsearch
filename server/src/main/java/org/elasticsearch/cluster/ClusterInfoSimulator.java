@@ -194,9 +194,11 @@ public class ClusterInfoSimulator {
             if (routingNode == null || routingNode.node() == null) {
                 continue;
             }
-            final var roles = routingNode.node().getRoles();
+            if (routingNode.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+                continue;
+            }
             final long nodeNonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
-            assert roles.contains(DiscoveryNodeRole.INDEX_ROLE) && nodeNonShardHeapUsage == nonShardHeapUsage
+            assert nodeNonShardHeapUsage == nonShardHeapUsage
                 : "indexing node ["
                     + metrics.nodeId()
                     + "] has nonShardHeapUsage ["
@@ -217,9 +219,11 @@ public class ClusterInfoSimulator {
             if (routingNode == null || routingNode.node() == null) {
                 continue;
             }
-            final var roles = routingNode.node().getRoles();
+            if (routingNode.node().getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) == false) {
+                continue;
+            }
             final long nodeNonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
-            assert roles.contains(DiscoveryNodeRole.SEARCH_ROLE) && nodeNonShardHeapUsage != 0L
+            assert nodeNonShardHeapUsage == 0L
                 : "search node [" + metrics.nodeId() + "] has nonShardHeapUsage [" + nodeNonShardHeapUsage + "]";
         }
         return true;

@@ -56,17 +56,28 @@ final class PasswordBasedEncryption {
      * salt prefix followed by the {@link AesGcm#encrypt} output so {@link #unwrap} can recover the original PEK given the same password.
      */
     static EncryptedData wrap(byte[] plaintextPek, String passwordId, char[] password) {
-        byte[] salt = new byte[SALT_LENGTH_BYTES];
-        SECURE_RANDOM.nextBytes(salt);
+        byte[] salt = generateSalt();
+        return wrapWithKek(plaintextPek, passwordId, deriveKek(password, salt), salt);
+    }
 
-        SecretKey kek = deriveKek(password, salt);
-        byte[] inner = AesGcm.encrypt(kek, plaintextPek);
-
+    /**
+     * Wraps the given plaintext under a pre-derived KEK and a caller-supplied salt. Use this when wrapping multiple values in one
+     * snapshot so PBKDF2 is paid only once; all values share the same salt, which is safe within a single snapshot.
+     */
+    static EncryptedData wrapWithKek(byte[] plaintext, String passwordId, SecretKey kek, byte[] salt) {
+        byte[] inner = AesGcm.encrypt(kek, plaintext);
         byte[] payload = new byte[1 + SALT_LENGTH_BYTES + inner.length];
         payload[VERSION_OFFSET] = KDF_FORMAT_VERSION;
         System.arraycopy(salt, 0, payload, SALT_OFFSET, SALT_LENGTH_BYTES);
         System.arraycopy(inner, 0, payload, SALT_OFFSET + SALT_LENGTH_BYTES, inner.length);
         return new EncryptedData(passwordId, payload);
+    }
+
+    /** Generates a fresh random salt suitable for {@link #wrapWithKek}. */
+    static byte[] generateSalt() {
+        byte[] salt = new byte[SALT_LENGTH_BYTES];
+        SECURE_RANDOM.nextBytes(salt);
+        return salt;
     }
 
     /**
@@ -93,7 +104,7 @@ final class PasswordBasedEncryption {
         }
     }
 
-    private static SecretKey deriveKek(char[] password, byte[] salt) {
+    static SecretKey deriveKek(char[] password, byte[] salt) {
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
             PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, KEK_LENGTH_BITS);

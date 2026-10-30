@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 87153
+pr: 161964
+summary: Return null for coerced empty strings on numeric fields in the `fields` API
+type: bug

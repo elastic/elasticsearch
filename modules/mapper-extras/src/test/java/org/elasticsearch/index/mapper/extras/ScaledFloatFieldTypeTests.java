@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -308,5 +309,48 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(2.71), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    /**
+     * An empty string in {@code _source} is indexed as {@code null} when {@code coerce} is enabled, so the fields API
+     * returns the {@code null_value} or nothing for it and does not report it as ignored. With {@code coerce} disabled
+     * the empty string is malformed, so the fields API reports it as ignored.
+     */
+    public void testFetchEmptyStringSourceValue() throws IOException {
+        List<Object> ignored = new ArrayList<>();
+        MappedFieldType coerceMapper = scaledFloatFieldType(null, true);
+        assertEquals(List.of(), fetchSourceValue(coerceMapper, "", null, ignored));
+        assertEquals(List.of(), ignored);
+        assertEquals(List.of(1.5, 2.25), fetchSourceValue(coerceMapper, List.of(1.5, "", 2.25), null, ignored));
+        assertEquals(List.of(), ignored);
+
+        MappedFieldType coerceNullValueMapper = scaledFloatFieldType(2.71, true);
+        assertEquals(List.of(2.71), fetchSourceValue(coerceNullValueMapper, "", null, ignored));
+        assertEquals(List.of(), ignored);
+
+        MappedFieldType strictMapper = scaledFloatFieldType(null, false);
+        assertEquals(List.of(), fetchSourceValue(strictMapper, "", null, ignored));
+        assertEquals(List.of(""), ignored);
+
+        MappedFieldType strictNullValueMapper = scaledFloatFieldType(2.71, false);
+        ignored.clear();
+        assertEquals(List.of(), fetchSourceValue(strictNullValueMapper, "", null, ignored));
+        assertEquals(List.of(""), ignored);
+        assertEquals(List.of(2.71), fetchSourceValue(strictNullValueMapper, null));
+    }
+
+    private static MappedFieldType scaledFloatFieldType(Double nullValue, boolean coerce) {
+        return new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "field",
+            IndexType.points(true, true),
+            false,
+            Collections.emptyMap(),
+            100,
+            nullValue,
+            null,
+            null,
+            coerce,
+            false
+        );
     }
 }

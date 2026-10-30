@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -413,6 +414,31 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             "18446744073709551615"
         ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    /**
+     * An empty string in {@code _source} is always indexed as {@code null}, so the fields API returns the
+     * {@code null_value} or nothing for it and does not report it as ignored.
+     */
+    public void testFetchEmptyStringSourceValue() throws IOException {
+        List<Object> ignored = new ArrayList<>();
+        MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", defaultIndexSettings()).build(
+            MapperBuilderContext.root(false, false)
+        ).fieldType();
+        assertEquals(List.of(), fetchSourceValue(mapper, "", null, ignored));
+        assertEquals(List.of(), ignored);
+        assertEquals(List.of(1L, 2L), fetchSourceValue(mapper, List.of(1L, "", 2L), null, ignored));
+        assertEquals(List.of(), ignored);
+        assertEquals(List.of(), fetchSourceValue(mapper, "-1", null, ignored));
+        assertEquals(List.of("-1"), ignored);
+
+        MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", defaultIndexSettings()).nullValue("42")
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
+        ignored.clear();
+        assertEquals(List.of(42L), fetchSourceValue(nullValueMapper, "", null, ignored));
+        assertEquals(List.of(), ignored);
+        assertEquals(List.of(42L), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testDocValueReadEstimators() throws IOException {

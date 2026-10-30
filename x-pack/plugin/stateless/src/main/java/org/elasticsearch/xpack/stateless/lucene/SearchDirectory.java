@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -109,6 +110,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * cache range size. Set by the fast activation path (see {@code FastSearchActivationSettings}).
      */
     private volatile long objectStoreRangeSizeOverride = -1L;
+    /**
+     * How cache misses on vector files fill the cache, or {@code null} for the default. Set by the fast activation path together with
+     * {@link #objectStoreRangeSizeOverride} (see {@code FastSearchActivationSettings}).
+     */
+    @Nullable
+    private volatile VectorFillPolicy vectorFillPolicy;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -486,6 +493,22 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     public void setObjectStoreRangeSizeOverride(long rangeSize) {
         assert rangeSize > 0 : rangeSize;
         this.objectStoreRangeSizeOverride = Math.min(rangeSize, cacheService.getRangeSize());
+    }
+
+    /**
+     * Makes cache misses on vector files of this directory fill the cache according to {@code policy} (see {@link VectorFillPolicy}).
+     * The range size of the policy is capped at the cache range size. Applies to inputs opened afterwards.
+     */
+    public void setVectorFillPolicy(VectorFillPolicy policy) {
+        this.vectorFillPolicy = new VectorFillPolicy(
+            Math.min(policy.rangeSize(), cacheService.getRangeSize()),
+            policy.wholeFileOnMissMaxBytes()
+        );
+    }
+
+    @Override
+    protected VectorFillPolicy vectorFillPolicy() {
+        return vectorFillPolicy;
     }
 
     private long objectStoreRangeSize() {

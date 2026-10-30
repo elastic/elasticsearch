@@ -273,6 +273,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
+    /**
+     * Whether the fetch phase asks every segment to prefetch the stored fields of all the hits before loading the first one, so that a
+     * directory backed by a remote store (e.g. a cold stateless search shard) fetches them concurrently instead of one hit after the
+     * other. Off by default ("cheap shards" prototype).
+     */
+    public static final Setting<Boolean> FETCH_PHASE_PREFETCH_STORED_FIELDS = Setting.boolSetting(
+        "search.fetch_phase.prefetch_stored_fields.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
         true,
@@ -563,6 +575,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_ENABLED, this::setEnableFetchPhaseChunked);
+        fetchPhase.setPrefetchStoredFields(FETCH_PHASE_PREFETCH_STORED_FIELDS.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(FETCH_PHASE_PREFETCH_STORED_FIELDS, fetchPhase::setPrefetchStoredFields);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS, this::setFetchPhaseMaxInFlightChunks);
         clusterService.getClusterSettings()

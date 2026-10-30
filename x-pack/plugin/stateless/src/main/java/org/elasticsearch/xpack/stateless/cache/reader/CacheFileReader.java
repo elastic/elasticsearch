@@ -25,6 +25,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
@@ -107,6 +108,14 @@ public class CacheFileReader {
      * by the index input that owns this reader, and carried on to its copies.
      */
     private PluggableDirectoryMetricsHolder<StoreMetrics> storeMetrics = StoreMetrics.NOOP_HOLDER;
+    /**
+     * Fill policy for vector files of a cold shard, carried on to copies so that sub-files of a compound file can apply it, or
+     * {@code null}. See {@link #applyVectorFillPolicy(String)}.
+     */
+    @Nullable
+    private VectorFillPolicy vectorFillPolicy;
+    /** Whether this reader reads a vector file to which {@link #vectorFillPolicy} applies. */
+    private boolean vectorFile;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -216,6 +225,8 @@ public class CacheFileReader {
             objectStorePrefetchEnabled
         );
         copy.storeMetrics = storeMetrics.singleThreaded();
+        copy.vectorFillPolicy = vectorFillPolicy;
+        copy.vectorFile = vectorFile;
         return copy;
     }
 
@@ -255,7 +266,51 @@ public class CacheFileReader {
             objectStorePrefetchEnabled
         );
         copy.storeMetrics = storeMetrics.singleThreaded();
+        // the sub-file decides for itself whether it is a vector file, see applyVectorFillPolicy
+        copy.vectorFillPolicy = vectorFillPolicy;
         return copy;
+    }
+
+    /**
+     * Installs the fill policy for vector files of a cold shard on this (new, not yet shared) reader. Must be called right after
+     * creating the reader of a top-level file, with the policy of the directory.
+     */
+    public CacheFileReader withVectorFillPolicy(@Nullable VectorFillPolicy policy, String fileName) {
+        this.vectorFillPolicy = policy;
+        return applyVectorFillPolicy(fileName);
+    }
+
+    /**
+     * Applies the vector fill policy carried by this (new, not yet shared) reader to the file it reads: called with the file name of
+     * a top-level file, or of a sub-file of a compound file (after {@link #copyWithContext}).
+     */
+    public CacheFileReader applyVectorFillPolicy(String fileName) {
+        this.vectorFile = vectorFillPolicy != null && VectorFillPolicy.isVectorFile(fileName);
+        return this;
+    }
+
+    /**
+     * Whether a first cache miss on an input of {@code length} bytes read by this reader should prefetch the whole input, see
+     * {@link VectorFillPolicy}.
+     */
+    public boolean prefetchWholeInputOnMiss(long length) {
+        return isVectorSearchRead() && objectStorePrefetchEnabled && length <= vectorFillPolicy.wholeFileOnMissMaxBytes();
+    }
+
+    /**
+     * Whether this is a read of a vector file to which the vector fill policy applies, made by a search: reads of the same files
+     * while opening the reader (headers, footers, checksums) keep small fills.
+     */
+    private boolean isVectorSearchRead() {
+        return vectorFile && SEARCH.equals(EsExecutors.executorName(Thread.currentThread()));
+    }
+
+    // package-private for testing
+    ByteRange getRangeToWrite(long position, int length, long remainingFileLength) {
+        if (isVectorSearchRead() && vectorFillPolicy.rangeSize() > 0) {
+            return cacheBlobReader.getRange(position, length, remainingFileLength, vectorFillPolicy.rangeSize());
+        }
+        return cacheBlobReader.getRange(position, length, remainingFileLength);
     }
 
     /**
@@ -393,7 +448,7 @@ public class CacheFileReader {
         int attempt,
         ActionListener<Integer> listener
     ) {
-        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+        final ByteRange rangeToWrite = getRangeToWrite(offset, intLength, remainingFileLength);
         cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
             channel.prefetch(channelPos, len);
             return len;
@@ -549,7 +604,7 @@ public class CacheFileReader {
             assert length <= remainingFileLength : length + " > " + remainingFileLength;
             assert remainingFileLength >= endOfInput - position
                 : "cache file length smaller than file length " + cacheFile.getLength() + " < " + endOfInput;
-            final ByteRange rangeToWrite = cacheBlobReader.getRange(position, length, remainingFileLength);
+            final ByteRange rangeToWrite = getRangeToWrite(position, length, remainingFileLength);
 
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;

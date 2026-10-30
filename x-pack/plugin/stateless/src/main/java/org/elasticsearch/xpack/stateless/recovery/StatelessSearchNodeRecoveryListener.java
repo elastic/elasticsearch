@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSett
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -114,6 +115,10 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         final long rangeSize = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING).getBytes();
         final long wholeBlobThreshold = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING)
             .getBytes();
+        final var vectorFillPolicy = new VectorFillPolicy(
+            clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING).getBytes(),
+            clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING).getBytes()
+        );
         final var fallback = new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -153,6 +158,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                         );
                         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
                         searchDirectory.setObjectStoreRangeSizeOverride(rangeSize);
+                        searchDirectory.setVectorFillPolicy(vectorFillPolicy);
                         searchDirectory.updateLatestUploadedBcc(response.getLatestUploadedBatchedCompoundCommitTermAndGen());
                         searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), response.getNodeId());
                         searchDirectory.updateCommit(compoundCommit);

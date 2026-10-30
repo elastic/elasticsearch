@@ -41,6 +41,11 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
         return BlobCacheUtils.computeRange(cacheRangeSize, position, length);
     }
 
+    @Override
+    public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+        return BlobCacheUtils.computeRange(Math.max(cacheRangeSize, minRangeSize), position, length);
+    }
+
     protected InputStream getRangeInputStream(long position, int length) throws IOException {
         try {
             return blobContainer.readBlob(OperationPurpose.INDICES, blobName, position, length);

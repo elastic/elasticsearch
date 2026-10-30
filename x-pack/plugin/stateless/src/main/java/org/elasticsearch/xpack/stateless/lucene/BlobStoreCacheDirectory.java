@@ -31,6 +31,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
+import org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -455,8 +456,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             context,
             cacheService.hasSearchRole(),
             cacheService.isObjectStorePrefetchEnabled()
-        );
+        ).withVectorFillPolicy(vectorFillPolicy(), name);
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
+    }
+
+    /**
+     * @return how this directory fills the cache for vector files, or {@code null} to fill them like any other file
+     */
+    @Nullable
+    protected VectorFillPolicy vectorFillPolicy() {
+        return null;
     }
 
     /**

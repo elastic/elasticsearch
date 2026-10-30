@@ -26,7 +26,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  *     in parallel and before opening the reader, only what opening the reader needs: whole blobs up to
  *     {@link #FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING} bytes, and the headers, footers and metadata files of the other blobs;</li>
  *     <li>fills the cache on demand (cache misses and the prefetch above) with ranges of {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}
- *     bytes instead of whole cache regions.</li>
+ *     bytes instead of whole cache regions, except for vector files: their cache misses fill ranges of at least
+ *     {@link #FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING} bytes, and the first cache miss on a vector file (or a slice of it) of at most
+ *     {@link #FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING} bytes prefetches all of it (see
+ *     {@link org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy}).</li>
  * </ol>
  * The settings are read when the search shard starts recovering. Disabled by default.
  */
@@ -61,6 +64,27 @@ public final class FastSearchActivationSettings {
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING = Setting.byteSizeSetting(
         "stateless.cheap_shard.fast_activation.whole_blob_threshold",
         ByteSizeValue.ofMb(4),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Minimum size of the cache fills of vector files on the fast activation path (capped at the cache range size), {@code 0} to fill
+     * them like the other files with {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}.
+     */
+    public static final Setting<ByteSizeValue> FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        "stateless.cheap_shard.fast_activation.vector_range_size",
+        ByteSizeValue.ofMb(16),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Largest vector file (or slice of one) that the fast activation path prefetches whole on its first cache miss, {@code 0} to disable.
+     */
+    public static final Setting<ByteSizeValue> FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING = Setting.byteSizeSetting(
+        "stateless.cheap_shard.fast_activation.vector_whole_file_max",
+        ByteSizeValue.ofMb(64),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

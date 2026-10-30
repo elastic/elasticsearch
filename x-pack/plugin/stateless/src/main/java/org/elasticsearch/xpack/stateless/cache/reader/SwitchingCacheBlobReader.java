@@ -60,6 +60,15 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+        if (latestUploadInfo.isUploaded()) {
+            return cacheBlobReaderForUploaded.getRange(position, length, remainingFileLength, minRangeSize);
+        } else {
+            return cacheBlobReaderForNonUploaded.getRange(position, length, remainingFileLength, minRangeSize);
+        }
+    }
+
+    @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         if (latestUploadInfo.isUploaded()) {
             cacheBlobReaderForUploaded.getRangeInputStream(position, length, listener);

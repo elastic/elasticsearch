@@ -12,6 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -37,6 +40,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -68,6 +72,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -124,14 +129,19 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
      * ({@link FastSearchActivationSettings}) with the given first-fill range size.
      */
     enum Mode {
-        BASE(null),
-        FAST_128K("128kb"),
-        FAST_1M("1mb");
+        BASE(null, false),
+        FAST_128K("128kb", false),
+        FAST_1M("1mb", false),
+        // step 3: fast activation + parallel first-query reads (vector fill policy, fetch-phase stored fields prefetch)
+        PAR_128K("128kb", true),
+        PAR_1M("1mb", true);
 
         final String rangeSize;
+        final boolean parallel;
 
-        Mode(String rangeSize) {
+        Mode(String rangeSize, boolean parallel) {
             this.rangeSize = rangeSize;
+            this.parallel = parallel;
         }
     }
 
@@ -234,8 +244,360 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
+    // step 3: several cold shards activated at once while queries run at a steady rate
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    private static final int CONCURRENT_SHARDS = 6;
+
+    record Sample(boolean hot, QueryType q, long start, long end, boolean full, boolean failed) {}
+
+    /**
+     * Step-3 scenario (not a feature test). One index with {@link #CONCURRENT_SHARDS} shards (hollow indexing shards, no search copy,
+     * cache evicted) gets a search copy of every shard at once while an open-loop client sends MATCH and KNN queries to it and MATCH
+     * queries to a warm "hot" index on the same search node, at a fixed rate. Reports, per activation mode, the time to the first query
+     * on the cold index with all shards successful, latency percentiles of cold and hot queries, and the search pool's active threads and
+     * queue sampled every 10 ms. Options: {@code -Dtests.sweep.modes}, {@code -Dtests.sweep.latencies}, {@code -Dtests.sweep.reps},
+     * {@code -Dtests.concurrent.docs} (default 300000), {@code -Dtests.concurrent.qps} (cold and hot each, default 20).
+     */
+    public void testConcurrentActivation() throws Exception {
+        final int docs = Integer.getInteger("tests.concurrent.docs", 300_000);
+        final int qps = Integer.getInteger("tests.concurrent.qps", 20);
+        final Profile p = new Profile(
+            "concurrent",
+            docs,
+            "2gb",
+            true,
+            1,
+            true,
+            List.of(Mode.BASE, Mode.FAST_1M, Mode.PAR_1M),
+            new int[] { 100 }
+        );
+        final Random rnd = new Random(42);
+        vocabulary = new String[VOCABULARY];
+        for (int i = 0; i < VOCABULARY; i++) {
+            StringBuilder sb = new StringBuilder();
+            int len = 3 + rnd.nextInt(8);
+            for (int j = 0; j < len; j++) {
+                sb.append((char) ('a' + rnd.nextInt(26)));
+            }
+            vocabulary[i] = sb.toString() + i;
+        }
+        final String master = startMasterOnlyNode();
+        final Settings cache = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "16mb")
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), "16mb")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), p.cacheSize())
+            .build();
+        final String indexNodeA = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(cache).build()
+        );
+        final String indexNodeB = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(cache).build()
+        );
+        final String searchNode = startSearchNode(
+            Settings.builder().put(cache).put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 8).build()
+        );
+        ensureStableCluster(4);
+        final List<String> nodes = List.of(master, indexNodeA, indexNodeB, searchNode);
+        ActivationLatencyIT.knownNodes = nodes;
+        final Map<String, ActivationLatencyIT.LatencyStore> stores = new HashMap<>();
+        for (String n : nodes) {
+            var st = new ActivationLatencyIT.LatencyStore(n);
+            stores.put(n, st);
+            setNodeRepositoryStrategy(n, st);
+        }
+
+        final String cold = "cold";
+        final String hot = "hot";
+        org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked(
+            prepareCreate(cold).setSettings(
+                indexSettings(CONCURRENT_SHARDS, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeB)
+            ).setMapping(mapping(p))
+        );
+        org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked(
+            prepareCreate(hot).setSettings(indexSettings(1, 1).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeB))
+                .setMapping(mapping(p))
+        );
+        ensureGreen(cold, hot);
+        long tl = System.nanoTime();
+        final int perRound = docs / ROUNDS;
+        int nextId = 0;
+        for (int r = 0; r < ROUNDS; r++) {
+            List<Integer> batchIds = new ArrayList<>();
+            int n = r == ROUNDS - 1 ? docs - nextId : perRound;
+            for (int i = 0; i < n; i++) {
+                batchIds.add(nextId++);
+            }
+            bulk(cold, batchIds, p, rnd);
+            flush(cold);
+        }
+        List<Integer> hotIds = new ArrayList<>();
+        for (int i = 0; i < 10_000; i++) {
+            hotIds.add(i);
+        }
+        bulk(hot, hotIds, p, rnd);
+        flush(hot);
+        refresh(hot);
+        for (int i = 0; i < 2; i++) {
+            assertBusy(
+                () -> assertThat(indicesAdmin().prepareStats(cold).setMerge(true).get().getTotal().getMerge().getCurrent(), equalTo(0L)),
+                5,
+                TimeUnit.MINUTES
+            );
+            flush(cold);
+        }
+        final Index coldIndex = resolveIndex(cold);
+        final Inventory inv = inventory(cold, coldIndex);
+        log(
+            "concurrent loaded %d docs in %d ms; cold index shard 0 size=%s blobs=%d segments=%d",
+            docs,
+            ms(System.nanoTime() - tl),
+            mb(inv.bytes),
+            inv.blobs,
+            inv.segments
+        );
+        hollowShards(cold, CONCURRENT_SHARDS, indexNodeA, indexNodeB);
+
+        final float[] qv = vector(new Random(7));
+        final String word = vocabulary[17];
+        final ThreadPool searchThreadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
+        final List<Mode> modes = filter(p.modes(), "tests.sweep.modes");
+        final List<Integer> latencies = filter(java.util.Arrays.stream(p.latencies()).boxed().toList(), "tests.sweep.latencies");
+        final int reps = Integer.getInteger("tests.sweep.reps", 1);
+        try {
+            for (int rep = 1; rep <= reps; rep++) {
+                for (int latency : latencies) {
+                    for (Mode mode : modes) {
+                        for (String n : nodes) {
+                            stores.get(n).configure(0, 0);
+                        }
+                        assertBusy(() -> assertThat(indexService(searchNode, coldIndex), nullValue()));
+                        setFastActivation(mode);
+                        for (String n : List.of(indexNodeA, indexNodeB, searchNode)) {
+                            cacheService(n).forceEvict(k -> k.shardId().getIndex().equals(coldIndex));
+                        }
+                        // warm the hot index
+                        for (int i = 0; i < 5; i++) {
+                            query(searchNode, hot, QueryType.MATCH, word, qv).get().decRef();
+                        }
+                        Thread.sleep(1000);
+                        for (String n : nodes) {
+                            stores.get(n).configure(latency, BANDWIDTH_BYTES_PER_SEC);
+                        }
+
+                        final ConcurrentLinkedQueue<Sample> samples = new ConcurrentLinkedQueue<>();
+                        final List<int[]> poolSamples = java.util.Collections.synchronizedList(new ArrayList<>());
+                        final java.util.concurrent.ScheduledExecutorService scheduler = java.util.concurrent.Executors
+                            .newScheduledThreadPool(2);
+                        final java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger();
+                        final java.util.concurrent.atomic.AtomicLong activatedAt = new java.util.concurrent.atomic.AtomicLong();
+                        final long periodMicros = 1_000_000L / (2L * qps);
+                        scheduler.scheduleAtFixedRate(() -> {
+                            final int i = seq.getAndIncrement();
+                            final boolean isHot = (i & 1) == 0;
+                            final QueryType q = isHot ? QueryType.MATCH : ((i >> 1) & 1) == 0 ? QueryType.MATCH : QueryType.KNN;
+                            final long start = System.nanoTime();
+                            query(searchNode, isHot ? hot : cold, q, word, qv).execute(new org.elasticsearch.action.ActionListener<>() {
+                                @Override
+                                public void onResponse(SearchResponse r) {
+                                    boolean full = r.getFailedShards() == 0 && r.getSuccessfulShards() == r.getTotalShards();
+                                    samples.add(new Sample(isHot, q, start, System.nanoTime(), full, false));
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    samples.add(new Sample(isHot, q, start, System.nanoTime(), false, true));
+                                }
+                            });
+                        }, 0, periodMicros, TimeUnit.MICROSECONDS);
+                        scheduler.scheduleAtFixedRate(() -> {
+                            for (var st : searchThreadPool.stats()) {
+                                if (st.name().equals(ThreadPool.Names.SEARCH)) {
+                                    long a = activatedAt.get();
+                                    poolSamples.add(new int[] { a == 0 ? 0 : 1, st.active(), st.queue() });
+                                }
+                            }
+                        }, 0, 10, TimeUnit.MILLISECONDS);
+
+                        Thread.sleep(2000);
+                        final long t0 = System.nanoTime();
+                        activatedAt.set(t0);
+                        client(master).admin()
+                            .indices()
+                            .prepareUpdateSettings(cold)
+                            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                            .get();
+                        // run until the cold index answered fully (at most 60 s: under overload it may never), then 8 more seconds
+                        final long deadline = t0 + TimeUnit.SECONDS.toNanos(60);
+                        while (System.nanoTime() < deadline
+                            && samples.stream().noneMatch(sm -> sm.hot() == false && sm.full() && sm.start() > t0)) {
+                            Thread.sleep(20);
+                        }
+                        final long firstFull = samples.stream()
+                            .filter(sm -> sm.hot() == false && sm.full() && sm.start() > t0)
+                            .mapToLong(Sample::end)
+                            .min()
+                            .orElse(t0 - 1_000_000L); // reported as -1 ms: no full answer within 60 s
+                        Thread.sleep(8000);
+                        final long tEnd = System.nanoTime();
+                        scheduler.shutdown();
+                        assertTrue(scheduler.awaitTermination(10, TimeUnit.SECONDS));
+                        Thread.sleep(3000); // let in-flight queries finish
+
+                        List<Sample> all = new ArrayList<>(samples);
+                        String tag = String.format(Locale.ROOT, "concurrent mode=%s rep=%d L=%d qps=%d+%d", mode, rep, latency, qps, qps);
+                        log(
+                            "%s first full cold hit %d ms after activation | cold MATCH full after activation: %s | cold KNN full after "
+                                + "activation: %s | cold partial/failed after activation: %d/%d | hot before: %s | hot after activation: %s",
+                            tag,
+                            ms(firstFull - t0),
+                            pct(
+                                all,
+                                sm -> sm.hot() == false && sm.q() == QueryType.MATCH && sm.full() && sm.start() > t0 && sm.start() < tEnd
+                            ),
+                            pct(
+                                all,
+                                sm -> sm.hot() == false && sm.q() == QueryType.KNN && sm.full() && sm.start() > t0 && sm.start() < tEnd
+                            ),
+                            all.stream()
+                                .filter(sm -> sm.hot() == false && sm.start() > t0 && sm.full() == false && sm.failed() == false)
+                                .count(),
+                            all.stream().filter(sm -> sm.hot() == false && sm.start() > t0 && sm.failed()).count(),
+                            pct(all, sm -> sm.hot() && sm.start() < t0),
+                            pct(all, sm -> sm.hot() && sm.start() > t0 && sm.start() < tEnd)
+                        );
+                        int maxActive = 0;
+                        int maxQueue = 0;
+                        long sumActive = 0;
+                        int nAfter = 0;
+                        int saturated = 0;
+                        int poolSize = searchThreadPool.info(ThreadPool.Names.SEARCH).getMax();
+                        synchronized (poolSamples) {
+                            for (int[] ps : poolSamples) {
+                                if (ps[0] == 1) {
+                                    maxActive = Math.max(maxActive, ps[1]);
+                                    maxQueue = Math.max(maxQueue, ps[2]);
+                                    sumActive += ps[1];
+                                    nAfter++;
+                                    if (ps[1] >= poolSize) {
+                                        saturated++;
+                                    }
+                                }
+                            }
+                        }
+                        log(
+                            "%s search pool (size %d) after activation: max active=%d mean active=%.1f max queue=%d saturated=%.0f%% of %d samples",
+                            tag,
+                            poolSize,
+                            maxActive,
+                            nAfter == 0 ? 0.0 : (double) sumActive / nAfter,
+                            maxQueue,
+                            nAfter == 0 ? 0.0 : 100.0 * saturated / nAfter,
+                            nAfter
+                        );
+                        LOG.info(
+                            "NLCCSV|"
+                                + String.format(
+                                    Locale.ROOT,
+                                    "%s,%d,%d,%d,%d,%s,%s,%s,%s,%d,%.1f,%d,%.1f",
+                                    mode,
+                                    rep,
+                                    latency,
+                                    qps,
+                                    ms(firstFull - t0),
+                                    pct(
+                                        all,
+                                        sm -> sm.hot() == false
+                                            && sm.q() == QueryType.MATCH
+                                            && sm.full()
+                                            && sm.start() > t0
+                                            && sm.start() < tEnd
+                                    ).replace(' ', ';'),
+                                    pct(
+                                        all,
+                                        sm -> sm.hot() == false
+                                            && sm.q() == QueryType.KNN
+                                            && sm.full()
+                                            && sm.start() > t0
+                                            && sm.start() < tEnd
+                                    ).replace(' ', ';'),
+                                    pct(all, sm -> sm.hot() && sm.start() < t0).replace(' ', ';'),
+                                    pct(all, sm -> sm.hot() && sm.start() > t0 && sm.start() < tEnd).replace(' ', ';'),
+                                    maxActive,
+                                    nAfter == 0 ? 0.0 : (double) sumActive / nAfter,
+                                    maxQueue,
+                                    nAfter == 0 ? 0.0 : 100.0 * saturated / nAfter
+                                )
+                        );
+
+                        for (String n : nodes) {
+                            stores.get(n).configure(0, 0);
+                        }
+                        setReplicaCount(0, cold);
+                        assertBusy(() -> assertThat(indexService(searchNode, coldIndex), nullValue()));
+                    }
+                }
+            }
+            setFastActivation(Mode.BASE);
+        } finally {
+            for (String n : nodes) {
+                setNodeRepositoryStrategy(n, StatelessMockRepositoryStrategy.DEFAULT);
+            }
+        }
+    }
+
+    /** "n=N p50=X p99=Y max=Z" (ms) of the samples matching {@code p}. */
+    private static String pct(List<Sample> all, Predicate<Sample> p) {
+        long[] l = all.stream().filter(p).mapToLong(sm -> ms(sm.end() - sm.start())).sorted().toArray();
+        if (l.length == 0) {
+            return "n=0";
+        }
+        return String.format(
+            Locale.ROOT,
+            "n=%d p50=%d p99=%d max=%d",
+            l.length,
+            l[(int) Math.floor(0.5 * (l.length - 1))],
+            l[(int) Math.floor(0.99 * (l.length - 1))],
+            l[l.length - 1]
+        );
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
 
     private String[] vocabulary;
+
+    /**
+     * Optional subset filters for long profiles: {@code -Dtests.sweep.modes=FAST_1M,...}, {@code -Dtests.sweep.latencies=100},
+     * {@code -Dtests.sweep.queries=MATCH,KNN}, {@code -Dtests.sweep.reps=1}. {@code -Dtests.sweep.trace=true} also prints every
+     * cold read and prefetch of the first query (BlobCacheIndexInput TRACE) with its thread.
+     */
+    private static <T> List<T> filter(List<T> all, String prop) {
+        String v = System.getProperty(prop);
+        if (v == null || v.isBlank()) {
+            return all;
+        }
+        Set<String> keep = Set.of(v.split(","));
+        return all.stream().filter(t -> keep.contains(t.toString())).toList();
+    }
+
+    private static final boolean TRACE_READS = Boolean.getBoolean("tests.sweep.trace");
+
+    record TraceEv(long t, String thread, String msg) {}
+
+    static final ConcurrentLinkedQueue<TraceEv> TRACES = new ConcurrentLinkedQueue<>();
+
+    static final class TraceCapture extends AbstractAppender {
+        TraceCapture() {
+            super("sweep-trace", null, null, true, Property.EMPTY_ARRAY);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            if (ActivationLatencyIT.recording) {
+                TRACES.add(new TraceEv(System.nanoTime(), event.getThreadName(), event.getMessage().getFormattedMessage()));
+            }
+        }
+    }
 
     private void run(Profile p) throws Exception {
         final Random rnd = new Random(42);
@@ -344,17 +706,28 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         }
         installProbes(searchNode);
 
-        final List<QueryType> queries = p.knn()
-            ? List.of(QueryType.MATCH, QueryType.SORT, QueryType.KNN)
-            : List.of(QueryType.MATCH, QueryType.SORT);
+        final List<QueryType> queries = filter(
+            p.knn() ? List.of(QueryType.MATCH, QueryType.SORT, QueryType.KNN) : List.of(QueryType.MATCH, QueryType.SORT),
+            "tests.sweep.queries"
+        );
+        final List<Mode> modes = filter(p.modes(), "tests.sweep.modes");
+        final List<Integer> latencies = filter(java.util.Arrays.stream(p.latencies()).boxed().toList(), "tests.sweep.latencies");
+        final int reps = Integer.getInteger("tests.sweep.reps", p.reps());
+        final TraceCapture traceCapture = new TraceCapture();
+        final Logger traceLogger = LogManager.getLogger("org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput");
+        if (TRACE_READS) {
+            traceCapture.start();
+            Loggers.setLevel(traceLogger, Level.TRACE);
+            Loggers.addAppender(traceLogger, traceCapture);
+        }
         final float[] qv = vector(new Random(7));
         final String word = vocabulary[17];
         try {
-            for (int rep = 1; rep <= p.reps(); rep++) {
-                for (int latency : p.latencies()) {
+            for (int rep = 1; rep <= reps; rep++) {
+                for (int latency : latencies) {
                     for (QueryType q : queries) {
                         String baseResult = null;
-                        for (Mode mode : p.modes()) {
+                        for (Mode mode : modes) {
                             // ---------------- zero state ----------------
                             for (String n : nodes) {
                                 stores.get(n).configure(0, 0);
@@ -374,6 +747,7 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                             // ---------------- activation ----------------
                             EVENTS.clear();
                             REQUESTS.clear();
+                            TRACES.clear();
                             ActivationLatencyIT.recording = true;
                             final long t0 = System.nanoTime();
                             client(master).admin()
@@ -471,6 +845,11 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             assertThat(countAllWithSearchCopy(indexName), equalTo(expectedDocs));
         } finally {
             ActivationLatencyIT.recording = false;
+            if (TRACE_READS) {
+                Loggers.removeAppender(traceLogger, traceCapture);
+                Loggers.setLevel(traceLogger, (Level) null);
+                traceCapture.stop();
+            }
             for (String l : CAPTURED_LOGGERS) {
                 Logger lg = LogManager.getLogger(l);
                 Loggers.removeAppender(lg, capture);
@@ -490,6 +869,9 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         if (mode.rangeSize != null) {
             settings.put(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING.getKey(), mode.rangeSize);
         }
+        settings.put(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING.getKey(), mode.parallel ? "16mb" : "0b")
+            .put(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING.getKey(), mode.parallel ? "64mb" : "0b")
+            .put(SearchService.FETCH_PHASE_PREFETCH_STORED_FIELDS.getKey(), mode.parallel);
         updateClusterSettings(settings);
     }
 
@@ -679,6 +1061,15 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             d(postRec, firstHit) // S12: first query execution after POST_RECOVERY
         };
         String tag = String.format(Locale.ROOT, "%s mode=%s rep=%d L=%d q=%s", p.name(), mode, rep, latency, q);
+        if (TRACE_READS) {
+            List<TraceEv> traces = new ArrayList<>(TRACES);
+            traces.sort((a, b) -> Long.compare(a.t(), b.t()));
+            for (TraceEv t : traces) {
+                if (t.t() >= postRec && t.t() <= firstHit && t.thread().contains(searchNode)) {
+                    log("%s TRACE +%.1f [%s] %s", tag, (t.t() - postRec) / 1e6, t.thread(), t.msg());
+                }
+            }
+        }
         log(
             "%s GET waves: before open %s | query %s",
             tag,

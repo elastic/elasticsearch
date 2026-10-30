@@ -12,11 +12,15 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -39,6 +43,8 @@ import java.util.function.Supplier;
  * @see StreamingFetchPhaseDocsIterator
  */
 abstract class FetchPhaseDocsIterator {
+
+    private static final Logger LOGGER = LogManager.getLogger(FetchPhaseDocsIterator.class);
 
     /**
      * Accounts for FetchPhase memory usage.
@@ -77,6 +83,36 @@ abstract class FetchPhaseDocsIterator {
      * @param docsInLeaf the reader-specific docids to be fetched in this leaf reader
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
+
+    /**
+     * Whether to prefetch the stored fields of all the documents to fetch, across all segments, before loading the first one. See
+     * {@link SearchService#FETCH_PHASE_PREFETCH_STORED_FIELDS}.
+     */
+    protected boolean prefetchStoredFields() {
+        return false;
+    }
+
+    /**
+     * Asks every segment to prefetch the stored fields of the documents to fetch from it, so that a directory that reads from a remote
+     * store (e.g. a cold stateless search shard) loads them all concurrently rather than one document after the other. Best effort.
+     *
+     * @param docs the documents to fetch, sorted by doc id
+     */
+    static void prefetchStoredFields(IndexReader indexReader, DocIdToIndex[] docs) {
+        LeafReaderContext ctx = null;
+        StoredFields storedFields = null;
+        try {
+            for (DocIdToIndex doc : docs) {
+                if (ctx == null || doc.docId >= ctx.docBase + ctx.reader().maxDoc()) {
+                    ctx = indexReader.leaves().get(ReaderUtil.subIndex(doc.docId, indexReader.leaves()));
+                    storedFields = ctx.reader().storedFields();
+                }
+                storedFields.prefetch(doc.docId - ctx.docBase);
+            }
+        } catch (IOException e) {
+            LOGGER.debug("failed to prefetch stored fields", e);
+        }
+    }
 
     /**
      * Called for each document within a leaf reader.
@@ -134,6 +170,9 @@ abstract class FetchPhaseDocsIterator {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
         int currentDoc = docs.length > 0 ? docs[0].docId : -1;
+        if (prefetchStoredFields()) {
+            prefetchStoredFields(indexReader, docs);
+        }
 
         try {
             if (docs.length == 0) {

@@ -20,7 +20,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -34,9 +36,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -154,10 +158,17 @@ public class FastSearchActivationIT extends AbstractStatelessPluginIntegTestCase
                 randomFrom("4kb", "64kb", "128kb", "1mb", "16mb")
             )
                 // 0: header/footer warming of every blob; 1gb: every blob fetched whole
-                .put(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey(), randomFrom("0b", "16kb", "1gb"));
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey(), randomFrom("0b", "16kb", "1gb"))
+                // step 3: parallel first-query reads
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING.getKey(), randomFrom("0b", "64kb", "16mb"))
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING.getKey(), randomFrom("0b", "1kb", "64mb"))
+                .put(SearchService.FETCH_PHASE_PREFETCH_STORED_FIELDS.getKey(), randomBoolean());
         } else {
             settings.putNull(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING.getKey())
-                .putNull(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey());
+                .putNull(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey())
+                .putNull(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING.getKey())
+                .putNull(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING.getKey())
+                .putNull(SearchService.FETCH_PHASE_PREFETCH_STORED_FIELDS.getKey());
         }
         updateClusterSettings(settings);
     }
@@ -235,6 +246,106 @@ public class FastSearchActivationIT extends AbstractStatelessPluginIntegTestCase
         deactivate(f);
         setFastActivation(false);
         assertThat(activateAndQuery(f), equalTo(afterNewCommit));
+    }
+
+    /**
+     * Step 3: vector search and fetch with the vector fill policy (large fills, whole vector files prefetched on the first miss) and
+     * the fetch phase prefetching stored fields return the same hits and scores as the default recovery.
+     */
+    public void testSameKnnAndFetchHitsWithParallelFirstQueryReads() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        final CountingStrategy searchStore = new CountingStrategy();
+        final String searchNode = startSearchNode(searchStore);
+        ensureStableCluster(3);
+        final String indexName = randomIdentifier();
+        final String indexType = randomFrom("hnsw", "int8_hnsw", "int8_flat", "bbq_hnsw");
+        final int dims = indexType.startsWith("bbq") ? 64 : randomIntBetween(2, 16);
+        createIndex(indexName, indexSettings(1, 0).build());
+        assertAcked(
+            indicesAdmin().preparePutMapping(indexName)
+                .setSource(
+                    Map.of(
+                        "properties",
+                        Map.of(
+                            "vec",
+                            Map.of(
+                                "type",
+                                "dense_vector",
+                                "dims",
+                                dims,
+                                "similarity",
+                                "l2_norm",
+                                "index_options",
+                                Map.of("type", indexType)
+                            )
+                        )
+                    )
+                )
+        );
+        ensureGreen(indexName);
+        final int rounds = randomIntBetween(2, 4);
+        int id = 0;
+        for (int r = 0; r < rounds; r++) {
+            var bulk = client().prepareBulk();
+            for (int i = randomIntBetween(50, 300); i > 0; i--) {
+                bulk.add(client().prepareIndex(indexName).setId(Integer.toString(id++)).setSource("vec", randomVector(dims), "n", id));
+            }
+            assertNoFailures(bulk.get());
+            flush(indexName);
+        }
+        final Fixture f = new Fixture(null, searchNode, searchStore, indexName, resolveIndex(indexName));
+        final float[] queryVector = randomVector(dims);
+        final CheckedSupplier<String, Exception> knn = () -> {
+            setReplicaCount(1, indexName);
+            ensureGreen(indexName);
+            SearchResponse resp = client(searchNode).prepareSearch(indexName)
+                .setKnnSearch(List.of(new KnnSearchBuilder("vec", queryVector, 10, 100, null, null, null)))
+                .get();
+            try {
+                assertNoFailures(resp);
+                StringBuilder sb = new StringBuilder();
+                for (SearchHit hit : resp.getHits().getHits()) {
+                    // scores rounded: whether a vector is scored from a direct view of the cache or from a copy depends on what is
+                    // cached, and the two paths can differ in the last float ulp (also with the step-3 settings off)
+                    sb.append(hit.getId())
+                        .append(':')
+                        .append(String.format(Locale.ROOT, "%.5f", hit.getScore()))
+                        .append(':')
+                        .append(hit.getSourceAsMap().get("n"))
+                        .append(',');
+                }
+                return sb.toString();
+            } finally {
+                resp.decRef();
+            }
+        };
+        setFastActivation(false);
+        final String expected = knn.get();
+        deactivate(f);
+        updateClusterSettings(
+            Settings.builder()
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING.getKey(), true)
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING.getKey(), randomFrom("4kb", "128kb", "1mb"))
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING.getKey(), randomFrom("64kb", "16mb"))
+                .put(FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING.getKey(), randomFrom("1kb", "64mb"))
+                .put(SearchService.FETCH_PHASE_PREFETCH_STORED_FIELDS.getKey(), true)
+        );
+        searchStore.reset();
+        try {
+            assertThat(knn.get(), equalTo(expected));
+            assertThat(f.searchStore.lists.get(), equalTo(0));
+        } finally {
+            setFastActivation(false);
+        }
+    }
+
+    private static float[] randomVector(int dims) {
+        float[] v = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            v[i] = randomFloat();
+        }
+        return v;
     }
 
     public void testFallbackWhenRegistrationFails() throws Exception {

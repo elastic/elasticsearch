@@ -1455,6 +1455,8 @@ public class StatelessPlugin extends Plugin
             FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,

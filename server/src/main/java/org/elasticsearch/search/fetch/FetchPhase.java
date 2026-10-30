@@ -92,10 +92,18 @@ public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
+    private volatile boolean prefetchStoredFields;
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
+    }
+
+    /**
+     * See {@link SearchService#FETCH_PHASE_PREFETCH_STORED_FIELDS}.
+     */
+    public void setPrefetchStoredFields(boolean prefetchStoredFields) {
+        this.prefetchStoredFields = prefetchStoredFields;
     }
 
     /**
@@ -382,6 +390,11 @@ public final class FetchPhase {
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
+
+            @Override
+            protected boolean prefetchStoredFields() {
+                return prefetchStoredFields;
+            }
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;

@@ -67,6 +67,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.tasks.TaskAdmissionPolicy;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -533,7 +534,14 @@ public class SearchableSnapshotDirectoryFactory {
         );
 
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
-        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, discoveryNode.getId());
+        TaskManager taskManager = new TaskManager(
+            settings,
+            threadPool,
+            Collections.emptySet(),
+            Tracer.NOOP,
+            discoveryNode.getId(),
+            TaskAdmissionPolicy.NOOP
+        );
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool, taskManager);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override

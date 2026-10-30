@@ -45,6 +45,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.tasks.TaskAdmissionPolicy;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -78,9 +79,10 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         Set<String> taskHeaders,
         Tracer tracer,
-        String nodeId
+        String nodeId,
+        TaskAdmissionPolicy admissionPolicy
     ) {
-        return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
+        return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId, admissionPolicy);
     }
 
     ScriptService newScriptService(

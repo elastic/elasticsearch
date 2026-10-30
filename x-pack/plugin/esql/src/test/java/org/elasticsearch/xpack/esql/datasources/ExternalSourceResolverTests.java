@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -85,6 +86,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -244,16 +246,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
         props.put("a", new DatasetFieldMapping("long", null));
         props.put("b", new DatasetFieldMapping("long", null));
         List<Attribute> fileSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG));
+        // First-file-wins keeps the union_by_name merge, which holds the file's own columns to the same cap, from
+        // refusing the overlay before its declared-width check runs.
+        Map<String, Object> overCap = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        overCap.put("schema_max_fields", 1);
+        Map<String, Object> atCap = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        atCap.put("schema_max_fields", 2);
         for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.FALSE, DatasetMapping.Dynamic.TRUE)) {
-            Exception e = expectThrows(
-                Exception.class,
-                () -> resolveDeclaredWithConfig(fileSchema, props, dynamic, Map.of("schema_max_fields", 1), null)
-            );
+            Exception e = expectThrows(Exception.class, () -> resolveDeclaredWithConfig(fileSchema, props, dynamic, overCap, null));
             assertThat("dynamic=" + dynamic, e.getMessage(), containsString("declares [2] columns, more than the [1] allowed"));
             assertEquals("dynamic=" + dynamic, RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
             assertNotNull(
                 "dynamic=" + dynamic,
-                resolveDeclaredWithConfig(fileSchema, props, dynamic, Map.of("schema_max_fields", 2), null).resolvedSource(DECLARED_GLOB)
+                resolveDeclaredWithConfig(fileSchema, props, dynamic, atCap, null).resolvedSource(DECLARED_GLOB)
             );
         }
     }
@@ -3342,6 +3347,48 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    private ExternalSourceResolver createResolverWithReader(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        ExternalSourceCacheService cacheService
+    ) {
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     /**

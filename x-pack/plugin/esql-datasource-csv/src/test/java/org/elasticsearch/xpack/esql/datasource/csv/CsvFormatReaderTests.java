@@ -31,6 +31,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -80,7 +82,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+
 public class CsvFormatReaderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
@@ -213,7 +217,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testDeclaredHeaderlessSchemaWiderThanCapIsAllowed() throws Exception {
         int cap = 3;
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
         String csv = "1,2,3,4\n5,6,7,8\n";
@@ -231,7 +235,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "1,".repeat(columns - 1) + "1\n";
         CircuitBreaker[] roomy = new CircuitBreaker[1];
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(trackingBlockFactory(roomy)).withSchemaMaxFields(columns)
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
         assertEquals(columns, reader.schema(createStorageObject(csv)).size());
@@ -253,7 +257,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         };
         CsvFormatReader tightReader = (CsvFormatReader) new CsvFormatReader(new BlockFactory(tightBreaker, blockFactory.bigArrays()))
             .withSchemaMaxFields(columns)
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
         CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> tightReader.schema(createStorageObject(csv)));
@@ -284,7 +288,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Roomy breaker: the declared column binds although the file is far past the schema cap, and nothing stays charged.
         CircuitBreaker[] roomy = new CircuitBreaker[1];
         CsvFormatReader reader = new CsvFormatReader(trackingBlockFactory(roomy)).withSchemaMaxFields(10)
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withSchema(declared);
         int rows = 0;
         try (CloseableIterator<Page> it = reader.read(createStorageObject(csv), context)) {
@@ -301,7 +305,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         BigArrays tight = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(256)).withCircuitBreaking();
         CircuitBreaker tightBreaker = tight.breakerService().getBreaker(CircuitBreaker.REQUEST);
         CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build())
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withSchema(declared);
         CircuitBreakingException e = expectThrows(
             CircuitBreakingException.class,
@@ -331,13 +335,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testSchemaMaxFieldsConfigIsBounded() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
         for (Object bad : new Object[] { 0, -1, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS + 1, "many" }) {
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> CsvFormatReader.validateConfig(Map.of("schema_max_fields", bad), CsvFormatOptions.DEFAULT)
-            );
+            expectThrows(IllegalArgumentException.class, () -> reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", bad)));
         }
-        CsvFormatReader.validateConfig(Map.of("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS), CsvFormatOptions.DEFAULT);
+        reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS));
     }
 
     /**
@@ -354,6 +356,28 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     private static String header(int columns) {
         return IntStream.range(0, columns).mapToObj(i -> "c" + i).collect(Collectors.joining(","));
+    }
+
+    /** Reads the fixture and returns the surviving row count. */
+    private int readRowCount(CsvFormatReader reader, StorageObject object, List<Attribute> readSchema, List<String> projected)
+        throws Exception {
+        FormatReadContext.Builder context = FormatReadContext.builder()
+            .firstSplit(true)
+            .recordAligned(true)
+            .batchSize(10)
+            .readSchema(readSchema);
+        if (projected != null) {
+            context.projectedColumns(projected);
+        }
+        int rows = 0;
+        try (CloseableIterator<Page> it = reader.read(object, context.build())) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        return rows;
     }
 
     public void testSchema() throws IOException {

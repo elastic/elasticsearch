@@ -87,7 +87,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "c5", DataType.LONG)
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withSchema(declared);
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -170,7 +170,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         BlockFactory charged = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
         List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "c4000", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true)
+            .withDeclaredPathBinding(true)
             .withSchema(declared);
 
         ExecutorService executor = Executors.newFixedThreadPool(4);

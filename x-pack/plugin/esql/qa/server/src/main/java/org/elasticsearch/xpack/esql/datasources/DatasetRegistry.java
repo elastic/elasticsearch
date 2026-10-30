@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -140,11 +141,34 @@ public final class DatasetRegistry {
      */
     public static void putDataset(RestClient client, String name, String dataSource, String resource, Map<String, Object> settings)
         throws IOException {
+        putDataset(client, name, dataSource, resource, settings, null);
+    }
+
+    /**
+     * Issues an uncached {@code PUT /_query/dataset/<name>} bound to {@code dataSource} + {@code resource} with the
+     * given format {@code settings} and, when non-null, {@code mappings} as the body's top-level declared schema.
+     * The owning {@code data_source} must already exist.
+     * <p>
+     * A declaration has to be a sibling of {@code settings}, not an entry inside it: dataset settings are validated
+     * at PUT time against each format's accepted keys, so a schema smuggled into {@code settings} is rejected as an
+     * unknown setting on every file-backed provider.
+     */
+    public static void putDataset(
+        RestClient client,
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings,
+        @Nullable Map<String, Object> mappings
+    ) throws IOException {
         Request req = new Request("PUT", "/_query/dataset/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("data_source", dataSource).field("resource", resource);
             if (settings.isEmpty() == false) {
                 b.field("settings", settings);
+            }
+            if (mappings != null) {
+                b.field("mappings", mappings);
             }
             b.endObject();
             req.setJsonEntity(Strings.toString(b));

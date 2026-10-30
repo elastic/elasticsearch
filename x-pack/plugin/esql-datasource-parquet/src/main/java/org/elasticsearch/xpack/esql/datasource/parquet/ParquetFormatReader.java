@@ -36,6 +36,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
@@ -45,6 +46,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
@@ -273,7 +276,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null, Map.of(), Set.of());
+        this(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            false,
+            true,
+            true,
+            null,
+            Map.of(),
+            Set.of(),
+            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS
+        );
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
@@ -682,14 +696,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 //
                 // Note: this variant of readFooter doesn't close the stream.
                 try (SeekableInputStream stream = adapter.newStream()) {
-                    // The async path's read cap, before anything is charged or parsed, so an oversized footer is
-                    // the same 400 on both. A missing or corrupt trailer is left to readFooter, whose message names
-                    // the file and what it found there.
+                    // A missing or corrupt trailer is left to readFooter, whose message names the file and what it
+                    // found there.
                     int footerLength = declaredFooterLength(adapter, stream);
-                    long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
-                    if (footerLength > 0 && footerRegion <= adapter.getLength() && footerRegion > maxFooterReadBytes) {
-                        throw new InvalidFooterException(footerOverReadCap(footerLength));
-                    }
                     try (Releasable parseCharge = chargeFooterParse(footerLength, adapter.getLength())) {
                         return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
                     }
@@ -704,22 +713,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // parquet-specific wrapping that the prior in-line readFooter path used. The returned
             // throwable is never an Error (already rethrown) so the Exception cast is safe.
             // Callers see the same exception shapes regardless of who won the load race.
-            Throwable cause = ParsedFooterCache.rethrowStructural(e);
-            if (cause instanceof InvalidFooterException invalid) {
-                // Already worded as an invalid file; wrapping it again would repeat the prefix.
-                throw invalid.invalid;
-            }
-            throw newInvalidParquetFileException((Exception) cause);
-        }
-    }
-
-    /** Carries a {@link #declaredFooterError} out of the footer cache loader unwrapped. */
-    private static final class InvalidFooterException extends RuntimeException {
-        private final IllegalArgumentException invalid;
-
-        InvalidFooterException(IllegalArgumentException invalid) {
-            super(invalid);
-            this.invalid = invalid;
+            throw newInvalidParquetFileException((Exception) ParsedFooterCache.rethrowStructural(e));
         }
     }
 
@@ -962,7 +956,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetReadOptions options = readOptionsBuilder().build();
         try (
             SeekableInputStream stream = inputFile.newStream();
-            Releasable parseCharge = chargeFooterParse(footerLengthFromTrailer(ByteBuffer.wrap(tailBytes)), length)
+            Releasable parseCharge = chargeFooterParse(footerLengthFromTrailer(tailBytes), length)
         ) {
             ParquetMetadata footer;
             try {
@@ -1122,8 +1116,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * sees, which is how a footer of a few hundred MB exhausts a small heap with the breaker nowhere near its limit.
      * Sized for the peak, not for what is retained: while the thrift {@code FileMetaData} is converted to
      * {@link ParquetMetadata}, the raw bytes, the thrift graph (about 4-5x the footer) and the converted metadata
-     * (about 3-4x, roughly what {@link #estimateFooterWeightBytes} prices once cached) are all live, about 9-11x the
-     * footer's size as measured for files of 200 to 2,000 columns.
+     * (about 3-4x) are all live, about 9-11x the footer's size as measured for files of 200 to 2,000 columns.
      */
     static final long FOOTER_PARSE_EXPANSION = 10;
 

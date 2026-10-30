@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
@@ -886,12 +887,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             maxFields,
             effectivePolicy,
             canonicalConfig,
-            readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding,
-            headerBindingByProvenance,
-            configWarnings
+            declaredPathBinding
         );
     }
 
@@ -1322,15 +1320,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * user-facing "CSV file has no data rows" {@link IOException} themselves); the assertion is
      * just a programmer-error guard.
      */
-    static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix, @Nullable DateFormatter datetimeFormatter) {
-        assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
+    /**
+     * A headerless sample has as many columns as its widest row, not as its first: rows are copied at their native
+     * width, so a ragged file has both. Anything sized per column must use this.
+     */
+    static int syntheticColumnCount(List<String[]> sampleRows) {
         int columnCount = 0;
         for (String[] row : sampleRows) {
             if (row.length > columnCount) {
                 columnCount = row.length;
             }
         }
-        String[] columnNames = synthesizeColumnNames(columnCount, prefix);
+        return columnCount;
+    }
+
+    static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix, @Nullable DateFormatter datetimeFormatter) {
+        assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
+        String[] columnNames = synthesizeColumnNames(syntheticColumnCount(sampleRows), prefix);
         return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter);
     }
 
@@ -2031,22 +2037,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (headerLine == null) {
             return null; // empty file — nothing to validate, and nothing to read
         }
-        String[] fields = splitFieldsForOptions(headerLine, options);
-        if (declaredPathBinding) {
-            return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
+        // The breaker bounds the names as they are split, so a header of millions of columns trips part-way rather than
+        // after it is allocated. A declared schema is not capped by the file's width, only charged (see effectiveMaxFields).
+        try (HeaderBudget budget = newHeaderBudget()) {
+            String[] fields = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget);
+            if (declaredPathBinding) {
+                try (Releasable charged = chargeHeaderBinding(fields.length)) {
+                    return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
+                }
+            }
+            if (readSchema.size() > fields.length) {
+                throw new IllegalArgumentException(
+                    "declared schema has "
+                        + readSchema.size()
+                        + " columns but the header of ["
+                        + object.path().objectName()
+                        + "] has "
+                        + fields.length
+                        + "; a declared schema binds text columns in order (for a headerless file set header_row=false)"
+                );
+            }
+            return null;
         }
-        if (readSchema.size() > fields.length) {
-            throw new IllegalArgumentException(
-                "declared schema has "
-                    + readSchema.size()
-                    + " columns but the header of ["
-                    + object.path().objectName()
-                    + "] has "
-                    + fields.length
-                    + "; a declared schema binds text columns in order (for a headerless file set header_row=false)"
-            );
-        }
-        return null;
     }
 
     /**

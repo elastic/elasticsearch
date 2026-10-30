@@ -1845,9 +1845,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             StripeColumnScope.PROJECTED,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
-            breaker,
-            ExternalReadCounters.NOOP,
-            null
+            breaker
         );
     }
 
@@ -2885,17 +2883,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public boolean readsHeaderLine() {
+        public boolean declaredNameBindingNeedsFileStart() {
             return true;
-        }
-
-        @Override
-        public List<String> fileHeaderColumns(StorageObject file) {
-            List<String> names = new ArrayList<>(columns);
-            for (int c = 0; c < columns; c++) {
-                names.add(name(c));
-            }
-            return names;
         }
 
         @Override

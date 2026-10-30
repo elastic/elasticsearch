@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -569,6 +570,16 @@ public class ExternalSourceResolver {
                 )
             );
             return wrapped;
+        }
+        // A typed client failure (e.g., a schema wider than schema_max_fields) keeps its 400 and its message. It is
+        // checked before the IllegalArgumentException arm because the factory loop wraps every factory failure in an
+        // IllegalArgumentException whose generic message would otherwise replace the diagnosis.
+        ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
+        if (clientException != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientException.getMessage());
+            LOGGER.debug("Failed to resolve external source [{}]", path, e);
+            return clientException.withoutCause();
         }
         if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();

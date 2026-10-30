@@ -139,7 +139,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         NdJsonFormatReader capped = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         FormatReader lowered = capped.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
         expectThrows(ExternalClientException.class, () -> lowered.metadata(new BytesObject(flatRecord(4))));
-        FormatReader declared = lowered.withDeclaredProvenanceBinding(true);
+        FormatReader declared = lowered.withDeclaredPathBinding(true);
         assertEquals(4, declared.metadata(new BytesObject(flatRecord(4))).schema().size());
     }
 

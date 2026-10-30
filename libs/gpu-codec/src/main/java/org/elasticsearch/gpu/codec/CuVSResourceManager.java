@@ -49,6 +49,8 @@ public interface CuVSResourceManager {
      * <p>A manager can use the given parameters, numVectors and dims, to estimate the potential
      * effect on GPU memory and compute usage to determine whether to give out
      * another resource or wait for a resources to be returned before giving out another.
+     *
+     * @throws GPUGraphBuildException if the estimated memory exceeds the GPU total memory, so waiting can't help
      */
     ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams, String reason)
         throws InterruptedException, IOException;
@@ -58,6 +60,8 @@ public interface CuVSResourceManager {
      *
      * <p> Non-blocking variant of {@link #acquire}. Returns a locked resource immediately if
      * one is available and there is sufficient GPU memory, or {@code null} if the GPU is busy.
+     *
+     * @throws GPUGraphBuildException if the estimated memory exceeds the GPU total memory
      */
     ManagedCuVSResources tryAcquire(
         int numVectors,
@@ -223,7 +227,7 @@ public interface CuVSResourceManager {
                         logMemoryCheck(availableMemoryInBytes, totalMemoryInBytes, requiredMemoryInBytes, enoughMemory);
 
                         if (requiredMemoryInBytes > totalMemoryInBytes) {
-                            throw memoryExceededError(numVectors, dims, totalMemoryInBytes);
+                            throw memoryExceededError(numVectors, dims, requiredMemoryInBytes, totalMemoryInBytes);
                         }
 
                         // If no resource in the pool is locked, we must proceed to avoid livelock
@@ -329,15 +333,16 @@ public interface CuVSResourceManager {
             }
         }
 
-        private IllegalArgumentException memoryExceededError(int numVectors, int dims, long totalMemoryInBytes) {
+        private GPUGraphBuildException memoryExceededError(int numVectors, int dims, long requiredMemoryInBytes, long totalMemoryInBytes) {
             String message = Strings.format(
-                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                "Estimated GPU memory [%d B] for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                requiredMemoryInBytes,
                 numVectors,
                 dims,
                 totalMemoryInBytes
             );
-            logger.error(message);
-            return new IllegalArgumentException(message);
+            logger.debug(message);
+            return new GPUGraphBuildException(message);
         }
 
         private void logAcquireAttempt(

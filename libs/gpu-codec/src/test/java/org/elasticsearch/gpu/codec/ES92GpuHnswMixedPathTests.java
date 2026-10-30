@@ -27,8 +27,8 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
 
 /**
- * Exercises the GPU format with a resource manager that randomly fails {@code tryAcquire},
- * forcing a mix of GPU and CPU fallback paths across flush calls within the same index.
+ * Exercises the GPU format with a resource manager that randomly fails {@code tryAcquire} and {@code acquire},
+ * forcing a mix of GPU and CPU fallback paths across flush and merge calls within the same index.
  * Requires a GPU — skipped on non-GPU nodes.
  */
 public class ES92GpuHnswMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
@@ -105,8 +105,9 @@ public class ES92GpuHnswMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
     }
 
     /**
-     * A resource manager that randomly returns null from tryAcquire to simulate GPU contention,
-     * forcing some flushes to fall back to CPU graph building.
+     * A resource manager that randomly returns null from tryAcquire to simulate GPU contention, and randomly throws
+     * {@link GPUGraphBuildException} from tryAcquire and acquire, as for a GPU without enough memory for the build,
+     * forcing some flushes and merges to fall back to CPU graph building.
      */
     static class RandomlyFailingResourceManager implements CuVSResourceManager {
         private final CuVSResourceManager delegate;
@@ -125,6 +126,9 @@ public class ES92GpuHnswMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
             CagraIndexParams cagraIndexParams,
             String reason
         ) throws InterruptedException, IOException {
+            if (random.nextInt(3) == 0) {
+                throw new GPUGraphBuildException("simulated GPU graph build failure for [" + reason + "]");
+            }
             return delegate.acquire(numVectors, dims, dataType, cagraIndexParams, reason);
         }
 
@@ -136,10 +140,16 @@ public class ES92GpuHnswMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
             CagraIndexParams cagraIndexParams,
             String reason
         ) throws IOException {
-            if (random.nextBoolean()) {
-                return null;
+            switch (random.nextInt(3)) {
+                case 0 -> {
+                    return null;
+                }
+                case 1 -> throw new GPUGraphBuildException("simulated GPU graph build failure for [" + reason + "]");
+                case 2 -> {
+                    return delegate.tryAcquire(numVectors, dims, dataType, cagraIndexParams, reason);
+                }
+                default -> throw new AssertionError("unexpected random value");
             }
-            return delegate.tryAcquire(numVectors, dims, dataType, cagraIndexParams, reason);
         }
 
         @Override

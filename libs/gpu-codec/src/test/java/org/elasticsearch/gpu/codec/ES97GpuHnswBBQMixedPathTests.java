@@ -26,8 +26,8 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_C
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
- * Exercises the GPU BBQ format with a resource manager that randomly fails {@code tryAcquire},
- * forcing a mix of GPU and CPU fallback paths across flush calls within the same index.
+ * Exercises the GPU BBQ format with a resource manager that randomly fails {@code tryAcquire} and {@code acquire},
+ * forcing a mix of GPU and CPU fallback paths across flush and merge calls within the same index.
  * Requires a GPU — skipped on non-GPU nodes.
  */
 public class ES97GpuHnswBBQMixedPathTests extends ESBaseKnnVectorsFormatTestCase {

@@ -456,9 +456,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     getShardsClosedListener()
                 );
             }
-            // Every index is about to be torn down, so no pending allocation bookkeeping can still be valid.
-            logger.debug("clearing all [{}] pending allocation states: state persistence disabled", pendingAllocationStates.size());
-            pendingAllocationStates.clear();
+            // Every index is about to be torn down, so no in-progress creation/retry ticket can still be
+            // valid. FailureReported entries track what master has been told, not a local shard, so they
+            // remain valid regardless and are left alone here.
+            int evicted = 0;
+            for (final var iterator = pendingAllocationStates.entrySet().iterator(); iterator.hasNext();) {
+                if (iterator.next().getValue() instanceof PendingAllocationState.FailureReported == false) {
+                    iterator.remove();
+                    evicted++;
+                }
+            }
+            logger.debug("clearing [{}] pending allocation states: state persistence disabled", evicted);
             return;
         }
 

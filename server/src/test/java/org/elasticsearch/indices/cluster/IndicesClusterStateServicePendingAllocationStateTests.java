@@ -487,6 +487,33 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
+    public void testFailureReportedSurvivesWhenStatePersistenceDisabled() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        final var inFlight = currentInFlight(shardRouting);
+
+        // A failure already reported to master for this exact allocation.
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SEND,
+            primaryTerm(shardRouting),
+            new Exception("already failed to master"),
+            recoveryState(shardRouting, 0),
+            inFlight
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        applyState(
+            ClusterState.builder(state)
+                .blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+                .build()
+        );
+
+        // FailureReported tracks what master has been told, not a local shard, so it must survive even
+        // though every index (and any InFlight/AwaitingRecoveryRetry ticket) was just torn down.
+        assertTrue(isFailureReported(shardRouting));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+    }
+
     public void testUpdateRetryContextClearsWhenNotInitializing() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);

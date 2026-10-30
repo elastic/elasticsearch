@@ -227,7 +227,7 @@ public final class DissectParser {
                         // jump to the end of the match
                         i += lookAheadMatches;
                         // look for consecutive delimiters (e.g. a,,,,d,e)
-                        while (i < input.length) {
+                        while (dissectPair.key.skipRightPadding() && i < input.length) {
                             lookAheadMatches = 0;
                             for (int j = 0; j < delimiter.length; j++) {
                                 if (i + j < input.length && input[i + j] == delimiter[j]) {
@@ -238,16 +238,6 @@ public final class DissectParser {
                             if (lookAheadMatches == delimiter.length) {
                                 // jump to the end of the match
                                 i += lookAheadMatches;
-                                if (key.skipRightPadding() == false) {
-                                    // progress the keys/delimiter if possible
-                                    if (it.hasNext() == false) {
-                                        break; // the while loop
-                                    }
-                                    dissectPair = it.next();
-                                    key = dissectPair.key();
-                                    // add the key with an empty value for the empty delimiter
-                                    dissectMatch.add(key, "");
-                                }
                             } else {
                                 break; // the while loop
                             }

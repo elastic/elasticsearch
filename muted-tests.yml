@@ -405,11 +405,6 @@ tests:
   tasks:
   - :qa:mixed-cluster:v9.2.8#mixedClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
-- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
-  tasks:
-  - :server:internalClusterTest
-  method: testIndexMode
-  issue: https://github.com/elastic/elasticsearch/issues/163329
 - class: org.elasticsearch.xpack.ccr.CcrAliasesIT
   tasks:
   - :x-pack:plugin:ccr:internalClusterTest

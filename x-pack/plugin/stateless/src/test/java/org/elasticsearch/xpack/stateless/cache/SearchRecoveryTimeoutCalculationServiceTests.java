@@ -2373,7 +2373,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// Builds a cluster state where shard 0 relocates from the healthy `healthy-source` to `target-node`, while `pendingShards` other
+    /// Builds a cluster state where shard 0 relocates from `healthy-source`, which is not shutting down, to `target-node`, while `pendingShards` other
     /// search shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE since `shutdownStartedAtMillis`.
     private static ClusterState clusterStateRelocationWithOtherNodeShuttingDown(
         int pendingShards,
@@ -2431,8 +2431,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             .build();
     }
 
-    /// A relocation from a healthy source while another node shuts down: the target accepts 2 incoming recoveries and this shard holds one,
-    /// so one slot is free. When the shutting-down node needs at most that many, the shard keeps the full relocation-with-shutdown timeout.
+    /// A relocation from a source that is not shutting down while another node shuts down: the target accepts 2 incoming recoveries, and this shard and the
+    /// one pending shard of the shutting-down node fit in them concurrently, so nobody queues and the shard keeps the full
+    /// relocation-with-shutdown timeout.
     public void testRelocationWithOtherNodeShutdownKeepsFullTimeoutWhenSlotsAreAvailable() {
         try (
             var threadPool = new FakeTimeThreadPool(
@@ -2459,9 +2460,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// With 3 search shards pending on the shutting-down node and 1 free slot, the shard shares the time left until the grace deadline
-    /// (8s of the 10s cap): equal share = 8s / (3 + 1) = 2s. The data-volume share (bytes to warm / half of the 1000 bytes cache * 8s) wins
-    /// when it is larger and is capped to the time remaining.
+    /// With 3 search shards pending on the shutting-down node, this shard and a limit of 2 concurrent relocations, the 4 competing shards
+    /// share the time left until the grace deadline (8s of the 10s cap), 2 at a time: equal share = 8s / 4 * 2 = 4s. The data-volume share
+    /// (bytes to warm / half of the 1000 bytes cache * 8s * 2) wins when it is larger and is capped to the time remaining.
     public void testRelocationWithOtherNodeShutdownSharesFreeSlotsWhenSlotsAreScarce() {
         try (
             var threadPool = new FakeTimeThreadPool(
@@ -2483,15 +2484,15 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 equalShare.timeoutContext(),
                 equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
             );
-            assertThat(equalShare.timeout().millis(), equalTo(2000L));
+            assertThat(equalShare.timeout().millis(), equalTo(4000L));
 
-            // 250 of the 500 bytes warming cache budget: 0.5 * 8s = 4s beats the 2s equal share
-            final var dataVolume = service.searchRecoveryTimeout(state, self, 250L, null);
+            // 150 of the 500 bytes warming cache budget: 0.3 * 8s * 2 = 4.8s beats the 4s equal share
+            final var dataVolume = service.searchRecoveryTimeout(state, self, 150L, null);
             assertThat(dataVolume.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME));
-            assertThat(dataVolume.timeout().millis(), equalTo(4000L));
+            assertThat(dataVolume.timeout().millis(), equalTo(4800L));
 
-            // twice the budget would be 16s, capped to the 8s left until the grace deadline
-            final var capped = service.searchRecoveryTimeout(state, self, 1000L, null);
+            // the whole budget would be 16s, capped to the 8s left until the grace deadline
+            final var capped = service.searchRecoveryTimeout(state, self, 500L, null);
             assertThat(capped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME));
             assertThat(capped.timeout().millis(), equalTo(8000L));
         }

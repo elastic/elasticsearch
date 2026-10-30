@@ -78,12 +78,13 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
-    /// When enabled, a shard relocating from a healthy source while a search node is shutting down shares the target's free relocation
+    /// When enabled, a shard relocating from a source that is not shutting down while a search node is shutting down shares the target's
+    /// free relocation
     /// slots with the shards of the shutting-down node, so that it does not delay them past their grace period, see
     /// [#relocationWithOtherNodeShutdownTimeout]. When disabled, such a shard always waits for the plain relocation-with-shutdown timeout.
     public static final Setting<Boolean> OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING = Setting.boolSetting(
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_share_slots_with_shutting_down_nodes",
-        false,
+        true, // FIXME remove before merging
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -301,48 +302,33 @@ public class SearchRecoveryTimeoutCalculationService {
 
     /// Returns the warming timeout for a shard relocating to `targetNodeId` from a source that is not shutting down, while other nodes are,
     /// so that it does not hold a relocation slot on the target that a shard of a shutting-down node needs.
-    ///
-    /// The demand of shutting-down nodes on the target is pessimistically every search shard already relocating to it from them plus every
-    /// one still started on them, as the master throttles per target and we cannot know where those will go.
-    ///
-    /// - With enough free slots for all of that demand, the relocation-with-shutdown timeout applies in full.
-    /// - Otherwise this shard is one more participant (`P`) and the free slots are shared: each gets `slots / P` of the time left until the
-    /// earliest grace deadline, using the larger of the equal share and the data-volume share as in
-    /// [#computeRelocationSourceShutdownWarmingTimeout]. The result never exceeds the relocation-with-shutdown timeout.
-    ///
-    /// The shares can add up to more than the time available. They are upper bounds, and shards usually finish warming earlier.
     private SearchRecoveryTimeout relocationWithOtherNodeShutdownTimeout(ClusterState state, String targetNodeId, long totalBytesToWarm) {
-        final var targetNode = state.getRoutingNodes().node(targetNodeId);
-        int incomingOnTarget = 0;
-        int relocatingFromShuttingDown = 0;
-        if (targetNode != null) {
-            final var nodeShutdowns = state.metadata().nodeShutdowns();
-            for (ShardRouting shard : targetNode.initializing()) {
-                incomingOnTarget++;
-                final String sourceNodeId = shard.relocatingNodeId();
-                if (sourceNodeId != null && shard.isPromotableToPrimary() == false && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
-                    relocatingFromShuttingDown++;
-                }
-            }
-        }
-        final long recoverySlotsNeeded = (long) relocatingFromShuttingDown + countPendingSearchShardsOnShuttingDownNodes(state);
-        // everything on the target that is not from a shutting-down node, including this shard, holds a slot regardless
-        final long freeRecoverySlots = (long) effectiveIncomingSlots() - (incomingOnTarget - relocatingFromShuttingDown);
-        if (recoverySlotsNeeded <= freeRecoverySlots) {
-            // we are below the demand, so we can treat this as if it were not a shutting-down node (longer timeout)
+        final var relocationsToTarget = countSearchRelocationsToTarget(state, targetNodeId);
+        // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count above includes it:
+        // it is added to the competing shards (+1) here, and left out of the "other" relocations by the record.
+        final var shardsCompetingForTarget = (long) relocationsToTarget.fromShuttingDownNodes()
+            + countPendingSearchShardsOnShuttingDownNodes(state) + 1;
+        final double slotShareOfCompetingShards = Math.min(
+            shardsCompetingForTarget,
+            (double) effectiveIncomingSlots() * shardsCompetingForTarget / (shardsCompetingForTarget + relocationsToTarget
+                .otherFromNonShuttingDownNodes())
+        );
+
+        final long timeRemaining = Math.max(0L, earliestGraceDeadline(state) - threadPool.absoluteTimeInMillis());
+        // the share never exceeds the time left until the earliest grace deadline, nor the relocation-with-shutdown timeout
+        final long maxShareMs = Math.min(timeRemaining, searchRecoveryWarmingRelocationWithShutdownTimeout.millis());
+
+        final double equalShareMs = (timeRemaining / (double) shardsCompetingForTarget) * slotShareOfCompetingShards;
+        final double dataVolumeMs = dataVolumeShareMs(totalBytesToWarm, timeRemaining) * slotShareOfCompetingShards;
+
+        if (shardsCompetingForTarget == 1 || slotShareOfCompetingShards >= shardsCompetingForTarget) {
+            // nobody of the shutting-down nodes waits for this target, or nobody queues behind anybody: treat this as if it were not a
+            // shutting-down node
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationWithShutdownTimeout,
                 TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE
             );
         }
-        final long timeRemaining = Math.max(0L, earliestGraceDeadline(state) - threadPool.absoluteTimeInMillis());
-        // the share never exceeds the time left until the earliest grace deadline, nor the relocation-with-shutdown timeout
-        final long maxShareMs = Math.min(timeRemaining, searchRecoveryWarmingRelocationWithShutdownTimeout.millis());
-        final long slotsToShare = Math.max(1L, freeRecoverySlots);
-
-        final double equalShareMs = (timeRemaining / (double) (recoverySlotsNeeded + 1)) * slotsToShare;
-        final double dataVolumeMs = dataVolumeShareMs(totalBytesToWarm, timeRemaining) * slotsToShare;
-
         if (dataVolumeMs > equalShareMs) {
             return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(Math.min(maxShareMs, dataVolumeMs))),
@@ -368,6 +354,39 @@ public class SearchRecoveryTimeoutCalculationService {
     private double dataVolumeShareMs(long totalBytesToWarm, long remainingMs) {
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         return warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remainingMs : 0;
+    }
+
+    /// The search shards relocating to a node, by whether their source node is marked for removal.
+    private record SearchRelocationsToTarget(int fromShuttingDownNodes, int fromNonShuttingDownNodes) {
+
+        /// The relocations from non-shutting-down nodes other than the one of the shard we compute the timeout for, which is among them as
+        /// it is relocating to the target from a node that is not shutting down.
+        int otherFromNonShuttingDownNodes() {
+            return Math.max(0, fromNonShuttingDownNodes - 1);
+        }
+    }
+
+    /// Counts the search shards relocating to `targetNodeId`, which are INITIALIZING on it with their source set.
+    private static SearchRelocationsToTarget countSearchRelocationsToTarget(ClusterState state, String targetNodeId) {
+        final var targetNode = state.getRoutingNodes().node(targetNodeId);
+        if (targetNode == null) {
+            return new SearchRelocationsToTarget(0, 0);
+        }
+        final var nodeShutdowns = state.metadata().nodeShutdowns();
+        int fromShuttingDownNodes = 0;
+        int fromNonShuttingDownNodes = 0;
+        for (ShardRouting shard : targetNode.initializing()) {
+            final String sourceNodeId = shard.relocatingNodeId();
+            if (sourceNodeId == null || shard.isPromotableToPrimary()) {
+                continue;
+            }
+            if (nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
+                fromShuttingDownNodes++;
+            } else {
+                fromNonShuttingDownNodes++;
+            }
+        }
+        return new SearchRelocationsToTarget(fromShuttingDownNodes, fromNonShuttingDownNodes);
     }
 
     private static long countPendingSearchShardsOnShuttingDownNodes(ClusterState state) {

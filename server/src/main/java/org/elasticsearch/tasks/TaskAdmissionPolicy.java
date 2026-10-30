@@ -29,6 +29,7 @@ public final class TaskAdmissionPolicy {
 
     private final Set<String> actions;
     private final AtomicInteger current = new AtomicInteger();
+    private final AtomicInteger rejected = new AtomicInteger();
     private final int max;
 
     /**
@@ -51,6 +52,7 @@ public final class TaskAdmissionPolicy {
             if (inFlight > max) {
                 current.decrementAndGet();
                 // TODO here we could potentially introduce a queue to delay rejecting, and leave some headroom
+                rejected.incrementAndGet();
                 throw new EsRejectedExecutionException(
                     "rejected execution of action [" + action + "]; too many in-flight requests [" + inFlight + "], limit [" + max + "]",
                     false
@@ -78,5 +80,12 @@ public final class TaskAdmissionPolicy {
      */
     public int current() {
         return current.get();
+    }
+
+    /**
+     * Tracked actions rejected because the limit was already reached.
+     */
+    public int rejected() {
+        return rejected.get();
     }
 }

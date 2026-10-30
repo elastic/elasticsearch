@@ -51,6 +51,7 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
         TaskAdmissionPolicy policy = new TaskAdmissionPolicy(Set.of(TRACKED), 100);
         TaskManager taskManager = taskManager(policy);
         assertThat(policy.current(), equalTo(0));
+        assertThat(policy.rejected(), equalTo(0));
 
         Task first = taskManager.register("transport", TRACKED, new SearchRequest());
         assertThat(policy.current(), equalTo(1));
@@ -71,8 +72,10 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
 
         Task task = taskManager.register("transport", UNTRACKED, new SearchRequest());
         assertThat(policy.current(), equalTo(0));
+        assertThat(policy.rejected(), equalTo(0));
         taskManager.unregister(task);
         assertThat(policy.current(), equalTo(0));
+        assertThat(policy.rejected(), equalTo(0));
     }
 
     public void testConcurrentRegisterAndUnregister() throws Exception {
@@ -103,6 +106,7 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
         }
         assertThat(failures.get(), equalTo(0));
         assertThat(policy.current(), equalTo(0));
+        assertThat(policy.rejected(), equalTo(0));
     }
 
     public void testRegisterRejectsAtLimit() {
@@ -111,6 +115,7 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
 
         Task task = taskManager.register("transport", TRACKED, new SearchRequest());
         assertThat(policy.current(), equalTo(1));
+        assertThat(policy.rejected(), equalTo(0));
 
         EsRejectedExecutionException rejected = expectThrows(
             EsRejectedExecutionException.class,
@@ -118,16 +123,23 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
         );
         assertThat(rejected.getMessage(), containsString("limit [1]"));
         assertThat(policy.current(), equalTo(1));
+        assertThat(policy.rejected(), equalTo(1));
         assertThat(taskManager.getCancellableTasks().size(), equalTo(1));
+
+        expectThrows(EsRejectedExecutionException.class, () -> taskManager.register("transport", TRACKED, new SearchRequest()));
+        assertThat(policy.rejected(), equalTo(2));
 
         Task untracked = taskManager.register("transport", UNTRACKED, new SearchRequest());
         assertThat(policy.current(), equalTo(1));
+        assertThat(policy.rejected(), equalTo(2));
         taskManager.unregister(untracked);
 
         taskManager.unregister(task);
         assertThat(policy.current(), equalTo(0));
+        assertThat(policy.rejected(), equalTo(2));
         Task again = taskManager.register("transport", TRACKED, new SearchRequest());
         assertThat(policy.current(), equalTo(1));
+        assertThat(policy.rejected(), equalTo(2));
         taskManager.unregister(again);
     }
 
@@ -136,6 +148,7 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
         Task first = taskManager.register("transport", TRACKED, new SearchRequest());
         Task second = taskManager.register("transport", TRACKED, new SearchRequest());
         assertThat(TaskAdmissionPolicy.NOOP.current(), equalTo(0));
+        assertThat(TaskAdmissionPolicy.NOOP.rejected(), equalTo(0));
         assertThat(taskManager.getCancellableTasks().size(), equalTo(2));
         taskManager.unregister(first);
         taskManager.unregister(second);
@@ -148,5 +161,6 @@ public class TaskAdmissionPolicyTests extends ESTestCase {
         expectThrows(EsRejectedExecutionException.class, () -> taskManager.register("transport", TRACKED, new SearchRequest()));
         assertThat(taskManager.getTasks().isEmpty(), equalTo(true));
         assertThat(policy.current(), equalTo(0));
+        assertThat(policy.rejected(), equalTo(1));
     }
 }

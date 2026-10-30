@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocOrigins;
-import org.elasticsearch.compute.data.DocRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
@@ -69,7 +68,6 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
             e -> e == ElementType.UNKNOWN
                 || e == ElementType.NULL
                 || e == ElementType.DOC
-                || e == ElementType.DOC_REF
                 || e == ElementType.COMPOSITE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
@@ -116,28 +114,6 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
             }
         }
         return origins;
-    }
-
-    /**
-     * A {@link DocRefBlock} whose rows reference random documents of {@code originCount} random origins. Rows may repeat a
-     * document. Each value is a {@link BlockUtils.DetachedDoc}.
-     */
-    public static RandomBlock randomDocRefBlock(BlockFactory blockFactory, int positionCount, int originCount) {
-        List<DocOrigin> origins = randomDocOrigins(originCount);
-        List<List<Object>> values = new ArrayList<>(positionCount);
-        try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, positionCount)) {
-            for (DocOrigin origin : origins) {
-                builder.addOrigin(origin);
-            }
-            for (int p = 0; p < positionCount; p++) {
-                int ordinal = ESTestCase.between(0, originCount - 1);
-                int segment = ESTestCase.between(0, 10);
-                int doc = ESTestCase.between(0, 10_000);
-                builder.append(ordinal, segment, doc);
-                values.add(List.of(new BlockUtils.DetachedDoc(origins.get(ordinal), segment, doc)));
-            }
-            return new RandomBlock(values, builder.build(), 3 * Integer.BYTES);
-        }
     }
 
     /**
@@ -215,7 +191,7 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 case BYTES_REF, EXPONENTIAL_HISTOGRAM -> 0; // Updated per value below
                 case AGGREGATE_METRIC_DOUBLE -> 3 * Double.BYTES + Integer.BYTES;
                 case TDIGEST -> 0; // TDIGEST has no well-defined single-value byte size
-                case COMPOSITE, DOC_REF, UNKNOWN -> throw new IllegalArgumentException("can't build a random " + elementType + " block");
+                case COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("can't build a random " + elementType + " block");
             };
             for (int p = 0; p < positionCount; p++) {
                 if (elementType == ElementType.NULL) {

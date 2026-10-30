@@ -149,7 +149,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     /**
-     * The plan of a request that asks for fetch contexts carries document references, which only fetch contexts serve.
+     * The plan of a request that asks for fetch contexts sends documents off the node, which only fetch contexts serve.
      * An older node can't open them, so the request must not reach it as if it had asked for none.
      */
     public void testFetchContextsNeverReachAnOlderNode() throws IOException {

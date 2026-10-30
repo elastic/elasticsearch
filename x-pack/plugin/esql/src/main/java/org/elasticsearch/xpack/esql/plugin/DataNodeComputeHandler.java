@@ -33,6 +33,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.exchange.DetachingExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -42,8 +43,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.SliceSelection;
@@ -82,7 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
@@ -188,7 +189,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        // Non-null when the plan makes document references: the data nodes keep fetch contexts open, and the lease frees them.
+        // Non-null when documents leave the data nodes: the data nodes keep fetch contexts open, and the lease frees them.
         @Nullable FetchContextLease fetchContextLease,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
@@ -1014,9 +1015,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.singleNodeOptimizations = singleNodeOptimizations;
             this.shardLevelFailures = shardLevelFailures;
-            this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.fetchContexts = fetchContexts;
+            // the sinks read the contexts above
+            this.blockingSink = exchangeSink(() -> {});
             this.planTimeProfile = new PlanTimeProfile();
         }
 
@@ -1025,7 +1027,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private ExchangeSink exchangeSink(Runnable onPageAdded) {
-            return internalExchange != null ? internalExchange.exchangeSink(onPageAdded) : externalSink.createExchangeSink(onPageAdded);
+            return internalExchange != null
+                ? internalExchange.exchangeSink(onPageAdded)
+                : leavingTheNode(externalSink.createExchangeSink(onPageAdded), searchContexts, fetchContexts);
         }
 
         private boolean exchangeFinished() {
@@ -1289,7 +1293,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         internalExchange::exchangeSource,
-                        () -> externalSink.createExchangeSink(() -> {}),
+                        () -> leavingTheNode(externalSink.createExchangeSink(() -> {}), searchContexts, fetchContexts),
                         request.singleNodeOptimizations()
                     ),
                     reductionPlan.nodeReducePlan(),
@@ -1564,12 +1568,29 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
-     * Rows that leave the node as document references must name contexts that the fetch phase finds again.
+     * Documents that leave the node must name contexts that the fetch phase finds again.
      */
     static void validateFetchContexts(PhysicalPlan plan, DataNodeRequest request) {
-        if (request.keepFetchContexts() == false && plan.anyMatch(DocRefEncodeExec.class::isInstance)) {
-            throw new IllegalStateException("document references need fetch contexts, but the request asked for none");
+        if (request.keepFetchContexts() == false && plan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+            throw new IllegalStateException("documents can only leave their node for a fetch, but the request kept no fetch contexts");
         }
+    }
+
+    /**
+     * The sink of the pages that leave this node. A query with a fetch phase sends {@code _doc} to the coordinator, which
+     * loads the other columns of the winners later, so the documents get the origin of their shard. Asking for the origin
+     * marks the reader context as one the response lists.
+     */
+    private static ExchangeSink leavingTheNode(
+        ExchangeSink sink,
+        AcquiredSearchContexts searchContexts,
+        @Nullable NodeFetchContexts fetchContexts
+    ) {
+        if (fetchContexts == null) {
+            return sink;
+        }
+        IndexedByShardId<ComputeSearchContext> contexts = searchContexts.globalView();
+        return new DetachingExchangeSink(sink, slot -> contexts.get(slot).origin());
     }
 
     /**

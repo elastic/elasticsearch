@@ -525,10 +525,6 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
-        if (block instanceof DocRefBlock && out.getTransportVersion().supports(DocRefBlock.ESQL_DOC_REF) == false) {
-            // the planner only plans document references when every node can read them, so this is a planner bug
-            throw new IllegalStateException("can't send document references to a node on [" + out.getTransportVersion() + "]");
-        }
         if (block instanceof DocBlock && out.getTransportVersion().supports(DocVector.ESQL_DOC_ORIGINS) == false) {
             // older nodes know the element type but can't read it, and the planner only sends _doc when every node can
             throw new IllegalStateException("can't send documents to a node on [" + out.getTransportVersion() + "]");

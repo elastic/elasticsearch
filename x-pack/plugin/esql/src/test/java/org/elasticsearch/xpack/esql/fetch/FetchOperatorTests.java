@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
-import org.elasticsearch.compute.data.DocRefBlock;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -300,7 +302,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     public void testDescribe() {
         assertThat(
             factory(new FakeClient(blockFactory())).describe(),
-            equalTo("FetchOperator[docRefChannel=0, fetchedTypes=[BYTES_REF, LONG]]")
+            equalTo("FetchOperator[docChannel=0, fetchedTypes=[BYTES_REF, LONG]]")
         );
     }
 
@@ -496,33 +498,30 @@ public class FetchOperatorTests extends ComputeTestCase {
 
     private static Page page(BlockFactory blockFactory, List<Ref> refs) {
         List<DocOrigin> origins = new ArrayList<>();
-        try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, refs.size())) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, refs.size())) {
             for (Ref ref : refs) {
                 if (origins.contains(ref.origin()) == false) {
                     origins.add(ref.origin());
-                    builder.addOrigin(ref.origin());
                 }
+                builder.appendShard(origins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
             }
-            for (Ref ref : refs) {
-                builder.append(origins.indexOf(ref.origin()), ref.segment(), ref.doc());
-            }
-            return new Page(builder.build());
+            // rows may share a document
+            return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
         }
     }
 
     /**
-     * The document of each output row, read from the fetched columns, after checking that they agree with its reference.
+     * The document of each output row, read from the fetched columns, after checking that they agree with its document.
      */
     private static List<Ref> rows(List<Page> pages) {
         List<Ref> rows = new ArrayList<>();
         BytesRef scratch = new BytesRef();
         for (Page page : pages) {
-            DocRefBlock refs = page.getBlock(0);
+            DocVector docs = page.<DocBlock>getBlock(0).asVector();
             BytesRefBlock ids = page.getBlock(1);
             LongBlock values = page.getBlock(2);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                DocOrigin origin = refs.asVector().origin(p);
-                Ref ref = new Ref(origin, refs.asVector().segments().getInt(p), refs.asVector().docs().getInt(p));
+                Ref ref = new Ref(docs.origin(p), docs.segments().getInt(p), docs.docs().getInt(p));
                 assertThat(ids.getBytesRef(ids.getFirstValueIndex(p), scratch).utf8ToString(), equalTo(ref.id()));
                 assertThat(values.getLong(values.getFirstValueIndex(p)), equalTo(ref.value()));
                 rows.add(ref);

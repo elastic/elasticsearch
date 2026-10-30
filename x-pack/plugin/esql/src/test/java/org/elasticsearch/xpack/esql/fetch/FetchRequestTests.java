@@ -196,7 +196,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
     }
 
     /**
-     * Only nodes that ran the query phase with document references get fetch requests.
+     * Only nodes that sent documents to the coordinator in the query phase get fetch requests.
      */
     public void testNeverReachesAnOlderNode() {
         TransportVersion older = TransportVersionUtils.getPreviousVersion(FetchRequest.ESQL_FETCH);

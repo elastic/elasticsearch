@@ -163,30 +163,19 @@ public class GroupedTopNOperator implements Operator, Accountable {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
         DocOriginTable originTable = null;
-        List<TopNEncoder> operatorEncoders = null;
         boolean success = false;
         try {
             originTable = DocVectorEncoder.originTableFor(encoders, breaker);
-            operatorEncoders = TopNOperator.bindEncoders(
-                originTable == null ? encoders : DocVectorEncoder.withOrigins(encoders, originTable),
-                breaker
-            );
             keysHash = HashImplFactory.newBytesRefHash(blockFactory);
             inputQueue = new GroupedQueue(breaker, blockFactory.bigArrays(), topCount);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(
-                    keyEncoder,
-                    keysHash,
-                    inputQueue,
-                    originTable,
-                    operatorEncoders == null ? null : TopNOperator.encodersReleasable(operatorEncoders)
-                );
+                Releasables.close(keyEncoder, keysHash, inputQueue, originTable);
             }
         }
         this.originTable = originTable;
-        this.encoders = operatorEncoders;
+        this.encoders = originTable == null ? encoders : DocVectorEncoder.withOrigins(encoders, originTable);
         this.keyEncoder = keyEncoder;
         this.outputOrdering = outputOrdering;
         this.keysHash = keysHash;
@@ -286,15 +275,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(
-            spare,
-            inputQueue,
-            output,
-            keysHash,
-            keyEncoder,
-            originTable,
-            TopNOperator.encodersReleasable(encoders)
-        );
+        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder, originTable);
         inputQueue = null;
         output = null;
     }
@@ -310,7 +291,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.sizeOf(channelInKey);
         size += sortOrders.size() * SORT_ORDER_SIZE;
         size += keyEncoder.ramBytesUsed();
-        size += TopNOperator.encodersRamBytesUsed(encoders);
         if (keysHash != null) {
             size += keysHash.ramBytesUsed();
         }

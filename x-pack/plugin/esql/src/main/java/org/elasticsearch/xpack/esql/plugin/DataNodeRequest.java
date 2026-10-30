@@ -368,7 +368,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         if (out.getTransportVersion().supports(ESQL_FETCH_CONTEXTS)) {
             out.writeBoolean(keepFetchContexts);
         } else if (keepFetchContexts) {
-            // the plan carries document references that only fetch contexts can serve
+            // the plan sends documents off the node, which only fetch contexts can serve
             throw new IllegalStateException("can't ask a node on [" + out.getTransportVersion() + "] for fetch contexts");
         }
     }

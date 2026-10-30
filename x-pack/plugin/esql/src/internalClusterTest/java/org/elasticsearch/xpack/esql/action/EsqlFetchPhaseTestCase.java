@@ -16,7 +16,6 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.fetch.FetchOperator;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -71,9 +70,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                     "category",
                     "type=keyword",
                     "metric",
-                    "type=long",
-                    PlanFetch.DOC_REF_NAME,
-                    "type=keyword"
+                    "type=long"
                 )
         );
         BulkRequestBuilder bulk = client().prepareBulk();
@@ -95,9 +92,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                             "category",
                             "cat-" + (i % 5),
                             "metric",
-                            i * 10L,
-                            PlanFetch.DOC_REF_NAME,
-                            "user-value-" + i
+                            i * 10L
                         )
                     )
             );
@@ -206,9 +201,9 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Hundreds of document references cross the exchange and the coordinator's {@code TopN} unchanged.
+     * Hundreds of documents cross the exchange and the coordinator's {@code TopN} unchanged.
      */
-    public void testManyDocumentReferencesSurviveTheCut() {
+    public void testManyDocumentsSurviveTheCut() {
         String index = indexName + "_many";
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -252,26 +247,6 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_FETCH_PHASE.getKey()));
         }
         assertNotFetched(runQuery(query, null));
-    }
-
-    /**
-     * The document reference column is recognized by its type, so a user field with its name is a column like any other.
-     */
-    public void testAUserFieldNamedLikeTheDocumentReference() {
-        Run run = runBoth("FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 3 | KEEP `" + PlanFetch.DOC_REF_NAME + "`, payload");
-        assertThat(
-            run.rows(),
-            equalTo(
-                List.of(
-                    List.of("user-value-63", "payload-63"),
-                    List.of("user-value-62", "payload-62"),
-                    List.of("user-value-61", "payload-61")
-                )
-            )
-        );
-        assertFetched(run, 3);
-        assertFetchedOnly(run, PlanFetch.DOC_REF_NAME);
-        assertFetchedOnly(run, "payload");
     }
 
     /**

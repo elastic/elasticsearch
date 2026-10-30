@@ -80,11 +80,11 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
-import org.elasticsearch.compute.operator.fetch.DocRefEncodeOperator;
 import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -191,7 +191,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -485,8 +484,6 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
-        } else if (node instanceof DocRefEncodeExec docRefEncode) {
-            return planDocRefEncode(docRefEncode, context);
         } else if (node instanceof FetchExec fetch) {
             return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
@@ -1469,10 +1466,13 @@ public class LocalExecutionPlanner {
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         List<Layout.ChannelSet> inverse = source.layout.inverse();
+        DocVectorEncoder docEncoder = fetchOperators.receivesDetachedDocuments()
+            ? DocVectorEncoder.detached()
+            : new DocVectorEncoder(context.shardContexts);
         for (int channel = 0; channel < inverse.size(); channel++) {
             var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
-            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
+            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), docEncoder);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
             int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
@@ -2817,13 +2817,13 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planFetch(FetchExec fetch, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(fetch.left(), context);
-        Layout.ChannelAndType docRef = source.layout.get(fetch.docRef().id());
-        if (docRef == null || docRef.type() != DataType.DOC_REF) {
-            throw new IllegalStateException("fetch reads document references from [" + fetch.docRef() + "] but the input has " + docRef);
+        PhysicalOperation source = plan(fetch.child(), context);
+        Layout.ChannelAndType doc = source.layout.get(fetch.doc().id());
+        if (doc == null || doc.type() != DataType.DOC_DATA_TYPE) {
+            throw new IllegalStateException("fetch reads documents from [" + fetch.doc() + "] but the input has " + doc);
         }
         Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
-        return source.with(fetchOperators.fetchOperator(fetch, docRef.channel(), fetchedElementTypes(fetch)), layout);
+        return source.with(fetchOperators.fetchOperator(fetch, doc.channel()), layout);
     }
 
     private PhysicalOperation planFetchSource(FetchSourceExec source, LocalExecutionPlannerContext context) {
@@ -2833,34 +2833,6 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(source.doc());
         return PhysicalOperation.fromSource(fetch.factory(), layout.build());
-    }
-
-    /**
-     * The element type of a column depends on how it is loaded, for example a point loaded from doc values is a long.
-     * The fetch plan loads the fetched columns, so its extraction preferences decide.
-     */
-    private static List<ElementType> fetchedElementTypes(FetchExec fetch) {
-        Map<NameId, MappedFieldType.FieldExtractPreference> preferences = new HashMap<>();
-        fetch.fetchPlan().forEachDown(FieldExtractExec.class, extract -> {
-            for (Attribute attr : extract.attributesToExtract()) {
-                preferences.put(attr.id(), extract.fieldExtractPreference(attr));
-            }
-        });
-        return fetch.fetchedAttributes()
-            .stream()
-            .map(
-                a -> PlannerUtils.toElementType(a.dataType(), preferences.getOrDefault(a.id(), MappedFieldType.FieldExtractPreference.NONE))
-            )
-            .toList();
-    }
-
-    private PhysicalOperation planDocRefEncode(DocRefEncodeExec encode, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(encode.child(), context);
-        int docChannel = source.layout.get(encode.doc().id()).channel();
-        Layout.Builder layout = source.layout.builder();
-        // the column keeps its channel but changes type, and the operators planned above pick their encoders by type
-        layout.replace(encode.doc().id(), encode.docRef().id(), DataType.DOC_REF);
-        return source.with(new DocRefEncodeOperator.Factory(docChannel, context.shardContexts.map(ShardContext::origin)), layout.build());
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

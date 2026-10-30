@@ -57,8 +57,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
-import org.elasticsearch.compute.operator.fetch.DocRefEncodeOperator;
-import org.elasticsearch.compute.operator.topn.DocRefEncoder;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
@@ -92,7 +91,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -137,7 +135,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -175,6 +172,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1844,40 +1842,45 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * The node reduce stage turns {@code _doc} into a document reference at the same channel. Operators planned above it
-     * see the new type, so a TopN carries the reference with its registry encoder.
+     * The TopN of a coordinator keeps documents that left their nodes, whose pages each number their origins in their own
+     * way, so the fetch runtime gives it the encoder for detached documents. Planners without it keep documents of their
+     * own node, pinned by the shard contexts of the plan.
      */
-    public void testDocRefEncodeRetypesTheDocChannel() throws IOException {
+    public void testCoordinatorTopNKeepsDetachedDocuments() throws IOException {
         Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         FieldAttribute ts = new FieldAttribute(
             Source.EMPTY,
             "ts",
             new EsField("ts", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        ReferenceAttribute docRef = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            "$$doc_ref",
-            DataType.DOC_REF,
-            Nullability.FALSE,
-            null,
-            true
-        );
-        PhysicalPlan encode = new DocRefEncodeExec(
-            Source.EMPTY,
-            new ExchangeSourceExec(Source.EMPTY, List.of(doc, ts), false),
-            doc,
-            docRef
-        );
         PhysicalPlan topN = new TopNExec(
             Source.EMPTY,
-            encode,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc, ts), false),
             List.of(new Order(Source.EMPTY, ts, Order.OrderDirection.ASC, Order.NullsPosition.LAST)),
             new Literal(Source.EMPTY, 10, DataType.INTEGER),
             64
         );
+        FetchOperatorProvider provider = new FetchOperatorProvider() {
+            @Override
+            public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+                throw new AssertionError("no fetch to plan");
+            }
+
+            @Override
+            public boolean receivesDetachedDocuments() {
+                return true;
+            }
+        };
         Supplier<ExchangeSource> neverCalled = () -> { throw new AssertionError("planning doesn't open the exchange"); };
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, null, neverCalled).plan(
+
+        DocVectorEncoder coordinator = docEncoder(planner(null, true, null, neverCalled, new PlannerServices(provider)), topN);
+        assertThat(coordinator, sameInstance(DocVectorEncoder.detached()));
+        DocVectorEncoder dataNode = docEncoder(planner(null, true, null, neverCalled), topN);
+        assertThat(dataNode.refCounteds(), sameInstance(ConstantShardContextIndexedByShardId.INSTANCE));
+    }
+
+    private static DocVectorEncoder docEncoder(LocalExecutionPlanner planner, PhysicalPlan topN) {
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner.plan(
             "test",
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
@@ -1888,28 +1891,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         List<Operator.OperatorFactory> operators = plan.driverFactories.get(0)
             .driverSupplier()
             .physicalOperation().intermediateOperatorFactories;
-        assertThat(operators.get(0), instanceOf(DocRefEncodeOperator.Factory.class));
-        assertThat(((DocRefEncodeOperator.Factory) operators.get(0)).docChannel(), equalTo(0));
-        TopNOperator.TopNOperatorFactory topNFactory = (TopNOperator.TopNOperatorFactory) operators.get(1);
-        assertThat(topNFactory.elementTypes().get(0), equalTo(ElementType.DOC_REF));
-        assertThat(topNFactory.encoders().get(0), sameInstance(DocRefEncoder.PROTOTYPE));
+        TopNOperator.TopNOperatorFactory topNFactory = (TopNOperator.TopNOperatorFactory) operators.get(0);
+        assertThat(topNFactory.elementTypes().get(0), equalTo(ElementType.DOC));
+        return as(topNFactory.encoders().get(0), DocVectorEncoder.class);
     }
 
     /**
      * The coordinator appends the fetched columns after the columns of the cut. The planner hands the runtime the
-     * channel of the document references and the element type of each fetched column, which follows how the fetch plan
-     * loads it.
+     * channel of the documents.
      */
     public void testFetchAppendsTheFetchedColumns() throws IOException {
-        ReferenceAttribute docRef = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            "$$doc_ref",
-            DataType.DOC_REF,
-            Nullability.FALSE,
-            null,
-            true
-        );
+        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         FieldAttribute ts = new FieldAttribute(
             Source.EMPTY,
             "ts",
@@ -1925,31 +1917,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "location",
             new EsField("location", DataType.GEO_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Attribute fetchDoc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        List<Attribute> fetched = List.of(message, location);
-        PhysicalPlan fetchPlan = new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(
-                Source.EMPTY,
-                new FetchSourceExec(Source.EMPTY, fetchDoc, null),
-                fetched,
-                MappedFieldType.FieldExtractPreference.NONE
-            ).withDocValuesAttributes(Set.of(location)),
-            fetched
-        );
         FetchExec fetch = new FetchExec(
             Source.EMPTY,
-            new ExchangeSourceExec(Source.EMPTY, List.of(ts, docRef), false),
-            fetchPlan,
-            docRef,
-            fetched,
+            new ExchangeSourceExec(Source.EMPTY, List.of(ts, doc), false),
+            doc,
+            List.of(message, location),
             "test",
             List.of("test"),
             64
         );
 
-        AtomicReference<Integer> docRefChannel = new AtomicReference<>();
-        AtomicReference<List<ElementType>> fetchedTypes = new AtomicReference<>();
+        AtomicReference<Integer> docChannel = new AtomicReference<>();
         Operator.OperatorFactory fetchOperator = new Operator.OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
@@ -1961,10 +1939,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 return "fetch";
             }
         };
-        FetchOperatorProvider provider = (exec, channel, types) -> {
+        FetchOperatorProvider provider = (exec, channel) -> {
             assertThat(exec, sameInstance(fetch));
-            docRefChannel.set(channel);
-            fetchedTypes.set(types);
+            docChannel.set(channel);
             return fetchOperator;
         };
         Supplier<ExchangeSource> neverCalled = () -> { throw new AssertionError("planning doesn't open the exchange"); };
@@ -1979,10 +1956,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
         LocalExecutionPlanner.PhysicalOperation operation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         assertThat(operation.intermediateOperatorFactories, equalTo(List.of(fetchOperator)));
-        assertThat(docRefChannel.get(), equalTo(1));
-        assertThat(fetchedTypes.get(), equalTo(List.of(ElementType.BYTES_REF, ElementType.LONG)));
+        assertThat(docChannel.get(), equalTo(1));
         assertThat(operation.layout.get(ts.id()).channel(), equalTo(0));
-        assertThat(operation.layout.get(docRef.id()).channel(), equalTo(1));
+        assertThat(operation.layout.get(doc.id()).channel(), equalTo(1));
         assertThat(operation.layout.get(message.id()).channel(), equalTo(2));
         assertThat(operation.layout.get(location.id()).channel(), equalTo(3));
     }
@@ -1991,36 +1967,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * Planners built without the runtime of the fetch phase refuse to plan it rather than drop the fetched columns.
      */
     public void testFetchNeedsTheRuntime() throws IOException {
-        ReferenceAttribute docRef = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            "$$doc_ref",
-            DataType.DOC_REF,
-            Nullability.FALSE,
-            null,
-            true
-        );
+        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         FieldAttribute message = new FieldAttribute(
             Source.EMPTY,
             "message",
             new EsField("message", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Attribute fetchDoc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        PhysicalPlan fetchPlan = new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(
-                Source.EMPTY,
-                new FetchSourceExec(Source.EMPTY, fetchDoc, null),
-                List.of(message),
-                MappedFieldType.FieldExtractPreference.NONE
-            ),
-            List.of(message)
-        );
         FetchExec fetch = new FetchExec(
             Source.EMPTY,
-            new ExchangeSourceExec(Source.EMPTY, List.of(docRef), false),
-            fetchPlan,
-            docRef,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
+            doc,
             List.of(message),
             "test",
             List.of("test"),
@@ -2043,19 +1999,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * A fetch without its document references in the input is a planner bug. Planning fails instead of reading
-     * another column.
+     * A fetch without its documents in the input is a planner bug. Planning fails instead of reading another column.
      */
-    public void testFetchNeedsDocumentReferencesInItsInput() throws IOException {
-        ReferenceAttribute docRef = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            "$$doc_ref",
-            DataType.DOC_REF,
-            Nullability.FALSE,
-            null,
-            true
-        );
+    public void testFetchNeedsDocumentsInItsInput() throws IOException {
+        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         FieldAttribute ts = new FieldAttribute(
             Source.EMPTY,
             "ts",
@@ -2066,28 +2013,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "message",
             new EsField("message", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Attribute fetchDoc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        PhysicalPlan fetchPlan = new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(
-                Source.EMPTY,
-                new FetchSourceExec(Source.EMPTY, fetchDoc, null),
-                List.of(message),
-                MappedFieldType.FieldExtractPreference.NONE
-            ),
-            List.of(message)
-        );
         FetchExec fetch = new FetchExec(
             Source.EMPTY,
             new ExchangeSourceExec(Source.EMPTY, List.of(ts), false),
-            fetchPlan,
-            docRef,
+            doc,
             List.of(message),
             "test",
             List.of("test"),
             64
         );
-        FetchOperatorProvider provider = (exec, channel, types) -> { throw new AssertionError("planning stops before the operator"); };
+        FetchOperatorProvider provider = (exec, channel) -> { throw new AssertionError("planning stops before the operator"); };
         Supplier<ExchangeSource> neverCalled = () -> { throw new AssertionError("planning doesn't open the exchange"); };
         LocalExecutionPlanner planner = planner(null, true, null, neverCalled, new PlannerServices(provider));
         IllegalStateException e = expectThrows(
@@ -2101,7 +2036,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("fetch reads document references from [$$doc_ref"));
+        assertThat(e.getMessage(), containsString("fetch reads documents from [_doc"));
         assertThat(e.getMessage(), containsString("but the input has null"));
     }
 

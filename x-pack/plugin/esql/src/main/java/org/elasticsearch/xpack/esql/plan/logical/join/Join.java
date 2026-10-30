@@ -49,7 +49,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_REF;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
@@ -99,7 +98,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         DATE_PERIOD,
         TIME_DURATION,
         DOC_DATA_TYPE,
-        DOC_REF,
         TSID_DATA_TYPE,
         AGGREGATE_METRIC_DOUBLE,
         EXPONENTIAL_HISTOGRAM,

@@ -244,9 +244,7 @@ public final class BlockUtils {
             case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
             case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
             case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) val);
-            case DOC, DOC_REF, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException(
-                "unsupported element type [" + type + "]"
-            );
+            case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
 
@@ -295,8 +293,7 @@ public final class BlockUtils {
     public record Doc(int shard, int segment, int doc) {}
 
     /**
-     * Returned by {@link #toJavaObject} for "doc ref" type blocks, and for "doc" type blocks whose rows left the node that
-     * read them.
+     * Returned by {@link #toJavaObject} for "doc" type blocks whose rows left the node that read them.
      */
     public record DetachedDoc(DocOrigin origin, int segment, int doc) {}
 
@@ -374,10 +371,6 @@ public final class BlockUtils {
             case DOUBLE_RANGE -> {
                 DoubleRangeBlock b = (DoubleRangeBlock) block;
                 yield b.getDoubleRange(offset, new DoubleRangeBlockBuilder.DoubleRange());
-            }
-            case DOC_REF -> {
-                DocRefVector v = ((DocRefBlock) block).asVector();
-                yield new DetachedDoc(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

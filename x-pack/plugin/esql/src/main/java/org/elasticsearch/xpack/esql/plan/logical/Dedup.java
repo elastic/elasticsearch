@@ -63,7 +63,6 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         for (Attribute attr : child().output()) {
             // The query never names the column LOAD_ALL adds, so it is not a key; a _unmapped_fields the query names is an ordinary one.
             if (attr.dataType() == DataType.DOC_DATA_TYPE
-                || attr.dataType() == DataType.DOC_REF
                 || attr instanceof UnsupportedAttribute
                 || attr.synthetic()
                 || attr instanceof UnmappedFieldsAttribute) {

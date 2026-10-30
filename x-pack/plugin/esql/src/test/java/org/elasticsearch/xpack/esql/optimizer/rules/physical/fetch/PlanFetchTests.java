@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -33,27 +34,25 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePol
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
-import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.planner.NodeReduceSplit;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,8 +75,8 @@ public class PlanFetchTests extends ESTestCase {
         "FROM employees | WHERE salary > 1000 | SORT hire_date DESC | LIMIT 10 | KEEP first_name, emp_no, hire_date";
 
     /**
-     * The data nodes send a document reference and the sort key, the coordinator fetches the other columns for the
-     * winners, and the node reduce stage is part of the plan the coordinator ships.
+     * The data nodes send the documents and the sort key, and the coordinator fetches the other columns for the
+     * winners.
      */
     public void testTopN() {
         Planned planned = plan(BASIC);
@@ -86,36 +85,27 @@ public class PlanFetchTests extends ESTestCase {
         FetchExec fetch = single(planned.plan(), FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no", "first_name")));
         assertThat(fetch.indexPattern(), equalTo("employees"));
-        assertThat(fetch.docRef().dataType(), equalTo(DataType.DOC_REF));
+        assertTrue(EsQueryExec.isDocAttribute(fetch.doc()));
 
-        TopNExec coordinatorCut = as(fetch.left(), TopNExec.class);
+        TopNExec coordinatorCut = as(fetch.child(), TopNExec.class);
         assertThat(coordinatorCut.inputOrdering(), equalTo(SORTED));
-        ExchangeExec cluster = as(coordinatorCut.child(), ExchangeExec.class);
-        assertThat(cluster.scope(), equalTo(ExchangeExec.Scope.CLUSTER));
-        assertThat(names(cluster.output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "hire_date")));
-        assertThat(cluster.output().getFirst(), equalTo(fetch.docRef()));
+        ExchangeExec exchange = as(coordinatorCut.child(), ExchangeExec.class);
+        assertThat(names(exchange.output()), equalTo(List.of("_doc", "hire_date")));
+        assertThat(exchange.output().getFirst(), equalTo(fetch.doc()));
 
-        DocRefEncodeExec encode = as(cluster.child(), DocRefEncodeExec.class);
-        assertThat(encode.docRef(), equalTo(fetch.docRef()));
-        TopNExec nodeCut = as(encode.child(), TopNExec.class);
-        assertThat(nodeCut.order(), equalTo(coordinatorCut.order()));
-        assertThat(nodeCut.inputOrdering(), equalTo(SORTED));
-        ExchangeExec node = as(nodeCut.child(), ExchangeExec.class);
-        assertThat(node.scope(), equalTo(ExchangeExec.Scope.NODE));
-        assertThat(names(node.output()), equalTo(List.of("_doc", "hire_date")));
-        assertThat(node.output().getFirst(), equalTo(encode.doc()));
-
-        FragmentExec fragment = as(node.child(), FragmentExec.class);
+        FragmentExec fragment = as(exchange.child(), FragmentExec.class);
         Project fragmentRoot = as(fragment.fragment(), Project.class);
-        assertThat(fragmentRoot.output(), equalTo(node.output()));
+        assertThat(fragmentRoot.output(), equalTo(exchange.output()));
         EsRelation relation = fragment.fragment().collect(EsRelation.class).getFirst();
-        assertThat(relation.output().getFirst(), equalTo(encode.doc()));
+        assertThat(relation.output().getFirst(), equalTo(fetch.doc()));
 
-        assertFetchPlan(fetch);
-        // the cut now carries narrow rows: the reference and the sort key
+        // the cut now carries narrow rows: the documents and the sort key, plus what any TopN of _doc reserves to load them
         assertThat(
             coordinatorCut.estimatedRowSize(),
-            lessThanOrEqualTo(DataType.DOC_REF.estimatedSize() + DataType.DATETIME.estimatedSize())
+            lessThanOrEqualTo(
+                DataType.DOC_DATA_TYPE.estimatedSize() + DocVector.SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD + DataType.DATETIME
+                    .estimatedSize()
+            )
         );
     }
 
@@ -123,29 +113,28 @@ public class PlanFetchTests extends ESTestCase {
     public void testSortKeyNotReturned() {
         FetchExec fetch = single(plan("FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name").plan(), FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "hire_date")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date")));
     }
 
-    /** Without a sort, only the reference crosses the exchange. */
+    /** Without a sort, only the documents cross the exchange. */
     public void testLimit() {
-        Planned planned = plan("FROM employees | LIMIT 10 | KEEP first_name, emp_no");
-        FetchExec fetch = single(planned.plan(), FetchExec.class);
-        LimitExec coordinatorCut = as(fetch.left(), LimitExec.class);
-        assertThat(names(coordinatorCut.output()), equalTo(List.of(PlanFetch.DOC_REF_NAME)));
+        FetchExec fetch = single(plan("FROM employees | LIMIT 10 | KEEP first_name, emp_no").plan(), FetchExec.class);
+        LimitExec coordinatorCut = as(fetch.child(), LimitExec.class);
+        assertThat(coordinatorCut.child(), instanceOf(ExchangeExec.class));
+        assertThat(names(coordinatorCut.output()), equalTo(List.of("_doc")));
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no", "first_name")));
-        assertThat(single(planned.plan(), DocRefEncodeExec.class).child(), instanceOf(LimitExec.class));
     }
 
     /** The default LIMIT is a cut too: a plain FROM fetches the rows it returns after the coordinator picked them. */
     public void testDefaultLimit() {
         FetchExec fetch = single(plan("FROM employees | KEEP first_name").plan(), FetchExec.class);
-        LimitExec coordinatorCut = as(fetch.left(), LimitExec.class);
-        assertThat(names(coordinatorCut.output()), equalTo(List.of(PlanFetch.DOC_REF_NAME)));
+        LimitExec coordinatorCut = as(fetch.child(), LimitExec.class);
+        assertThat(names(coordinatorCut.output()), equalTo(List.of("_doc")));
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
         assertWarnings(DEFAULT_LIMIT_WARNING);
     }
 
-    /** Without KEEP the query still returns the columns it returned before, in the same order, and never the reference. */
+    /** Without KEEP the query still returns the columns it returned before, in the same order, and never the documents. */
     public void testWithoutKeep() {
         String query = "FROM employees | SORT emp_no | LIMIT 5";
         PhysicalPlan eager = plan(query, EsqlFlags.withFetchPhase(false)).plan();
@@ -162,7 +151,7 @@ public class PlanFetchTests extends ESTestCase {
             FetchExec.class
         );
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "hire_date", "raise")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date", "raise")));
     }
 
     /**
@@ -174,7 +163,7 @@ public class PlanFetchTests extends ESTestCase {
 
         FetchExec fetch = single(plan("FROM employees | SORT emp_no + 1 | LIMIT 10 | KEEP emp_no, first_name").plan(), FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(fetch.left().output().stream().map(Attribute::name).toList(), hasItem("emp_no"));
+        assertThat(fetch.child().output().stream().map(Attribute::name).toList(), hasItem("emp_no"));
     }
 
     /** WHERE, EVAL and RENAME after the cut run on the coordinator, over the fetched columns. */
@@ -195,34 +184,12 @@ public class PlanFetchTests extends ESTestCase {
             FetchExec.class
         );
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "_score")));
-    }
-
-    /** An index can have a field with the name of the document reference. The reference takes another name. */
-    public void testAFieldNamedLikeTheDocumentReference() {
-        Map<String, EsField> mapping = new HashMap<>(mapping());
-        mapping.put(
-            PlanFetch.DOC_REF_NAME,
-            new EsField(PlanFetch.DOC_REF_NAME, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
-        Planned planned = plan("FROM employees | SORT hire_date | LIMIT 10 | KEEP `" + PlanFetch.DOC_REF_NAME + "`, first_name", mapping);
-        FetchExec fetch = single(planned.plan(), FetchExec.class);
-        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "first_name")));
-        assertThat(fetch.docRef().name(), equalTo(PlanFetch.DOC_REF_NAME + "$1"));
-        assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME + "$1", "hire_date")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "_score")));
     }
 
     public void testSourceIsFetched() {
         FetchExec fetch = single(plan("FROM employees METADATA _source | SORT emp_no | LIMIT 3 | KEEP _source").plan(), FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("_source")));
-    }
-
-    /** Without node level reduction there is no node cut, the reference is built right after the node exchange. */
-    public void testWithoutNodeLevelReduction() {
-        Configuration configuration = configuration(Settings.builder().put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), false).build());
-        PhysicalPlan plan = plan(BASIC, EsqlFlags.withFetchPhase(true), configuration, TransportVersion.current()).plan();
-        DocRefEncodeExec encode = single(plan, DocRefEncodeExec.class);
-        assertThat(as(encode.child(), ExchangeExec.class).scope(), equalTo(ExchangeExec.Scope.NODE));
     }
 
     /** The extraction preference applies to the data drivers. The fetch side always loads the plain values. */
@@ -231,21 +198,35 @@ public class PlanFetchTests extends ESTestCase {
             Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), MappedFieldType.FieldExtractPreference.STORED).build()
         );
         Planned planned = plan(BASIC, EsqlFlags.withFetchPhase(true), configuration, TransportVersion.current());
-        assertFetchPlan(single(planned.plan(), FetchExec.class));
+        assertThat(planned.decisions(), contains(new Decision(Outcome.APPLIED, null)));
+        single(planned.plan(), FetchExec.class);
     }
 
-    /** The coordinator splits at the cluster exchange, each data node at the node exchange, and nothing else is planned. */
+    /**
+     * The coordinator splits the plan at the exchange. The data nodes plan their side like any other: node-level late
+     * materialization cuts the rows of the node's shards once more, and the documents leave the node with the sort key.
+     */
     public void testSplits() {
         Configuration configuration = configuration(Settings.EMPTY);
         PhysicalPlan plan = plan(BASIC, EsqlFlags.withFetchPhase(true), configuration, TransportVersion.current()).plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndData = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, configuration);
         assertThat(coordinatorAndData.v1().collect(FetchExec.class), hasSize(1));
         ExchangeSinkExec dataNodePlan = as(coordinatorAndData.v2(), ExchangeSinkExec.class);
-        assertThat(dataNodePlan.child(), instanceOf(DocRefEncodeExec.class));
+        assertThat(names(dataNodePlan.output()), equalTo(List.of("_doc", "hire_date")));
 
-        ReductionPlan reduction = NodeReduceSplit.split(dataNodePlan).orElseThrow();
-        assertThat(reduction.nodeReducePlan().child(), instanceOf(DocRefEncodeExec.class));
-        assertThat(reduction.dataNodePlan().child(), instanceOf(FragmentExec.class));
+        ReductionPlan reduction = ComputeService.reductionPlan(
+            PlannerSettings.DEFAULTS,
+            new EsqlFlags(false),
+            configuration,
+            configuration.newFoldContext(),
+            dataNodePlan,
+            true,
+            true,
+            null
+        );
+        TopNExec nodeCut = single(reduction.nodeReducePlan(), TopNExec.class);
+        assertThat(nodeCut.child(), instanceOf(ExchangeSourceExec.class));
+        assertThat(names(reduction.nodeReducePlan().output()), equalTo(List.of("_doc", "hire_date")));
         assertThat(names(reduction.dataNodePlan().output()), equalTo(List.of("_doc", "hire_date")));
     }
 
@@ -288,12 +269,12 @@ public class PlanFetchTests extends ESTestCase {
         assertThat(outcomes.all().getFirst().outcome(), equalTo(Outcome.INELIGIBLE_SHAPE));
     }
 
-    /** Running the rule on its own output changes nothing: the plan now has two exchanges. */
+    /** Running the rule on its own output changes nothing: the fetch now runs after the cut. */
     public void testRunningTwiceIsANoop() {
         PhysicalPlan fetched = plan(BASIC).plan();
         FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
         assertThat(new PlanFetch(outcomes).apply(fetched, context(EsqlFlags.withFetchPhase(true))), sameInstance(fetched));
-        assertThat(outcomes.all(), contains(new Decision(Outcome.INELIGIBLE_SHAPE, "more than one exchange")));
+        assertThat(outcomes.all(), contains(new Decision(Outcome.INELIGIBLE_SHAPE, "[FetchExec] runs after the cut")));
     }
 
     public void testIneligibleShapes() {
@@ -329,7 +310,7 @@ public class PlanFetchTests extends ESTestCase {
         PhysicalPlan rewritten = applyTo(topNPlan(List.of(mapped, unmapped), Map.of("", List.of("idx"))));
         FetchExec fetch = single(rewritten, FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.left().output()), equalTo(List.of(PlanFetch.DOC_REF_NAME, "sort", "unmapped_kw")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "sort", "unmapped_kw")));
     }
 
     /** Rows from a remote cluster cannot be fetched yet, the plan stays eager. */
@@ -355,18 +336,6 @@ public class PlanFetchTests extends ESTestCase {
         assertThat("the same plan with a pipeline breaking cut gets the fetch phase", applyTo(plan).collect(FetchExec.class), hasSize(1));
     }
 
-    private static void assertFetchPlan(FetchExec fetch) {
-        ProjectExec project = as(fetch.fetchPlan(), ProjectExec.class);
-        assertThat(project.output(), equalTo(fetch.fetchedAttributes()));
-        FieldExtractExec extract = as(project.child(), FieldExtractExec.class);
-        assertThat(extract.attributesToExtract(), equalTo(fetch.fetchedAttributes()));
-        for (Attribute attribute : extract.attributesToExtract()) {
-            assertThat(extract.fieldExtractPreference(attribute), equalTo(MappedFieldType.FieldExtractPreference.NONE));
-        }
-        FetchSourceExec source = as(extract.child(), FetchSourceExec.class);
-        assertTrue(EsQueryExec.isDocAttribute(source.doc()));
-    }
-
     private static void assertIneligible(String query, String reason) {
         List<Decision> decisions = plan(query).decisions();
         assertThat(query, decisions, hasSize(1));
@@ -378,7 +347,6 @@ public class PlanFetchTests extends ESTestCase {
         assertThat(planned.decisions(), hasSize(1));
         assertThat(planned.decisions().getFirst().outcome(), equalTo(outcome));
         assertThat(planned.plan().collect(FetchExec.class), empty());
-        assertThat(planned.plan().collect(DocRefEncodeExec.class), empty());
     }
 
     private record Planned(PhysicalPlan plan, List<Decision> decisions) {}
@@ -391,23 +359,9 @@ public class PlanFetchTests extends ESTestCase {
         return plan(query, flags, configuration(Settings.EMPTY), TransportVersion.current());
     }
 
-    private static Planned plan(String query, Map<String, EsField> mapping) {
-        return plan(query, EsqlFlags.withFetchPhase(true), configuration(Settings.EMPTY), TransportVersion.current(), mapping);
-    }
-
     private static Planned plan(String query, EsqlFlags flags, Configuration configuration, TransportVersion minimumVersion) {
-        return plan(query, flags, configuration, minimumVersion, mapping());
-    }
-
-    private static Planned plan(
-        String query,
-        EsqlFlags flags,
-        Configuration configuration,
-        TransportVersion minimumVersion,
-        Map<String, EsField> mapping
-    ) {
         Analyzer analyzer = EsqlTestUtils.analyzer()
-            .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion)
             .buildAnalyzer();
         TestPlannerOptimizer optimizer = new TestPlannerOptimizer(configuration, analyzer, flags);

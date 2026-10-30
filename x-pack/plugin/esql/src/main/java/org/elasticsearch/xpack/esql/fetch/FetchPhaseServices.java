@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 
 /**
@@ -27,26 +29,34 @@ public interface FetchPhaseServices {
     FetchContextService contextService();
 
     /**
-     * The runtime of this node: a {@link FetchOperator} for each {@link org.elasticsearch.xpack.esql.plan.physical.FetchExec}
-     * that sends its requests through {@code fetchService}, and the reader contexts of {@code contextService}.
+     * The runtime of this node: a {@link FetchOperator} for each {@link FetchExec} that sends its requests through
+     * {@code fetchService}, and the reader contexts of {@code contextService}.
      */
     static FetchPhaseServices create(FetchContextService contextService, FetchService fetchService, ClusterService clusterService) {
         return new FetchPhaseServices() {
             @Override
             public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
-                return (exec, docRefChannel, fetchedTypes) -> new FetchOperator.Factory(
-                    docRefChannel,
-                    fetchedTypes,
-                    exec.fetchPlan(),
-                    FetchOperator.MAX_OUTSTANDING_PAGES,
-                    new QueryFetchClient(
-                        fetchService::sendFetch,
-                        clusterService.threadPool().getThreadContext(),
-                        () -> clusterService.state().nodes(),
-                        scope,
-                        exec.originalIndices()
-                    )
-                );
+                return new FetchOperatorProvider() {
+                    @Override
+                    public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+                        return FetchOperator.Factory.forExec(
+                            exec,
+                            docChannel,
+                            new QueryFetchClient(
+                                fetchService::sendFetch,
+                                clusterService.threadPool().getThreadContext(),
+                                () -> clusterService.state().nodes(),
+                                scope,
+                                exec.originalIndices()
+                            )
+                        );
+                    }
+
+                    @Override
+                    public boolean receivesDetachedDocuments() {
+                        return true;
+                    }
+                };
             }
 
             @Override

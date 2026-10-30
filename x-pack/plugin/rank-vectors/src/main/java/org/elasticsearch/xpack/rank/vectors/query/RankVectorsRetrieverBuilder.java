@@ -76,6 +76,11 @@ public final class RankVectorsRetrieverBuilder extends RetrieverBuilder {
         return PARSER.apply(parser, context);
     }
 
+    public RankVectorsRetrieverBuilder addFilterQuery(QueryBuilder filterQuery) {
+        preFilterQueryBuilders.add(Objects.requireNonNull(filterQuery));
+        return this;
+    }
+
     @Override
     public String getName() {
         return NAME;

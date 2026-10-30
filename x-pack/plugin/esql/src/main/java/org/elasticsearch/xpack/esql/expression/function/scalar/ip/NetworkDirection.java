@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -62,6 +63,7 @@ public class NetworkDirection extends EsqlScalarFunction implements AnyNullIsNul
 
     @FunctionInfo(
         returnType = "keyword",
+        signatures = { @Signature(params = { "ip", "ip", "STRING" }, returnType = "keyword") },
         preview = true,
         briefSummary = "Returns the network direction type given source and destination IP addresses.",
         description = "Returns the direction type (inbound, outbound, internal, external) given "

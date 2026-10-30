@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ public class Random extends UnaryScalarFunction implements AnyNullIsNull, NonDet
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "integer" },
+        signatures = { @Signature(params = { "integer" }, returnType = "integer") },
         briefSummary = "Returns a pseudorandom integer between 0 (inclusive) and a bound (exclusive).",
         description = "Returns a pseudorandom number, uniformly distributed between 0 (inclusive) and bound (exclusive).",
         type = FunctionType.SCALAR

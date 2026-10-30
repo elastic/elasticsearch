@@ -45,6 +45,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 import org.junit.After;
 import org.junit.Before;
@@ -110,6 +111,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
     @After
     public void stopClusterService() {
+        IngestModelMemoryProvider.setInstance(() -> new IngestModelMemoryProvider.HeapRequirement(0L, true));
         clusterService.close();
         terminate(threadPool);
     }
@@ -527,7 +529,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
     /**
      * Indexing nodes with no assigned active/initializing primaries still receive a per-node estimate (base, merge, indexing-ops buffer,
-     * and global max postings), matching {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}.
+     * ingest-model heap, and global max postings), matching {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}.
      */
     public void testPerNodeMemoryMetricsIncludesIndexingNodesWithNoAssignedPrimaries() {
         final String indexName = randomIdentifier();
@@ -730,26 +732,72 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
         final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
-        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(node0, totalIndices, 0L, 0L, shardMappingSizes);
+        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(node0, totalIndices, 0L, 0L, 0L, shardMappingSizes);
         assertThat(localEstimate, equalTo(masterEstimate));
 
         // The node-level signals are additive on the total only and do not leak into the hosted-shards estimate
         final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
         final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
+        final long ingestModelHeap = randomLongBetween(1, 1_000_000);
         final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
             node0,
             totalIndices,
             largeIndexingOpsHeap,
             mergeMemoryEstimate,
+            ingestModelHeap,
             shardMappingSizes
         );
-        assertThat(withNodeSignals.totalHeapUsage(), equalTo(localEstimate.totalHeapUsage() + largeIndexingOpsHeap + mergeMemoryEstimate));
+        final long nodeSignalHeap = largeIndexingOpsHeap + mergeMemoryEstimate + ingestModelHeap;
+        assertThat(withNodeSignals.totalHeapUsage(), equalTo(localEstimate.totalHeapUsage() + nodeSignalHeap));
         assertThat(withNodeSignals.hostedShardsHeapUsage(), equalTo(localEstimate.hostedShardsHeapUsage()));
         assertThat(localEstimate.nonShardHeapUsage(), greaterThan(0L));
-        assertThat(
-            withNodeSignals.nonShardHeapUsage(),
-            equalTo(localEstimate.nonShardHeapUsage() + largeIndexingOpsHeap + mergeMemoryEstimate)
+        assertThat(withNodeSignals.nonShardHeapUsage(), equalTo(localEstimate.nonShardHeapUsage() + nodeSignalHeap));
+    }
+
+    /**
+     * Ingest-model heap is resident on every indexing node, so {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}
+     * adds the provider's byte count to each indexing node's non-shard total. Search nodes stay at zero total heap.
+     */
+    public void testIngestModelHeapChargedOnIndexingNodesOnly() {
+        final String indexName = randomIdentifier();
+        final ClusterState clusterState = ClusterStateCreationUtils.buildServerlessRoleNodes(
+            indexName,
+            1,
+            1,
+            1,
+            0,
+            ClusterStateCreationUtils.ShardAllocationStrategy.RoundRobin
         );
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+
+        final Map<String, NodeHeapEstimates> before = service.getPerNodeMemoryMetrics(clusterState);
+        final long ingestModelHeapBytes = randomLongBetween(1, 1_000_000);
+        IngestModelMemoryProvider.setInstance(() -> new IngestModelMemoryProvider.HeapRequirement(ingestModelHeapBytes, randomBoolean()));
+
+        final Map<String, NodeHeapEstimates> after = service.getPerNodeMemoryMetrics(clusterState);
+        assertThat(after.keySet(), equalTo(before.keySet()));
+        boolean sawIndexingNode = false;
+        boolean sawSearchNode = false;
+        for (DiscoveryNode node : clusterState.nodes()) {
+            if (after.containsKey(node.getId()) == false) {
+                continue;
+            }
+            final NodeHeapEstimates beforeEstimate = before.get(node.getId());
+            final NodeHeapEstimates afterEstimate = after.get(node.getId());
+            if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
+                sawIndexingNode = true;
+                assertThat(afterEstimate.nonShardHeapUsage() - beforeEstimate.nonShardHeapUsage(), equalTo(ingestModelHeapBytes));
+                assertThat(afterEstimate.totalHeapUsage() - beforeEstimate.totalHeapUsage(), equalTo(ingestModelHeapBytes));
+                assertThat(afterEstimate.hostedShardsHeapUsage(), equalTo(beforeEstimate.hostedShardsHeapUsage()));
+            } else if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
+                sawSearchNode = true;
+                assertThat(afterEstimate.totalHeapUsage(), equalTo(0L));
+                assertThat(afterEstimate.nonShardHeapUsage(), equalTo(0L));
+                assertThat(afterEstimate, equalTo(beforeEstimate));
+            }
+        }
+        assertThat(sawIndexingNode, equalTo(true));
+        assertThat(sawSearchNode, equalTo(true));
     }
 
     private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices) {

@@ -35,12 +35,16 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = TransportVersion.fromName(
             "write_load_includes_buffer_writes"
         );
+        private static final TransportVersion INDEXING_STATS_INDEX_FAILED_DUE_TO_TOO_MANY_DOCS = TransportVersion.fromName(
+            "indexing_stats_index_failed_due_to_too_many_docs"
+        );
 
         private long indexCount;
         private long indexTimeInMillis;
         private long indexCurrent;
         private long indexFailedCount;
         private long indexFailedDueToVersionConflictCount;
+        private long indexFailedDueToTooManyDocsCount;
         private long deleteCount;
         private long deleteTimeInMillis;
         private long deleteCurrent;
@@ -99,6 +103,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                     ? totalIndexingTimeSinceShardStartedInNanos
                     : 0;
             }
+            if (in.getTransportVersion().supports(INDEXING_STATS_INDEX_FAILED_DUE_TO_TOO_MANY_DOCS)) {
+                indexFailedDueToTooManyDocsCount = in.readVLong();
+            }
         }
 
         public Stats(
@@ -107,6 +114,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long indexCurrent,
             long indexFailedCount,
             long indexFailedDueToVersionConflictCount,
+            long indexFailedDueToTooManyDocsCount,
             long deleteCount,
             long deleteTimeInMillis,
             long deleteCurrent,
@@ -124,6 +132,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.indexCurrent = indexCurrent;
             this.indexFailedCount = indexFailedCount;
             this.indexFailedDueToVersionConflictCount = indexFailedDueToVersionConflictCount;
+            this.indexFailedDueToTooManyDocsCount = indexFailedDueToTooManyDocsCount;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
@@ -145,6 +154,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexCurrent += stats.indexCurrent;
             indexFailedCount += stats.indexFailedCount;
             indexFailedDueToVersionConflictCount += stats.indexFailedDueToVersionConflictCount;
+            indexFailedDueToTooManyDocsCount += stats.indexFailedDueToTooManyDocsCount;
 
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
@@ -187,6 +197,14 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          */
         public long getIndexFailedDueToVersionConflictCount() {
             return indexFailedDueToVersionConflictCount;
+        }
+
+        /**
+         * The number of indexing operations that failed because the shard reached the maximum number of documents
+         * (a subset of all index failed operations)
+         */
+        public long getIndexFailedDueToTooManyDocsCount() {
+            return indexFailedDueToTooManyDocsCount;
         }
 
         /**
@@ -317,6 +335,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().supports(WRITE_LOAD_INCLUDES_BUFFER_WRITES)) {
                 out.writeLong(totalIndexingExecutionTimeSinceShardStartedInNanos);
             }
+            if (out.getTransportVersion().supports(INDEXING_STATS_INDEX_FAILED_DUE_TO_TOO_MANY_DOCS)) {
+                out.writeVLong(indexFailedDueToTooManyDocsCount);
+            }
         }
 
         @Override
@@ -326,6 +347,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
             builder.field(Fields.INDEX_FAILED, indexFailedCount);
             builder.field(Fields.INDEX_FAILED_DUE_TO_VERSION_CONFLICT, indexFailedDueToVersionConflictCount);
+            builder.field(Fields.INDEX_FAILED_DUE_TO_TOO_MANY_DOCS, indexFailedDueToTooManyDocsCount);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.humanReadableField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, getDeleteTime());
@@ -352,6 +374,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 && indexCurrent == that.indexCurrent
                 && indexFailedCount == that.indexFailedCount
                 && indexFailedDueToVersionConflictCount == that.indexFailedDueToVersionConflictCount
+                && indexFailedDueToTooManyDocsCount == that.indexFailedDueToTooManyDocsCount
                 && deleteCount == that.deleteCount
                 && deleteTimeInMillis == that.deleteTimeInMillis
                 && deleteCurrent == that.deleteCurrent
@@ -373,6 +396,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 indexCurrent,
                 indexFailedCount,
                 indexFailedDueToVersionConflictCount,
+                indexFailedDueToTooManyDocsCount,
                 deleteCount,
                 deleteTimeInMillis,
                 deleteCurrent,
@@ -447,6 +471,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String INDEX_CURRENT = "index_current";
         static final String INDEX_FAILED = "index_failed";
         static final String INDEX_FAILED_DUE_TO_VERSION_CONFLICT = "index_failed_due_to_version_conflict";
+        static final String INDEX_FAILED_DUE_TO_TOO_MANY_DOCS = "index_failed_due_to_too_many_docs";
         static final String DELETE_TOTAL = "delete_total";
         static final String DELETE_TIME = "delete_time";
         static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";

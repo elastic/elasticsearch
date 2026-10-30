@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -32,7 +31,6 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -118,8 +116,10 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
 
     /**
      * A distinct set of present fields of one shard. Bit {@code i} stands for {@code ShardFields#fields().get(i)}.
+     *
+     * @param fieldCount the number of set bits, so a set of one field is written as a single value without counting them
      */
-    private record FieldSet(int shard, FixedBitSet presentFields) {}
+    private record FieldSet(int shard, FixedBitSet presentFields, int fieldCount) {}
 
     private static final long FIELD_SET_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FieldSet.class);
 
@@ -154,7 +154,7 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
 
     private Page discoverFieldSets(DocBlock docBlock) throws IOException {
         DocVector docVector = docBlock.asVector();
-        docVector.ensureAttached(toString());
+        docVector.ensureAttached("FieldPresenceOperator");
         IntVector shards = docVector.shards();
         IntVector segments = docVector.segments();
         IntVector docs = docVector.docs();
@@ -169,18 +169,19 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
                 discover(shards.getInt(p), segments.getInt(p), docs.getInt(p), discovered);
             }
         }
-        return discovered.isEmpty() ? null : buildPage(discovered);
+        return discovered.isEmpty() ? null : buildPage(shards, discovered);
     }
 
     private void discover(int shard, int segment, int doc, List<FieldSet> discovered) throws IOException {
         if (segmentIterators == null || segmentIterators.canRead(shard, segment, doc) == false) {
             segmentIterators = new SegmentIterators(shard, segment, factory.shardFields(shard));
         }
-        FixedBitSet presentFields = segmentIterators.presentFields(doc);
-        if (presentFields == null || seenFieldSets.contains(new FieldSet(shard, presentFields))) {
+        int fieldCount = segmentIterators.readPresentFields(doc);
+        FixedBitSet presentFields = segmentIterators.presentFields;
+        if (fieldCount == 0 || seenFieldSets.contains(new FieldSet(shard, presentFields, fieldCount))) {
             return;
         }
-        FieldSet fieldSet = new FieldSet(shard, presentFields.clone());
+        FieldSet fieldSet = new FieldSet(shard, presentFields.clone(), fieldCount);
         long bytes = FIELD_SET_SHALLOW_SIZE + fieldSet.presentFields().ramBytesUsed();
         breaker.addEstimateBytesAndMaybeBreak(bytes, "FieldPresenceOperator");
         trackedBytes += bytes;
@@ -188,29 +189,56 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
         discovered.add(fieldSet);
     }
 
-    private Page buildPage(List<FieldSet> fieldSets) {
-        try (
-            BytesRefBlock.Builder indexNames = blockFactory.newBytesRefBlockBuilder(fieldSets.size());
-            BytesRefBlock.Builder fieldNames = blockFactory.newBytesRefBlockBuilder(fieldSets.size())
-        ) {
+    private Page buildPage(IntVector shards, List<FieldSet> fieldSets) {
+        Block indexNames = indexNames(shards, fieldSets);
+        try (BytesRefBlock.Builder fieldNames = blockFactory.newBytesRefBlockBuilder(fieldSets.size())) {
+            int fieldsShard = -1;
+            ShardFields fields = null;
             for (FieldSet fieldSet : fieldSets) {
-                ShardFields fields = factory.shardFields(fieldSet.shard());
-                indexNames.appendBytesRef(new BytesRef(fields.indexName()));
-                FixedBitSet present = fieldSet.presentFields();
-                boolean multivalued = present.cardinality() > 1;
-                if (multivalued) {
-                    fieldNames.beginPositionEntry();
+                if (fieldSet.shard() != fieldsShard) {
+                    fieldsShard = fieldSet.shard();
+                    fields = factory.shardFields(fieldsShard);
                 }
-                BitSetIterator fieldOrdinals = new BitSetIterator(present, 0L);
-                for (int f = fieldOrdinals.nextDoc(); f != DocIdSetIterator.NO_MORE_DOCS; f = fieldOrdinals.nextDoc()) {
-                    fieldNames.appendBytesRef(new BytesRef(fields.fields().get(f).name()));
-                }
-                if (multivalued) {
-                    fieldNames.endPositionEntry();
-                }
+                appendFieldNames(fieldNames, fields, fieldSet);
             }
-            return new Page(Block.Builder.buildAll(indexNames, fieldNames));
+            Page page = new Page(indexNames, fieldNames.build());
+            indexNames = null;
+            return page;
+        } finally {
+            Releasables.closeExpectNoException(indexNames);
         }
+    }
+
+    /** Sources emit pages of one shard, so the index name is usually a constant block. */
+    private Block indexNames(IntVector shards, List<FieldSet> fieldSets) {
+        if (shards.isConstant()) {
+            BytesRef indexName = new BytesRef(factory.shardFields(shards.getInt(0)).indexName());
+            return blockFactory.newConstantBytesRefBlockWith(indexName, fieldSets.size());
+        }
+        try (BytesRefBlock.Builder indexNames = blockFactory.newBytesRefBlockBuilder(fieldSets.size())) {
+            for (FieldSet fieldSet : fieldSets) {
+                indexNames.appendBytesRef(new BytesRef(factory.shardFields(fieldSet.shard()).indexName()));
+            }
+            return indexNames.build();
+        }
+    }
+
+    private static void appendFieldNames(BytesRefBlock.Builder fieldNames, ShardFields fields, FieldSet fieldSet) {
+        FixedBitSet present = fieldSet.presentFields();
+        boolean multivalued = fieldSet.fieldCount() > 1;
+        if (multivalued) {
+            fieldNames.beginPositionEntry();
+        }
+        for (int f = present.nextSetBit(0); f != DocIdSetIterator.NO_MORE_DOCS; f = nextSetBit(present, f + 1)) {
+            fieldNames.appendBytesRef(new BytesRef(fields.fields().get(f).name()));
+        }
+        if (multivalued) {
+            fieldNames.endPositionEntry();
+        }
+    }
+
+    private static int nextSetBit(FixedBitSet bits, int from) {
+        return from < bits.length() ? bits.nextSetBit(from) : DocIdSetIterator.NO_MORE_DOCS;
     }
 
     @Override
@@ -224,19 +252,19 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Forward-only iterators over the documents of one segment that have each field. Fields missing from the segment get
-     * no iterator. Rebuilt when documents arrive from another segment or before the last document read, and when the
-     * driver resumes on another thread, because doc values iterators belong to the thread that created them.
+     * Forward-only iterators over the documents of one segment that have each field, by the position of the field in
+     * {@link ShardFields#fields}. Fields missing from the segment get an empty iterator. Rebuilt when documents arrive from
+     * another segment or before the last document read, and when the driver resumes on another thread, because doc values
+     * iterators belong to the thread that created them.
      */
     private static final class SegmentIterators {
         private final Thread creationThread = Thread.currentThread();
         private final int shard;
         private final int segment;
-        /** Position in {@link ShardFields#fields} of the field each iterator belongs to. */
-        private final int[] fieldOrdinals;
         private final DocIdSetIterator[] iterators;
         /** Cached {@link DocIdSetIterator#docID} of each iterator, so an absent field costs no virtual call. */
         private final int[] currentDocs;
+        /** The fields of the latest document read, overwritten by the next read. */
         private final FixedBitSet presentFields;
         private int lastDoc = -1;
 
@@ -245,22 +273,12 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
             this.segment = segment;
             LeafReaderContext leaf = shardFields.reader().leaves().get(segment);
             List<Field> fields = shardFields.fields();
-            int[] ordinals = new int[fields.size()];
-            DocIdSetIterator[] segmentIterators = new DocIdSetIterator[fields.size()];
-            int count = 0;
+            this.iterators = new DocIdSetIterator[fields.size()];
+            this.currentDocs = new int[fields.size()];
             for (int f = 0; f < fields.size(); f++) {
                 Scorer scorer = fields.get(f).presence().scorer(leaf);
-                if (scorer != null) {
-                    ordinals[count] = f;
-                    segmentIterators[count] = scorer.iterator();
-                    count++;
-                }
-            }
-            this.fieldOrdinals = Arrays.copyOf(ordinals, count);
-            this.iterators = Arrays.copyOf(segmentIterators, count);
-            this.currentDocs = new int[count];
-            for (int i = 0; i < count; i++) {
-                currentDocs[i] = iterators[i].docID();
+                iterators[f] = scorer == null ? DocIdSetIterator.empty() : scorer.iterator();
+                currentDocs[f] = iterators[f].docID();
             }
             this.presentFields = new FixedBitSet(fields.size());
         }
@@ -269,25 +287,23 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
             return creationThread == Thread.currentThread() && this.shard == shard && this.segment == segment && doc >= lastDoc;
         }
 
-        /**
-         * The fields {@code doc} has, or {@code null} if it has none. The returned bits are overwritten by the next call.
-         */
-        FixedBitSet presentFields(int doc) throws IOException {
+        /** Reads the fields {@code doc} has into {@link #presentFields} and returns how many it has. */
+        int readPresentFields(int doc) throws IOException {
             lastDoc = doc;
             presentFields.clear(0, presentFields.length());
-            boolean anyPresent = false;
-            for (int i = 0; i < iterators.length; i++) {
-                int current = currentDocs[i];
+            int fieldCount = 0;
+            for (int f = 0; f < iterators.length; f++) {
+                int current = currentDocs[f];
                 if (current < doc) {
-                    current = iterators[i].advance(doc);
-                    currentDocs[i] = current;
+                    current = iterators[f].advance(doc);
+                    currentDocs[f] = current;
                 }
                 if (current == doc) {
-                    presentFields.set(fieldOrdinals[i]);
-                    anyPresent = true;
+                    presentFields.set(f);
+                    fieldCount++;
                 }
             }
-            return anyPresent ? presentFields : null;
+            return fieldCount;
         }
     }
 }

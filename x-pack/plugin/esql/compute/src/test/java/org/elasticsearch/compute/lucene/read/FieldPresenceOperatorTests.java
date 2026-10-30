@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
@@ -180,6 +181,33 @@ public class FieldPresenceOperatorTests extends OperatorTestCase {
             Set.copyOf(rows),
             equalTo(Set.of(new Row("metrics-1", Set.of("host", "cpu")), new Row("metrics-2", Set.of("host", "cpu"))))
         );
+    }
+
+    public void testWritesTheIndexOfAPageOfOneShardAsAConstant() {
+        IndexReader reader = index(List.of(List.of(Set.of("host", "cpu"), Set.of("pod"))));
+        FieldPresenceOperator.ShardFields fields = shardFields(INDEX, reader);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        // Like the pages of a source, which read one segment of one shard at a time
+        Page input = new Page(
+            new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                blockFactory.newConstantIntVector(0, 2),
+                blockFactory.newConstantIntVector(0, 2),
+                blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2),
+                DocVector.config()
+            ).asBlock()
+        );
+        try (Operator operator = new FieldPresenceOperator.Factory(shard -> fields, 0).get(driverContext())) {
+            operator.addInput(input);
+            Page output = operator.getOutput();
+            try {
+                BytesRefBlock indexNames = output.getBlock(0);
+                assertTrue(indexNames.asVector().isConstant());
+                assertThat(rows(List.of(output)), equalTo(List.of(new Row(INDEX, Set.of("host", "cpu")), new Row(INDEX, Set.of("pod")))));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
     }
 
     public void testDocumentWithoutReportedFieldsEmitsNothing() {

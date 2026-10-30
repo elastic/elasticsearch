@@ -13,6 +13,18 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.6 [connectors-9.5.6-release-notes]
+
+### Fixes [connectors-9.5.6-fixes]
+* Fix SharePoint Online incremental syncs skipping sites whose last-modified timestamp had not changed, which left deleted or modified drive documents stale until the next full sync. Incremental syncs now visit every site. [#4622](https://github.com/elastic/connectors/pull/4622), [#3994](https://github.com/elastic/connectors/issues/3994)
+* Fix connector syncs failing when a content index had no explicit `id` mapping and Elasticsearch dynamically mapped `id` as `long`. The `id` field is now mapped as `keyword` when the index is created, or before a sync if `id` is not yet mapped. Indices where `id` is already mapped as `long` must be recreated or reindexed. [#4646](https://github.com/elastic/connectors/pull/4646), [#2581](https://github.com/elastic/connectors/issues/2581)
+
+## 9.4.9 [connectors-9.4.9-release-notes]
+
+### Fixes [connectors-9.4.9-fixes]
+* Fix SharePoint Online incremental syncs skipping sites whose last-modified timestamp had not changed, which left deleted or modified drive documents stale until the next full sync. Incremental syncs now visit every site. [#4622](https://github.com/elastic/connectors/pull/4622), [#3994](https://github.com/elastic/connectors/issues/3994)
+* Fix connector syncs failing when a content index had no explicit `id` mapping and Elasticsearch dynamically mapped `id` as `long`. The `id` field is now mapped as `keyword` when the index is created, or before a sync if `id` is not yet mapped. Indices where `id` is already mapped as `long` must be recreated or reindexed. [#4646](https://github.com/elastic/connectors/pull/4646), [#2581](https://github.com/elastic/connectors/issues/2581)
+
 ## 9.5.5 [connectors-9.5.5-release-notes]
 
 ### Features and enhancements [connectors-9.5.5-features-enhancements]

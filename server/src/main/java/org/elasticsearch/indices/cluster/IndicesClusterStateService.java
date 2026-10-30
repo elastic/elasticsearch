@@ -1451,9 +1451,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardFailureType failureType = isRecoveryCancellation(failure)
                 ? ShardFailureType.RECOVERY_CANCELLED
                 : ShardFailureType.FAILED;
-            // A recovery cancelled by the master is expected and should not warn
-            final Level level = failureType == ShardFailureType.RECOVERY_CANCELLED ? Level.INFO : Level.WARN;
-            logger.log(level, () -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
+            if (failureType == ShardFailureType.RECOVERY_CANCELLED) {
+                // A recovery cancelled by the master is an expected failure, do not warn about it
+                logger.info(() -> format("%s marking cancelled by master [%s]", shardId, message), failure);
+            } else {
+                logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
+            }
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm, failureType));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {

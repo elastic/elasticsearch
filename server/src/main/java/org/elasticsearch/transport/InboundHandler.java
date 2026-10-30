@@ -181,7 +181,7 @@ public class InboundHandler {
         message.close();
         final Exception e = message.getException();
         assert e instanceof CircuitBreakingException : e;
-        logger.debug("Circuit breaker tripped reserving memory for response from [{}]", remoteAddress, e);
+        logger.debug(() -> "Circuit breaker tripped reserving memory for response from [" + remoteAddress + "]", e);
         handleException(handler, new RemoteTransportException("Failed to reserve memory for response to [" + handler + "]", e));
     }
 

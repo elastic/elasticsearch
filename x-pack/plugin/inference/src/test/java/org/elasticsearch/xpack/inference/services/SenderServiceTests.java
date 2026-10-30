@@ -529,6 +529,29 @@ public class SenderServiceTests extends ESTestCase {
         }
     }
 
+    public void testParseRequestConfig_GivenSettingsThatAreNotAnObject() throws IOException {
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(createMockSender());
+
+        for (String field : List.of(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ModelConfigurations.TASK_SETTINGS,
+            ModelConfigurations.CHUNKING_SETTINGS
+        )) {
+            try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+                var config = new HashMap<String, Object>();
+                config.put(ModelConfigurations.SERVICE_SETTINGS, new HashMap<String, Object>());
+                config.put(field, "not an object");
+
+                var listener = new TestPlainActionFuture<Model>();
+                service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, listener);
+
+                var e = expectThrows(ElasticsearchStatusException.class, "field [" + field + "]", listener::actionGet);
+                assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+            }
+        }
+    }
+
     public static Sender createMockSender() {
         return mock(Sender.class);
     }

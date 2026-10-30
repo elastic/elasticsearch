@@ -2645,6 +2645,64 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * The single-value proof that ES|QL uses ({@link FieldMapper#guaranteesSingleValue()}) holds for a field with
+     * {@code multi_value=false} and {@code on_failure=ignore}, because the second value never reaches the doc values or the stored
+     * fields. This pins the reader side of that: the block loaders that ES|QL uses return the first value only, never the value
+     * that went to the {@code ._on_failure} column and is still in {@code _source}. If this fails, the proof is wrong for such a
+     * field and must not be used until the loader, or the proof, is fixed.
+     */
+    public void testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue() throws IOException {
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        assertDivertedValueIsNotLoaded(getSampleValueForDocument());
+    }
+
+    /**
+     * Indexes a document with the same value twice into a field with {@code multi_value=false} and {@code on_failure=ignore}, which
+     * diverts the second one, and checks that the block loaders that ES|QL uses return it as a single value, like a document that
+     * holds the value once. A value that is diverted is still in {@code _source} and in the {@code ._on_failure} column, so this fails
+     * if a block loader starts to read either. It covers each source mode that allows {@code multi_value=false} and each field extract
+     * preference, including {@code STORED}, and both the column-at-a-time and the row-stride readers. Mapper tests that do not run
+     * {@link #testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} can call it with a sample value of their field.
+     */
+    protected final void assertDivertedValueIsNotLoaded(Object sample) throws IOException {
+        for (SourceFieldMapper.Mode sourceMode : IndexMode.COLUMNAR.supportedSourceModes()) {
+            for (MappedFieldType.FieldExtractPreference preference : BlockLoaderTestCase.PREFERENCES) {
+                var params = new BlockLoaderTestCase.Params(IndexMode.COLUMNAR, sourceMode, preference);
+                MapperService mapperService = createMapperService(
+                    BlockLoaderTestCase.getSettingsForParams(params).build(),
+                    fieldMapping(b -> {
+                        minimalMapping(b);
+                        b.field("multi_value", false);
+                        b.field("on_failure", "ignore");
+                    })
+                );
+                // The second value is diverted: it is accepted, and it is not in the doc values or the stored fields.
+                Object diverted = loadSingleDocument(mapperService, params, b -> b.array("field", sample, sample));
+                Object once = loadSingleDocument(mapperService, params, b -> b.field("field", sample));
+                String message = "source mode " + sourceMode + ", preference " + preference;
+                assertNotNull(message + ": a value that is held once must load", once);
+                assertThat(message + ": a value that is held once is not a list", once instanceof List, equalTo(false));
+                assertThat(message + ": a diverted value must not load", diverted, equalTo(once));
+            }
+        }
+    }
+
+    private Object loadSingleDocument(
+        MapperService mapperService,
+        BlockLoaderTestCase.Params params,
+        CheckedConsumer<XContentBuilder, IOException> document
+    ) throws IOException {
+        Object[] loaded = new Object[1];
+        BlockLoaderTestRunner runner = new BlockLoaderTestRunner(params).mapperService(mapperService)
+            .breaker(newLimitedBreaker(BlockLoaderTestCase.TEST_BREAKER_SIZE))
+            .fieldName("field")
+            .matcher((expected, actual) -> loaded[0] = actual);
+        runner.document(mapperService.documentMapper().parse(source(document)));
+        runner.run(null);
+        return loaded[0];
+    }
+
+    /**
      * A {@code null} with no {@code null_value} configured is silently discarded and does not consume the single-value slot,
      * so {@code [null, value]} is treated identically to {@code [value]} — no multi-value violation. Asserts the
      * null-token exemption in {@link FieldMapper#shouldEnforceSingleValue(org.elasticsearch.xcontent.XContentParser.Token)}

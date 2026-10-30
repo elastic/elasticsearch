@@ -766,4 +766,13 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected Object[] getThreeSampleValues() {
         return new Object[] { "192.168.0.1", "192.168.0.2", "192.168.0.3" };
     }
+
+    /**
+     * This class does not run the shared {@code multi_value} tests, which {@code supportsMultiValueParameter} turns on, so it checks here
+     * what {@code MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} checks for the mappers that do run them:
+     * the block loader does not return a value that {@code on_failure=ignore} diverted.
+     */
+    public void testOnFailureIgnoreDivertedValueIsNotLoaded() throws IOException {
+        assertDivertedValueIsNotLoaded(getSampleValueForDocument());
+    }
 }

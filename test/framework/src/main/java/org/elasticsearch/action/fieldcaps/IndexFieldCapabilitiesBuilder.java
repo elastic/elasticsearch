@@ -32,6 +32,7 @@ public class IndexFieldCapabilitiesBuilder {
     private @Nullable String indexAnalyzer;
     private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
     private boolean indexLocalAnalyzer;
+    private boolean isStaticallySingleValued;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -100,6 +101,12 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Whether the mapping guarantees at most one value per document; {@code false} (the default) means not guaranteed. */
+    public IndexFieldCapabilitiesBuilder isStaticallySingleValued(boolean isStaticallySingleValued) {
+        this.isStaticallySingleValued = isStaticallySingleValued;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -114,7 +121,8 @@ public class IndexFieldCapabilitiesBuilder {
             meta,
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
-            indexLocalAnalyzer
+            indexLocalAnalyzer,
+            isStaticallySingleValued
         );
     }
 }

@@ -170,7 +170,8 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 indexAnalyzer,
                 randomIntBetween(0, 1000),
                 // index-local only when the name is absent
-                indexAnalyzer == null && randomBoolean()
+                indexAnalyzer == null && randomBoolean(),
+                randomBoolean()
             );
             fieldCaps.put(field, fieldCap);
         }

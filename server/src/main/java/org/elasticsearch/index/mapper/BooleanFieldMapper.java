@@ -617,6 +617,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean guaranteesSingleValue() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
         return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }

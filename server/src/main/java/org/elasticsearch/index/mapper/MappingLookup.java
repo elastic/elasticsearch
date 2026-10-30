@@ -792,6 +792,31 @@ public final class MappingLookup {
     }
 
     /**
+     * Whether the mapping guarantees that a block loader sees at most one value per document for {@code field}; see
+     * {@link FieldMapper#guaranteesSingleValue()}. {@code false} means "not guaranteed", including for unknown fields and fields whose
+     * mapper cannot enforce it.
+     * <p>
+     * An alias, explicit or from a passthrough object, has the guarantee of its target.
+     */
+    public boolean isStaticallySingleValued(String field) {
+        MappedFieldType fieldType = fieldTypeLookup.get(field);
+        return fieldType != null && isStaticallySingleValued(fieldType);
+    }
+
+    /**
+     * Whether the mapping guarantees that a block loader sees at most one value per document for the field that {@code fieldType}
+     * describes. The field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field,
+     * for example from the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper,
+     * so it has no guarantee: the field type must be the one of the mapper.
+     */
+    public boolean isStaticallySingleValued(MappedFieldType fieldType) {
+        String target = fieldType.name();
+        return fieldMappers.get(target) instanceof FieldMapper fieldMapper
+            && fieldMapper.fieldType() == fieldType
+            && fieldMapper.guaranteesSingleValue();
+    }
+
+    /**
      * Check if the provided {@link MappedFieldType} shadows a dimension
      * or metric field.
      */

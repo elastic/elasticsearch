@@ -320,9 +320,18 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
+            ThreadPoolConfig threadPoolConfig,
             MeterRegistry meterRegistry
         ) {
-            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry) {
+            return new ObjectStoreService(
+                settings,
+                repositoriesService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                threadPoolConfig.expectedBlobStoreConcurrency(),
+                meterRegistry
+            ) {
                 @Override
                 public void uploadBatchedCompoundCommitFile(
                     long primaryTerm,

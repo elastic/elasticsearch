@@ -1,0 +1,745 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.cheapshard;
+
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.stateless.cheapshard.ActivationLatencyIT.EVENTS;
+import static org.elasticsearch.xpack.stateless.cheapshard.ActivationLatencyIT.REQUESTS;
+import static org.elasticsearch.xpack.stateless.cheapshard.ActivationLatencyIT.ev;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
+
+/**
+ * Step-1 experiment (not a feature test): node-local cold-start latency of a stateless search shard as a function of shard size.
+ * <p>
+ * The node-local clock starts when the search node receives the {@code commit_state} of the publication that assigns the search copy
+ * (i.e. after the master has persisted the cluster state to the object store and the publication has been acked by a quorum; the
+ * search node starts applying the state at this point) and ends when the first query with all shards successful returns on the
+ * search node. Cluster-state persistence PUTs therefore happen strictly before the clock starts; the STARTED publication (P2) is
+ * not on the query path (the query is held by the INITIALIZING copy until POST_RECOVERY) and its master PUTs go through the
+ * master's own pipe, so they never compete with the search node's reads. Both are counted and reported.
+ * <p>
+ * Reuses the latency/bandwidth repository, step recorder and log capture of {@link ActivationLatencyIT}. One profile per method;
+ * each profile runs (reps x L x query type) activations from the zero state (no search copy, hollow indexing shard, all cache
+ * regions of the index evicted on every node). Output lines are prefixed {@code NL|}; CSV rows {@code NLCSV|}.
+ */
+@TimeoutSuite(millis = 90 * TimeUnits.MINUTE)
+public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTestCase {
+
+    private static final Logger LOG = LogManager.getLogger(NodeLocalActivationSweepIT.class);
+    private static final long BANDWIDTH_BYTES_PER_SEC = 100L * 1024 * 1024;
+    private static final int[] LATENCIES_MS = { 30, 80, 100 };
+    private static final int VOCABULARY = 5000;
+    private static final int ROUNDS = 6;
+    private static final double UPDATE_FRACTION = 0.1;
+    private static final int WORDS_PER_DOC = 30;
+    private static final int VECTOR_DIMS = 16;
+
+    private static final List<String> CAPTURED_LOGGERS = List.of(
+        "org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction",
+        "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService"
+    );
+
+    enum QueryType {
+        MATCH,
+        SORT,
+        KNN
+    }
+
+    /** {@code merges}: false keeps every flushed segment (merges disabled); true uses the default merge policy during the load. */
+    record Profile(String name, int docs, String cacheSize, boolean knn, int reps, boolean merges) {}
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(StatelessMockRepositoryPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
+        plugins.add(ActivationLatencyIT.StepRecorderPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 0.0d);
+    }
+
+    // ~0.5 KB/doc on disk incl. a 16-dim vector: 2k ~ 1 MB, 20k ~ 10 MB, 200k ~ 100 MB, 2M ~ 1 GB
+    public void testDocs2k() throws Exception {
+        run(new Profile("d2k", 2_000, "512mb", true, 2, false));
+    }
+
+    public void testDocs10k() throws Exception {
+        run(new Profile("d10k", 10_000, "512mb", true, 2, false));
+    }
+
+    public void testDocs20k() throws Exception {
+        run(new Profile("d20k", 20_000, "512mb", true, 2, false));
+    }
+
+    public void testDocs100k() throws Exception {
+        run(new Profile("d100k", 100_000, "512mb", true, 2, false));
+    }
+
+    public void testDocs200k() throws Exception {
+        run(new Profile("d200k", 200_000, "1gb", true, 2, false));
+    }
+
+    public void testDocs1m() throws Exception {
+        run(new Profile("d1m", 1_000_000, "2gb", true, 2, false));
+    }
+
+    public void testDocs200kMerged() throws Exception {
+        run(new Profile("d200k-merged", 200_000, "1gb", true, 2, true));
+    }
+
+    public void testDocs1mMerged() throws Exception {
+        run(new Profile("d1m-merged", 1_000_000, "2gb", true, 2, true));
+    }
+
+    /** ~1.3 GB; merges enabled (with merges disabled the 1M profile already has ~200 segments / 36 BCCs). */
+    public void testDocs2mMerged() throws Exception {
+        run(new Profile("d2m-merged", 2_000_000, "3gb", true, 1, true));
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    private String[] vocabulary;
+
+    private void run(Profile p) throws Exception {
+        final Random rnd = new Random(42);
+        vocabulary = new String[VOCABULARY];
+        for (int i = 0; i < VOCABULARY; i++) {
+            StringBuilder sb = new StringBuilder();
+            int len = 3 + rnd.nextInt(8);
+            for (int j = 0; j < len; j++) {
+                sb.append((char) ('a' + rnd.nextInt(26)));
+            }
+            vocabulary[i] = sb.toString() + i;
+        }
+
+        final String master = startMasterOnlyNode();
+        final Settings searchCache = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "16mb")
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), "16mb")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), p.cacheSize())
+            .build();
+        // index nodes get the same cache size: with a smaller cache the _id lookups of updates thrash 16 MiB regions
+        final Settings indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "16mb")
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), "16mb")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), p.cacheSize())
+            .build();
+        final String indexNodeA = startIndexNode(indexNodeSettings);
+        final String indexNodeB = startIndexNode(indexNodeSettings);
+        final String searchNode = startSearchNode(searchCache);
+        ensureStableCluster(4);
+        final List<String> nodes = List.of(master, indexNodeA, indexNodeB, searchNode);
+        ActivationLatencyIT.knownNodes = nodes;
+
+        final Map<String, ActivationLatencyIT.LatencyStore> stores = new HashMap<>();
+        for (String n : nodes) {
+            var s = new ActivationLatencyIT.LatencyStore(n);
+            stores.put(n, s);
+            setNodeRepositoryStrategy(n, s);
+        }
+
+        final String indexName = "nl-" + p.name();
+        Settings.Builder is = indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeB)
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, p.merges());
+        org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked(
+            prepareCreate(indexName).setSettings(is).setMapping(mapping(p))
+        );
+        ensureGreen(indexName);
+        final Index index = resolveIndex(indexName);
+
+        // ---------------- load: ROUNDS flushes, 10% updates per round after the first (soft deletes) ----------------
+        long tl = System.nanoTime();
+        final int perRound = Math.max(1, p.docs() / ROUNDS);
+        int nextId = 0;
+        Set<Integer> ids = new HashSet<>();
+        for (int r = 0; r < ROUNDS; r++) {
+            List<Integer> batchIds = new ArrayList<>();
+            int n = r == ROUNDS - 1 ? p.docs() - nextId : perRound;
+            for (int i = 0; i < n; i++) {
+                batchIds.add(nextId++);
+            }
+            if (r > 0) {
+                int updates = (int) (n * UPDATE_FRACTION);
+                int bound = nextId - n;
+                for (int i = 0; i < updates; i++) {
+                    batchIds.add(rnd.nextInt(bound));
+                }
+            }
+            bulk(indexName, batchIds, p, rnd);
+            ids.addAll(batchIds);
+            flush(indexName);
+        }
+        if (p.merges()) {
+            // let background merges finish and commit their result, as an idle shard would before going to zero
+            for (int i = 0; i < 2; i++) {
+                assertBusy(
+                    () -> assertThat(
+                        indicesAdmin().prepareStats(indexName).setMerge(true).get().getTotal().getMerge().getCurrent(),
+                        equalTo(0L)
+                    ),
+                    5,
+                    TimeUnit.MINUTES
+                );
+                flush(indexName);
+            }
+        }
+        final long expectedDocs = ids.size();
+        log("%s loaded %d unique docs in %d ms", p.name(), expectedDocs, ms(System.nanoTime() - tl));
+        final Inventory inv = inventory(indexName, index);
+        log("%s shard size=%s blobs=%d segments=%d deletedDocs=%d", p.name(), mb(inv.bytes), inv.blobs, inv.segments, inv.deletedDocs);
+
+        hollowShards(indexName, 1, indexNodeA, indexNodeB);
+        assertThat(findIndexShard(index, 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+
+        ActivationLatencyIT.Capture capture = new ActivationLatencyIT.Capture();
+        capture.start();
+        for (String l : CAPTURED_LOGGERS) {
+            Logger lg = LogManager.getLogger(l);
+            Loggers.setLevel(lg, Level.DEBUG);
+            Loggers.addAppender(lg, capture);
+        }
+        installProbes(searchNode);
+
+        final List<QueryType> queries = p.knn()
+            ? List.of(QueryType.MATCH, QueryType.SORT, QueryType.KNN)
+            : List.of(QueryType.MATCH, QueryType.SORT);
+        final float[] qv = vector(new Random(7));
+        final String word = vocabulary[17];
+        try {
+            for (int rep = 1; rep <= p.reps(); rep++) {
+                for (int latency : LATENCIES_MS) {
+                    for (QueryType q : queries) {
+                        // ---------------- zero state ----------------
+                        for (String n : nodes) {
+                            stores.get(n).configure(0, 0);
+                        }
+                        assertBusy(() -> assertThat(indexService(searchNode, index), nullValue()));
+                        assertThat(findIndexShard(index, 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+                        int evicted = 0;
+                        for (String n : List.of(indexNodeA, indexNodeB, searchNode)) {
+                            evicted += cacheService(n).forceEvict(k -> k.shardId().getIndex().equals(index));
+                        }
+                        quiesce(1000);
+                        for (String n : nodes) {
+                            stores.get(n).configure(latency, BANDWIDTH_BYTES_PER_SEC);
+                        }
+
+                        // ---------------- activation ----------------
+                        EVENTS.clear();
+                        REQUESTS.clear();
+                        ActivationLatencyIT.recording = true;
+                        final long t0 = System.nanoTime();
+                        client(master).admin()
+                            .indices()
+                            .prepareUpdateSettings(indexName)
+                            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                            .execute();
+                        long firstHit = 0;
+                        long took = -1;
+                        String firstResult = null;
+                        int attempts = 0;
+                        while (firstHit == 0) {
+                            if (System.nanoTime() - t0 > TimeUnit.SECONDS.toNanos(120)) {
+                                fail("no full search hit within 120s");
+                            }
+                            attempts++;
+                            long ts = System.nanoTime();
+                            try {
+                                SearchResponse resp = query(searchNode, indexName, q, word, qv).get();
+                                try {
+                                    long te = System.nanoTime();
+                                    if (resp.getFailedShards() == 0 && resp.getSuccessfulShards() == 1) {
+                                        firstHit = te;
+                                        took = ms(te - ts);
+                                        firstResult = summary(resp);
+                                    }
+                                } finally {
+                                    resp.decRef();
+                                }
+                            } catch (Exception e) {
+                                // no searchable copy yet
+                            }
+                            if (firstHit == 0) {
+                                Thread.sleep(2);
+                            }
+                        }
+                        ev(searchNode, "client:firstFullHit", indexName, -1, "took=" + took);
+                        String second;
+                        SearchResponse resp2 = query(searchNode, indexName, q, word, qv).get();
+                        try {
+                            second = summary(resp2);
+                        } finally {
+                            resp2.decRef();
+                        }
+                        quiesce(500);
+                        ActivationLatencyIT.recording = false;
+                        if (q != QueryType.KNN) {
+                            assertThat(second, equalTo(firstResult));
+                        }
+                        report(p, inv, rep, latency, q, index, t0, firstHit, took, attempts, master, searchNode, evicted, firstResult);
+
+                        // ---------------- back to zero ----------------
+                        for (String n : nodes) {
+                            stores.get(n).configure(0, 0);
+                        }
+                        setReplicaCount(0, indexName);
+                        assertBusy(() -> assertThat(indexService(searchNode, index), nullValue()));
+                    }
+                }
+            }
+            assertThat(countAllWithSearchCopy(indexName), equalTo(expectedDocs));
+        } finally {
+            ActivationLatencyIT.recording = false;
+            for (String l : CAPTURED_LOGGERS) {
+                Logger lg = LogManager.getLogger(l);
+                Loggers.removeAppender(lg, capture);
+                Loggers.setLevel(lg, (Level) null);
+            }
+            capture.stop();
+            for (String n : nodes) {
+                MockTransportService.getInstance(n).clearAllRules();
+                setNodeRepositoryStrategy(n, StatelessMockRepositoryStrategy.DEFAULT);
+            }
+        }
+    }
+
+    private long countAllWithSearchCopy(String indexName) throws Exception {
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        var resp = client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true).get();
+        try {
+            return resp.getHits().getTotalHits().value();
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    private static SearchRequestBuilder query(String node, String indexName, QueryType q, String word, float[] qv) {
+        SearchRequestBuilder b = client(node).prepareSearch(indexName).setSize(10);
+        return switch (q) {
+            case MATCH -> b.setQuery(QueryBuilders.matchQuery("text", word)).setTrackTotalHits(true);
+            case SORT -> b.setQuery(QueryBuilders.matchAllQuery()).addSort("ts", SortOrder.DESC);
+            case KNN -> b.setKnnSearch(List.of(new KnnSearchBuilder("vec", qv, 10, 50, null, null, null)));
+        };
+    }
+
+    private static String summary(SearchResponse resp) {
+        StringBuilder sb = new StringBuilder();
+        var th = resp.getHits().getTotalHits();
+        sb.append("total=").append(th == null ? "-" : th.value() + th.relation().toString().substring(0, 2)).append(" top=");
+        SearchHit[] hits = resp.getHits().getHits();
+        for (int i = 0; i < Math.min(3, hits.length); i++) {
+            sb.append(hits[i].getId()).append(',');
+        }
+        return sb.toString();
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // probes + report
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    private void installProbes(String searchNode) {
+        MockTransportService search = MockTransportService.getInstance(searchNode);
+        search.addRequestHandlingBehavior(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+            ev(searchNode, "transport:publish_state recv", "", -1, "");
+            handler.messageReceived(request, channel, task);
+        });
+        search.addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+            ev(searchNode, "transport:commit_state recv", "", -1, "");
+            handler.messageReceived(request, channel, task);
+        });
+    }
+
+    private static long first(Predicate<ActivationLatencyIT.Ev> p) {
+        long best = 0;
+        for (var e : EVENTS) {
+            if (p.test(e) && (best == 0 || e.t() < best)) {
+                best = e.t();
+            }
+        }
+        return best;
+    }
+
+    private static long lastBefore(Predicate<ActivationLatencyIT.Ev> p, long bound) {
+        long best = 0;
+        for (var e : EVENTS) {
+            if (p.test(e) && e.t() <= bound && e.t() > best) {
+                best = e.t();
+            }
+        }
+        return best;
+    }
+
+    /** [list, get, put, bytes] of requests started in [from, to). */
+    private static long[] count(long from, long to, Predicate<ActivationLatencyIT.Req> p) {
+        long[] c = new long[4];
+        for (var r : REQUESTS) {
+            if (r.tStart >= from && r.tStart < to && p.test(r)) {
+                switch (r.op) {
+                    case "LIST" -> c[0]++;
+                    case "GET" -> {
+                        c[1]++;
+                        c[3] += r.bytes.get();
+                    }
+                    case "PUT" -> c[2]++;
+                    default -> throw new AssertionError(r.op);
+                }
+            }
+        }
+        return c;
+    }
+
+    private static double d(long from, long to) {
+        return from == 0 || to == 0 ? Double.NaN : (to - from) / 1_000_000.0;
+    }
+
+    private void report(
+        Profile p,
+        Inventory inv,
+        int rep,
+        int latency,
+        QueryType q,
+        Index index,
+        long t0,
+        long firstHit,
+        long took,
+        int attempts,
+        String master,
+        String searchNode,
+        int evicted,
+        String result
+    ) {
+        final String idx = index.getName();
+        Predicate<ActivationLatencyIT.Ev> mine = e -> e.node().equals(searchNode) && e.index().equals(idx);
+        long ixB = first(e -> mine.test(e) && e.kind().equals("beforeIndexCreated"));
+        // the commit of the publication that assigns the shard is the last commit received on the search node before it creates the index
+        long commit = lastBefore(e -> e.node().equals(searchNode) && e.kind().equals("transport:commit_state recv"), ixB);
+        long pub = lastBefore(e -> e.node().equals(searchNode) && e.kind().equals("transport:publish_state recv"), commit);
+        long recovering = first(e -> mine.test(e) && e.shard() == 0 && e.kind().equals("state:RECOVERING"));
+        long regSend = first(e -> mine.test(e) && e.detail().contains("sending recovery commit registration"));
+        long regRecv = first(e -> mine.test(e) && e.detail().contains("received registration response"));
+        long postRec = first(e -> mine.test(e) && e.shard() == 0 && e.kind().equals("state:POST_RECOVERY"));
+        long started = first(e -> mine.test(e) && e.shard() == 0 && e.kind().equals("state:STARTED"));
+
+        IndexShard shard = indexService(searchNode, index).getShard(0);
+        RecoveryState rs = shard.recoveryState();
+        long openStart = timerStartNanos(rs.getTranslog());
+        long openEnd = openStart == 0 ? 0 : openStart + TimeUnit.MILLISECONDS.toNanos(rs.getTranslog().time());
+
+        Predicate<ActivationLatencyIT.Req> onSearch = r -> r.node.equals(searchNode);
+        Predicate<ActivationLatencyIT.Req> onMaster = r -> r.node.equals(master);
+        long[] local = count(commit, firstHit, onSearch);
+        long[] localMaster = count(commit, firstHit, onMaster);
+        long[] p1Master = count(t0, commit, onMaster);
+        long[] p1Search = count(t0, commit, onSearch);
+        long[] applyReqs = count(commit, recovering, onSearch);
+        long[] discovery = count(recovering, regSend, onSearch);
+        long[] queryReqs = count(postRec, firstHit, onSearch);
+
+        double nodeLocal = d(commit, firstHit);
+        double e2e = d(t0, firstHit);
+        double[] steps = {
+            d(commit, recovering), // apply: IndexService + mapping + IndexShard
+            d(recovering, regSend), // S4+S5: 2 LIST + latest BCC header
+            d(regSend, regRecv), // S6: registration with the indexing shard
+            d(regRecv, openStart), // S7: referenced BCC headers, warming kick-off
+            d(openStart, openEnd), // S9: SearchEngine / DirectoryReader open
+            d(openEnd, postRec), // S10: refresh -> POST_RECOVERY
+            d(postRec, firstHit) // S12: first query execution after POST_RECOVERY
+        };
+        String tag = String.format(Locale.ROOT, "%s rep=%d L=%d q=%s", p.name(), rep, latency, q);
+        log(
+            "%s nodeLocal=%.1f e2e=%.1f publication(t0->commit)=%.1f [publish->commit %.1f] | apply=%.1f discovery=%.1f reg=%.1f "
+                + "headers=%.1f open=%.1f refresh=%.1f query=%.1f | local LIST=%d GET=%d PUT=%d bytes=%s | P1 master PUT=%d "
+                + "(search reqs before commit=%d) | master PUT inside local window=%d | apply reqs=%d discovery LIST=%d GET=%d "
+                + "query GET=%d bytes=%s | STARTED at %.1f | took=%d attempts=%d evicted=%d result=%s",
+            tag,
+            nodeLocal,
+            e2e,
+            d(t0, commit),
+            d(pub, commit),
+            steps[0],
+            steps[1],
+            steps[2],
+            steps[3],
+            steps[4],
+            steps[5],
+            steps[6],
+            local[0],
+            local[1],
+            local[2],
+            mb(local[3]),
+            p1Master[2],
+            p1Search[0] + p1Search[1] + p1Search[2],
+            localMaster[2],
+            applyReqs[0] + applyReqs[1] + applyReqs[2],
+            discovery[0],
+            discovery[1],
+            queryReqs[1],
+            mb(queryReqs[3]),
+            d(t0, started),
+            took,
+            attempts,
+            evicted,
+            result
+        );
+        LOG.info(
+            "NLCSV|"
+                + String.format(
+                    Locale.ROOT,
+                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d",
+                    p.name(),
+                    p.docs(),
+                    inv.bytes,
+                    inv.segments,
+                    inv.deletedDocs,
+                    inv.blobs,
+                    q,
+                    latency,
+                    rep,
+                    nodeLocal,
+                    e2e,
+                    d(t0, commit),
+                    steps[0],
+                    steps[1],
+                    steps[2],
+                    steps[3],
+                    steps[4],
+                    steps[5],
+                    steps[6],
+                    d(t0, started),
+                    local[0],
+                    local[1],
+                    local[3],
+                    queryReqs[1],
+                    queryReqs[3],
+                    p1Master[2] + localMaster[2]
+                )
+        );
+    }
+
+    private static long timerStartNanos(RecoveryState.Timer timer) {
+        try {
+            Field f = RecoveryState.Timer.class.getDeclaredField("startNanoTime");
+            f.setAccessible(true);
+            synchronized (timer) {
+                return f.getLong(timer);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // helpers
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    record Inventory(long bytes, int blobs, int segments, long deletedDocs) {}
+
+    private Inventory inventory(String indexName, Index index) throws Exception {
+        var objectStore = getObjectStoreService(internalCluster().getMasterName());
+        ShardId sid = new ShardId(index, 0);
+        var container = objectStore.getProjectBlobStore(sid).blobContainer(objectStore.shardBasePath(sid));
+        long total = 0;
+        int blobs = 0;
+        for (var term : container.children(OperationPurpose.INDICES).entrySet()) {
+            for (var b : term.getValue().listBlobs(OperationPurpose.INDICES).entrySet()) {
+                total += b.getValue().length();
+                blobs++;
+            }
+        }
+        var segs = indicesAdmin().prepareSegments(indexName).get();
+        int[] segments = new int[1];
+        long[] deleted = new long[1];
+        segs.getIndices().get(indexName).forEach(iss -> {
+            for (var shardSegs : iss.shards()) {
+                segments[0] = shardSegs.getSegments().size();
+                deleted[0] = shardSegs.getSegments().stream().mapToLong(seg -> seg.getDeletedDocs()).sum();
+            }
+        });
+        return new Inventory(total, blobs, segments[0], deleted[0]);
+    }
+
+    private static void quiesce(long quietMs) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (System.nanoTime() < deadline) {
+            long lastStart = 0;
+            boolean inFlight = false;
+            for (var r : REQUESTS) {
+                lastStart = Math.max(lastStart, r.tStart);
+                if (r.tEnd == 0 && System.nanoTime() - r.tStart < TimeUnit.SECONDS.toNanos(30)) {
+                    inFlight = true;
+                }
+            }
+            if (inFlight == false && System.nanoTime() - lastStart > TimeUnit.MILLISECONDS.toNanos(quietMs)) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+    }
+
+    private XContentBuilder mapping(Profile p) throws IOException {
+        XContentBuilder b = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        b.startObject("text").field("type", "text").endObject();
+        b.startObject("kw").field("type", "keyword").endObject();
+        b.startObject("num").field("type", "long").endObject();
+        b.startObject("ts").field("type", "date").endObject();
+        if (p.knn()) {
+            b.startObject("vec").field("type", "dense_vector").field("dims", VECTOR_DIMS).field("similarity", "l2_norm").endObject();
+        }
+        return b.endObject().endObject();
+    }
+
+    private static float[] vector(Random rnd) {
+        float[] v = new float[VECTOR_DIMS];
+        for (int i = 0; i < v.length; i++) {
+            v[i] = rnd.nextFloat() * 2 - 1;
+        }
+        return v;
+    }
+
+    private Map<String, Object> doc(Profile p, Random rnd, int id) {
+        Map<String, Object> d = new HashMap<>();
+        StringBuilder text = new StringBuilder();
+        for (int w = 0; w < WORDS_PER_DOC; w++) {
+            if (w > 0) {
+                text.append(' ');
+            }
+            text.append(vocabulary[rnd.nextInt(VOCABULARY)]);
+        }
+        d.put("text", text.toString());
+        d.put("kw", vocabulary[rnd.nextInt(VOCABULARY)]);
+        d.put("num", rnd.nextLong());
+        d.put("ts", 1_700_000_000_000L + id);
+        if (p.knn()) {
+            d.put("vec", vector(rnd));
+        }
+        return d;
+    }
+
+    private void bulk(String indexName, List<Integer> ids, Profile p, Random rnd) {
+        final int batch = 5000;
+        for (int i = 0; i < ids.size(); i += batch) {
+            BulkRequestBuilder b = client().prepareBulk();
+            for (int j = i; j < Math.min(ids.size(), i + batch); j++) {
+                int id = ids.get(j);
+                b.add(client().prepareIndex(indexName).setId(Integer.toString(id)).setSource(doc(p, rnd, id)));
+            }
+            BulkResponse r = b.get();
+            assertFalse(r.buildFailureMessage(), r.hasFailures());
+        }
+    }
+
+    private static IndexService indexService(String node, Index index) {
+        return internalCluster().getInstance(IndicesService.class, node).indexService(index);
+    }
+
+    private static StatelessSharedBlobCacheService cacheService(String node) {
+        return internalCluster().getInstance(PluginsService.class, node)
+            .filterPlugins(StatelessPlugin.class)
+            .findFirst()
+            .orElseThrow()
+            .getStatelessSharedBlobCacheService();
+    }
+
+    private static String mb(long bytes) {
+        return String.format(Locale.ROOT, "%.2f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    private static long ms(long nanos) {
+        return TimeValue.nsecToMSec(nanos);
+    }
+
+    private static void log(String format, Object... args) {
+        LOG.info("NL| " + String.format(Locale.ROOT, format, args));
+    }
+}

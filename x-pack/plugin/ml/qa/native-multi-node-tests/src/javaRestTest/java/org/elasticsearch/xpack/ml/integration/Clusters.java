@@ -41,8 +41,6 @@ public abstract class Clusters {
         .setting("xpack.ent_search.enabled", "false")
         .setting("xpack.apm_data.enabled", "false")
         .setting("xpack.otel_data.registry.enabled", "false")
-        .setting("xpack.prometheus.registry.enabled", "false")
-        .setting("xpack.stack.querylog.registry.enabled", "false")
         // MlNativeIntegTestCase joins this cluster with a transport MockNode built from a curated
         // nodePlugins() list, not the full DEFAULT distribution's plugin set. ElasticsearchCluster nodes
         // enable test features by default (DefaultSystemPropertyProvider), which would make them advertise

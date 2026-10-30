@@ -65,7 +65,7 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
     ///
     /// The test creates a primary-only index, fails the started primary via [IndexShard#failShard],
     /// and simulates the data node missing the intermediate UNASSIGNED cluster state (transient
-    /// network partition). If `updatePendingAllocationStates` fails to evict the stale FailureReported
+    /// network partition). If `updatePendingAllocationTracker` fails to evict the stale FailureReported
     /// entry, it will resend `localShardFailed` to the master, causing an unnecessary round of allocation.
     public void testFailedShardCacheEvictedAfterPrimaryTermBump() throws Exception {
         final var masterNodeName = internalCluster().startMasterOnlyNode();

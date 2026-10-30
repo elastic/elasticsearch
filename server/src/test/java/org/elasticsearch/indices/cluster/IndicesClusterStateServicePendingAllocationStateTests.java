@@ -388,7 +388,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        // The sweep in updatePendingAllocationStates must evict the retry ticket,
+        // The sweep in updatePendingAllocationTracker must evict the retry ticket,
         // or the next attempt would inherit the stale (pre-bump) retry count.
         applyState(stateWithPrimaryTermBumped(shardRouting));
 
@@ -409,7 +409,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         final var originalInFlight = currentInFlight(shardRouting);
         int createsBefore = indicesService.createShardCalls.get();
 
-        // The sweep in updatePendingAllocationStates must evict the stale ticket,
+        // The sweep in updatePendingAllocationTracker must evict the stale ticket,
         // or the eventual lock-wait wakeup could act on a superseded term.
         applyState(stateWithPrimaryTermBumped(shardRouting));
 

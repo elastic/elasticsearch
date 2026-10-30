@@ -470,7 +470,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
-        updatePendingAllocationStates(state);
+        updatePendingAllocationTracker(state);
 
         deleteIndices(event); // also deletes shards of deleted indices
 
@@ -492,7 +492,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      *
      * @param state new cluster state
      */
-    private void updatePendingAllocationStates(final ClusterState state) {
+    private void updatePendingAllocationTracker(final ClusterState state) {
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (localRoutingNode == null) {
             logger.debug(
@@ -795,7 +795,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 // Closing/reopening an index doesn't change a shard's allocation id or initializing-ness, so the
-                // sweep in updatePendingAllocationStates wouldn't evict these on its own; removeIndex tears the
+                // sweep in updatePendingAllocationTracker wouldn't evict these on its own; removeIndex tears the
                 // shard down directly, without going through the per-shard branches below that pair shard removal
                 // with clearing this allocation's entry. Without this, a leftover InFlight/AwaitingRecoveryRetry
                 // ticket would block the shard from ever being recreated once the index reopens.
@@ -888,7 +888,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                        // Pending allocation state handled by updatePendingAllocationStates
+                        // Pending allocation state handled by updatePendingAllocationTracker
                         continue;
                     }
 
@@ -911,7 +911,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                        // Pending allocation state handled by updatePendingAllocationStates
+                        // Pending allocation state handled by updatePendingAllocationTracker
                     }
                 }
             }
@@ -1635,7 +1635,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             try {
                                 // Any routing/term change that would make this ticket stale is only ever
                                 // observed through a cluster-state apply, whose own sweep (
-                                // updatePendingAllocationStates) runs before this task could ever see that
+                                // updatePendingAllocationTracker) runs before this task could ever see that
                                 // state -- so by the time we're here, a superseded ticket is already gone
                                 // from the map, and this identity check catches it.
                                 if (pendingAllocationStates.get(key) != myTicket) {

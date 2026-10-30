@@ -18,13 +18,21 @@ final class MemorySegmentUtils {
     private MemorySegmentUtils() {}
 
     static MemorySegment nativeCopyOf(float[] array) {
-        MemorySegment segment = Arena.ofAuto().allocate((long) array.length * Float.BYTES, ValueLayout.JAVA_LONG.byteAlignment());
+        return nativeCopyOf(array, Arena.ofAuto());
+    }
+
+    static MemorySegment nativeCopyOf(float[] array, Arena arena) {
+        MemorySegment segment = arena.allocate((long) array.length * Float.BYTES, ValueLayout.JAVA_LONG.byteAlignment());
         MemorySegment.copy(array, 0, segment, ValueLayout.JAVA_FLOAT, 0, array.length);
         return segment;
     }
 
     static MemorySegment nativeCopyOf(byte[] array) {
-        MemorySegment segment = Arena.ofAuto().allocate(array.length, ValueLayout.JAVA_LONG.byteAlignment());
+        return nativeCopyOf(array, Arena.ofAuto());
+    }
+
+    static MemorySegment nativeCopyOf(byte[] array, Arena arena) {
+        MemorySegment segment = arena.allocate(array.length, ValueLayout.JAVA_LONG.byteAlignment());
         MemorySegment.copy(array, 0, segment, ValueLayout.JAVA_BYTE, 0, array.length);
         return segment;
     }

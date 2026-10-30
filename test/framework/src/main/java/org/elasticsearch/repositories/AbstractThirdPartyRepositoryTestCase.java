@@ -28,6 +28,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -394,6 +396,61 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             expectThrows(Exception.class, () -> blobStore.writeBlob(randomPurpose(), blobName, initialBlobBytes, true));
             return null;
         });
+    }
+
+    public void testCopyCancellation() {
+        final var sourceBlobName = randomIdentifier();
+        final var destinationBlobName = randomIdentifier();
+        // test multipart copy
+        final var blobBytes = randomBytesReference(randomIntBetween(20 * 1024 * 1024, 22 * 1024 * 1024));
+        final var repository = getRepository();
+        final var checks = new AtomicInteger();
+        final var cancellation = new TaskCancelledException("test cancellation");
+
+        // Assert on test thread
+        record Outcome(boolean copySupported, Exception copyFailure, Long destinationLength) {}
+        final var outcome = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+            final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+            Exception copyFailure = null;
+            try {
+                destinationBlobContainer.copyBlob(
+                    randomPurpose(),
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    destinationBlobName,
+                    blobBytes.length(),
+                    null,
+                    () -> {
+                        if (checks.incrementAndGet() > 1) {
+                            throw cancellation;
+                        }
+                    }
+                );
+            } catch (UnsupportedOperationException e) {
+                // this blob container does not support server-side copy
+                return new Outcome(false, null, null);
+            } catch (Exception e) {
+                copyFailure = e;
+            }
+            final var destination = destinationBlobContainer.listBlobsByPrefix(randomPurpose(), destinationBlobName)
+                .get(destinationBlobName);
+            return new Outcome(true, copyFailure, destination == null ? null : destination.length());
+        });
+
+        assumeTrue("this blob container does not support server-side copy", outcome.copySupported());
+        if (checks.get() <= 1) {
+            // Copy was done in a single step, nothing to cancel
+            assertNull(outcome.copyFailure());
+            assertEquals(Long.valueOf(blobBytes.length()), outcome.destinationLength());
+            assumeTrue("the copy completed in a single step so there was nothing to cancel", false);
+        }
+        assertSame(cancellation, outcome.copyFailure());
+        // Azure leaves an empty blob behind when it aborts a copy
+        assertTrue(
+            "a cancelled copy should not leave a complete destination blob",
+            outcome.destinationLength() == null || outcome.destinationLength() < blobBytes.length()
+        );
     }
 
     protected void testReadFromPositionLargerThanBlobLength(Predicate<RequestedRangeNotSatisfiedException> responseCodeChecker) {

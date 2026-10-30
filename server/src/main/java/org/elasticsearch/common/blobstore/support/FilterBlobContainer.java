@@ -131,11 +131,20 @@ public abstract class FilterBlobContainer implements BlobContainer {
         String sourceBlobName,
         String blobName,
         long blobSize,
-        @Nullable Executor executor
+        @Nullable Executor executor,
+        Runnable cancellationCheck
     ) throws IOException {
         // FsBlobContainer accesses internals of the sourceBlobContainer in copyBlob so it needs the delegate
         assert sourceBlobContainer instanceof FilterBlobContainer;
-        delegate.copyBlob(purpose, ((FilterBlobContainer) sourceBlobContainer).delegate, sourceBlobName, blobName, blobSize, executor);
+        delegate.copyBlob(
+            purpose,
+            ((FilterBlobContainer) sourceBlobContainer).delegate,
+            sourceBlobName,
+            blobName,
+            blobSize,
+            executor,
+            cancellationCheck
+        );
     }
 
     @Override

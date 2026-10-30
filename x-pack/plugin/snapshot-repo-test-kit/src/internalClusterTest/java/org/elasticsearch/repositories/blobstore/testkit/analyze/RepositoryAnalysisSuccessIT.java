@@ -507,7 +507,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             String sourceBlobName,
             String blobName,
             long blobSize,
-            @Nullable Executor executor
+            @Nullable Executor executor,
+            Runnable cancellationCheck
         ) throws IOException {
             assertPurpose(purpose);
             assertThat(sourceBlobContainer, instanceOf(AssertingBlobContainer.class));

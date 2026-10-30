@@ -363,7 +363,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
         String sourceBlobName,
         String blobName,
         long blobSize,
-        @Nullable Executor executor
+        @Nullable Executor executor,
+        Runnable cancellationCheck
     ) throws IOException {
         if (sourceBlobContainer instanceof FsBlobContainer == false) {
             throw new IllegalArgumentException("source blob container must be a FsBlobContainer");

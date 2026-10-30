@@ -1343,7 +1343,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             task.ensureNotCancelled();
             logger.debug("CopyShard copying {} from {} to {}", t.blob().name(), t.src().path(), t.dst().path());
             try {
-                t.dst().copyBlob(OperationPurpose.RESHARDING, t.src(), t.blob().name(), t.blob().name(), t.blob().length(), null);
+                t.dst()
+                    .copyBlob(
+                        OperationPurpose.RESHARDING,
+                        t.src(),
+                        t.blob().name(),
+                        t.blob().name(),
+                        t.blob().length(),
+                        null,
+                        task::ensureNotCancelled
+                    );
             } catch (NoSuchFileException e) {
                 logger.warn("missing blob during copyShard, assuming benign race [{}]", t.blob().name());
             }
@@ -1371,7 +1380,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             blobName,
             blobName,
             virtualBcc.getTotalSizeInBytes(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL),
+            () -> {}
         );
     }
 

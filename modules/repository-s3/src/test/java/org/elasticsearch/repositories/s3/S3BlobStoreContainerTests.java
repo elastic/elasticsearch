@@ -329,7 +329,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobContainer sourceContainer = new S3BlobContainer(sourceBlobPath, sourceBlobStore);
 
         if (doCopy) {
-            blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, null);
+            blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, null, () -> {});
         } else {
             blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, conditionalOperation);
         }
@@ -799,7 +799,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             sourceBlobName,
             blobName,
             randomLongBetween(1, 10_000),
-            null
+            null,
+            () -> {}
         );
 
         final CopyObjectRequest request = captor.getValue();
@@ -858,7 +859,15 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final IOException e = expectThrows(
             IOException.class,
-            () -> blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, Runnable::run)
+            () -> blobContainer.executeMultipartCopy(
+                randomPurpose(),
+                sourceContainer,
+                sourceBlobName,
+                blobName,
+                blobSize,
+                Runnable::run,
+                () -> {}
+            )
         );
 
         assertEquals("Unable to copy object [" + blobName + "] using multipart upload", e.getMessage());
@@ -926,7 +935,15 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
         try {
             executorService.submit(() -> {
-                blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, executorService);
+                blobContainer.executeMultipartCopy(
+                    randomPurpose(),
+                    sourceContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize,
+                    executorService,
+                    () -> {}
+                );
                 return null;
             }).get();
         } finally {

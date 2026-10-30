@@ -433,7 +433,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             sourceBlobName,
             destinationBlobName,
             blobBytes.length(),
-            null
+            null,
+            () -> {}
         );
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
@@ -446,7 +447,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 sourceBlobName,
                 destinationBlobName,
                 blobBytes.length(),
-                null
+                null,
+                () -> {}
             )
         );
         destinationBlobContainer.delete(randomPurpose());

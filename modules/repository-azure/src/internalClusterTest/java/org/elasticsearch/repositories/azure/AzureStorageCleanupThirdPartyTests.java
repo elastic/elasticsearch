@@ -97,6 +97,21 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     );
 
     @Override
+    public void testCopyCancellation() {
+        // The fixture completes a copy immediately, so make it keep the copy pending
+        if (USE_FIXTURE) {
+            fixture.setCopiesStayPending(true);
+        }
+        try {
+            super.testCopyCancellation();
+        } finally {
+            if (USE_FIXTURE) {
+                fixture.setCopiesStayPending(false);
+            }
+        }
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(AzureRepositoryPlugin.class);
     }
@@ -276,7 +291,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             sourceBlobName,
             destinationBlobName,
             blobBytes.length(),
-            null
+            null,
+            () -> {}
         );
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
@@ -289,7 +305,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 sourceBlobName,
                 destinationBlobName,
                 blobBytes.length(),
-                null
+                null,
+                () -> {}
             )
         );
         destinationBlobContainer.delete(randomPurpose());
@@ -362,7 +379,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
                     // server-side copy (source is the small single-part blob written above)
                     final String copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null, () -> {});
                     assertAccessTier(blobStore, keyPrefix + copyName, expectedTier, "server-side copy", purpose);
                 }
             } finally {

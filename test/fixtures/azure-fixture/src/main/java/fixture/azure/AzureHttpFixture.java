@@ -50,6 +50,8 @@ public class AzureHttpFixture extends ExternalResource {
     @Nullable
     private final TestTlsCertificate testTlsCertificate;
 
+    private volatile AzureHttpHandler blobHandler;
+
     private HttpServer server;
     private HttpServer metadataServer;
     private HttpServer oauthTokenServiceServer;
@@ -150,6 +152,10 @@ public class AzureHttpFixture extends ExternalResource {
         this.leaseExpiryPredicate = leaseExpiryPredicate;
     }
 
+    public void setCopiesStayPending(boolean copiesStayPending) {
+        blobHandler.setCopiesStayPending(copiesStayPending);
+    }
+
     private String scheme() {
         return switch (protocol) {
             case NONE -> fail(null, "fixture is disabled");
@@ -226,10 +232,8 @@ public class AzureHttpFixture extends ExternalResource {
                 }
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                    server.createContext(
-                        "/" + account,
-                        new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
-                    );
+                    blobHandler = new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate);
+                    server.createContext("/" + account, blobHandler);
                     server.setExecutor(executorService);
                     server.start();
 
@@ -256,10 +260,8 @@ public class AzureHttpFixture extends ExternalResource {
                         final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                         this.server = httpsServer;
                         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                        httpsServer.createContext(
-                            "/" + account,
-                            new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
-                        );
+                        blobHandler = new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate);
+                        httpsServer.createContext("/" + account, blobHandler);
                         httpsServer.setExecutor(executorService);
                         httpsServer.start();
                     }

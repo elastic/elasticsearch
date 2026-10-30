@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
@@ -216,12 +217,18 @@ final class S3ClientSettings {
     /**
      * Maximum size allowed for copy without multipart.
      * Objects larger than this will be copied using multipart copy. S3 enforces a minimum multipart size of 5 MiB and a maximum
-     * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
+     * non-multipart copy size of 5 GiB.
      */
     static final Setting.AffixSetting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.affixKeySetting(
         PREFIX,
         "max_copy_size_before_multipart",
-        key -> Setting.byteSizeSetting(key, MAX_FILE_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_FILE_SIZE, Property.NodeScope)
+        key -> Setting.byteSizeSetting(
+            key,
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            MIN_PART_SIZE_USING_MULTIPART,
+            MAX_FILE_SIZE,
+            Property.NodeScope
+        )
     );
 
     /** Tenacious retries for transient blob store errors. */

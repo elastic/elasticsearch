@@ -1127,7 +1127,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             String sourceBlobName,
             String blobName,
             long blobSize,
-            @Nullable Executor executor
+            @Nullable Executor executor,
+            Runnable cancellationCheck
         ) throws IOException {
             assertThat(sourceBlobContainer, instanceOf(DisruptableBlobContainer.class));
             assertPurpose(purpose);

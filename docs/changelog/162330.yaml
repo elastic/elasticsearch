@@ -1,0 +1,5 @@
+area: Watcher
+issues: [161574]
+pr: 162330
+summary: Prevent stale Watcher reloads from scheduling watches after shard departure
+type: bug

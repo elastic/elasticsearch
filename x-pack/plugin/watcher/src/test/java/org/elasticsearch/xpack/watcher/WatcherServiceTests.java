@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
+import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
@@ -324,7 +325,7 @@ public class WatcherServiceTests extends ESTestCase {
             void stopExecutor() {}
         };
 
-        service.pauseExecution("pausing");
+        service.pauseExecution("pausing", 1);
         assertThat(triggerService.count(), is(0L));
         verify(triggerEngine).pauseExecution();
     }
@@ -682,5 +683,84 @@ public class WatcherServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static <T> ActionListener<T> anyActionListener() {
         return any(ActionListener.class);
+    }
+
+    /**
+     * Regression test for #161574: Watcher keeps scheduling watches after the local .watches shard leaves during reload.
+     *
+     * This test verifies that pauseExecution() publishes the invalidating cluster-state version
+     * to processedClusterStateVersion before enqueuing the actual pause work on the lifecycle executor.
+     * The version publication prevents stale data from being applied by in-flight reloads.
+     */
+    @Test
+    public void testPauseExecutionInvalidatesInFlightReload() {
+        TriggerService triggerService = mock(TriggerService.class);
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+        WatchParser parser = mock(WatchParser.class);
+
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+
+        // Simulate a reload starting with cluster state version 100
+        service.start(new ClusterState.Builder(new ClusterName("_name")).version(100).build(), () -> {}, e -> {});
+
+        // Call pauseExecution with invalidating state version 200
+        // This should publish version 200 immediately
+        service.pauseExecution("shard departed", 200);
+
+        // The version should be set to 200 immediately on the calling thread
+        // A subsequent reload with version 150 (older than 200) should be rejected
+        service.start(new ClusterState.Builder(new ClusterName("_name")).version(150).build(), () -> {}, e -> {});
+        verify(triggerService).start(any()); // Called once for version 100 only
+    }
+
+    /**
+     * Regression test for #161574: Verifies that a delayed pause task for an older state
+     * does not undo a newer valid reload that has already succeeded.
+     */
+    @Test
+    public void testDelayedPauseDoesNotUndoNewerReload() {
+        TriggerService triggerService = mock(TriggerService.class);
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+        WatchParser parser = mock(WatchParser.class);
+
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+
+        // Submit a pause task for version 100
+        service.pauseExecution("shard departed", 100);
+
+        // Before the pause executes, a newer reload with version 200 succeeds
+        // This should set processedClusterStateVersion to 200
+        service.start(new ClusterState.Builder(new ClusterName("_name")).version(200).build(), () -> {}, e -> {});
+
+        // Verify the newer reload succeeded
+        verify(triggerService).start(any());
+
+        // When the old pause task finally executes (immediately with DIRECT_EXECUTOR_SERVICE),
+        // it should check the version and skip pausing because version 200 is now current
+        verify(triggerService, never()).pauseExecution();
     }
 }

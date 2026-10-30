@@ -408,7 +408,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
-            ThreadPoolConfig threadPoolConfig,
+            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
             return new TestObjectStoreService(
@@ -417,7 +417,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
                 threadPool,
                 clusterService,
                 projectResolver,
-                threadPoolConfig.expectedBlobStoreConcurrency(),
+                objectStoreAccessConcurrency,
                 meterRegistry
             );
         }

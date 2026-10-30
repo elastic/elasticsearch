@@ -49,6 +49,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -282,7 +283,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
-            ThreadPoolConfig threadPoolConfig,
+            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
             return new ObjectStoreService(
@@ -291,7 +292,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 threadPool,
                 clusterService,
                 projectResolver,
-                threadPoolConfig.expectedBlobStoreConcurrency(),
+                objectStoreAccessConcurrency,
                 meterRegistry
             ) {
                 @Override

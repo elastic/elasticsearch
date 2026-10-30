@@ -882,7 +882,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
-            ThreadPoolConfig threadPoolConfig,
+            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
             return new TestObjectStoreService(
@@ -891,7 +891,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 threadPool,
                 clusterService,
                 projectResolver,
-                threadPoolConfig.expectedBlobStoreConcurrency(),
+                objectStoreAccessConcurrency,
                 meterRegistry
             );
         }

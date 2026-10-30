@@ -680,7 +680,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
-        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper, b -> b.field("field", "AbC")));
 
         String expected = """
             {"field":{"type":"keyword","normalizer":"lowercase","normalizer_skip_store_original_value":false}}""";
@@ -697,7 +697,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
         assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
-        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper, b -> b.field("field", "AbC")));
 
         // normalizer_skip_store_original_value is configured, but it is the same as the default value, and therefor it isn't serialized
         // (See default serializerCheck in Parameter.java)
@@ -715,7 +715,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
         assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
-        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper, b -> b.field("field", "AbC")));
         String expected = """
             {"field":{"type":"keyword","normalizer":"lowercase"}}""";
         assertThat(keywordMapper.toString(), equalTo(expected));
@@ -730,7 +730,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
-        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper, b -> b.field("field", "AbC")));
         String expected = """
             {"field":{"type":"keyword","normalizer":"other_lowercase"}}""";
         assertThat(keywordMapper.toString(), equalTo(expected));
@@ -747,7 +747,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
         assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
-        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper, b -> b.field("field", "AbC")));
         String expected = """
             {"field":{"type":"keyword","normalizer":"other_lowercase","normalizer_skip_store_original_value":true}}""";
         assertThat(keywordMapper.toString(), equalTo(expected));
@@ -766,7 +766,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                     .field("ignore_above", 5)
             )
         );
-        assertEquals("{\"field\":\"AbCDef\"}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "AbCDef")));
+        assertEquals("{\"field\":\"AbCDef\"}", syntheticSource(mapperService, b -> b.field("field", "AbCDef")));
     }
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
@@ -979,7 +979,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * so a value longer than {@link IndexWriter#MAX_TERM_LENGTH} is accepted and round-trips through synthetic source.
      */
     public void testKeywordFieldLongerThan32766NotIndexedInColumnarModeIsAccepted() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
+        MapperService mapper = createColumnarModeMapperService(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
         assertEquals("{\"field\":\"" + longValue + "\"}", syntheticSource(mapper, b -> b.field("field", longValue)));
     }
@@ -1038,14 +1038,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testColumnarArrayOrderWithPositionsPreserved_keyword() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
-            .documentMapper();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
 
         String shortValue = randomAlphanumericOfLength(4);
         // Use a value well within the limit to verify array-order preservation without hitting the ceiling.
         String longValue = randomAlphanumericOfLength(500);
         assertThat(
-            syntheticSource(mapper, b -> b.array("field", longValue, null, shortValue)),
+            syntheticSource(mapperService, b -> b.array("field", longValue, null, shortValue)),
             containsString("\"field\":[\"" + longValue + "\",null,\"" + shortValue + "\"]")
         );
     }
@@ -1058,7 +1060,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false))
         );
         String value = randomAlphaOfLengthBetween(1, 20);
-        assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", value)));
+        assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper, b -> b.field("field", value)));
     }
 
     @Override
@@ -1780,7 +1782,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // long values should be present in synthetic source regardless
         assertEquals(
             "{\"field\":[\"" + longValue1 + "\",\"" + longValue2 + "\"]}",
-            syntheticSource(mapperService.documentMapper(), b -> b.array("field", longValue1, longValue2))
+            syntheticSource(mapperService, b -> b.array("field", longValue1, longValue2))
         );
     }
 
@@ -1968,15 +1970,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
-            .documentMapper();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
 
         String v1 = randomAlphanumericOfLength(4);
         String v2 = randomAlphanumericOfLength(4);
         String v3 = randomAlphanumericOfLength(4);
         // Duplicate v2 — sorted-deduped doc-values order would collapse it; arrival order must be preserved.
         assertThat(
-            syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2)),
+            syntheticSource(mapperService, b -> b.array("field", v2, v1, v3, v2)),
             containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]")
         );
     }
@@ -2000,9 +2004,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * value regardless of whether they're in an immediate array or not.
      */
     public void testColumnarKeywordArrayOfObjectsWithMixedScalarAndInnerArrayValues() throws IOException {
-        DocumentMapper mapper = columnarKeywordMapper("obj.field");
+        MapperService mapperService = columnarKeywordMapperService("obj.field");
 
-        String result = syntheticSource(mapper, b -> {
+        String result = syntheticSource(mapperService, b -> {
             b.startArray("obj");
             b.startObject().field("field", "a").endObject();
             b.startObject().startArray("field").value("b").value("c").endArray().endObject();
@@ -2015,10 +2019,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * A scalar value at the root must round-trip as a scalar; it should not be reshaped into a single-element array.
      */
     public void testColumnarKeywordSingleScalarStaysScalar() throws IOException {
-        DocumentMapper mapper = columnarKeywordMapper("field");
+        MapperService mapperService = columnarKeywordMapperService("field");
 
         String value = randomAlphanumericOfLength(4);
-        String result = syntheticSource(mapper, b -> b.field("field", value));
+        String result = syntheticSource(mapperService, b -> b.field("field", value));
         assertThat(result, containsString("\"field\":\"" + value + "\""));
         assertThat(result, Matchers.not(containsString("\"field\":[")));
     }
@@ -2027,10 +2031,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * This tests the single-valued optimization path.
      */
     public void testColumnarKeywordSingleElementArrayIsReshapedToScalar() throws IOException {
-        DocumentMapper mapper = columnarKeywordMapper("field");
+        MapperService mapperService = columnarKeywordMapperService("field");
 
         String value = randomAlphanumericOfLength(4);
-        String result = syntheticSource(mapper, b -> b.array("field", value));
+        String result = syntheticSource(mapperService, b -> b.array("field", value));
         assertThat(result, containsString("\"field\":\"" + value + "\""));
         assertThat(result, Matchers.not(containsString("\"field\":[")));
     }
@@ -2040,9 +2044,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * to {@code [a, b, c]}; the offsets entry survives the new write gate because it carries more than one slot.
      */
     public void testColumnarKeywordReverseSortedArrayPreservesOrder() throws IOException {
-        DocumentMapper mapper = columnarKeywordMapper("field");
+        MapperService mapperService = columnarKeywordMapperService("field");
 
-        String result = syntheticSource(mapper, b -> b.array("field", "c", "b", "a"));
+        String result = syntheticSource(mapperService, b -> b.array("field", "c", "b", "a"));
         assertThat(result, containsString("\"field\":[\"c\",\"b\",\"a\"]"));
     }
 
@@ -2052,9 +2056,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * reconstruct the source from. This is why offsets are important - they tell us that a null element was present.
      */
     public void testColumnarSingleElementArrayNullRoundTrip() throws IOException {
-        DocumentMapper mapper = columnarKeywordMapper("field");
+        MapperService mapperService = columnarKeywordMapperService("field");
 
-        String result = syntheticSource(mapper, b -> {
+        String result = syntheticSource(mapperService, b -> {
             b.startArray("field");
             b.nullValue();
             b.endArray();
@@ -2062,9 +2066,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(result, containsString("\"field\":[null]"));
     }
 
-    private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {
+    private MapperService columnarKeywordMapperService(String fieldName) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
+        return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject()));
     }
 
     /**
@@ -2163,7 +2167,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 .build(),
             fieldMapping(b -> b.field("type", "keyword"))
         );
-        assertEquals("{}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "")));
+        assertEquals("{}", syntheticSource(mapperService, b -> b.field("field", "")));
     }
 
     public void testSearchingForAnEmptyStringAsksForTheDocumentsWithNoValue() throws IOException {

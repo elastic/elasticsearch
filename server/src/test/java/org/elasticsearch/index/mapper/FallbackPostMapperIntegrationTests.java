@@ -25,10 +25,11 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * object-array inputs where per-element pre-capture tokens differ in raw bytes from the single
      * flat-array token produced when re-indexing the synthetic output, even though rendered text is identical.
      */
-    private String syntheticSourceSkipRoundTrip(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build)
+    private String syntheticSourceSkipRoundTrip(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> build)
         throws IOException {
+        DocumentMapper mapper = mapperService.documentMapper();
         try (Directory directory = newDirectory()) {
-            var iw = indexWriterForSyntheticSource(directory);
+            var iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(build));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
@@ -41,7 +42,7 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
     }
 
     public void testCopyToDestinationWithIgnoreMalformedPreservesValueInSyntheticSource() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("src");
             {
                 b.field("type", "keyword");
@@ -54,9 +55,9 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
                 b.field("ignore_malformed", true);
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        String syntheticSource = syntheticSource(mapper, b -> {
+        String syntheticSource = syntheticSource(mapperService, b -> {
             b.field("src", "123");
             b.field("dest", "not-a-number");
         });
@@ -68,11 +69,11 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * Verifies that {@code source_keep: all + ignore_malformed} still preserves the malformed value in synthetic source.
      */
     public void testSourceKeepAllWithIgnoreMalformedPreservesValueInSyntheticSource() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "integer").field("synthetic_source_keep", "all").field("ignore_malformed", true))
-        ).documentMapper();
+        );
 
-        String syntheticSource = syntheticSource(mapper, b -> b.field("field", "not-a-number"));
+        String syntheticSource = syntheticSource(mapperService, b -> b.field("field", "not-a-number"));
 
         assertEquals("{\"field\":\"not-a-number\"}", syntheticSource);
     }
@@ -82,11 +83,11 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * with {@code ignore_malformed: true} must commit its pre-capture even when parse returns {@code Ignored}.
      */
     public void testSyntheticFallbackWithIgnoreMalformedPreservesValueInSyntheticSource() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "integer").field("doc_values", false).field("ignore_malformed", true))
-        ).documentMapper();
+        );
 
-        String syntheticSource = syntheticSource(mapper, b -> b.field("field", "not-a-number"));
+        String syntheticSource = syntheticSource(mapperService, b -> b.field("field", "not-a-number"));
 
         assertEquals("{\"field\":\"not-a-number\"}", syntheticSource);
     }
@@ -97,7 +98,7 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * the native loader entirely, silently dropping values served by {@code ._ignore_malformed}.
      */
     public void testSourceKeepArraysWithMixedMalformedInObjectArrayPreservesAllValues() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj");
             {
                 b.field("type", "object");
@@ -114,11 +115,11 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
         // Object-array input produces per-element pre-captures whose raw bytes differ from the flat-array
         // token on re-index; use syntheticSourceSkipRoundTrip to avoid the byte-equality check.
-        assertEquals("{\"obj\":{\"d\":[\"bad\",0.5]}}", syntheticSourceSkipRoundTrip(mapper, b -> {
+        assertEquals("{\"obj\":{\"d\":[\"bad\",0.5]}}", syntheticSourceSkipRoundTrip(mapperService, b -> {
             b.startArray("obj");
             b.startObject().field("d", "bad").endObject();
             b.startObject().field("d", 0.5).endObject();
@@ -131,7 +132,7 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * {@code synthetic_source_keep: all}, exercising the {@link FallbackPostMapper.Reason#SOURCE_KEEP_ALL} path.
      */
     public void testSourceKeepAllWithMixedMalformedInObjectArrayPreservesAllValues() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj");
             {
                 b.field("type", "object");
@@ -148,9 +149,9 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        assertEquals("{\"obj\":{\"d\":[\"bad\",0.5]}}", syntheticSourceSkipRoundTrip(mapper, b -> {
+        assertEquals("{\"obj\":{\"d\":[\"bad\",0.5]}}", syntheticSourceSkipRoundTrip(mapperService, b -> {
             b.startArray("obj");
             b.startObject().field("d", "bad").endObject();
             b.startObject().field("d", 0.5).endObject();
@@ -163,11 +164,11 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * {@code ParseResult.Ignored} result from the first element must still commit the pre-capture.
      */
     public void testSourceKeepAllWithMixedMalformedFlatArrayPreservesAllValues() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "double").field("synthetic_source_keep", "all").field("ignore_malformed", true))
-        ).documentMapper();
+        );
 
-        assertEquals("{\"field\":[\"bad\",0.5]}", syntheticSource(mapper, b -> {
+        assertEquals("{\"field\":[\"bad\",0.5]}", syntheticSource(mapperService, b -> {
             b.startArray("field");
             b.value("bad");
             b.value(0.5);
@@ -183,7 +184,7 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * {@code _ignored_source} entry is written for the destination.
      */
     public void testCopyToDestinationWithSourceKeepAllDoesNotDuplicateCopiedValue() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("dest");
             {
                 b.field("type", "keyword");
@@ -196,9 +197,9 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
                 b.field("copy_to", "dest");
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        String syntheticSource = syntheticSource(mapper, b -> {
+        String syntheticSource = syntheticSource(mapperService, b -> {
             b.field("dest", "own");
             b.field("src", "copied");
         });
@@ -214,7 +215,7 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * {@code synthetic_source_keep: all}.
      */
     public void testCopyToDestinationWithSourceKeepAllAndNoOwnValueIsAbsentFromSyntheticSource() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("dest");
             {
                 b.field("type", "keyword");
@@ -227,9 +228,9 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
                 b.field("copy_to", "dest");
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        String syntheticSource = syntheticSource(mapper, b -> b.field("src", "copied"));
+        String syntheticSource = syntheticSource(mapperService, b -> b.field("src", "copied"));
 
         assertEquals("{\"src\":\"copied\"}", syntheticSource);
     }
@@ -241,7 +242,7 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
      * value in synthetic source.
      */
     public void testCopyToDestinationWithFallbackSyntheticSourceIsAbsentFromSyntheticSource() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("dest");
             {
                 b.field("type", "integer");
@@ -254,9 +255,9 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
                 b.field("copy_to", "dest");
             }
             b.endObject();
-        })).documentMapper();
+        }));
 
-        String syntheticSource = syntheticSource(mapper, b -> b.field("src", "5"));
+        String syntheticSource = syntheticSource(mapperService, b -> b.field("src", "5"));
 
         assertEquals("{\"src\":\"5\"}", syntheticSource);
     }

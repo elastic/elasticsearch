@@ -12,6 +12,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -388,9 +389,9 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "tdigest").field("ignore_malformed", "true"))
-        ).documentMapper();
+        );
 
         String randomString = randomAlphaOfLength(10);
         CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
@@ -421,7 +422,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         }
         expected.endObject();
 
-        String syntheticSource = syntheticSource(mapper, arrayValue);
+        String syntheticSource = syntheticSource(mapperService, arrayValue);
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 

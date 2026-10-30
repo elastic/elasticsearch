@@ -84,8 +84,8 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSyntheticSource() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(topMapping(b -> {})).documentMapper();
-        assertThat(syntheticSource(mapper, b -> b.field(CONTENT_TYPE, 10)), equalTo("{\"_doc_count\":10}"));
+        MapperService mapperService = createSytheticSourceMapperService(topMapping(b -> {}));
+        assertThat(syntheticSource(mapperService, b -> b.field(CONTENT_TYPE, 10)), equalTo("{\"_doc_count\":10}"));
     }
 
     public void testSyntheticSourceMany() throws IOException {

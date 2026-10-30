@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
@@ -32,20 +32,19 @@ public class GeoShapeColumnarSyntheticSourceTests extends MapperServiceTestCase 
     }
 
     public void testColumnarSingleValue() throws IOException {
-        DocumentMapper mapper = columnarMapper();
-        String source = syntheticSource(mapper, b -> b.field("location", "POINT (-71.34 41.12)"));
+        MapperService mapperService = columnarMapperService();
+        String source = syntheticSource(mapperService, b -> b.field("location", "POINT (-71.34 41.12)"));
         assertThat(source, equalTo("{\"location\":\"POINT (-71.34 41.12)\"}"));
     }
 
     public void testColumnarMultiValuePreservesOrder() throws IOException {
-        DocumentMapper mapper = columnarMapper();
-        String source = syntheticSource(mapper, b -> b.array("location", "LINESTRING (1 1, 2 2)", "POINT (-71.34 41.12)"));
+        MapperService mapperService = columnarMapperService();
+        String source = syntheticSource(mapperService, b -> b.array("location", "LINESTRING (1 1, 2 2)", "POINT (-71.34 41.12)"));
         assertThat(source, equalTo("{\"location\":[\"LINESTRING (1.0 1.0, 2.0 2.0)\",\"POINT (-71.34 41.12)\"]}"));
     }
 
-    private DocumentMapper columnarMapper() throws IOException {
+    private MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mapping(b -> b.startObject("location").field("type", "geo_shape").endObject()))
-            .documentMapper();
+        return createMapperService(settings, mapping(b -> b.startObject("location").field("type", "geo_shape").endObject()));
     }
 }

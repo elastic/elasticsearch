@@ -246,7 +246,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     /** Arrays keep document order, duplicates and nulls; the sink stores keywords, so numbers and booleans come back as strings. */
     public void testSyntheticSourceKeepsAbsorbedArraysAndStringifiesValues() throws IOException {
-        DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        MapperService mapper = columnarService(b -> {});
         long n = randomLongBetween(0, 1000);
 
         // Keys are written in sorted order: the sink's blob keeps slots in document order across keys, so the harness's re-index of the
@@ -269,7 +269,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
      * fields beside them.
      */
     public void testSyntheticSourceRendersAbsorbedFieldsInsideNestedObjects() throws IOException {
-        DocumentMapper mapper = columnarService(
+        MapperService mapper = columnarService(
             b -> b.startObject("n")
                 .field("type", "nested")
                 .startObject("properties")
@@ -278,7 +278,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-        ).documentMapper();
+        );
         String k = randomAlphanumericOfLength(6);
         String u1 = randomAlphanumericOfLength(6);
         String u2 = randomAlphanumericOfLength(6);
@@ -309,7 +309,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
      * loads source with only that field's name included.
      */
     public void testSyntheticSourceRendersAndFiltersAbsorbedFieldsPerKey() throws IOException {
-        DocumentMapper mapper = columnarService(b -> b.startObject("m").field("type", "keyword").endObject()).documentMapper();
+        MapperService mapper = columnarService(b -> b.startObject("m").field("type", "keyword").endObject());
         String a = randomAlphanumericOfLength(6);
         String leaf = randomAlphanumericOfLength(6);
         String m = randomAlphanumericOfLength(6);

@@ -22,7 +22,9 @@ public abstract class TransientQueryBuilder<QB extends TransientQueryBuilder<QB>
 
     @Override
     protected final QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
-        assert context == null || context.allowsTransientQueries() : "[" + getName() + "] is rewritten outside of a transient rewrite";
+        if (context.allowsTransientQueries() == false) {
+            throw new IllegalStateException("[" + getName() + "] is rewritten outside of a transient rewrite");
+        }
         return doTransientRewrite(context);
     }
 

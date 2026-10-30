@@ -58,6 +58,6 @@ public class NestedLevelJoinQueryBuilderTests extends MapperServiceTestCase {
     public void testTransient() {
         NestedLevelJoinQueryBuilder join = new NestedLevelJoinQueryBuilder(new TermQueryBuilder("genre", "novel"), "chapters.vector");
         expectThrows(IllegalStateException.class, () -> join.writeTo(new BytesStreamOutput()));
-        expectThrows(AssertionError.class, () -> join.rewrite(context));
+        expectThrows(IllegalStateException.class, () -> join.rewrite(context));
     }
 }

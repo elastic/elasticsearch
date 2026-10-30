@@ -253,24 +253,33 @@ The `knn` query can be used inside a nested query. The behaviour here is similar
 * kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
 
-{applies_to}`stack: ga 9.7+` Filters can use any query type and can mix top-level and `nested` fields. For example, a `bool` filter can combine fields from different levels in its `must`, `should`, and `must_not` clauses, and a `nested` filter can match a different nested object in the same document.
+:::::{applies-switch}
+
+::::{applies-item} stack: ga 9.6+
+Filters can use any query type and can mix top-level and `nested` fields. For example, a `bool` filter can combine fields from different levels in its `must`, `should`, and `must_not` clauses, and a `nested` filter can match a different nested object in the same document.
 
 {{es}} evaluates each filter at the nesting level of the fields it reads. A vector passes the filter when its own nested object matches, or when its enclosing object at that level matches.
 
 :::{note}
-The following filters keep the 9.6 and earlier behavior:
+The following filters keep the 9.5 and earlier behavior:
 
 - Filters that only read runtime fields, scripts, or fields copied with `include_in_parent` or `include_in_root`. {{es}} can't determine their nesting level.
 - `combined_fields` queries and `cross_fields` `multi_match` queries over fields from several levels. These aren't split by level.
 :::
+::::
 
-{applies_to}`stack: ga 9.2-9.6` Each filter must target only one of the following:
+::::{applies-item} stack: ga 9.2-9.5
+Each filter must target only one of the following:
 
 - Top-level metadata
-- `nested` metadata {applies_to}`stack: ga 9.2`
-  :::{note}
-  A single knn query supports multiple filters, where some filters can be over the top-level metadata and some over nested.
-  :::
+- `nested` metadata
+
+:::{note}
+A single knn query supports multiple filters, where some filters can be over the top-level metadata and some over nested.
+:::
+::::
+
+:::::
 
 ### Basic nested knn search
 

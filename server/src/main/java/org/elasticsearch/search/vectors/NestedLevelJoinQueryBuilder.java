@@ -10,7 +10,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,10 +30,6 @@ import java.util.Objects;
 final class NestedLevelJoinQueryBuilder extends TransientQueryBuilder<NestedLevelJoinQueryBuilder> {
 
     static final String NAME = "nested_level_join";
-
-    // transport version definitions cannot be deleted
-    @SuppressWarnings("unused")
-    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
 
     private final QueryBuilder filter;
     private final String vectorField;

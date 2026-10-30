@@ -414,3 +414,31 @@ setup:
         body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"multi_match": {"query": "novel fr", "type": "cross_fields", "operator": "and", "fields": ["genre", "chapters.language"]}}}}
 
   - match: { hits.total.value: 0 }
+
+---
+"Nested query on another nested object outside knn":
+
+  # a nested query on another object joins to the common ancestor, so it matches nothing inside a nested query, like a root field
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}}}}
+
+  - match: { hits.total.value: 0 }
+
+  # same under a nested aggregation
+  - do:
+      search:
+        index: books
+        body: {"size": 0, "aggs": {"chapters": {"nested": {"path": "chapters"}, "aggs": {"by_bob": {"filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}}}}}}
+
+  - match: { aggregations.chapters.doc_count: 5 }
+  - match: { aggregations.chapters.by_bob.doc_count: 0 }
+
+  # a nested query on a child object still joins to the current level
+  - do:
+      search:
+        index: books
+        body: {"size": 0, "aggs": {"chapters": {"nested": {"path": "chapters"}, "aggs": {"alpha": {"filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "alpha"}}}}}}}}}
+
+  - match: { aggregations.chapters.alpha.doc_count: 3 }

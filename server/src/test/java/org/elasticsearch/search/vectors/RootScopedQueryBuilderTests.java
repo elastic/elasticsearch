@@ -116,7 +116,7 @@ public class RootScopedQueryBuilderTests extends MapperServiceTestCase {
     public void testTransient() {
         RootScopedQueryBuilder rootScoped = new RootScopedQueryBuilder(new TermQueryBuilder("foo", "bar"));
         expectThrows(IllegalStateException.class, () -> rootScoped.writeTo(new BytesStreamOutput()));
-        expectThrows(AssertionError.class, () -> rootScoped.rewrite(createSearchExecutionContext(mapperService)));
+        expectThrows(IllegalStateException.class, () -> rootScoped.rewrite(createSearchExecutionContext(mapperService)));
     }
 
     private static NestedObjectMapper pushNestedScope(SearchExecutionContext context, String path) {

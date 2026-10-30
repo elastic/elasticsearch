@@ -93,13 +93,7 @@ public class SimdVecLibraryInt8Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
         float[] bulkScores = new float[numVecs];
-        // only the dot product binding is @Critical; the others reject heap segments
-        if (function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT) {
-            similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-            assertArrayEquals(expectedScores, bulkScores, delta);
-        } else {
-            assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
-        }
+        assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
     }
 
     // Exercises the heap-only typed-array bulk API: non-zero dataset and scores offsets, and counts

@@ -166,9 +166,6 @@ public class AllFirstBooleanByIntAggregator {
         BooleanBlock values,
         int otherPosition
     ) {
-        // `observed` is indexed by the incoming row (`otherPosition`), not by group id. A page can
-        // carry a high group id in a single row, so comparing the group id to the page length skips
-        // this check and then folds an unobserved row in as a real value.
         if (observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
             // The incoming state hasn't observed anything for this particular group. No work is needed.
             return;

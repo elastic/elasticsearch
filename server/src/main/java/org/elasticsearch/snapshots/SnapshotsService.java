@@ -142,6 +142,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     public static final String SHARD_BEING_RESTORED_REASON = "primary shard is being restored from a snapshot";
 
+    public static final String SHARD_BEING_RESHARDED_REASON = "cannot snapshot a shard during resharding";
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
@@ -1509,8 +1511,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 externalChangesBatcher.processExternalChanges(
                     newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
-                        || (event.routingTableChanged()
-                            && SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(snapshotsInProgress, event))
+                        || (event.routingTableChanged() && SnapshotsServiceUtils.waitingShardsNeedUpdate(snapshotsInProgress, event))
                 );
 
                 if (newMaster
@@ -2069,6 +2070,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus shardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
                     generation,
                     shardRouting,
+                    initialState.metadata().getProject(entry.projectId()).index(index),
                     nodeIdRemovalPredicate,
                     entry.partial(),
                     restoreInProgress

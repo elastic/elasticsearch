@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 163269
+summary: Shade Bouncy Castle in security-cli bc sub-project
+type: enhancement

@@ -174,6 +174,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             "es.indexing.indexing.failed.version_conflict.total"
         );
         assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(0L));
+        var indexingFailedDueToTooManyDocsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.too_many_docs.total"
+        );
+        assertThat(indexingFailedDueToTooManyDocsTotal.getLong(), equalTo(0L));
     }
 
     public void testMetricsForIndexingVersionConflicts() {
@@ -260,6 +265,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             "es.indexing.indexing.failed.version_conflict.total"
         );
         assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(3L));
+        var indexingFailedDueToTooManyDocsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.too_many_docs.total"
+        );
+        assertThat(indexingFailedDueToTooManyDocsTotal.getLong(), equalTo(0L));
     }
 
     public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
@@ -323,6 +333,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             "es.indexing.indexing.failed.version_conflict.total"
         );
         assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(0L));
+        var indexingFailedDueToTooManyDocsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.too_many_docs.total"
+        );
+        assertThat(indexingFailedDueToTooManyDocsTotal.getLong(), equalTo(0L));
 
         var deletionTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
         assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));

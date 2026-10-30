@@ -14,6 +14,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,8 +37,12 @@ import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
 import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,6 +125,119 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
         }
     }
 
+    public void testMuveraQueryReturnsOnlyExactMaxSimScores() throws Exception {
+        MapperService mapperService = createMapperService(indexedMuveraMapping());
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        float[][] queryVectors = unitTokens(0, 1);
+
+        try (
+            TestThreadPool threadPool = new TestThreadPool(getTestName());
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setCodec(
+                    new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, threadPool).codec("default")
+                )
+            )
+        ) {
+            addDocument(documentMapper, writer, "exact-two", unitTokens(0, 1));
+            addDocument(documentMapper, writer, "exact-zero", unitTokens(2, 3));
+            writer.commit();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                RankVectorsFieldMapper.RankVectorsFieldType fieldType = (RankVectorsFieldMapper.RankVectorsFieldType) mapperService
+                    .fieldType("field");
+                TopDocs topDocs = searcher.search(fieldType.maxSimQuery(queryVectors, 2, 2, null), 2);
+                assertEquals(2, topDocs.scoreDocs.length);
+                assertEquals("exact-two", searcher.storedFields().document(topDocs.scoreDocs[0].doc).get("test_id"));
+                assertEquals(3f, topDocs.scoreDocs[0].score, 0f);
+                assertEquals("exact-zero", searcher.storedFields().document(topDocs.scoreDocs[1].doc).get("test_id"));
+                assertEquals(1f, topDocs.scoreDocs[1].score, 0f);
+            }
+        }
+    }
+
+    public void testMuveraQueryEncodesQueryVectorsDuringRewrite() throws Exception {
+        MapperService mapperService = createMapperService(indexedMuveraMapping());
+        float[][] nonUnitQuery = unitTokens(0, 1);
+        nonUnitQuery[0][1] = 1f;
+        RankVectorsFieldMapper.RankVectorsFieldType fieldType = (RankVectorsFieldMapper.RankVectorsFieldType) mapperService.fieldType(
+            "field"
+        );
+        var query = fieldType.maxSimQuery(nonUnitQuery, 1, 1, null);
+
+        try (Directory directory = newDirectory(); IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
+            writer.commit();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSearcher(reader).rewrite(query));
+                assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("must have unit magnitude"));
+            }
+        }
+    }
+
+    public void testExactMaxSimScoreTransformIsMonotonicAcrossZero() {
+        assertTrue(MuveraMaxSimQuery.score(-2f) < MuveraMaxSimQuery.score(-1f));
+        assertTrue(MuveraMaxSimQuery.score(-1f) < MuveraMaxSimQuery.score(0f));
+        assertTrue(MuveraMaxSimQuery.score(0f) < MuveraMaxSimQuery.score(1f));
+    }
+
+    public void testExactMaxSimHonorsBytesRefOffset() {
+        int prefixLength = 7;
+        byte[] bytes = new byte[prefixLength + RankVectorsFieldMapper.MUVERA_TOKEN_DIMS * Float.BYTES];
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putFloat(prefixLength, 1f);
+        assertEquals(
+            1f,
+            MuveraMaxSimQuery.exactMaxSim(
+                new float[][] { unitTokens(0, 1)[0] },
+                new BytesRef(bytes, prefixLength, bytes.length - prefixLength),
+                RankVectorsFieldMapper.MUVERA_TOKEN_DIMS
+            ),
+            0f
+        );
+    }
+
+    public void testMuveraQueryRejectsExcessiveExactWork() {
+        float[][] queryVectors = new float[RankVectorsFieldMapper.MAX_VECTORS][];
+        Arrays.fill(queryVectors, new float[RankVectorsFieldMapper.MUVERA_TOKEN_DIMS]);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MuveraMaxSimQuery("field", queryVectors, 1, 25, null)
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("exact MaxSim work"));
+    }
+
+    public void testExactMaxSimChecksCancellationWhileScoringDocumentVectors() {
+        float[][] queryVectors = unitTokens(0, 1);
+        byte[] bytes = new byte[2 * RankVectorsFieldMapper.MUVERA_TOKEN_DIMS * Float.BYTES];
+        AtomicInteger checks = new AtomicInteger();
+        expectThrows(
+            TestCancellationException.class,
+            () -> MuveraMaxSimQuery.exactMaxSim(
+                queryVectors,
+                new BytesRef(bytes),
+                RankVectorsFieldMapper.MUVERA_TOKEN_DIMS,
+                new float[queryVectors.length],
+                () -> {
+                    if (checks.incrementAndGet() == 2) {
+                        throw new TestCancellationException();
+                    }
+                }
+            )
+        );
+        assertEquals(2, checks.get());
+    }
+
+    public void testMuveraQueryEncodingChecksCancellation() {
+        AtomicInteger checks = new AtomicInteger();
+        expectThrows(TestCancellationException.class, () -> RankVectorsFieldMapper.encodeMuveraQuery(unitTokens(0, 1), () -> {
+            if (checks.incrementAndGet() == 2) {
+                throw new TestCancellationException();
+            }
+        }));
+        assertEquals(2, checks.get());
+    }
+
     public void testIndexedMuveraSyntheticSourceContainsOnlyOriginalVectors() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
@@ -194,6 +312,8 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
         }
         return builder.append(']').toString();
     }
+
+    private static class TestCancellationException extends RuntimeException {}
 
     private static org.elasticsearch.xcontent.XContentBuilder indexedMuveraMapping() throws IOException {
         return fieldMapping(b -> {

@@ -496,6 +496,16 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        Query maxSimQuery(float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
+            if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
+                throw LicenseUtils.newComplianceException("Rank Vectors");
+            }
+            if (indexed == false || indexOptions == null) {
+                throw new IllegalArgumentException("Field [" + name() + "] is not indexed for approximate MaxSim search");
+            }
+            return new MuveraMaxSimQuery(name(), queryVectors, k, numCandidates, filter);
+        }
+
         int getVectorDimensions() {
             return dims;
         }
@@ -514,6 +524,14 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
     @Nullable
     private final DenseVectorFieldMapper.DenseVectorIndexOptions muveraCandidateIndexOptions;
     private final MuveraEncoder muveraEncoder;
+
+    static float[] encodeMuveraQuery(float[][] queryVectors) {
+        return MUVERA_ENCODER.encodeQuery(queryVectors);
+    }
+
+    static float[] encodeMuveraQuery(float[][] queryVectors, Runnable checkCancelled) {
+        return MUVERA_ENCODER.encodeQuery(queryVectors, checkCancelled);
+    }
 
     private RankVectorsFieldMapper(
         String simpleName,

@@ -29,6 +29,7 @@ import java.util.Arrays;
  */
 public final class MuveraEncoder implements FdeEncoder {
 
+    private static final Runnable NO_CANCELLATION = () -> {};
     static final int MAX_TOKEN_DIMENSIONS = 4096;
     static final int MAX_TOKEN_VECTORS = 8192;
     static final int MAX_REPETITIONS = 256;
@@ -137,15 +138,26 @@ public final class MuveraEncoder implements FdeEncoder {
 
     @Override
     public float[] encodeDocument(float[][] tokens) {
-        return encode(tokens, true);
+        return encode(tokens, true, NO_CANCELLATION);
     }
 
     @Override
     public float[] encodeQuery(float[][] tokens) {
-        return encode(tokens, false);
+        return encode(tokens, false, NO_CANCELLATION);
     }
 
-    private float[] encode(float[][] tokens, boolean document) {
+    /**
+     * Encodes query tokens while periodically checking whether the enclosing
+     * search has been cancelled.
+     */
+    public float[] encodeQuery(float[][] tokens, Runnable checkCancelled) {
+        if (checkCancelled == null) {
+            throw new IllegalArgumentException("cancellation check must not be null");
+        }
+        return encode(tokens, false, checkCancelled);
+    }
+
+    private float[] encode(float[][] tokens, boolean document, Runnable checkCancelled) {
         if (tokens == null) {
             throw new IllegalArgumentException("token vectors must not be null");
         }
@@ -174,6 +186,9 @@ public final class MuveraEncoder implements FdeEncoder {
             );
         }
         for (int t = 0; t < tokens.length; t++) {
+            if ((t & 15) == 0) {
+                checkCancelled.run();
+            }
             float[] token = tokens[t];
             if (token == null) {
                 throw new IllegalArgumentException("token vector [" + t + "] must not be null");
@@ -200,12 +215,16 @@ public final class MuveraEncoder implements FdeEncoder {
         int[] counts = new int[numCells];
         int[] firstToken = new int[numCells];
         for (int r = 0; r < rReps; r++) {
+            checkCancelled.run();
             for (float[] cell : cells) {
                 Arrays.fill(cell, 0f);
             }
             Arrays.fill(counts, 0);
             Arrays.fill(firstToken, -1);
             for (int t = 0; t < tokens.length; t++) {
+                if ((t & 15) == 0) {
+                    checkCancelled.run();
+                }
                 int c = cellId(tokens[t], r);
                 if (counts[c]++ == 0) {
                     firstToken[c] = t;
@@ -231,6 +250,7 @@ public final class MuveraEncoder implements FdeEncoder {
             }
             int base = r * numCells * dProj;
             for (int c = 0; c < numCells; c++) {
+                checkCancelled.run();
                 if (document == false && counts[c] == 0) {
                     continue;
                 }

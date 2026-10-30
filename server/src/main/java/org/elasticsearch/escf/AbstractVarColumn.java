@@ -97,23 +97,21 @@ abstract class AbstractVarColumn extends EscfColumn {
         return offsets.ints[offsets.offset + to] - offsets.ints[offsets.offset + from];
     }
 
+    /**
+     * Absent rows need no special casing: the column builder writes no payload for them and repeats the
+     * running offset, so their offset delta is zero.
+     */
     @Override
     public final int sizeInBytes(int row) {
-        return isAbsent(row) ? 0 : valueLength(row);
+        return valueLength(row);
     }
 
     @Override
     public final void addSizesInBytes(int[] sizes) {
+        // Absent rows have a zero offset delta (see sizeInBytes), so a plain pass over all rows is exact.
         final int[] offs = offsets.ints;
         final int base = offsets.offset;
-        if (validity == null) {
-            for (int d = 0; d < docCount; d++) {
-                sizes[d] += offs[base + d + 1] - offs[base + d];
-            }
-            return;
-        }
-        PresentDocIterator present = presentDocs();
-        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+        for (int d = 0; d < docCount; d++) {
             sizes[d] += offs[base + d + 1] - offs[base + d];
         }
     }

@@ -110,11 +110,13 @@ describe("renderMarkdown / severity", () => {
     };
     expect(severity(report)).toBe("warning");
     const md = renderMarkdown(report);
-    expect(md).toContain("- Temp-dir-exhausted markers (informational, test-harness limit): 2 in `org.example.BarTests`");
+    expect(md).toContain(
+      "- Iterations not completed: 2 in `org.example.BarTests` (Lucene temp dir limit hit, not counted as failures)"
+    );
     expect(md).not.toContain(CONTACT_NOTE);
     // The line only appears when there is something to report.
     const clean = { ...report, tempDirExhaustedClasses: [], totals: { ...report.totals, tempDirExhaustedMarkers: 0 } };
-    expect(renderMarkdown(clean)).not.toContain("Temp-dir-exhausted");
+    expect(renderMarkdown(clean)).not.toContain("Iterations not completed");
     // The class list is capped so a mass failure cannot blow up the annotation.
     const many = { ...report, tempDirExhaustedClasses: Array.from({ length: 12 }, (_, i) => `C${i}`) };
     const manyMd = renderMarkdown(many);

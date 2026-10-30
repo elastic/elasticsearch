@@ -168,7 +168,7 @@ Failure classification (`classifyFailure`):
 - `"suite-timeout"` — message matches `Test abandoned because suite timeout was reached.` or `Suite timeout exceeded (>= ...`. Informational; not counted as a real failure.
 - `"temp-dir-exhausted"` - message matches `Failed to get a temporary name too many times`.
   Lucene's per-suite temp directory ran out of names (see the per-run iteration cap above), which is a test-harness limit rather than flakiness.
-  Informational and not counted as a real failure; the report names the affected classes, and a job whose only failures are these ends up `infra_fail`.
+  Not counted as a real failure; the report lists these as iterations not completed, naming the affected classes, and a job whose only failures are these ends up `infra_fail`.
 - `"assertion"` — `AssertionError` and subclasses.
 - `"error"` — any other Exception / Error.
 - `"other"` — everything else.

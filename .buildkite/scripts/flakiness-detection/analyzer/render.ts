@@ -66,7 +66,7 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false, inp
       shown.push(`${classes.length - shown.length} more`);
     }
     lines.push(
-      `- Temp-dir-exhausted markers (informational, test-harness limit): ${totals.tempDirExhaustedMarkers} in ${shown.join(", ")}`
+      `- Iterations not completed: ${totals.tempDirExhaustedMarkers} in ${shown.join(", ")} (Lucene temp dir limit hit, not counted as failures)`
     );
   }
   lines.push("");

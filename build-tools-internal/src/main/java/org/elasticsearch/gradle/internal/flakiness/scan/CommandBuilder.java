@@ -57,10 +57,21 @@ public final class CommandBuilder {
         public static final long DEFAULT_SUITE_TIMEOUT_MS = 3_600_000L;
 
         /**
-         * Upper bound on {@code -Dtests.iters} within a single gradle run; more iterations are split across
-         * several runs (see {@code CommandBuilder#javaTestCommand}).
+         * Upper bound on unit test {@code -Dtests.iters} within a single gradle run; more iterations are split
+         * across several runs (see {@code CommandBuilder#javaTestCommand}). 25 splits the default 100 into 4
+         * equal runs. All iterations of a suite in one run share Lucene's budget of 9999 temp dirs, and at about
+         * 10 temp dirs per test run this keeps a class with up to about 40 test methods under it. Heavier
+         * classes still exhaust it, and the analyzer reports those iterations as not completed.
          */
         public static final int MAX_TEST_ITERS_PER_RUN = 25;
+
+        /**
+         * Upper bound on internalClusterTest {@code -Dtests.iters} within a single gradle run. It equals
+         * {@link #DEFAULT_INTERNAL_CLUSTER_TEST_ITERS}, so the default command stays a single run and the cap only
+         * applies when an iteration override raises the count. These suites are much less exposed to the temp
+         * dir budget than unit tests, because {@code InternalTestCluster} creates one temp dir per cluster and
+         * puts the node paths inside it.
+         */
         public static final int MAX_INTERNAL_CLUSTER_TEST_ITERS_PER_RUN = 20;
 
         public static Config defaults() {

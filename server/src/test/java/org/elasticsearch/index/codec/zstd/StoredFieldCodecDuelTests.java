@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.BigArrays;
@@ -23,6 +24,9 @@ import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -109,22 +113,45 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
                 for (int docId = 0; docId < contenderLeafReader.maxDoc(); docId++) {
                     Document baselineDoc = baseLeafReader.storedFields().document(docId);
                     Document contenderDoc = contenderLeafReader.storedFields().document(docId);
-                    assertThat(contenderDoc.getFields().size(), equalTo(baselineDoc.getFields().size()));
-                    for (int i = 0; i < baselineDoc.getFields().size(); i++) {
-                        var baselineField = baselineDoc.getFields().get(i);
-                        var contenderField = contenderDoc.getFields().get(i);
-                        assertThat(contenderField.name(), equalTo(baselineField.name()));
-                        switch (baselineField.name()) {
-                            case STRING_FIELD -> assertThat(contenderField.stringValue(), equalTo(baselineField.stringValue()));
-                            case BINARY_FIELD -> assertThat(contenderField.binaryValue(), equalTo(baselineField.binaryValue()));
-                            case INT_FIELD, LONG_FIELD, FLOAT_FIELD, DOUBLE_FIELD -> assertThat(
-                                contenderField.numericValue(),
-                                equalTo(baselineField.numericValue())
-                            );
-                            default -> fail("unexpected field [" + baselineField.name() + "]");
-                        }
+                    assertSameDocument(baselineDoc, contenderDoc);
+                }
+
+                // one StoredFields per reader for all documents, as search uses it, in order and then shuffled, with repeats
+                List<Integer> docIds = new ArrayList<>();
+                for (int docId = 0; docId < contenderLeafReader.maxDoc(); docId++) {
+                    docIds.add(docId);
+                    if (randomBoolean()) {
+                        docIds.add(docId);
                     }
                 }
+                StoredFields baselineStoredFields = baseLeafReader.storedFields();
+                StoredFields contenderStoredFields = contenderLeafReader.storedFields();
+                for (int pass = 0; pass < 2; pass++) {
+                    if (pass == 1) {
+                        Collections.shuffle(docIds, random());
+                    }
+                    for (int docId : docIds) {
+                        assertSameDocument(baselineStoredFields.document(docId), contenderStoredFields.document(docId));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void assertSameDocument(Document baselineDoc, Document contenderDoc) {
+        assertThat(contenderDoc.getFields().size(), equalTo(baselineDoc.getFields().size()));
+        for (int i = 0; i < baselineDoc.getFields().size(); i++) {
+            var baselineField = baselineDoc.getFields().get(i);
+            var contenderField = contenderDoc.getFields().get(i);
+            assertThat(contenderField.name(), equalTo(baselineField.name()));
+            switch (baselineField.name()) {
+                case STRING_FIELD -> assertThat(contenderField.stringValue(), equalTo(baselineField.stringValue()));
+                case BINARY_FIELD -> assertThat(contenderField.binaryValue(), equalTo(baselineField.binaryValue()));
+                case INT_FIELD, LONG_FIELD, FLOAT_FIELD, DOUBLE_FIELD -> assertThat(
+                    contenderField.numericValue(),
+                    equalTo(baselineField.numericValue())
+                );
+                default -> fail("unexpected field [" + baselineField.name() + "]");
             }
         }
     }

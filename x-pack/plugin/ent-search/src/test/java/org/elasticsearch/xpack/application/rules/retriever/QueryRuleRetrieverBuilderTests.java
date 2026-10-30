@@ -54,7 +54,7 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
     protected QueryRuleRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (QueryRuleRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), Predicates.never())
+            new RetrieverParserContext(new SearchUsage(), Predicates.never(), null)
         );
     }
 
@@ -103,7 +103,7 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             QueryRuleRetrieverBuilder parsed = QueryRuleRetrieverBuilder.PARSER.parse(
                 parser,
-                new RetrieverParserContext(new SearchUsage(), nf -> true)
+                new RetrieverParserContext(new SearchUsage(), nf -> true, null)
             );
             assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
         }

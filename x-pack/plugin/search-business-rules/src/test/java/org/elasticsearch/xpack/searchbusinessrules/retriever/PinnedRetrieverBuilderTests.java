@@ -49,7 +49,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
     protected PinnedRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (PinnedRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), nf -> true)
+            new RetrieverParserContext(new SearchUsage(), nf -> true, null)
         );
     }
 
@@ -110,7 +110,7 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             PinnedRetrieverBuilder parsed = PinnedRetrieverBuilder.PARSER.parse(
                 parser,
-                new RetrieverParserContext(new SearchUsage(), nf -> true)
+                new RetrieverParserContext(new SearchUsage(), nf -> true, null)
             );
             assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
         }

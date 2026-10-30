@@ -230,6 +230,12 @@ public class TextExpansionQueryBuilder extends LeafQueryBuilder<TextExpansionQue
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + modelText.length() * 2L + 64L + modelId.length() * 2L
+            + 64L;
+    }
+
+    @Override
     protected boolean doEquals(TextExpansionQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(modelText, other.modelText)

@@ -65,7 +65,15 @@ public class SearchApplicationTemplateService {
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, requestSource)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-            builder.parseXContent(parser, false, clusterSupportsFeature);
+            boolean parsedOk = false;
+            try {
+                builder.parseXContent(parser, false, clusterSupportsFeature);
+                parsedOk = true;
+            } finally {
+                if (parsedOk == false) {
+                    builder.close();
+                }
+            }
             return builder;
         }
     }

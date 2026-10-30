@@ -103,6 +103,8 @@ public class QueryRewriteContext {
     private final boolean allowPartialSearchResults;
     @Nullable
     private TaskId parentTaskId;
+    @Nullable
+    private QueryParsingReservation queryParsingReservation;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -342,6 +344,23 @@ public class QueryRewriteContext {
      */
     public XContentParserConfiguration getParserConfig() {
         return parserConfiguration;
+    }
+
+    /**
+     * Returns the reservation that tracks circuit-breaker charges for the parsed query, or {@code null}
+     * if no reservation is set (e.g., on shard-side rewrite contexts).
+     */
+    @Nullable
+    public QueryParsingReservation getQueryParsingReservation() {
+        return queryParsingReservation;
+    }
+
+    /**
+     * Sets the reservation to thread through rewrite so that charges accumulated for expanded queries
+     * (e.g., {@link WrapperQueryBuilder}) are held for the request lifetime.
+     */
+    public void setQueryParsingReservation(@Nullable QueryParsingReservation reservation) {
+        this.queryParsingReservation = reservation;
     }
 
     /**

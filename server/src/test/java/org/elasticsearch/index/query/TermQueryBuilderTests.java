@@ -305,4 +305,19 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             return boolQuery;
         });
     }
+
+    public void testFieldValueBreakerEstimate() throws IOException {
+        // TermQueryBuilder stores value as BytesRef: estimateValue = bytes.length + 64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.
+        // "hi" → 2-byte BytesRef → estimateValue = 2+64 = 66. Small cost = BASELINE + 90 + 66 = 412.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() + 64L;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new TermQueryBuilder(TEXT_FIELD_NAME, shortValue),
+            new TermQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500))
+        );
+    }
 }

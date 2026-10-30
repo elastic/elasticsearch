@@ -140,6 +140,13 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         }, listener::onFailure));
     }
 
+    @Override
+    public long parseTimeBreakerEstimate() {
+        long cost = modelText.length() * 2L + 64L;
+        if (modelId != null) cost += modelId.length() * 2L + 64L;
+        return cost;
+    }
+
     public String getModelText() {
         return modelText;
     }

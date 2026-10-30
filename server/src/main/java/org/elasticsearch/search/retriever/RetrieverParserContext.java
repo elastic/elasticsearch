@@ -10,6 +10,7 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.usage.SearchUsage;
 
 import java.util.Objects;
@@ -19,10 +20,20 @@ public class RetrieverParserContext {
 
     protected final SearchUsage searchUsage;
     protected final Predicate<NodeFeature> clusterSupportsFeature;
+    private final QueryParsingReservation queryParsingReservation;
 
-    public RetrieverParserContext(SearchUsage searchUsage, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RetrieverParserContext(
+        SearchUsage searchUsage,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        QueryParsingReservation queryParsingReservation
+    ) {
         this.searchUsage = Objects.requireNonNull(searchUsage);
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.queryParsingReservation = queryParsingReservation;
+    }
+
+    public QueryParsingReservation getQueryParsingReservation() {
+        return queryParsingReservation;
     }
 
     public void trackSectionUsage(String section) {

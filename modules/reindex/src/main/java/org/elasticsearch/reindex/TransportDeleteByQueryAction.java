@@ -93,7 +93,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             listener,
             client,
             clusterService.localNode(),
-            () -> {
+            wrappedListener -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
@@ -106,7 +106,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     threadPool,
                     request,
                     scriptService,
-                    ActionListener.runAfter(listener, () -> {
+                    ActionListener.runAfter(wrappedListener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (deleteByQueryMetrics != null) {
                             deleteByQueryMetrics.recordTookTime(elapsedTime);

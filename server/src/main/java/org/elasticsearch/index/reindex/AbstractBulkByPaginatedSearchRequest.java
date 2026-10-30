@@ -219,6 +219,9 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
                 );
             }
         }
+        if (e != null && searchRequest.source() != null) {
+            searchRequest.source().close();
+        }
         return e;
     }
 

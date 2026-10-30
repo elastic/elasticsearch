@@ -120,4 +120,15 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
             i++;
         }
     }
+
+    public void testQueryValueBreakerEstimate() throws IOException {
+        // BASELINE + estimateValue(value) + estimateValue(fieldsAndBoosts)
+        // value="hi" (String): 2*2+64=68. fieldsAndBoosts={"mapped_string":1.0f}: 32+1*48+(13*2+64)+8=178.
+        // small: 256+68+178=502. large: value="x"×500 → 1064; total=1498.
+        long fieldsCost = 32L + 48L + 13 * 2L + 64L + 8L; // TEXT_FIELD_NAME = "mapped_string" (13 chars) + Float 8
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + (2 * 2L + 64L) + fieldsCost;
+        CombinedFieldsQueryBuilder small = new CombinedFieldsQueryBuilder("hi", TEXT_FIELD_NAME);
+        CombinedFieldsQueryBuilder big = new CombinedFieldsQueryBuilder("x".repeat(500), TEXT_FIELD_NAME);
+        assertParseTimeBreaker(limit, small, big);
+    }
 }

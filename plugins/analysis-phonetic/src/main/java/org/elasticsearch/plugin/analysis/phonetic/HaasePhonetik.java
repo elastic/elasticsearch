@@ -50,6 +50,14 @@ public class HaasePhonetik extends KoelnerPhonetik {
         super(maxVariations);
     }
 
+    /**
+     * @param maxVariations limit on the variations generated for one token; between 1 and {@link #MAX_VARIATIONS_UPPER_BOUND}
+     * @param legacyVariations keep the old {@code ^CH} behavior (drops the next letter) for indices created before the fix
+     */
+    public HaasePhonetik(int maxVariations, boolean legacyVariations) {
+        super(maxVariations, legacyVariations);
+    }
+
     @Override
     protected String[] getPatterns() {
         return HAASE_VARIATIONS_PATTERNS;

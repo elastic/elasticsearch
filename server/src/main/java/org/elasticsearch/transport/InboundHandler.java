@@ -23,6 +23,7 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -425,18 +426,31 @@ public class InboundHandler {
         final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
-            doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message);
+            doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message, TransportResponseHandler.NO_RESERVATION);
         } else {
-            // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
+            // The message waits for the executor in serialized form, so the handler can reserve memory for it until it is read.
+            final Releasable reservation;
+            try {
+                final Releasable reserved = handler.reserveResponseBytes(message.getContentLength());
+                // Closed after the read and again by the fail-safe in #onAfter below. Most handlers reserve nothing, so skip the wrapper.
+                reservation = reserved == TransportResponseHandler.NO_RESERVATION ? reserved : Releasables.releaseOnce(reserved);
+            } catch (CircuitBreakingException e) {
+                logger.debug(() -> "Circuit breaker tripped reserving memory for response from [" + remoteAddress + "]", e);
+                message.close();
+                handleException(handler, new RemoteTransportException("Failed to reserve memory for response to [" + handler + "]", e));
+                return;
+            }
+            // release the buffer and the reservation once we deserialize the message, but have a fail-safe in #onAfter below in case that
+            // didn't work out
             executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
-                    doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message);
+                    doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message, reservation);
                 }
 
                 @Override
                 public void onAfter() {
-                    message.close();
+                    Releasables.close(message, reservation);
                 }
             });
         }
@@ -448,16 +462,18 @@ public class InboundHandler {
      * @param remoteAddress remote address that the message was sent from
      * @param stream bytes stream for reading the message
      * @param inboundMessage inbound message, guaranteed to get closed by this method
+     * @param reservation memory reserved for the message, guaranteed to get closed by this method
      * @param <T> response message type
      */
     private <T extends TransportResponse> void doHandleResponse(
         TransportResponseHandler<T> handler,
         InetSocketAddress remoteAddress,
         final StreamInput stream,
-        InboundMessage inboundMessage
+        InboundMessage inboundMessage,
+        Releasable reservation
     ) {
         final T response;
-        try (inboundMessage) {
+        try (inboundMessage; reservation) {
             response = handler.read(stream);
             verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
         } catch (Exception e) {

@@ -220,10 +220,16 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                         MultiSearchResponse.Item responseItem = response.getResponses()[i];
                         Slot slot = slots.get(i);
 
-                        if (responseItem.isFailure()) {
-                            slot.listener.onFailure(responseItem.getFailure());
-                        } else {
-                            slot.listener.onResponse(responseItem.getResponse());
+                        try {
+                            if (responseItem.isFailure()) {
+                                slot.listener.onFailure(responseItem.getFailure());
+                            } else {
+                                slot.listener.onResponse(responseItem.getResponse());
+                            }
+                        } finally {
+                            // release the slot reference to avoid holding onto the completed document's expanded map (via the listener)
+                            // longer than necessary
+                            slots.set(i, null);
                         }
                     }
                 } finally {
@@ -235,7 +241,15 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             } else if (e != null) {
                 // nothing is held for a failed batch
                 remoteRequestPermits.release();
-                slots.forEach(slot -> slot.listener.onFailure(e));
+                for (int i = 0; i < slots.size(); i++) {
+                    try {
+                        slots.get(i).listener.onFailure(e);
+                    } finally {
+                        // release the slot reference to avoid holding onto the completed document's expanded map (via the listener) longer
+                        // than necessary
+                        slots.set(i, null);
+                    }
+                }
             } else {
                 throw new AssertionError("no response and no error");
             }

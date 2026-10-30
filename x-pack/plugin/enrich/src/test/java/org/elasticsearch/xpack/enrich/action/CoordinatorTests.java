@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
@@ -237,6 +239,70 @@ public class CoordinatorTests extends ESTestCase {
         } finally {
             res.decRef();
         }
+    }
+
+    public void testSlotsReleasedAfterNotificationWholeBatchFails() {
+        assertSlotsReleasedAfterNotification(4, null, new RuntimeException("simulated"));
+    }
+
+    public void testSlotsReleasedAfterNotificationWholeBatchSucceeds() {
+        assertSlotsReleasedAfterNotification(4, multiSearchResponse(100, 100, 100, 100), null);
+    }
+
+    public void testSlotsReleasedAfterNotificationMixedItemResults() {
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[] {
+            new MultiSearchResponse.Item(searchResponse(100), null),
+            new MultiSearchResponse.Item(null, new RuntimeException("simulated item failure")),
+            new MultiSearchResponse.Item(searchResponse(100), null),
+            new MultiSearchResponse.Item(null, new RuntimeException("simulated item failure")) };
+        assertSlotsReleasedAfterNotification(4, new MultiSearchResponse(items, 1L), null);
+    }
+
+    private void assertSlotsReleasedAfterNotification(
+        int batchSize,
+        @Nullable MultiSearchResponse response,
+        @Nullable Exception batchFailure
+    ) {
+        final Coordinator coordinator = new Coordinator(new MockLookupFunction(), batchSize, 1, 100);
+        final List<Coordinator.Slot> slots = new ArrayList<>();
+        final AtomicInteger notified = new AtomicInteger();
+        for (int i = 0; i < batchSize; i++) {
+            final int index = i;
+            final ActionListener<SearchResponse> listener = new ActionListener<>() {
+
+                @Override
+                public void onResponse(SearchResponse response) {
+                    assertSlotsReleasedUpTo(index, false);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertSlotsReleasedUpTo(index, true);
+                }
+
+                private void assertSlotsReleasedUpTo(int lastReleased, boolean isFailure) {
+                    assertThat(batchFailure != null || response.getResponses()[index].isFailure(), is(isFailure));
+                    assertThat(notified.getAndIncrement(), equalTo(lastReleased));
+                    for (int j = 0; j < slots.size(); j++) {
+                        // an entry is nulled once its own listener returned, so the current one is still set
+                        assertThat(slots.get(j), j < lastReleased ? nullValue() : notNullValue());
+                    }
+                }
+            };
+            slots.add(slot("my-index", listener));
+        }
+        // handleResponse releases the permit that coordinateLookups acquired
+        assertTrue(coordinator.remoteRequestPermits.tryAcquire());
+
+        try {
+            coordinator.handleResponse(slots, response, batchFailure);
+        } finally {
+            if (response != null) {
+                response.decRef();
+            }
+        }
+        assertThat(notified.get(), equalTo(batchSize));
+        assertThat(slots, everyItem(nullValue()));
     }
 
     public void testNoBlockingWhenQueueing() {

@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -253,6 +254,8 @@ public class InternalEngine extends Engine {
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE = "realtime_get_for_update";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
+
+    public static final String TOO_MANY_DOCS_MESSAGE_PREFIX = "Number of documents in the shard cannot exceed [";
 
     @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
@@ -2479,7 +2482,7 @@ public class InternalEngine extends Engine {
             releaseInFlightDocs(addingDocs);
             return new IllegalArgumentException(
                 Strings.format(
-                    "Number of documents in the shard cannot exceed [%d]; for more information, see [%s]",
+                    TOO_MANY_DOCS_MESSAGE_PREFIX + "%d]; for more information, see [%s]",
                     maxDocs,
                     ReferenceDocs.LUCENE_MAX_DOCS_LIMIT
                 )
@@ -2487,6 +2490,16 @@ public class InternalEngine extends Engine {
         } else {
             return null;
         }
+    }
+
+    /**
+     * The shard-full failure is a plain {@link IllegalArgumentException} so clients keep the same status and error type,
+     * which means it can only be recognised by its message.
+     */
+    public static boolean isTooManyDocsFailure(Throwable failure) {
+        return failure instanceof IllegalArgumentException
+            && failure.getMessage() != null
+            && failure.getMessage().startsWith(TOO_MANY_DOCS_MESSAGE_PREFIX);
     }
 
     private void releaseInFlightDocs(int numDocs) {
@@ -3649,10 +3662,11 @@ public class InternalEngine extends Engine {
     /**
      * Allows subclasses to wrap the {@link MergePolicy} before it is installed on the writer. It is applied last, so the
      * returned policy is the outermost one and the {@code OneMerge}s it produces are the instances the {@link IndexWriter}
-     * actually executes. The default implementation returns the policy unchanged.
+     * actually executes. The default implementation wraps merges in a {@link SizeTrackingOneMerge}; overrides should do the same
+     * (e.g. by extending it) so that the merged segment size is recorded for merge metrics.
      */
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
-        return mergePolicy;
+        return new OneMergeWrappingMergePolicy(mergePolicy, SizeTrackingOneMerge::new);
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */

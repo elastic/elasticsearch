@@ -301,7 +301,12 @@ public class KnnIndexTester {
                         args.queryQuantizeBits(),
                         IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM
                     );
-                    var ashConfig = IvfSegmentConfig.AshConfig.of(bitsPerDim, queryBits, args.projectedDimsFraction());
+                    var ashConfig = IvfSegmentConfig.AshConfig.of(
+                        bitsPerDim,
+                        queryBits,
+                        args.projectedDimsFraction(),
+                        args.maxProjectedDims()
+                    );
                     yield new ESNextDiskASHVectorsFormat(
                         ashConfig,
                         args.ivfClusterSize(),
@@ -879,7 +884,8 @@ public class KnnIndexTester {
                     IvfSegmentConfig.AshConfig.of(
                         Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
                         Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
-                        args.projectedDimsFraction()
+                        args.projectedDimsFraction(),
+                        args.maxProjectedDims()
                     );
                 } else {
                     if (args.quantizeBits() == null) {

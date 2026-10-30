@@ -123,6 +123,36 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(1).primaryShard().state(), equalTo(STARTED));
     }
 
+    public void testNewShardsRecoveryPriority() {
+        final int shards = between(1, 4);
+        final int replicas = between(1, 3);
+        final int multiple = between(2, 3);
+        final var metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(shards).numberOfReplicas(replicas))
+            .build();
+        final var index = metadata.getProject().index("test").getIndex();
+        final var routingTableBuilder = RoutingTable.builder(createCustomRoleStrategy(1)).addAsNew(metadata.getProject().index("test"));
+
+        final var indexRoutingTable = ReshardIndexService.addShardsToRoutingTable(
+            routingTableBuilder,
+            index,
+            IndexReshardingMetadata.newSplitByMultiple(shards, multiple)
+        ).build().index(index);
+
+        assertThat(indexRoutingTable.size(), equalTo(shards * multiple));
+        for (int shardId = shards; shardId < indexRoutingTable.size(); shardId++) {
+            final var shardRoutingTable = indexRoutingTable.shard(shardId);
+            assertThat(shardRoutingTable.size(), equalTo(replicas + 1));
+            assertThat(
+                shardRoutingTable.primaryShard().recoveryPriority(),
+                equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING)
+            );
+            for (final var replica : shardRoutingTable.replicaShards()) {
+                assertThat(replica.recoveryPriority(), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED));
+            }
+        }
+    }
+
     private static ShardRoutingRoleStrategy createCustomRoleStrategy(int indexShardCount) {
         return new ShardRoutingRoleStrategy() {
             @Override

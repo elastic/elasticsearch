@@ -1,562 +1,562 @@
 // With SET exemplars=true a TS or PROMQL query returns the exemplars of the metrics it aggregates instead of its result. The metrics
 // query is analyzed but not executed: the metric fields it aggregates select the exemplars from the exemplar data streams derived from
 // its resolved time series indices (metrics-cpu -> exemplars-cpu). An exemplar document belongs to exactly one metric: it carries the
-// metric's name in metric_name and the observed value in value. The exemplars are projected to their timestamp, metric name and value
-// plus their full document, most recent first. The filters of the metrics query on dimensions and @timestamp select the exemplars of
+// metric's name in metric_name and the observed value in value. The exemplars are projected to their timestamp, metric name, value,
+// trace_id and span_id plus their full document, most recent first. The filters of the metrics query on dimensions and @timestamp select the exemplars of
 // the filtered series only.
 //
 // Like in the OTel mappings, attributes and metrics are passthrough objects of the metrics index, so every metric is also available
 // under its short name, e.g. cpu_time for metrics.cpu_time. The metric_name of an exemplar omits passthrough parents.
 
 exemplarsOfSingleMetric
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A limit in the setting returns only that many of the most recent exemplars.
 exemplarsLimit
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars={"limit": 2}\;
 TS metrics-cpu | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
 ;
 
 // include_timeseries adds the _timeseries column, holding the dimensions of the series an exemplar belongs to. The exemplar data
 // streams are time series ones whose dimensions mirror those of the metrics, plus metric_name.
 exemplarsWithTimeseries
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars={"include_timeseries": true}\;
 TS metrics-cpu | WHERE attributes.state == "idle" | STATS AVG(cpu_time) BY attributes.cpu
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _timeseries:keyword                                                                   | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time""}" | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time""}" | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _timeseries:keyword                                                                   | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time""}" | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time""}" | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // include_timeseries combines with a limit, and an explicit false is the default.
 exemplarsWithTimeseriesAndLimit
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars={"limit": 1, "include_timeseries": true}\;
 TS metrics-cpu | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _timeseries:keyword                                                                   | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time""}" | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _timeseries:keyword                                                                   | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time""}" | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
 ;
 
 exemplarsWithoutTimeseriesExplicitly
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars={"include_timeseries": false}\;
 TS metrics-cpu | STATS AVG(cpu_time) WHERE attributes.state == "busy"
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
 ;
 
 // The full field name of a metric in a passthrough object selects the same exemplars as its short name.
 metricReferencedByFullFieldName
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(metrics.cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A metric aggregated several times, under its full and its short name, selects its exemplars once.
 sameMetricByFullAndShortName
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time), MAX(metrics.cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A passthrough object does not have to be at the root: disk_io is in the passthrough object system.metrics, inside the regular
 // object system. Its root-level alias and its metric name are disk_io, without the regular parent either.
 metricInNestedPassthroughObject
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(system.metrics.disk_io)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:30.000Z | disk_io             | 33.0         | "{""@timestamp"":""2024-05-10T00:03:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""disk_io"",""span_id"":""span-11"",""trace_id"":""trace-busy-cpu1-disk"",""value"":33.0}"
-2024-05-10T00:00:20.000Z | disk_io             | 12.5         | "{""@timestamp"":""2024-05-10T00:00:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""disk_io"",""span_id"":""span-10"",""trace_id"":""trace-idle-cpu0-disk"",""value"":12.5}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:30.000Z | disk_io             | 33.0         | trace-busy-cpu1-disk | span-11         | "{""@timestamp"":""2024-05-10T00:03:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""disk_io"",""span_id"":""span-11"",""trace_id"":""trace-busy-cpu1-disk"",""value"":33.0}"
+2024-05-10T00:00:20.000Z | disk_io             | 12.5         | trace-idle-cpu0-disk | span-10         | "{""@timestamp"":""2024-05-10T00:00:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""disk_io"",""span_id"":""span-10"",""trace_id"":""trace-idle-cpu0-disk"",""value"":12.5}"
 ;
 
 metricInNestedPassthroughObjectByAlias
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(disk_io)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:30.000Z | disk_io             | 33.0         | "{""@timestamp"":""2024-05-10T00:03:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""disk_io"",""span_id"":""span-11"",""trace_id"":""trace-busy-cpu1-disk"",""value"":33.0}"
-2024-05-10T00:00:20.000Z | disk_io             | 12.5         | "{""@timestamp"":""2024-05-10T00:00:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""disk_io"",""span_id"":""span-10"",""trace_id"":""trace-idle-cpu0-disk"",""value"":12.5}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:30.000Z | disk_io             | 33.0         | trace-busy-cpu1-disk | span-11         | "{""@timestamp"":""2024-05-10T00:03:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""disk_io"",""span_id"":""span-11"",""trace_id"":""trace-busy-cpu1-disk"",""value"":33.0}"
+2024-05-10T00:00:20.000Z | disk_io             | 12.5         | trace-idle-cpu0-disk | span-10         | "{""@timestamp"":""2024-05-10T00:00:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""disk_io"",""span_id"":""span-10"",""trace_id"":""trace-idle-cpu0-disk"",""value"":12.5}"
 ;
 
 multipleMetrics
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time), MAX(metrics.memory_usage)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | trace-idle-cpu0-mem  | span-9          | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | trace-idle-cpu1-mem  | span-4          | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A metric that is only referenced in the filter of an aggregate function is not aggregated, so its exemplars are not selected.
 metricInAggregateFilterIsNotSelected
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time) WHERE memory_usage > 400
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A filter on dimensions before STATS selects the exemplars of the filtered series.
 dimensionFilter
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE attributes.state == "idle" | STATS AVG(cpu_time) BY attributes.cpu
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // Dimensions in passthrough objects can be referred to by their short name too, as the exemplar data streams have both.
 dimensionFilterByAlias
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE state == "idle" | WHERE cpu == "cpu1" | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
 ;
 
 timestampFilter
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE @timestamp >= "2024-05-10T00:01:00.000Z" | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
 ;
 
 // A filter on the value of a metric selects metric samples, not series, and is not applied to the exemplars: the exemplar with
 // value 1.7 is selected although the metrics query only aggregates samples with cpu_time > 2.
 metricValueFilterIsNotApplied
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE attributes.state == "idle" AND cpu_time > 2 | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A disjunction is applied or dropped as a whole, so a dimension filter in a disjunction with a metric value filter is dropped too.
 disjunctionWithMetricValueFilterIsNotApplied
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE attributes.state == "busy" OR cpu_time < 2 | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A null check on a metric, also through a conversion function, is applied as a condition on the metric_name of the exemplars.
 // An exemplar belongs to exactly one metric, so excluding the samples with a memory_usage excludes the memory_usage exemplars.
 metricNullCheckFilterIsApplied
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE TO_LONG(memory_usage) IS NULL AND attributes.state == "idle" | STATS AVG(cpu_time), MAX(memory_usage)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // Requiring one of the aggregated metrics excludes the exemplars of the other ones.
 metricNotNullCheckFilterIsApplied
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE cpu_time IS NOT NULL | STATS AVG(cpu_time), MAX(memory_usage)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 metricNotNullCheckOnOtherMetricSelectsNothing
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE memory_usage IS NOT NULL | STATS AVG(cpu_time)
 ;
 
-@timestamp:date | metric_name:keyword | value:double | _source:_source
+@timestamp:date | metric_name:keyword | value:double | trace_id:keyword | span_id:keyword | _source:_source
 ;
 
 // A filter on a value computed by EVAL cannot be evaluated on the exemplars and is not applied.
 filterOnEvalIsNotApplied
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | EVAL busy = attributes.state == "busy" | WHERE busy | STATS AVG(cpu_time)
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A filter after STATS applies to the aggregated result, even on a grouping dimension, and is not applied to the exemplars.
 filterAfterStatsIsNotApplied
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu | WHERE attributes.cpu == "cpu1"
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // The filter of an aggregate function applies to the exemplars of its metrics only: the idle cpu_time exemplars and the busy
 // memory_usage exemplar are selected, not the busy cpu_time or the idle memory_usage ones.
 aggregateFilters
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time) WHERE attributes.state == "idle", MAX(memory_usage) WHERE attributes.state == "busy"
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A WHERE before STATS applies to all metrics, on top of the filters of the aggregate functions.
 aggregateFiltersAndSharedFilter
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS AVG(cpu_time) WHERE attributes.state == "idle", MAX(memory_usage) WHERE attributes.state == "busy"
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
 ;
 
 // Without an outer aggregation, the time series aggregate functions aggregate each time series on their own, under their filters.
 overTimeAggregationsWithoutOuterAggregation
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS MAX_OVER_TIME(cpu_time) WHERE attributes.state == "idle", LAST_OVER_TIME(memory_usage) WHERE attributes.state == "busy"
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
 ;
 
 // The filter of an outer aggregate function applies to the metric of the time series aggregate function nested in it, whether that
 // one is explicit (MAX_OVER_TIME) or implicit (AVG(memory_usage) aggregates LAST_OVER_TIME(memory_usage)).
 overTimeAggregationInOuterAggregation
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | WHERE attributes.state == "idle" | STATS MAX(MAX_OVER_TIME(cpu_time)) WHERE attributes.cpu == "cpu0", AVG(memory_usage) BY attributes.cpu
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
-2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | trace-idle-cpu0-mem  | span-9          | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
+2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | trace-idle-cpu1-mem  | span-4          | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // Everything after STATS processes the aggregated result, which is never computed.
 everythingAfterStatsIsIgnored
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | STATS avg = AVG(cpu_time) BY attributes.cpu | KEEP avg | SORT avg | LIMIT 1
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // Exemplars of an exponential histogram metric are the raw observations that were sampled into the histogram, so their value is a
 // plain double like for any other metric.
 exponentialHistogramMetric
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: exponential_histogram_tech_preview
 SET exemplars=true\;
 TS metrics-cpu | STATS p95 = PERCENTILE(LAST_OVER_TIME(request_duration), 95) BY attributes.cpu
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:20.000Z | request_duration    | 38.0         | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
-2024-05-10T00:02:30.000Z | request_duration    | 9.5          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
-2024-05-10T00:01:20.000Z | request_duration    | 47.5         | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:20.000Z | request_duration    | 38.0         | trace-busy-cpu1-dur  | span-8          | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
+2024-05-10T00:02:30.000Z | request_duration    | 9.5          | trace-idle-cpu1-dur  | span-6          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
+2024-05-10T00:01:20.000Z | request_duration    | 47.5         | trace-busy-cpu0-dur  | span-3          | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
 ;
 
 exponentialHistogramAndGaugeMetrics
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: exponential_histogram_tech_preview
 SET exemplars=true\;
 TS metrics-cpu | STATS AVG(cpu_time), MAX(MAX_OVER_TIME(metrics.request_duration)) BY attributes.cpu
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:20.000Z | request_duration    | 38.0         | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
-2024-05-10T00:02:30.000Z | request_duration    | 9.5          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:20.000Z | request_duration    | 47.5         | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:20.000Z | request_duration    | 38.0         | trace-busy-cpu1-dur  | span-8          | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
+2024-05-10T00:02:30.000Z | request_duration    | 9.5          | trace-idle-cpu1-dur  | span-6          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:20.000Z | request_duration    | 47.5         | trace-busy-cpu0-dur  | span-3          | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // PROMQL metrics queries select the exemplars of the metrics of their selectors.
 promqlMetricsQuery
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (avg(avg_over_time(cpu_time[1m])))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A PROMQL binary operation between two metrics selects the exemplars of both, whether the operands are translated to one shared time
 // series aggregation (same labels, no vector matching) ...
 promqlBinaryOperation
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (sum by (attributes.cpu) (avg_over_time(cpu_time[1m])) / sum by (attributes.cpu) (avg_over_time(memory_usage[1m])))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | trace-idle-cpu0-mem  | span-9          | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | trace-idle-cpu1-mem  | span-4          | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // ... or to two separate ones joined by explicit vector matching.
 promqlBinaryOperationWithVectorMatching
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (sum by (attributes.cpu) (avg_over_time(cpu_time[1m])) / on (attributes.cpu) sum by (attributes.cpu) (avg_over_time(memory_usage[1m])))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | trace-idle-cpu0-mem  | span-9          | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | trace-idle-cpu1-mem  | span-4          | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // The label matchers and the evaluated time range of a PROMQL query apply to the exemplars, here the time range from the start minus
 // the range of the selector to the end.
 promqlLabelMatcherAndTimeRange
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:02:00.000Z" step=1m (avg(avg_over_time(cpu_time{attributes.state="idle"}[1m])))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // The operands of a PROMQL binary operation select the exemplars of their metric under their own label matchers, whether they are
 // translated to one shared time series aggregation ...
 promqlBinaryOperationWithLabelMatchers
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (sum by (attributes.cpu) (avg_over_time(cpu_time{attributes.state="idle"}[1m])) / sum by (attributes.cpu) (avg_over_time(memory_usage{attributes.state="busy"}[1m])))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // ... or to two separate ones joined by explicit vector matching.
 promqlBinaryOperationWithVectorMatchingAndLabelMatchers
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (sum by (attributes.cpu) (avg_over_time(cpu_time{attributes.state="idle"}[1m])) / on (attributes.cpu) sum by (attributes.cpu) (avg_over_time(memory_usage{attributes.state="busy"}[1m])))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | trace-busy-cpu1-mem  | span-7          | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 exponentialHistogramPromqlMetricsQuery
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 required_capability: promql_command_v0
 required_capability: promql_histogram_sum_count_avg
 SET exemplars=true\;
 PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (histogram_count(request_duration))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:03:20.000Z | request_duration    | 38.0         | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
-2024-05-10T00:02:30.000Z | request_duration    | 9.5          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
-2024-05-10T00:01:20.000Z | request_duration    | 47.5         | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:03:20.000Z | request_duration    | 38.0         | trace-busy-cpu1-dur  | span-8          | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
+2024-05-10T00:02:30.000Z | request_duration    | 9.5          | trace-idle-cpu1-dur  | span-6          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
+2024-05-10T00:01:20.000Z | request_duration    | 47.5         | trace-busy-cpu0-dur  | span-3          | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
 ;
 
 // metrics-noexemplars derives exemplars-noexemplars, which does not exist. The query returns no exemplars, and the exemplar
 // columns it cannot find in any mapping are nullified.
 exemplarsWithoutExemplarDataStream
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-noexemplars | STATS AVG(cpu_time)
 ;
 
-@timestamp:null | metric_name:null | value:null | _source:_source
+@timestamp:null | metric_name:null | value:null | trace_id:null | span_id:null | _source:_source
 ;
 
 metricsWithoutExemplarDataStreamWildcard
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-noexemplars* | STATS AVG(cpu_time)
 ;
 
-@timestamp:null | metric_name:null | value:null | _source:_source
+@timestamp:null | metric_name:null | value:null | trace_id:null | span_id:null | _source:_source
 ;
 
 // Only the metrics-* expressions of a mixed index pattern contribute exemplars, and only those whose exemplar data stream exists.
 mixedIndexPattern
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu,metrics-noexemplars,k8s | STATS AVG(cpu_time) BY attributes.cpu
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A metric of a data stream without exemplars selects no exemplars, because no exemplar of the other data streams carries its name.
 metricOnlyInDataStreamWithoutExemplars
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu,metrics-k8s | STATS AVG(cpu_time), MAX(RATE(network.total_bytes_in))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | trace-busy-cpu0-cpu  | span-2          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // A filter on a dimension that only the data stream without exemplars has excludes all series of the other data streams, and
 // therefore all of their exemplars.
 dimensionFilterOnlyInDataStreamWithoutExemplars
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu,metrics-k8s | WHERE cluster == "prod" | STATS AVG(cpu_time), MAX(RATE(network.total_bytes_in))
 ;
 
-@timestamp:date | metric_name:keyword | value:double | _source:_source
+@timestamp:date | metric_name:keyword | value:double | trace_id:keyword | span_id:keyword | _source:_source
 ;
 
 dimensionFilterInDataStreamWithExemplars
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu,metrics-k8s | WHERE attributes.state == "idle" | STATS AVG(cpu_time), MAX(RATE(network.total_bytes_in))
 ;
 
-@timestamp:date          | metric_name:keyword | value:double | _source:_source
-2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
-2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+@timestamp:date          | metric_name:keyword | value:double | trace_id:keyword     | span_id:keyword | _source:_source
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | trace-idle-cpu1-cpu  | span-5          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | trace-idle-cpu0-cpu  | span-1          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
 ;
 
 // Only metrics of the data stream without exemplars are aggregated: the exemplar data stream exists, but holds none of them.
 onlyMetricsOfDataStreamWithoutExemplars
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu,metrics-k8s | STATS MAX(RATE(network.total_bytes_in)) BY cluster
 ;
 
-@timestamp:date | metric_name:keyword | value:double | _source:_source
+@timestamp:date | metric_name:keyword | value:double | trace_id:keyword | span_id:keyword | _source:_source
 ;
 
 // A TS query without STATS aggregates no metrics, so it selects no exemplars.
 tsWithoutStats
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=true\;
 TS metrics-cpu | KEEP @timestamp, cpu_time
 ;
 
-@timestamp:date | metric_name:keyword | value:double | _source:_source
+@timestamp:date | metric_name:keyword | value:double | trace_id:keyword | span_id:keyword | _source:_source
 ;
 
 // Without the setting the metrics query runs as usual.
 settingDisabledRunsMetricsQuery
-required_capability: exemplars_setting_development_v6
+required_capability: exemplars_setting_development_v7
 SET exemplars=false\;
 TS metrics-cpu | STATS avg = AVG(cpu_time)
 ;

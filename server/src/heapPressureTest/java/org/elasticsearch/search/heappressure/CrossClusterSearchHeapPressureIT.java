@@ -39,8 +39,9 @@ import static org.hamcrest.Matchers.greaterThan;
  * the local part of every search parks, and the local node holds each remote response until its search completes. Together they hold
  * more than the local node's heap. Charged to the breaker, the excess searches are rejected; uncharged, the node runs out of memory.
  *
- * <p>A remote response is charged when the merge takes it, not when it is read, so the searches are sent one at a time: each waits until
- * the previous response has been charged or rejected. Sent all at once, many responses could wait uncharged between the two.
+ * <p>{@link #testHeldRemoteResponsesTripBreaker} sends the searches one at a time, each once the previous response is charged or rejected,
+ * so it checks that every response the merge holds is charged. {@link #testRemoteResponsesArrivingAtOnceTripBreaker} sends them all at
+ * once, so many responses wait to be read at the same time, and checks that the node survives them.
  */
 public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -132,28 +133,56 @@ public class CrossClusterSearchHeapPressureIT extends SearchHeapPressureTestCase
             } finally {
                 unblockPauseField();
             }
-            int completed = 0;
-            int rejected = 0;
-            for (Future<Map<String, Object>> future : futures) {
-                Map<String, Object> body = future.get();
-                if (body == null) {
-                    completed++;
-                } else {
-                    assertTrue(
-                        "expected only circuit_breaking_exception failures, but got: " + body,
-                        containsCircuitBreakingException(body, "data for [fetch[ccs]]")
-                    );
-                    rejected++;
-                }
-            }
-            logger.info("{} of {} searches rejected by the breaker", rejected, SEARCHES);
-            // Some fit, so the breaker isn't rejecting every search, as a leaked or inflated charge would.
-            assertThat(completed, greaterThan(0));
-            assertThat(rejected, greaterThan(0));
+            assertCompletedOrRejected(futures);
         } finally {
             pool.shutdown();
         }
         assertNodeAlive();
+    }
+
+    /**
+     * Sent all at once, many remote responses arrive together and wait to be read. Each search either completes or is rejected by the
+     * breaker, and the local node survives.
+     */
+    public void testRemoteResponsesArrivingAtOnceTripBreaker() throws Exception {
+        List<Future<Map<String, Object>>> futures;
+        try (RestClient searchClient = restClient(LOCAL, SEARCHES)) {
+            // The node's trip count only grows, so wait for a trip from these searches.
+            long trippedBefore = trippedCount();
+            blockPauseField();
+            try {
+                futures = submit(SEARCHES, () -> errorBodyOrNull(searchClient, search()));
+                assertBusy(() -> assertThat(trippedCount(), greaterThan(trippedBefore)), 60, TimeUnit.SECONDS);
+            } finally {
+                unblockPauseField();
+            }
+            assertCompletedOrRejected(futures);
+        }
+        assertNodeAlive();
+    }
+
+    /**
+     * Asserts that each search either completed or was rejected under {@code fetch[ccs]}, and that some did each.
+     */
+    private void assertCompletedOrRejected(List<Future<Map<String, Object>>> futures) throws Exception {
+        int completed = 0;
+        int rejected = 0;
+        for (Future<Map<String, Object>> future : futures) {
+            Map<String, Object> body = future.get();
+            if (body == null) {
+                completed++;
+            } else {
+                assertTrue(
+                    "expected only circuit_breaking_exception failures, but got: " + body,
+                    containsCircuitBreakingException(body, "data for [fetch[ccs]]")
+                );
+                rejected++;
+            }
+        }
+        logger.info("{} of {} searches rejected by the breaker", rejected, futures.size());
+        // Some fit, so the breaker isn't rejecting every search, as a leaked or inflated charge would.
+        assertThat(completed, greaterThan(0));
+        assertThat(rejected, greaterThan(0));
     }
 
     private static Request search() {

@@ -13,6 +13,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,7 +35,7 @@ public class DefaultES93BinaryQuantizedVectorScorer extends ES93BinaryQuantizedV
 
     @Override
     public float score(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryQuantizedComponentSum,
@@ -44,7 +45,7 @@ public class DefaultES93BinaryQuantizedVectorScorer extends ES93BinaryQuantizedV
         int targetOrd
     ) throws IOException {
         var d = values(targetOrd);
-        float qcDist = ESVectorUtil.ipByteBinByte(q, d);
+        float qcDist = ESVectorUtil.ipByteBinByte(q.bytes(), d);
         return applyCorrections(
             dimensions,
             similarityFunction,

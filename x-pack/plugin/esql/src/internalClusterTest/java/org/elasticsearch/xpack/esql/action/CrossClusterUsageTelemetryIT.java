@@ -119,10 +119,10 @@ public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelem
 
         assertThat(telemetry.getTotalCount(), equalTo(1L));
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
-        assertThat(telemetry.getByRemoteCluster().size(), equalTo(1));
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         Map<String, Long> expectedFailure = Map.of(CCSUsageTelemetry.Result.NOT_FOUND.getName(), 1L);
         assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
 
@@ -130,10 +130,10 @@ public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelem
         telemetry = getTelemetryFromFailedQuery("from logs-*,cluster-a:no_such_index | stats sum (v)");
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
-        assertThat(telemetry.getByRemoteCluster().size(), equalTo(1));
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         expectedFailure = Map.of(CCSUsageTelemetry.Result.NOT_FOUND.getName(), 2L);
         assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
     }

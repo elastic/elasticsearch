@@ -104,10 +104,46 @@ public class CacheBlobReaderService {
         String fileName,
         boolean speculativeFill
     ) {
+        return getCacheBlobReader(
+            shardId,
+            blobContainer,
+            blobFile,
+            tracker,
+            totalBytesReadFromObjectStore,
+            totalBytesReadFromIndexing,
+            cachePopulationReason,
+            objectStoreFetchExecutor,
+            fileName,
+            speculativeFill,
+            cacheService.getRangeSize()
+        );
+    }
+
+    /**
+     * Same as {@link #getCacheBlobReader(ShardId, LongFunction, BlobFile, MutableObjectStoreUploadTracker, LongConsumer, LongConsumer,
+     * BlobCacheMetrics.CachePopulationReason, Executor, String, boolean)} but fills the cache from the object store with ranges of
+     * {@code objectStoreRangeSize} bytes instead of the cache range size. A range size smaller than the cache region size fills cache
+     * regions partially, which lets a cold shard read only the bytes it needs (see
+     * {@link org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings}).
+     */
+    public CacheBlobReader getCacheBlobReader(
+        ShardId shardId,
+        LongFunction<BlobContainer> blobContainer,
+        BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
+        LongConsumer totalBytesReadFromObjectStore,
+        LongConsumer totalBytesReadFromIndexing,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        Executor objectStoreFetchExecutor,
+        String fileName,
+        boolean speculativeFill,
+        long objectStoreRangeSize
+    ) {
         assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
             : "cache-miss reads serve blocked searches and can never be speculative";
         final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
-        final long rangeSize = cacheService.getRangeSize();
+        final long rangeSize = objectStoreRangeSize;
+        assert rangeSize > 0 && rangeSize <= cacheService.getRangeSize() : rangeSize;
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
             getObjectStoreCacheBlobReader(
                 blobContainer.apply(blobFile.primaryTerm()),

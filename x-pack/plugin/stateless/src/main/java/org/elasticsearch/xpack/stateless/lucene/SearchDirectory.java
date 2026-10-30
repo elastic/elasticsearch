@@ -104,6 +104,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final long fallbackRegionTimestampMillis;
     private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     private volatile long currentDataSetSizeInBytes = 0L;
+    /**
+     * Size of the ranges used to fill the cache from the object store on cache misses and recovery warming, or {@code -1} to use the
+     * cache range size. Set by the fast activation path (see {@code FastSearchActivationSettings}).
+     */
+    private volatile long objectStoreRangeSizeOverride = -1L;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -473,6 +478,21 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return Collections.unmodifiableList(result);
     }
 
+    /**
+     * Makes cache misses and recovery warming of this directory fill the cache from the object store with ranges of {@code rangeSize}
+     * bytes rather than the cache range size (usually a whole cache region), so that a cold shard reads only (about) the bytes it needs.
+     * Capped at the cache range size.
+     */
+    public void setObjectStoreRangeSizeOverride(long rangeSize) {
+        assert rangeSize > 0 : rangeSize;
+        this.objectStoreRangeSizeOverride = Math.min(rangeSize, cacheService.getRangeSize());
+    }
+
+    private long objectStoreRangeSize() {
+        final long override = objectStoreRangeSizeOverride;
+        return override > 0 ? override : cacheService.getRangeSize();
+    }
+
     @Override
     public CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
         return getCacheBlobReader(
@@ -481,7 +501,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor(),
-            false
+            false,
+            objectStoreRangeSize()
         );
     }
 
@@ -494,7 +515,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true
+            true,
+            objectStoreRangeSize()
         );
     }
 
@@ -554,6 +576,40 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         Executor executor,
         boolean speculativeFill
     ) {
+        return getCacheBlobReader(
+            fileName,
+            blobFile,
+            tracker,
+            cachePopulationReason,
+            executor,
+            speculativeFill,
+            cacheService.getRangeSize()
+        );
+    }
+
+    private CacheBlobReader getCacheBlobReader(
+        String fileName,
+        BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        Executor executor,
+        boolean speculativeFill,
+        long objectStoreRangeSize
+    ) {
+        if (objectStoreRangeSize == cacheService.getRangeSize()) {
+            return cacheBlobReaderService.getCacheBlobReader(
+                shardId,
+                this::getBlobContainer,
+                blobFile,
+                tracker,
+                totalBytesWarmedFromObjectStore::add,
+                totalBytesWarmedFromIndexing::add,
+                cachePopulationReason,
+                executor,
+                fileName,
+                speculativeFill
+            );
+        }
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
@@ -564,7 +620,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             cachePopulationReason,
             executor,
             fileName,
-            speculativeFill
+            speculativeFill,
+            objectStoreRangeSize
         );
     }
 

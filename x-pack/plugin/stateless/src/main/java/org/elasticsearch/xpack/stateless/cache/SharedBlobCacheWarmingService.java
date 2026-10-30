@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -856,6 +857,89 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    /**
+     * Bounded warming for the fast cold activation of a search shard (see
+     * {@link org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings}): fetches, in parallel, what opening a reader on
+     * {@code commit} reads, and nothing else, so that the reader opens from the cache. The caller waits for the listener before opening
+     * the reader. Needs no object store read to plan: everything is derived from the commit's file locations.
+     * <ul>
+     *     <li>blobs whose referenced bytes end at or before {@code wholeBlobThreshold} are fetched from offset 0 to the end of the last
+     *     referenced file (one request per blob and cache region: for a small blob an extra round trip costs more than reading it
+     *     all);</li>
+     *     <li>for the files of other blobs, the header warming of {@link ShardWarmer} (1 KiB header and footer of each file, whole
+     *     metadata and small files), without its whole-region fills: the ranges fetched are those of the directory's cache blob reader,
+     *     i.e. small ranges when the directory has a range size override.</li>
+     * </ul>
+     * Unlike {@link #warmCacheForSearchShardRecovery}, this never reads compound commit headers and never warms whole regions or
+     * whole large blobs.
+     */
+    public void warmCacheForFastSearchActivation(
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        long wholeBlobThreshold,
+        ActionListener<Void> listener
+    ) {
+        final Map<BlobFile, Long> referencedEndPerBlob = new HashMap<>();
+        for (var location : commit.commitFiles().values()) {
+            referencedEndPerBlob.merge(location.blobFile(), location.offset() + location.fileLength(), Math::max);
+        }
+        // A single ShardWarmer fetches both kinds of locations so that they all go out in parallel through the warming task runner.
+        final List<BlobLocation> wholeBlobs = new ArrayList<>();
+        final Map<String, BlobLocation> filesToWarm = new HashMap<>();
+        long wholeBlobBytes = 0L;
+        for (var entry : referencedEndPerBlob.entrySet()) {
+            if (entry.getValue() <= wholeBlobThreshold) {
+                wholeBlobs.add(new BlobLocation(entry.getKey(), 0L, entry.getValue()));
+                wholeBlobBytes += entry.getValue();
+            }
+        }
+        for (var entry : commit.commitFiles().entrySet()) {
+            if (referencedEndPerBlob.get(entry.getValue().blobFile()) > wholeBlobThreshold) {
+                filesToWarm.put(entry.getKey(), entry.getValue());
+            }
+        }
+        final int wholeBlobCount = wholeBlobs.size();
+        logger.debug(
+            "{} fast activation warming of {}: {} whole blobs ({} bytes) and the headers/footers/metadata of {} larger blobs",
+            indexShard.shardId(),
+            commit.toShortDescription(),
+            wholeBlobCount,
+            wholeBlobBytes,
+            referencedEndPerBlob.size() - wholeBlobCount
+        );
+        final Store store = indexShard.store();
+        if (store.isClosing() || store.tryIncRef() == false) {
+            listener.onFailure(new AlreadyClosedException("Failed to warm cache for " + indexShard.shardId() + ", store is closing"));
+            return;
+        }
+        try {
+            final var warmingRun = new WarmingRun(
+                Type.SEARCH,
+                indexShard.shardId(),
+                "generation=" + commit.generation(),
+                Map.of(
+                    "primary",
+                    false,
+                    "es_primary_shard",
+                    false,
+                    "prewarming_type",
+                    Type.SEARCH.name(),
+                    "es_prewarming_type",
+                    Type.SEARCH.name(),
+                    WARMING_TYPE_ATTRIBUTE_KEY,
+                    "fastActivation"
+                )
+            );
+            try (var warmer = new ShardWarmer(warmingRun, indexShard, store::isClosing, filesToWarm, directory, false, listener)) {
+                warmer.addWholeLocations(wholeBlobs);
+                warmer.run();
+            }
+        } finally {
+            store.decRef();
+        }
+    }
+
     // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
     protected void warmCacheAndTimeIt(
         Type type,
@@ -1417,6 +1501,17 @@ public class SharedBlobCacheWarmingService {
             this.filesToWarm = Collections.unmodifiableMap(filesToWarm);
             this.segmentCount = segmentCount(filesToWarm);
             this.preWarmForIdLookup = preWarmForIdLookup;
+        }
+
+        /**
+         * Warms the given blob locations entirely, e.g. whole small blobs (see {@link #warmCacheForFastSearchActivation}).
+         */
+        void addWholeLocations(Collection<BlobLocation> locations) {
+            for (BlobLocation location : locations) {
+                if (isCancelled() == false) {
+                    addLocation(location, location.blobName(), listeners.acquire());
+                }
+            }
         }
 
         void run() {

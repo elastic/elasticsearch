@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 /**
@@ -90,10 +91,94 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         assert store.hasReferences();
         try {
             final var existingBlobContainer = initializeBlobContainer(indexShard, store);
-            beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+            if (clusterService.getClusterSettings().get(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING)) {
+                fastRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+            } else {
+                beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Fast cold activation (prototype, see {@link FastSearchActivationSettings}): registers with the indexing shard first and recovers
+     * from the compound commit it returns, without any object store request for discovery (no LIST, no batched compound commit header
+     * read, no referenced compound commit header reads). Then prefetches in parallel only what opening the reader needs and resumes
+     * recovery once that is in the cache. Falls back to {@link #beforeRecoveryOnSearchShard} (object store discovery) when the
+     * indexing shard returns no commit or when the registration fails.
+     */
+    private void fastRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener) {
+        assert blobContainer != null : indexShard.routingEntry();
+        final var clusterSettings = clusterService.getClusterSettings();
+        final long rangeSize = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING).getBytes();
+        final long wholeBlobThreshold = clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING)
+            .getBytes();
+        final var fallback = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                try {
+                    beforeRecoveryOnSearchShard(indexShard, blobContainer, listener);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+        recoveryCommitRegistrationHandler.register(
+            PrimaryTermAndGeneration.ZERO,
+            PrimaryTermAndGeneration.ZERO,
+            indexShard.shardId(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(RegisterCommitResponse response) {
+                    final StatelessCompoundCommit compoundCommit = response.getCompoundCommit();
+                    if (compoundCommit == null) {
+                        logger.debug(
+                            "{} fast activation: indexing shard returned no commit, discovering it in the object store",
+                            indexShard
+                        );
+                        fallback.onResponse(null);
+                        return;
+                    }
+                    ActionListener.run(listener, l -> {
+                        logBootstrappingFromIndexingShard(
+                            indexShard,
+                            compoundCommit,
+                            response.getLatestUploadedBatchedCompoundCommitTermAndGen()
+                        );
+                        final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+                        searchDirectory.setObjectStoreRangeSizeOverride(rangeSize);
+                        searchDirectory.updateLatestUploadedBcc(response.getLatestUploadedBatchedCompoundCommitTermAndGen());
+                        searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), response.getNodeId());
+                        searchDirectory.updateCommit(compoundCommit);
+                        warmingService.warmCacheForFastSearchActivation(
+                            indexShard,
+                            compoundCommit,
+                            searchDirectory,
+                            wholeBlobThreshold,
+                            ActionListener.wrap(ignored -> l.onResponse(null), e -> {
+                                logger.warn(() -> format("%s fast activation warming failed", indexShard.shardId()), e);
+                                l.onResponse(null);
+                            })
+                        );
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.info(
+                        () -> format("%s fast activation: registration failed, discovering the commit in the object store", indexShard),
+                        e
+                    );
+                    fallback.onResponse(null);
+                }
+            }
+        );
     }
 
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)

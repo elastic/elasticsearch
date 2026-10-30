@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -99,6 +101,7 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
     private static final Logger LOG = LogManager.getLogger(NodeLocalActivationSweepIT.class);
     private static final long BANDWIDTH_BYTES_PER_SEC = 100L * 1024 * 1024;
     private static final int[] LATENCIES_MS = { 30, 80, 100 };
+    private static final int[] FAST_LATENCIES_MS = { 30, 100 };
     private static final int VOCABULARY = 5000;
     private static final int ROUNDS = 6;
     private static final double UPDATE_FRACTION = 0.1;
@@ -116,8 +119,33 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         KNN
     }
 
+    /**
+     * Activation path. {@code BASE}: today's recovery (fast activation disabled). {@code FAST_*}: step-2 fast activation
+     * ({@link FastSearchActivationSettings}) with the given first-fill range size.
+     */
+    enum Mode {
+        BASE(null),
+        FAST_128K("128kb"),
+        FAST_1M("1mb");
+
+        final String rangeSize;
+
+        Mode(String rangeSize) {
+            this.rangeSize = rangeSize;
+        }
+    }
+
     /** {@code merges}: false keeps every flushed segment (merges disabled); true uses the default merge policy during the load. */
-    record Profile(String name, int docs, String cacheSize, boolean knn, int reps, boolean merges) {}
+    record Profile(String name, int docs, String cacheSize, boolean knn, int reps, boolean merges, List<Mode> modes, int[] latencies) {
+        Profile(String name, int docs, String cacheSize, boolean knn, int reps, boolean merges) {
+            this(name, docs, cacheSize, knn, reps, merges, List.of(Mode.BASE), LATENCIES_MS);
+        }
+
+        /** Step 2: baseline and fast activation on the same data, in the same JVM, at L = 30 and 100 ms. */
+        static Profile fast(String name, int docs, String cacheSize, int reps, boolean merges) {
+            return new Profile(name, docs, cacheSize, true, reps, merges, List.of(Mode.values()), FAST_LATENCIES_MS);
+        }
+    }
 
     @Override
     protected boolean addMockFsRepository() {
@@ -184,6 +212,27 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         run(new Profile("d2m-merged", 2_000_000, "3gb", true, 1, true));
     }
 
+    // step 2: same profiles, baseline vs fast activation (FastSearchActivationSettings) paired per (rep, L, query)
+    public void testFastDocs2k() throws Exception {
+        run(Profile.fast("d2k", 2_000, "512mb", 2, false));
+    }
+
+    public void testFastDocs10k() throws Exception {
+        run(Profile.fast("d10k", 10_000, "512mb", 2, false));
+    }
+
+    public void testFastDocs100k() throws Exception {
+        run(Profile.fast("d100k", 100_000, "512mb", 2, false));
+    }
+
+    public void testFastDocs200kMerged() throws Exception {
+        run(Profile.fast("d200k-merged", 200_000, "1gb", 2, true));
+    }
+
+    public void testFastDocs1mMerged() throws Exception {
+        run(Profile.fast("d1m-merged", 1_000_000, "2gb", 2, true));
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------
 
     private String[] vocabulary;
@@ -201,8 +250,14 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         }
 
         final String master = startMasterOnlyNode();
-        final Settings searchCache = Settings.builder()
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "16mb")
+        final Settings.Builder searchCacheBuilder = Settings.builder();
+        if (p.modes().size() > 1) {
+            // step 2: the test cluster randomizes node.processors in [1, 4], which sizes the prewarm and shard read pools (4 x
+            // processors) and therefore the number of concurrent object store reads; pin a production-like search node (8 cpus:
+            // 32 prewarm threads, 28 shard read threads) so that parallel fetches are not limited by the random pool size
+            searchCacheBuilder.put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 8);
+        }
+        final Settings searchCache = searchCacheBuilder.put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "16mb")
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), "16mb")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), p.cacheSize())
             .build();
@@ -296,86 +351,123 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         final String word = vocabulary[17];
         try {
             for (int rep = 1; rep <= p.reps(); rep++) {
-                for (int latency : LATENCIES_MS) {
+                for (int latency : p.latencies()) {
                     for (QueryType q : queries) {
-                        // ---------------- zero state ----------------
-                        for (String n : nodes) {
-                            stores.get(n).configure(0, 0);
-                        }
-                        assertBusy(() -> assertThat(indexService(searchNode, index), nullValue()));
-                        assertThat(findIndexShard(index, 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
-                        int evicted = 0;
-                        for (String n : List.of(indexNodeA, indexNodeB, searchNode)) {
-                            evicted += cacheService(n).forceEvict(k -> k.shardId().getIndex().equals(index));
-                        }
-                        quiesce(1000);
-                        for (String n : nodes) {
-                            stores.get(n).configure(latency, BANDWIDTH_BYTES_PER_SEC);
-                        }
-
-                        // ---------------- activation ----------------
-                        EVENTS.clear();
-                        REQUESTS.clear();
-                        ActivationLatencyIT.recording = true;
-                        final long t0 = System.nanoTime();
-                        client(master).admin()
-                            .indices()
-                            .prepareUpdateSettings(indexName)
-                            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-                            .execute();
-                        long firstHit = 0;
-                        long took = -1;
-                        String firstResult = null;
-                        int attempts = 0;
-                        while (firstHit == 0) {
-                            if (System.nanoTime() - t0 > TimeUnit.SECONDS.toNanos(120)) {
-                                fail("no full search hit within 120s");
+                        String baseResult = null;
+                        for (Mode mode : p.modes()) {
+                            // ---------------- zero state ----------------
+                            for (String n : nodes) {
+                                stores.get(n).configure(0, 0);
                             }
-                            attempts++;
-                            long ts = System.nanoTime();
-                            try {
-                                SearchResponse resp = query(searchNode, indexName, q, word, qv).get();
-                                try {
-                                    long te = System.nanoTime();
-                                    if (resp.getFailedShards() == 0 && resp.getSuccessfulShards() == 1) {
-                                        firstHit = te;
-                                        took = ms(te - ts);
-                                        firstResult = summary(resp);
-                                    }
-                                } finally {
-                                    resp.decRef();
+                            assertBusy(() -> assertThat(indexService(searchNode, index), nullValue()));
+                            assertThat(findIndexShard(index, 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+                            setFastActivation(mode);
+                            int evicted = 0;
+                            for (String n : List.of(indexNodeA, indexNodeB, searchNode)) {
+                                evicted += cacheService(n).forceEvict(k -> k.shardId().getIndex().equals(index));
+                            }
+                            quiesce(1000);
+                            for (String n : nodes) {
+                                stores.get(n).configure(latency, BANDWIDTH_BYTES_PER_SEC);
+                            }
+
+                            // ---------------- activation ----------------
+                            EVENTS.clear();
+                            REQUESTS.clear();
+                            ActivationLatencyIT.recording = true;
+                            final long t0 = System.nanoTime();
+                            client(master).admin()
+                                .indices()
+                                .prepareUpdateSettings(indexName)
+                                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                                .execute();
+                            long firstHit = 0;
+                            long took = -1;
+                            String firstResult = null;
+                            int attempts = 0;
+                            while (firstHit == 0) {
+                                if (System.nanoTime() - t0 > TimeUnit.SECONDS.toNanos(300)) {
+                                    fail("no full search hit within 300s");
                                 }
-                            } catch (Exception e) {
-                                // no searchable copy yet
+                                attempts++;
+                                long ts = System.nanoTime();
+                                try {
+                                    SearchResponse resp = query(searchNode, indexName, q, word, qv).get();
+                                    try {
+                                        long te = System.nanoTime();
+                                        if (resp.getFailedShards() == 0 && resp.getSuccessfulShards() == 1) {
+                                            firstHit = te;
+                                            took = ms(te - ts);
+                                            firstResult = summary(resp);
+                                        }
+                                    } finally {
+                                        resp.decRef();
+                                    }
+                                } catch (Exception e) {
+                                    // no searchable copy yet
+                                }
+                                if (firstHit == 0) {
+                                    Thread.sleep(2);
+                                }
                             }
-                            if (firstHit == 0) {
-                                Thread.sleep(2);
+                            ev(searchNode, "client:firstFullHit", indexName, -1, "took=" + took);
+                            String second;
+                            SearchResponse resp2 = query(searchNode, indexName, q, word, qv).get();
+                            try {
+                                second = summary(resp2);
+                            } finally {
+                                resp2.decRef();
                             }
-                        }
-                        ev(searchNode, "client:firstFullHit", indexName, -1, "took=" + took);
-                        String second;
-                        SearchResponse resp2 = query(searchNode, indexName, q, word, qv).get();
-                        try {
-                            second = summary(resp2);
-                        } finally {
-                            resp2.decRef();
-                        }
-                        quiesce(500);
-                        ActivationLatencyIT.recording = false;
-                        if (q != QueryType.KNN) {
-                            assertThat(second, equalTo(firstResult));
-                        }
-                        report(p, inv, rep, latency, q, index, t0, firstHit, took, attempts, master, searchNode, evicted, firstResult);
+                            quiesce(500);
+                            ActivationLatencyIT.recording = false;
+                            if (q != QueryType.KNN) {
+                                assertThat(second, equalTo(firstResult));
+                            }
+                            // correctness of the fast path: same hits as the baseline activation on the same data
+                            if (mode == Mode.BASE) {
+                                baseResult = firstResult;
+                            } else if (baseResult != null) {
+                                log(
+                                    "%s %s vs BASE L=%d q=%s: %s",
+                                    p.name(),
+                                    mode,
+                                    latency,
+                                    q,
+                                    firstResult.equals(baseResult) ? "SAME" : "DIFF"
+                                );
+                                if (q != QueryType.KNN) {
+                                    assertThat(mode + " " + q, firstResult, equalTo(baseResult));
+                                }
+                            }
+                            report(
+                                p,
+                                mode,
+                                inv,
+                                rep,
+                                latency,
+                                q,
+                                index,
+                                t0,
+                                firstHit,
+                                took,
+                                attempts,
+                                master,
+                                searchNode,
+                                evicted,
+                                firstResult
+                            );
 
-                        // ---------------- back to zero ----------------
-                        for (String n : nodes) {
-                            stores.get(n).configure(0, 0);
+                            // ---------------- back to zero ----------------
+                            for (String n : nodes) {
+                                stores.get(n).configure(0, 0);
+                            }
+                            setReplicaCount(0, indexName);
+                            assertBusy(() -> assertThat(indexService(searchNode, index), nullValue()));
                         }
-                        setReplicaCount(0, indexName);
-                        assertBusy(() -> assertThat(indexService(searchNode, index), nullValue()));
                     }
                 }
             }
+            setFastActivation(Mode.BASE);
             assertThat(countAllWithSearchCopy(indexName), equalTo(expectedDocs));
         } finally {
             ActivationLatencyIT.recording = false;
@@ -390,6 +482,15 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                 setNodeRepositoryStrategy(n, StatelessMockRepositoryStrategy.DEFAULT);
             }
         }
+    }
+
+    private static void setFastActivation(Mode mode) {
+        Settings.Builder settings = Settings.builder()
+            .put(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING.getKey(), mode != Mode.BASE);
+        if (mode.rangeSize != null) {
+            settings.put(FastSearchActivationSettings.FAST_ACTIVATION_RANGE_SIZE_SETTING.getKey(), mode.rangeSize);
+        }
+        updateClusterSettings(settings);
     }
 
     private long countAllWithSearchCopy(String indexName) throws Exception {
@@ -478,12 +579,53 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         return c;
     }
 
+    /**
+     * Groups the GETs started in [from, to) into waves: a GET starting more than L/2 after the first GET of the current wave starts a
+     * new wave. Returns "waves=W gets=N max_concurrent=C threads=T", i.e. how many dependent (or queued) round trips the window took.
+     */
+    private static String waves(long from, long to, Predicate<ActivationLatencyIT.Req> p, int latencyMs) {
+        List<ActivationLatencyIT.Req> gets = new ArrayList<>();
+        for (var r : REQUESTS) {
+            if (r.tStart >= from && r.tStart < to && p.test(r) && r.op.equals("GET")) {
+                gets.add(r);
+            }
+        }
+        gets.sort((a, b) -> Long.compare(a.tStart, b.tStart));
+        int waves = 0;
+        long waveStart = 0L;
+        int maxConcurrent = 0;
+        Set<String> threads = new HashSet<>();
+        for (var r : gets) {
+            threads.add(r.thread);
+            if (waves == 0 || r.tStart - waveStart > TimeUnit.MILLISECONDS.toNanos(latencyMs) / 2) {
+                waves++;
+                waveStart = r.tStart;
+            }
+            int concurrent = 0;
+            for (var o : gets) {
+                if (o.tStart <= r.tStart && (o.tEnd == 0 || o.tEnd > r.tStart)) {
+                    concurrent++;
+                }
+            }
+            maxConcurrent = Math.max(maxConcurrent, concurrent);
+        }
+        return String.format(
+            Locale.ROOT,
+            "waves=%d gets=%d max_concurrent=%d threads=%d",
+            waves,
+            gets.size(),
+            maxConcurrent,
+            threads.size()
+        );
+    }
+
     private static double d(long from, long to) {
         return from == 0 || to == 0 ? Double.NaN : (to - from) / 1_000_000.0;
     }
 
     private void report(
         Profile p,
+        Mode mode,
         Inventory inv,
         int rep,
         int latency,
@@ -536,7 +678,13 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             d(openEnd, postRec), // S10: refresh -> POST_RECOVERY
             d(postRec, firstHit) // S12: first query execution after POST_RECOVERY
         };
-        String tag = String.format(Locale.ROOT, "%s rep=%d L=%d q=%s", p.name(), rep, latency, q);
+        String tag = String.format(Locale.ROOT, "%s mode=%s rep=%d L=%d q=%s", p.name(), mode, rep, latency, q);
+        log(
+            "%s GET waves: before open %s | query %s",
+            tag,
+            waves(regRecv, openStart, onSearch, latency),
+            waves(postRec, firstHit, onSearch, latency)
+        );
         log(
             "%s nodeLocal=%.1f e2e=%.1f publication(t0->commit)=%.1f [publish->commit %.1f] | apply=%.1f discovery=%.1f reg=%.1f "
                 + "headers=%.1f open=%.1f refresh=%.1f query=%.1f | local LIST=%d GET=%d PUT=%d bytes=%s | P1 master PUT=%d "
@@ -576,7 +724,7 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             "NLCSV|"
                 + String.format(
                     Locale.ROOT,
-                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d",
+                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d,%s",
                     p.name(),
                     p.docs(),
                     inv.bytes,
@@ -602,7 +750,8 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                     local[3],
                     queryReqs[1],
                     queryReqs[3],
-                    p1Master[2] + localMaster[2]
+                    p1Master[2] + localMaster[2],
+                    mode
                 )
         );
     }

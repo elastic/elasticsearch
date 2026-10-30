@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -218,6 +219,63 @@ public class SubstituteFillNullTests extends AbstractLogicalPlanOptimizerTests {
         Alias fill = fillAliases(substituted).getFirst();
         LookupJoin join = as(as(substituted, Limit.class).child(), LookupJoin.class);
         assertThat(join.config().leftFields(), contains(fill.toAttribute()));
+        plan(query);
+    }
+
+    public void testInlineStatsWithoutGroupingsPassesTheFilledColumnThrough() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = """
+            FROM test
+            | KEEP emp_no, first_name
+            | FILLNULL "x" ON first_name
+            | INLINE STATS c = COUNT(*)
+            | WHERE first_name != "y"
+            """;
+        LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
+
+        Attribute filled = fillAliases(substituted).getFirst().toAttribute();
+        InlineStats inlineStats = as(substituted.collect(InlineStats.class).getFirst(), InlineStats.class);
+        assertTrue(inlineStats.outputSet().contains(filled));
+        Filter filter = substituted.collect(Filter.class).getFirst();
+        assertTrue(filter.condition().references().contains(filled));
+        plan(query);
+    }
+
+    public void testInlineStatsWithoutGroupingsAggregatesTheFilledColumn() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = """
+            FROM test
+            | KEEP emp_no, first_name
+            | FILLNULL "x" ON first_name
+            | INLINE STATS c = COUNT(first_name)
+            | KEEP first_name, c
+            """;
+        LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
+
+        Attribute filled = fillAliases(substituted).getFirst().toAttribute();
+        InlineStats inlineStats = as(substituted.collect(InlineStats.class).getFirst(), InlineStats.class);
+        assertTrue(inlineStats.aggregate().references().contains(filled));
+        assertTrue(substituted.outputSet().contains(filled));
+        plan(query);
+    }
+
+    public void testInlineStatsByAnotherColumnPassesTheFilledColumnThrough() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = """
+            FROM test
+            | KEEP emp_no, first_name, languages
+            | FILLNULL "x" ON first_name
+            | INLINE STATS c = COUNT(*) BY languages
+            | WHERE first_name != "y"
+            """;
+        LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
+
+        Attribute filled = fillAliases(substituted).getFirst().toAttribute();
+        InlineStats inlineStats = as(substituted.collect(InlineStats.class).getFirst(), InlineStats.class);
+        assertFalse(inlineStats.aggregate().outputSet().contains(filled));
+        assertTrue(inlineStats.outputSet().contains(filled));
+        Filter filter = substituted.collect(Filter.class).getFirst();
+        assertTrue(filter.condition().references().contains(filled));
         plan(query);
     }
 

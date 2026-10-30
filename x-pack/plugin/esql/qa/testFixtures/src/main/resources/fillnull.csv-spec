@@ -1404,3 +1404,84 @@ emp_no:integer | gender:keyword
 10010          | x
 10011          | x
 ;
+
+// https://github.com/elastic/elasticsearch/issues/163730
+fillNullThenInlineStatsWithoutGroupings
+required_capability: fillnull_inline_stats_pass_through
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL 0 ON a
+| INLINE STATS c = COUNT(*)
+| KEEP a, c
+;
+
+a:integer | c:long
+0         | 1
+;
+
+fillNullThenInlineStatsAggregatingTheFilledColumn
+required_capability: fillnull_inline_stats_pass_through
+
+FROM employees
+| WHERE emp_no >= 10008 AND emp_no <= 10011
+| KEEP emp_no, gender
+| FILLNULL "x" ON gender
+| INLINE STATS c = COUNT(gender)
+| WHERE gender == "x"
+| KEEP emp_no, gender, c
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | c:long
+10010          | x              | 4
+10011          | x              | 4
+;
+
+fillNullThenInlineStatsByAnotherColumn
+required_capability: fillnull_inline_stats_pass_through
+
+FROM employees
+| WHERE emp_no >= 10007 AND emp_no <= 10012
+| KEEP emp_no, gender, languages
+| FILLNULL "x" ON gender
+| INLINE STATS c = COUNT(*) BY languages
+| WHERE gender == "x"
+| KEEP emp_no, gender, languages, c
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | languages:integer | c:long
+10010          | x              | 4                 | 2
+10011          | x              | 5                 | 2
+10012          | x              | 5                 | 2
+;
+
+fillNullThenEvalThenInlineStats
+required_capability: fillnull_inline_stats_pass_through
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL 0 ON a
+| EVAL d = a + 1
+| INLINE STATS c = COUNT(*)
+| KEEP a, d, c
+;
+
+a:integer | d:integer | c:long
+0         | 1         | 1
+;
+
+fillNullThenInlineStatsWithConstantAggregate
+required_capability: fillnull_inline_stats_pass_through
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL 0 ON a
+| INLINE STATS c = TOP(42, 3, "asc")
+| KEEP a, c
+;
+
+a:integer | c:integer
+0         | 42
+;

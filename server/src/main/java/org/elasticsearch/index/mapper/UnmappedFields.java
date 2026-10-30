@@ -64,23 +64,24 @@ public final class UnmappedFields {
     }
 
     /**
-     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
-     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
-     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. When the
+     * index mode is strict columnar, only fields absorbed by the flattened {@code _unmapped} sink are read, so it
+     * returns {@code false} when the index has no sink or no segment has the sink's keyed field. Otherwise, it returns
+     * {@code false} when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
      * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
-     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
+     * no unmapped field.
      */
     public boolean mayExist() {
-        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
-            return false;
+        if (indexSettings.getMode().isStrictColumnar()) {
+            // A sink with no keyed field in any segment has absorbed nothing, e.g. because the root's dynamic was never flattened.
+            return UnmappedSinkFieldMapper.isEnabled(indexSettings)
+                && (existsInSegments == null
+                    || existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX));
         }
         if (existsInSegments == null) {
-            return true;
-        }
-        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {

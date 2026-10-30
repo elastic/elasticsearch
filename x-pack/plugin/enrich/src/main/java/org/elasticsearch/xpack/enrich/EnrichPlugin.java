@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -155,8 +158,9 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     );
 
     private final Settings settings;
-    private final EnrichCache enrichCache;
-    private final long maxCacheSize;
+    private final FlatNumberOrByteSizeValue cacheSize;
+    // created in getProcessors to obtain the thread context and guaranteed to be set before createComponents
+    private final SetOnce<EnrichCache> enrichCache = new SetOnce<>();
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
@@ -183,17 +187,13 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         } else {
             maxSize = CACHE_SIZE.get(settings);
         }
-        if (maxSize.byteSizeValue() != null) {
-            this.enrichCache = new EnrichCache(maxSize.byteSizeValue());
-            this.maxCacheSize = maxSize.byteSizeValue().getBytes();
-        } else {
-            this.enrichCache = new EnrichCache(maxSize.flatNumber());
-            this.maxCacheSize = maxSize.flatNumber();
-        }
+        this.cacheSize = maxSize;
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        EnrichCache enrichCache = createEnrichCache(parameters.threadContext);
+        this.enrichCache.set(enrichCache);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService, enrichCache);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
@@ -262,7 +262,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             new EnrichCoordinatorProxyAction.Coordinator(services.client(), settings),
             enrichPolicyMaintenanceService,
             enrichPolicyExecutor,
-            enrichCache
+            Objects.requireNonNull(enrichCache.get(), "the enrich cache should have been created earlier in getProcessors")
         );
     }
 
@@ -323,8 +323,10 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     // Visible for testing
-    long getMaxCacheSize() {
-        return maxCacheSize;
+    EnrichCache createEnrichCache(ThreadContext threadContext) {
+        return cacheSize.byteSizeValue() != null
+            ? new EnrichCache(cacheSize.byteSizeValue(), threadContext)
+            : new EnrichCache(cacheSize.flatNumber(), threadContext);
     }
 
     /**

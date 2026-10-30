@@ -118,11 +118,11 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         client().admin().indices().create(new CreateIndexRequest(enrichedIndexName)).actionGet();
 
-        XContentBuilder doc = JsonXContent.contentBuilder().startObject().field("custom_id", "key").endObject();
-
         BulkRequest bulk = new BulkRequest(enrichedIndexName);
         bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
         for (int idx = 0; idx < 50; idx++) {
+            // distinct lookup values: concurrent lookups for the same value are coalesced into one search and would not fill the queue
+            XContentBuilder doc = JsonXContent.contentBuilder().startObject().field("custom_id", "key" + idx).endObject();
             bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName));
         }
 
@@ -226,11 +226,11 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         client().admin().indices().create(new CreateIndexRequest(enrichedIndexName)).actionGet();
 
-        XContentBuilder doc = JsonXContent.contentBuilder().startObject().field("custom_id", "key").endObject();
-
         BulkRequest bulk = new BulkRequest(enrichedIndexName);
         bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
         for (int idx = 0; idx < 50; idx++) {
+            // distinct lookup values: concurrent lookups for the same value are coalesced into one search and would not fill the queue
+            XContentBuilder doc = JsonXContent.contentBuilder().startObject().field("custom_id", "key" + idx).endObject();
             bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName1));
         }
 

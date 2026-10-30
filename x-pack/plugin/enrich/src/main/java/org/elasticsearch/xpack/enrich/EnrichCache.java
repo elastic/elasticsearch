@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -41,34 +43,40 @@ import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMOD
  * since there is no easy check to see that an enrich index used as cache key no longer is the
  * current enrich index that the enrich alias of a policy refers to. It would require checking
  * all cached entries on each cluster state update)
+ * <p>
+ * Concurrent misses for the same key are coalesced: the first lookup (the leader) runs the search and every lookup that misses
+ * while that search is in flight (a follower) subscribes to the leader's result instead of issuing its own search.
  */
 public final class EnrichCache {
 
     private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), CacheKey.CACHE_KEY_SIZE);
 
     private final Cache<CacheKey, CacheValue> cache;
+    private final ResultDeduplicator<CacheKey, CacheValue> inFlight;
     private final LongAdder sizeInBytes = new LongAdder();
     private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 
-    EnrichCache(long maxSize) {
-        this(maxSize, System::nanoTime);
+    EnrichCache(long maxSize, ThreadContext threadContext) {
+        this(maxSize, threadContext, System::nanoTime);
     }
 
-    EnrichCache(ByteSizeValue maxByteSize) {
-        this(maxByteSize, System::nanoTime);
+    EnrichCache(ByteSizeValue maxByteSize, ThreadContext threadContext) {
+        this(maxByteSize, threadContext, System::nanoTime);
     }
 
     // non-private for unit testing only
-    EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
+    EnrichCache(long maxSize, ThreadContext threadContext, LongSupplier relativeNanoTimeProvider) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         this.cache = createCache(maxSize, null);
+        this.inFlight = new ResultDeduplicator<>(threadContext);
     }
 
-    EnrichCache(ByteSizeValue maxByteSize, LongSupplier relativeNanoTimeProvider) {
+    EnrichCache(ByteSizeValue maxByteSize, ThreadContext threadContext, LongSupplier relativeNanoTimeProvider) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         this.cache = createCache(maxByteSize.getBytes(), (key, value) -> value.sizeInBytes);
+        this.inFlight = new ResultDeduplicator<>(threadContext);
     }
 
     private Cache<CacheKey, CacheValue> createCache(long maxWeight, ToLongBiFunction<CacheKey, CacheValue> weigher) {
@@ -84,6 +92,11 @@ public final class EnrichCache {
     /**
      * This method notifies the given listener of the value in this cache for the given search parameters. If there is no value in the cache
      * for these search parameters, then the new cache value is computed using searchResponseFetcher.
+     * <p>
+     * Concurrent misses for the same key share one search through a {@link ResultDeduplicator}.
+     * If that search fails, everyone fails with the same exception (without anything being cached).
+     * On success everyone receives its own deep copy of the cached value, exactly as a cache hit does.
+     * Followers count as cache misses and their wait is added to the misses time.
      *
      * @param projectId             The ID of the project
      * @param enrichIndex           The enrich index from which the results will be retrieved
@@ -100,7 +113,6 @@ public final class EnrichCache {
         Consumer<ActionListener<SearchResponse>> searchResponseFetcher,
         ActionListener<List<Map<?, ?>>> listener
     ) {
-        // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         var cacheKey = new CacheKey(projectId, enrichIndex, lookupValue, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
@@ -108,17 +120,20 @@ public final class EnrichCache {
         if (response != null) {
             hitsTimeInNanos.add(cacheRequestTime);
             listener.onResponse(response);
-        } else {
-            final long retrieveStart = relativeNanoTimeProvider.getAsLong();
-            searchResponseFetcher.accept(ActionListener.wrap(resp -> {
-                CacheValue cacheValue = toCacheValue(resp);
-                put(cacheKey, cacheValue);
-                List<Map<?, ?>> copy = CollectionUtils.deepCopy(cacheValue.hits);
-                long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-                missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
-                listener.onResponse(copy);
-            }, listener::onFailure));
+            return;
         }
+
+        final long retrieveStart = relativeNanoTimeProvider.getAsLong();
+        // subscribers are wrapped so it fails its own document instead of being swallowed or stopping other subscribers.
+        inFlight.executeOnce(cacheKey, ActionListener.wrap(cacheValue -> {
+            long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+            missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
+            listener.onResponse(CollectionUtils.deepCopy(cacheValue.hits()));
+        }, listener::onFailure), (key, loadListener) -> ActionListener.run(loadListener.map(searchResponse -> {
+            CacheValue cacheValue = toCacheValue(searchResponse);
+            put(key, cacheValue);
+            return cacheValue;
+        }), searchResponseFetcher::accept));
     }
 
     // non-private for unit testing only
@@ -135,6 +150,11 @@ public final class EnrichCache {
     void put(CacheKey cacheKey, CacheValue cacheValue) {
         cache.put(cacheKey, cacheValue);
         sizeInBytes.add(cacheValue.sizeInBytes);
+    }
+
+    // non-private for unit testing only
+    int inFlightCount() {
+        return inFlight.size();
     }
 
     public EnrichStatsAction.Response.CacheStats getStats(String localNodeId) {

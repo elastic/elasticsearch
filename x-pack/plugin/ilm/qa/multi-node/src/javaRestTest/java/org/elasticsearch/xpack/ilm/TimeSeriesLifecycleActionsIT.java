@@ -1312,6 +1312,6 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
                 }
                 throw new AssertionError("Index:" + explainIndex(client(), index) + "\nSLM:" + slm, e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 }

@@ -82,9 +82,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
   method: testSearchableSnapshotAction
   issue: https://github.com/elastic/elasticsearch/issues/160700
-- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
-  method: testWaitForSnapshotSlmExecutedBefore
-  issue: https://github.com/elastic/elasticsearch/issues/160701
 - class: org.elasticsearch.client.RestClientMultipleHostsIntegTests
   method: testNodeSelector
   issue: https://github.com/elastic/elasticsearch/issues/160703

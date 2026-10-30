@@ -259,6 +259,26 @@ public class SubstituteFillNullTests extends AbstractLogicalPlanOptimizerTests {
         plan(query);
     }
 
+    public void testInlineStatsByAnotherColumnPassesTheFilledColumnThrough() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = """
+            FROM test
+            | KEEP emp_no, first_name, languages
+            | FILLNULL "x" ON first_name
+            | INLINE STATS c = COUNT(*) BY languages
+            | WHERE first_name != "y"
+            """;
+        LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
+
+        Attribute filled = fillAliases(substituted).getFirst().toAttribute();
+        InlineStats inlineStats = as(substituted.collect(InlineStats.class).getFirst(), InlineStats.class);
+        assertFalse(inlineStats.aggregate().outputSet().contains(filled));
+        assertTrue(inlineStats.outputSet().contains(filled));
+        Filter filter = substituted.collect(Filter.class).getFirst();
+        assertTrue(filter.condition().references().contains(filled));
+        plan(query);
+    }
+
     public void testFillNullInOneForkBranchLeavesTheOtherBranchAlone() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         String query = """

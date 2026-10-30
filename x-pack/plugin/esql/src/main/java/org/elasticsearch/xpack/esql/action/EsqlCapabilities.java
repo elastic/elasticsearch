@@ -4324,7 +4324,7 @@ public class EsqlCapabilities {
         FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
-         * Commands after an {@code INLINE STATS} without {@code BY} follow a column filled by an earlier {@code FILLNULL}.
+         * Commands after an {@code INLINE STATS} follow a column filled by an earlier {@code FILLNULL}.
          * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
          */
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),

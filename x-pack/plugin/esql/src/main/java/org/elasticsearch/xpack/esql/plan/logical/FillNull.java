@@ -309,11 +309,10 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
         if (result instanceof FillNull fillNull) {
             result = fillNull.expand();
         }
-        // The parent can only reference this node's output, so the columns whose ids changed there are exactly what it has to
-        // follow. Comparing this node's own output, instead of the columns its children changed, matters for nodes whose output
-        // is not just their child's: INLINE STATS also outputs its Aggregate's input, so it can expose a filled column that the
-        // Aggregate itself does not. A column that leaves the output, because it is dropped, redefined, or behind a merge whose
-        // output has ids of its own, stops here.
+        // The parent can only reference this node's output, so the ids that changed there are exactly what it has to follow.
+        // That includes nodes whose output is not just their child's, like INLINE STATS, which also outputs its Aggregate's input.
+        // A column that leaves the output, because it is dropped, redefined, or behind a FORK whose output has ids of its own,
+        // stops here, which also keeps FORK branches apart.
         if (result != plan) {
             List<Attribute> before = plan.output();
             List<Attribute> after = result.output();

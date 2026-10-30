@@ -1048,6 +1048,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
+        assertReadWriteAndManage(kibanaRole, ".context-engine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
         assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Alerting V2 views prefix: Kibana system user has create_view only

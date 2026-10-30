@@ -133,7 +133,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // Context Engine system indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".contextengine-*")
+                    .indices(".context-engine-*", ".contextengine-*")
                     .privileges("read", "write", "manage")
                     .allowRestrictedIndices(true)
                     .build(),

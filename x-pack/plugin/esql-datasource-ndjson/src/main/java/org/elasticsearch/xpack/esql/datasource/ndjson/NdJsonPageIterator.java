@@ -225,6 +225,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.fingerprinter = fingerprinter;
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
+        // sourceLocation keys stats, so it stays verbatim; user-facing messages name only the object.
+        String messageLocation = object.path().objectName();
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read
@@ -252,7 +254,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // mutually exclusive. The fold-in is kept as a correctness invariant for any future overlap.
         this.statsStripeBaseOffset = statsBaseOffset + skipped;
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter, warningSink);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, messageLocation, recordSplitter, warningSink);
         }
         this.rowLimit = rowLimit;
         // ALL scope harvests min/max/null for EVERY file column, not just the projected ones. The output
@@ -304,7 +306,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation,
+                messageLocation,
                 counters,
                 declaredDateFormats,
                 warningSink
@@ -326,7 +328,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation,
+                messageLocation,
                 counters,
                 declaredDateFormats,
                 warningSink

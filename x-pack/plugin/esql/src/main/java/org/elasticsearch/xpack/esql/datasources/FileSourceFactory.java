@@ -318,11 +318,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
-                throw new IOException("File does not exist: " + location);
+                throw new IOException("External data file not found");
             }
             return reader.metadata(storageObject);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(location) + "]", e);
         } finally {
             StorageProviderCache.closeLease(provider);
         }
@@ -374,8 +374,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 if (storageObject.exists() == false) {
                     listener.onFailure(
                         new IllegalArgumentException(
-                            "Failed to resolve metadata for [" + location + "]",
-                            new IOException("File does not exist: " + location)
+                            "Failed to resolve metadata for [" + StoragePath.objectName(location) + "]",
+                            new IOException("External data file not found")
                         )
                     );
                     return;
@@ -392,7 +392,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         ActionListener<SourceMetadata> completion = listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
-                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e));
+                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(location) + "]", e));
             } else {
                 l.onFailure(e);
             }

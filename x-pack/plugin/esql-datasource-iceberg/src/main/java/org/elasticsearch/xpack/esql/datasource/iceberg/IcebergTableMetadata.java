@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -186,6 +187,12 @@ public class IcebergTableMetadata implements ExternalSourceMetadata {
 
     @Override
     public String toString() {
-        return "IcebergTableMetadata{tablePath='" + tablePath + "', sourceType='" + sourceType + "', fields=" + attributes.size() + "}";
+        return "IcebergTableMetadata{table='"
+            + StoragePath.objectName(tablePath)
+            + "', sourceType='"
+            + sourceType
+            + "', fields="
+            + attributes.size()
+            + "}";
     }
 }

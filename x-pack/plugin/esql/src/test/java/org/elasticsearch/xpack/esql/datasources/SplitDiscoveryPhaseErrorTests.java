@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
@@ -43,10 +43,11 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("s3://bucket/data/*.parquet"));
-        assertThat(e.getMessage(), containsString("parquet"));
-        assertThat(e.getCause(), instanceOf(UncheckedIOException.class));
-        assertThat(e.getCause().getCause().getMessage(), containsString("connection reset by peer"));
+        assertThat(e.getMessage(), containsString("[*.parquet]"));
+        assertThat(e.getMessage(), containsString("of type [parquet]"));
+        assertThat(e.getMessage(), containsString("connection reset by peer"));
+        assertThat(e.getMessage(), not(containsString("bucket")));
+        assertNull(e.getCause());
     }
 
     public void testRuntimeExceptionWrappedWithContext() {
@@ -58,9 +59,11 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("gcs://bucket/files/*.csv"));
-        assertThat(e.getMessage(), containsString("csv"));
-        assertThat(e.getCause(), instanceOf(RuntimeException.class));
+        assertThat(e.getMessage(), containsString("[*.csv]"));
+        assertThat(e.getMessage(), containsString("of type [csv]"));
+        assertThat(e.getMessage(), containsString("unexpected error"));
+        assertThat(e.getMessage(), not(containsString("bucket")));
+        assertNull(e.getCause());
     }
 
     public void testElasticsearchExceptionNotDoubleWrapped() {
@@ -85,8 +88,11 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
-        assertThat(e.getMessage(), containsString("s3://secure-bucket/private/*.parquet"));
-        assertThat(e.getCause(), instanceOf(SecurityException.class));
+        assertThat(e.getMessage(), containsString("[*.parquet]"));
+        assertThat(e.getMessage(), containsString("Access Denied (403)"));
+        assertThat(e.getMessage(), not(containsString("secure-bucket")));
+        assertThat(e.getMessage(), not(containsString("private")));
+        assertNull(e.getCause());
     }
 
     public void testSuccessfulDiscoveryUnaffected() {

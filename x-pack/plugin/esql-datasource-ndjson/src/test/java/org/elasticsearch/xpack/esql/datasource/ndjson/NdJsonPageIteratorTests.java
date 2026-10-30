@@ -772,7 +772,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {{{not-an-object
             {"id":3}
             """;
-        var object = new BytesStorageObject("memory://warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("memory://bucket/dir/warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         try (
             var iterator = reader.read(
@@ -788,7 +788,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
         assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("memory://warn.ndjson"));
+        assertTrue("Summary should mention the object name, got: " + warnings.get(0), warnings.get(0).contains("warn.ndjson"));
+        assertFalse("Summary should not mention the directory, got: " + warnings.get(0), warnings.get(0).contains("dir/"));
+        assertFalse("Summary should not mention the bucket, got: " + warnings.get(0), warnings.get(0).contains("bucket"));
         assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
     }
 

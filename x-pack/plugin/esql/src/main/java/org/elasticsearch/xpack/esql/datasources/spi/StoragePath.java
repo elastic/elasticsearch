@@ -208,11 +208,46 @@ public final class StoragePath {
     }
 
     public String objectName() {
-        if (path.isEmpty() || path.equals(PATH_SEPARATOR)) {
+        String name = path;
+        if (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) {
+            // The query string and fragment are not part of the object name, and a pre-signed URL carries its signature and
+            // credentials there. Cut them first: a base64 signature can itself contain '/'.
+            int delimiter = indexOfQueryOrFragment(name);
+            if (delimiter >= 0) {
+                name = name.substring(0, delimiter);
+            }
+        }
+        if (name.isEmpty() || name.equals(PATH_SEPARATOR)) {
             return "";
         }
-        int lastSlash = path.lastIndexOf('/');
-        return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
+        int lastSlash = name.lastIndexOf('/');
+        return lastSlash >= 0 ? name.substring(lastSlash + 1) : name;
+    }
+
+    private static int indexOfQueryOrFragment(String value) {
+        int query = value.indexOf('?');
+        int fragment = value.indexOf('#');
+        if (query < 0) {
+            return fragment;
+        }
+        return fragment < 0 ? query : Math.min(query, fragment);
+    }
+
+    /**
+     * Returns the last path segment of {@code location} (the safe, displayable part). Returns an
+     * empty string when the name cannot be extracted safely (null input, parse failure, trailing
+     * slash). Never returns the full URI — fails closed rather than leaking a bucket or prefix.
+     */
+    public static String objectName(String location) {
+        if (location == null) {
+            return "";
+        }
+        try {
+            String name = StoragePath.of(location).objectName();
+            return name != null ? name : "";
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
     }
 
     public StoragePath parentDirectory() {

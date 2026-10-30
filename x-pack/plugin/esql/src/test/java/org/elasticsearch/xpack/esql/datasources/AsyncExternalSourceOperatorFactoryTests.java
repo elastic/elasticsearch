@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -203,7 +204,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
-        assertTrue(description.contains("file:///data/test.csv"));
+        assertTrue(description.contains("path=test.csv"));
+        assertFalse(description.contains("/data/"));
         assertTrue(description.contains("500"));
         assertTrue(description.contains("maxBufferBytes="));
     }
@@ -239,7 +241,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
-        assertTrue(description.contains("s3://bucket/data.parquet"));
+        assertTrue(description.contains("path=data.parquet"));
+        assertFalse(description.contains("bucket"));
     }
 
     public void testAccessors() {
@@ -798,8 +801,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
             }
         });
-        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
-        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
+        // The failure is classified (and so detached) at the buffer: the IOException cause is logged, not chained, and its
+        // message, which names the full storage path, is replaced by the exception class name.
+        assertThat(readFailure, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertNull(readFailure.getCause());
+        assertEquals("Failed to read external source: IOException", readFailure.getMessage());
+        assertThat(readFailure.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("bucket")));
 
         assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 

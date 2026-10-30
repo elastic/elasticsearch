@@ -53,6 +53,30 @@ public class EsqlDatafeedQueryValidator {
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
 
+    // MUST FIX before production: regex scan of query text instead of EsqlParser; new source-introducing commands are missed and fail
+    // open to runtime. See https://github.com/elastic/elasticsearch/issues/161207
+    private static final String SOURCE_TOKEN = "-?[A-Za-z0-9_.*][A-Za-z0-9_.*-]*";
+    private static final String METADATA_FIELD = "[A-Za-z0-9_@.]+";
+    private static final Pattern PROVEN_UNQUALIFIED_SOURCE = Pattern.compile(
+        "\\s*(?:FROM|TS)\\s+"
+            + SOURCE_TOKEN
+            + "(?:\\s*,\\s*"
+            + SOURCE_TOKEN
+            + ")*(?:\\s+METADATA\\s+"
+            + METADATA_FIELD
+            + "(?:\\s*,\\s*"
+            + METADATA_FIELD
+            + ")*)?\\s*",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    /** After the leading command: subquery FROM/TS, JOIN/LOOKUP/ENRICH/PROMQL/EXTERNAL, or a single ':'. */
+    // A string literal containing these words or a colon is over-rejected on purpose (fails the probe, never defers).
+    private static final Pattern SOURCE_INTRODUCING_TOKEN = Pattern.compile(
+        "\\(\\s*(?:(?://[^\\n]*\\n|/\\*.*?\\*/)\\s*)*(?:FROM|TS)\\b|\\b(?:JOIN|LOOKUP|ENRICH|PROMQL|EXTERNAL)\\b|(?<!:):(?!:)|:::",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
+
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
     /** ES|QL reports a missing index as 400 with this fragment; ML cannot depend on the ES|QL verifier type. */
@@ -325,9 +349,8 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}.
-     * Mirrors the DSL probe: a missing source or an unmatched project routing is deferred to runtime only when no source in the
-     * leading FROM/TS command is, or may be, project-qualified; an unmatched qualified project is an explicit error and fails the probe.
+     * {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}. An unmatched project fails the
+     * probe when the query may name a project-qualified source; other missing-source failures defer to runtime.
      */
     public void validateAccessForMint(
         Client client,
@@ -358,32 +381,6 @@ public class EsqlDatafeedQueryValidator {
 
         executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
     }
-
-    private static final String SOURCE_TOKEN = "-?[A-Za-z0-9_.*][A-Za-z0-9_.*-]*";
-    private static final String METADATA_FIELD = "[A-Za-z0-9_@.]+";
-    private static final Pattern PROVEN_UNQUALIFIED_SOURCE = Pattern.compile(
-        "\\s*(?:FROM|TS)\\s+"
-            + SOURCE_TOKEN
-            + "(?:\\s*,\\s*"
-            + SOURCE_TOKEN
-            + ")*(?:\\s+METADATA\\s+"
-            + METADATA_FIELD
-            + "(?:\\s*,\\s*"
-            + METADATA_FIELD
-            + ")*)?\\s*",
-        Pattern.CASE_INSENSITIVE
-    );
-
-    /**
-     * Source-introducing constructs after the leading command (EsqlBaseParser.g4): a subquery {@code (FROM|TS ...)} in FROM or
-     * IN, JOIN/LOOKUP targets, ENRICH policies, PROMQL index params, and any single {@code :} (project/cluster qualifier).
-     * FROM/TS count only right after '(' so a field named {@code ts} still defers; the other words are matched anywhere, and a
-     * string literal containing them or a colon is over-rejected on purpose.
-     */
-    private static final Pattern SOURCE_INTRODUCING_TOKEN = Pattern.compile(
-        "\\(\\s*(?:(?://[^\\n]*\\n|/\\*.*?\\*/)\\s*)*(?:FROM|TS)\\b|\\b(?:JOIN|LOOKUP|ENRICH|PROMQL|EXTERNAL)\\b|(?<!:):(?!:)|:::",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
 
     /** Fail-closed: {@code false} only when the leading command and the rest of the query are both proven free of qualified sources. */
     private static boolean mayHaveQualifiedSource(String esqlQuery) {

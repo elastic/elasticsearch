@@ -432,24 +432,7 @@ public final class CredentialTransitions {
         );
         final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         if (effectiveConfig.getEsqlQuery() != null) {
-            // ES|QL datafeeds have no indices or indices options, so a DSL SearchRequest cannot be built from them;
-            // probe with the ES|QL equivalent (`esqlQuery | LIMIT 0`) under the caller's credential and headers.
-            esqlQueryValidator.validateAccessForMint(
-                searchClient,
-                headers,
-                effectiveConfig.getEsqlQuery(),
-                effectiveConfig.getProjectRouting(),
-                listener.delegateResponse(
-                    (l, e) -> l.onFailure(
-                        DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
-                            effectiveConfig.getId(),
-                            effectiveConfig.getProjectRouting(),
-                            e,
-                            DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
-                        )
-                    )
-                )
-            );
+            validateEsqlAccessBeforeMint(effectiveConfig, headers, searchClient, listener);
             return;
         }
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
@@ -482,14 +465,7 @@ public final class CredentialTransitions {
                 );
                 l.onResponse(null);
             } else {
-                l.onFailure(
-                    DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
-                        effectiveConfig.getId(),
-                        effectiveConfig.getProjectRouting(),
-                        e,
-                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
-                    )
-                );
+                l.onFailure(enrichProbeFailure(effectiveConfig, e));
             }
         });
         executeWithHeadersAsync(
@@ -525,6 +501,31 @@ public final class CredentialTransitions {
                 }
                 l.onResponse(null);
             })
+        );
+    }
+
+    private void validateEsqlAccessBeforeMint(
+        DatafeedConfig effectiveConfig,
+        Map<String, String> headers,
+        Client searchClient,
+        ActionListener<Void> listener
+    ) {
+        // ES|QL datafeeds have no indices or indices options, so a DSL SearchRequest cannot be built from them.
+        esqlQueryValidator.validateAccessForMint(
+            searchClient,
+            headers,
+            effectiveConfig.getEsqlQuery(),
+            effectiveConfig.getProjectRouting(),
+            listener.delegateResponse((l, e) -> l.onFailure(enrichProbeFailure(effectiveConfig, e)))
+        );
+    }
+
+    private static Exception enrichProbeFailure(DatafeedConfig config, Exception e) {
+        return DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+            config.getId(),
+            config.getProjectRouting(),
+            e,
+            DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
         );
     }
 

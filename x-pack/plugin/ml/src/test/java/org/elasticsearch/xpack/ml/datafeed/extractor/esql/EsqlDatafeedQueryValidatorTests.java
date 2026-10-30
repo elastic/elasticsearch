@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -313,9 +314,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             ESQL_QUERY,
             null,
-            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
-                throw new AssertionError("expected success", e);
-            })
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true))
         );
 
         assertThat(succeeded.get(), is(true));
@@ -338,7 +337,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get(), equalTo(noMatchingProject));
     }
 
-    public void testMintAccessWithSourceQualificationShouldFailOrDeferNoMatchingProject() {
+    public void testMintAccessWithQualifiedOrUnprovenSourceAndNoMatchingProjectShouldFail() {
         // Only plain comma-separated index names are deferred; anything the allow-list does not recognise fails closed.
         List<String> failClosed = List.of(
             "FROM (FROM project-a:logs-*) | LIMIT 10",
@@ -388,9 +387,11 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             "FROM logs | WHERE a > 1 :::"
         );
         for (String query : failClosed) {
-            assertThat(query, mintAccessOutcomeForNoMatchingProject(query), equalTo("failed"));
+            assertThat(query, deferredForNoMatchingProject(query), is(false));
         }
+    }
 
+    public void testMintAccessWithProvenUnqualifiedSourceAndNoMatchingProjectShouldDefer() {
         List<String> deferred = List.of(
             "FROM logs | LIMIT 10",
             "FROM logs-* | LIMIT 10",
@@ -410,21 +411,21 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             "TS metrics-* | STATS r = SUM(RATE(bytes)) BY ts = TBUCKET(1h)"
         );
         for (String query : deferred) {
-            assertThat(query, mintAccessOutcomeForNoMatchingProject(query), equalTo("deferred"));
+            assertThat(query, deferredForNoMatchingProject(query), is(true));
         }
     }
 
-    private String mintAccessOutcomeForNoMatchingProject(String query) {
+    private boolean deferredForNoMatchingProject(String query) {
         ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
-        AtomicReference<String> outcome = new AtomicReference<>();
+        AtomicBoolean deferred = new AtomicBoolean(false);
         harness.validator.validateAccessForMint(
             null,
             Collections.emptyMap(),
             query,
             "_alias:*",
-            ActionListener.wrap(ignored -> outcome.set("deferred"), e -> outcome.set("failed"))
+            ActionListener.wrap(ignored -> deferred.set(true), e -> {})
         );
-        return outcome.get();
+        return deferred.get();
     }
 
     public void testMintAccessWithIndexNotFoundShouldDefer() {

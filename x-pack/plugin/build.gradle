@@ -223,6 +223,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     // Expected deprecation warning to compat yaml tests:
     task.addAllowedWarningRegex("Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10\\.0\\.")
+    task.addAllowedWarningRegex("The \\[time_series\\] aggregation, and the aggregations that rely on it .*")
     // Previous-release YAML tests do not list NULL-misuse warnings.
     task.addAllowedWarningRegex(
       ".*Expression \\[.*\\] always evaluates to NULL\\.",

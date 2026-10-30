@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/// This is a **regression** test that asserts the following data-loss scenario (i.e., when we ack indexed docs, those
+/// This is a **regression** test that asserts the following data-loss scenario on the high level (i.e., when we ack indexed docs, those
 /// docs cannot then go missing) cannot occur:
 /// First, we index some docs on a node `n`, and then go to upload the translog. During the translog upload, the first attempt of
 /// [org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator.UploadTranslogTask] fails due to a timeout (although the request
@@ -202,17 +202,20 @@ public class GcsTranslogBlobReplacedDuringRecoveryIT extends AbstractStatelessPl
                 if (blobName.contains("/translog/")) {
                     final int translogRead = translogReads.getAndIncrement();
                     if (translogRead == 0) {
-                        // The connection "dies" after the first byte, although we state that we return 1024 bytes. We send one byte so
-                        // that generation 1 is pinned, without it the read fails at open and client retries with no pinned generation.
+                        // The connection "dies" after the first byte, although we state that we return 1024 bytes. To be close to the
+                        // test's scenario, we send one byte so that generation 1 is set (i.e., `setGeneration(lastGeneration)`
+                        // in `GoogleCloudStorageBlobStoreServices.getInputStream`), and then when we resume the read we fail
+                        // (see `else if` below). Note that we do not send all 1024 bytes at once because then the read
+                        // would not need to resume.
                         exchange.getResponseHeaders().add("x-goog-generation", "1");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 1024);
-                        exchange.getResponseBody().write(0);
+                        exchange.getResponseBody().write(new byte[] { 1 });
                         exchange.getResponseBody().flush();
                         exchange.close();
                         return;
                     } else if (translogRead == 1) {
                         // the client resumes the read from before, asking for generation 1, but we fail that resumed read (emulating
-                        // that the pinned generation 1 does not exist anymore)
+                        // that the generation 1 does not exist anymore because a newer generation was supposedly written)
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         exchange.close();
                         return;

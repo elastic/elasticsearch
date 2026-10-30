@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -477,6 +478,11 @@ public final class LuceneSliceQueue {
          * {@link Weight} (e.g. {@link LuceneCountOperator}'s
          * {@link Weight#count(LeafReaderContext)} shortcut), that leaf is emitted as a single
          * full-leaf slice and skipped by both the splitter and the bin-packer.
+         *
+         * <p>If the query has a range filter on the primary index-sort field of every leaf, the matching docs are
+         * one contiguous range per leaf (see {@link PrimarySortRange}). Then only those ranges are sliced, using the
+         * same size rule with the range length in place of {@code totalDocs}. Without this a narrow range falls into
+         * a few slices of the whole leaf and most drivers have nothing to do.
          */
         DOC(2) {
             @Override
@@ -488,6 +494,18 @@ public final class LuceneSliceQueue {
                 int minDocsPerSlice
             ) {
                 final List<LeafReaderContext> leaves = searcher.getLeafContexts();
+                if (guard == LeafSplitGuard.NEVER) {
+                    // Kept-whole leaves (e.g. count shortcuts) need the full leaf, so only slice the range without a guard.
+                    List<List<PartialLeafReaderContext>> primarySortGroups = primarySortRangeGroups(
+                        leaves,
+                        weight,
+                        taskConcurrency,
+                        minDocsPerSlice
+                    );
+                    if (primarySortGroups != null) {
+                        return primarySortGroups;
+                    }
+                }
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
                 // Aim for ~taskConcurrency slices, clamped to [minDocsPerSlice, MAX_DOCS_PER_SLICE]. The
                 // MAX_DOCS_PER_SLICE cap keeps a single driver from owning one large contiguous region of a segment
@@ -630,6 +648,50 @@ public final class LuceneSliceQueue {
             return results;
         }
 
+        /**
+         * Slices the docs that can match a range filter on the primary index-sort field, or returns {@code null} if
+         * the query has no such filter or any leaf cannot say which range matches. In that case the caller slices
+         * the whole leaves.
+         */
+        private static List<List<PartialLeafReaderContext>> primarySortRangeGroups(
+            List<LeafReaderContext> leaves,
+            Weight weight,
+            int taskConcurrency,
+            int minDocsPerSlice
+        ) {
+            if (weight == null) {
+                return null;
+            }
+            List<NumericDocValuesRangeQuery> clauses = PrimarySortRange.requiredRangeClauses(weight.getQuery());
+            if (clauses.isEmpty()) {
+                return null;
+            }
+            List<PrimarySortRange.DocRange> ranges = new ArrayList<>(leaves.size());
+            long totalDocs = 0;
+            try {
+                for (LeafReaderContext leaf : leaves) {
+                    PrimarySortRange.DocRange range = PrimarySortRange.find(leaf, clauses);
+                    if (range == null) {
+                        return null;
+                    }
+                    ranges.add(range);
+                    totalDocs += range.length();
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            int desiredSliceSize = (int) Math.min(MAX_DOCS_PER_SLICE, Math.max(minDocsPerSlice, Math.ceilDiv(totalDocs, taskConcurrency)));
+            AdaptivePartitioner partitioner = new AdaptivePartitioner(desiredSliceSize, MAX_SEGMENTS_PER_SLICE);
+            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
+            for (int i = 0; i < leaves.size(); i++) {
+                PrimarySortRange.DocRange range = ranges.get(i);
+                if (range.length() > 0) {
+                    results.addAll(partitioner.partitionRange(leaves.get(i), range.minDoc(), range.maxDoc()));
+                }
+            }
+            return results;
+        }
+
         private static Set<LeafReaderContext> wholeLeaves(List<LeafReaderContext> leaves, Weight weight, LeafSplitGuard guard) {
             if (guard == LeafSplitGuard.NEVER || weight == null) {
                 return Set.of();
@@ -742,28 +804,36 @@ public final class LuceneSliceQueue {
         }
 
         List<List<PartialLeafReaderContext>> partitionOneLargeSegment(LeafReaderContext leaf) {
-            int numDocsInLeaf = leaf.reader().maxDoc();
-            int numSlices = Math.max(1, numDocsInLeaf / desiredDocsPerSlice);
-            while (Math.ceilDiv(numDocsInLeaf, numSlices) > maxDocsPerSlice) {
+            return partitionRange(leaf, 0, leaf.reader().maxDoc());
+        }
+
+        /**
+         * Cuts {@code [minDocInRange, maxDocInRange)} of {@code leaf} into equal slices of about
+         * {@link #desiredDocsPerSlice} docs.
+         */
+        List<List<PartialLeafReaderContext>> partitionRange(LeafReaderContext leaf, int minDocInRange, int maxDocInRange) {
+            int numDocsInRange = maxDocInRange - minDocInRange;
+            int numSlices = Math.max(1, numDocsInRange / desiredDocsPerSlice);
+            while (Math.ceilDiv(numDocsInRange, numSlices) > maxDocsPerSlice) {
                 numSlices++;
             }
-            int docPerSlice = numDocsInLeaf / numSlices;
-            int leftoverDocs = numDocsInLeaf % numSlices;
-            int minDoc = 0;
+            int docPerSlice = numDocsInRange / numSlices;
+            int leftoverDocs = numDocsInRange % numSlices;
+            int minDoc = minDocInRange;
             List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            while (minDoc < numDocsInLeaf) {
+            while (minDoc < maxDocInRange) {
                 int docsToUse = docPerSlice;
                 if (leftoverDocs > 0) {
                     --leftoverDocs;
                     docsToUse++;
                 }
-                int maxDoc = Math.min(minDoc + docsToUse, numDocsInLeaf);
+                int maxDoc = Math.min(minDoc + docsToUse, maxDocInRange);
                 results.add(List.of(new PartialLeafReaderContext(leaf, minDoc, maxDoc)));
                 minDoc = maxDoc;
             }
             assert leftoverDocs == 0 : leftoverDocs;
             assert results.stream().allMatch(s -> s.size() == 1) : "must have one partial leaf per slice";
-            assert results.stream().flatMapToInt(ss -> ss.stream().mapToInt(s -> s.maxDoc() - s.minDoc())).sum() == numDocsInLeaf;
+            assert results.stream().flatMapToInt(ss -> ss.stream().mapToInt(s -> s.maxDoc() - s.minDoc())).sum() == numDocsInRange;
             return results;
         }
 

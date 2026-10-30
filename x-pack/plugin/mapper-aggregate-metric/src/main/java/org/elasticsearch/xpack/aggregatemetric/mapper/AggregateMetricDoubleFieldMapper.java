@@ -24,7 +24,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -421,7 +420,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
                             try {
-                                SortedNumericDocValues values = ColumnarNumericDocValues.getSortedNumeric(
+                                SortedNumericDocValues values = DocValues.getSortedNumeric(
                                     context.reader(),
                                     subfieldName(getFieldName(), metric)
                                 );
@@ -486,11 +485,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                                 return getAggregateMetricValues(singleMetric);
                             }
                             try {
-                                final SortedNumericDocValues sumValues = ColumnarNumericDocValues.getSortedNumeric(
+                                final SortedNumericDocValues sumValues = DocValues.getSortedNumeric(
                                     context.reader(),
                                     subfieldName(getFieldName(), Metric.sum)
                                 );
-                                final SortedNumericDocValues countValues = ColumnarNumericDocValues.getSortedNumeric(
+                                final SortedNumericDocValues countValues = DocValues.getSortedNumeric(
                                     context.reader(),
                                     subfieldName(getFieldName(), Metric.value_count)
                                 );

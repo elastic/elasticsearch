@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -50,7 +50,7 @@ class AggregateMetricAverageScript extends DoubleFieldScript {
         try {
             String sumFieldName = AggregateMetricDoubleFieldMapper.subfieldName(fieldName, AggregateMetricDoubleFieldMapper.Metric.sum);
             sumDocValuesField = new DoubleDocValuesField(
-                SortedNumericDoubleValues.wrap(ColumnarNumericDocValues.getSortedNumeric(ctx.reader(), sumFieldName)),
+                SortedNumericDoubleValues.wrap(DocValues.getSortedNumeric(ctx.reader(), sumFieldName)),
                 sumFieldName
             );
             String countFieldName = AggregateMetricDoubleFieldMapper.subfieldName(
@@ -58,7 +58,7 @@ class AggregateMetricAverageScript extends DoubleFieldScript {
                 AggregateMetricDoubleFieldMapper.Metric.value_count
             );
             countDocValuesField = new LongDocValuesField(
-                SortedNumericLongValues.wrap(ColumnarNumericDocValues.getSortedNumeric(ctx.reader(), countFieldName)),
+                SortedNumericLongValues.wrap(DocValues.getSortedNumeric(ctx.reader(), countFieldName)),
                 countFieldName
             );
         } catch (IOException e) {

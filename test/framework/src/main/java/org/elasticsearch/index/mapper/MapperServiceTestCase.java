@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
@@ -90,6 +91,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -280,6 +282,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
+    }
+
+    /**
+     * A random index version on which strict-columnar indices still honour {@code doc_values: false}, i.e. one created before
+     * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}.
+     */
+    protected static IndexVersion randomVersionBeforeDocValuesNoOp() {
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+        );
     }
 
     protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)

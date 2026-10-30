@@ -2029,7 +2029,7 @@ public abstract class FieldMapper extends Mapper {
          * <ul>
          *   <li>{@code "doc_values": false} - doc_values disabled (ignored in strict-columnar indices created on or after
          *       {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}, where doc values are always enabled)</li>
-         *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
+         *   <li>{@code "doc_values": true} - doc_values enabled with defaults (dropped, like {@code false}, in the indices above)</li>
          *   <li>{@code "multi_value": true} - allow multiple values per document (default; columnar only)</li>
          *   <li>{@code "multi_value": false} - reject any document that has more than one value for the field (columnar only)</li>
          *   <li>{@code "nullability": true} - allow documents to omit the field or supply null (default; columnar only)</li>
@@ -2081,7 +2081,7 @@ public abstract class FieldMapper extends Mapper {
             } else {
                 boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
                 if (ignoresDocValuesAttribute) {
-                    // Validated above, then dropped: leaving the value unset keeps it out of the persisted mapping.
+                    // Leaving the value unset keeps it out of the persisted mapping.
                     return;
                 }
                 if (enabled) {

@@ -43,8 +43,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Persists failed export batches to disk and replays them once the delegate recovers.
@@ -88,7 +88,7 @@ public class BufferingMetricExporter implements MetricExporter {
         Supplier<MeterProvider> meterProviderSupplier,
         long writeWindowMillis
     ) {
-        this(delegate, settings, bufferPath, meterProviderSupplier, writeWindowMillis, BufferingMetricExporter::createStorage);
+        this(delegate, settings, bufferPath, meterProviderSupplier, writeWindowMillis, UnaryOperator.identity());
     }
 
     // Visible for testing
@@ -98,7 +98,7 @@ public class BufferingMetricExporter implements MetricExporter {
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier,
         long writeWindowMillis,
-        BiFunction<Path, FileStorageConfiguration, SignalStorage.Metric> storageFactory
+        UnaryOperator<SignalStorage.Metric> metricStorageWrapper
     ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
@@ -115,7 +115,7 @@ public class BufferingMetricExporter implements MetricExporter {
             .setDeleteItemsOnIteration(false)
             .setDiscardedFileListener((file, reason) -> bufferingMetrics.fullDrops().add(1))
             .build();
-        this.storage = storageFactory.apply(diskDir, config);
+        this.storage = metricStorageWrapper.apply(createStorage(diskDir, config));
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
 
         this.diskExecutor = new Scheduler.SafeScheduledThreadPoolExecutor(
@@ -268,7 +268,7 @@ public class BufferingMetricExporter implements MetricExporter {
     }
 
     @SuppressForbidden(reason = "disk-buffering library exposes a java.io.File based API")
-    static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
+    private static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
         return FileMetricStorage.create(dir.toFile(), config);
     }
 

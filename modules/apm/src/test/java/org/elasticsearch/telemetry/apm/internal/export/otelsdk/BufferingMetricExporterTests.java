@@ -230,8 +230,8 @@ public class BufferingMetricExporterTests extends ESTestCase {
             .put("telemetry.metrics.buffer.disk_size", "10mb")
             .put("telemetry.metrics.buffer.ttl", "5m")
             .build();
-        exporter = new BufferingMetricExporter(recordingDelegate, settings, bufferDir, () -> meterProvider, 100, (dir, config) -> {
-            pausingStorage.set(new PausingStorage(BufferingMetricExporter.createStorage(dir, config)));
+        exporter = new BufferingMetricExporter(recordingDelegate, settings, bufferDir, () -> meterProvider, 100, realStorage -> {
+            pausingStorage.set(new PausingStorage(realStorage));
             return pausingStorage.get();
         });
 

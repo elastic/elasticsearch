@@ -149,12 +149,12 @@ required_capability: metadata_score
 required_capability: outer_metadata_null_injection
 required_capability: subquery_in_from_command
 
-// BM25 uses per-shard statistics, so the score values depend on the shard count. Check presence only.
+// BM25 uses per-shard statistics, so the score values depend on the shard count. Check only that they are positive.
 // tag::scoresAcrossMixedSources[]
 FROM (FROM languages), languages METADATA _score
 | WHERE MATCH(language_name, "English") OR MATCH(language_name, "French")
-| EVAL has_score = _score IS NOT NULL
-| SORT has_score DESC, language_code
+| EVAL has_score = _score > 0.0
+| SORT has_score DESC NULLS LAST, language_code
 | KEEP language_code, language_name, has_score
 // end::scoresAcrossMixedSources[]
 ;
@@ -163,8 +163,8 @@ FROM (FROM languages), languages METADATA _score
 language_code:integer | language_name:keyword | has_score:boolean
 1                     | English               | true
 2                     | French                | true
-1                     | English               | false
-2                     | French                | false
+1                     | English               | null
+2                     | French                | null
 // end::scoresAcrossMixedSources-result[]
 ;
 

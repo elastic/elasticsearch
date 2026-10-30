@@ -3,8 +3,8 @@
 ```esql
 FROM (FROM languages), languages METADATA _score
 | WHERE MATCH(language_name, "English") OR MATCH(language_name, "French")
-| EVAL has_score = _score IS NOT NULL
-| SORT has_score DESC, language_code
+| EVAL has_score = _score > 0.0
+| SORT has_score DESC NULLS LAST, language_code
 | KEEP language_code, language_name, has_score
 ```
 
@@ -12,5 +12,5 @@ FROM (FROM languages), languages METADATA _score
 | --- | --- | --- |
 | 1 | English | true |
 | 2 | French | true |
-| 1 | English | false |
-| 2 | French | false |
+| 1 | English | null |
+| 2 | French | null |

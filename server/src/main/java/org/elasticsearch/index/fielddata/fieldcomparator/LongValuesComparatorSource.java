@@ -167,9 +167,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         int bucketSize,
         BucketedSort.ExtraData extra
     ) {
+        final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
         return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
-            private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
-
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {

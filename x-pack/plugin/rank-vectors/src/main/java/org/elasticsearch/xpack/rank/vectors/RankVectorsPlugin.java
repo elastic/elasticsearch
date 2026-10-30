@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
 import org.elasticsearch.xpack.rank.vectors.query.RankVectorsQueryBuilder;
+import org.elasticsearch.xpack.rank.vectors.query.RankVectorsRetrieverBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,11 @@ public class RankVectorsPlugin extends Plugin implements MapperPlugin, SearchPlu
     @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(new QuerySpec<>(RankVectorsQueryBuilder.NAME, RankVectorsQueryBuilder::new, RankVectorsQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(new RetrieverSpec<>(RankVectorsRetrieverBuilder.NAME, RankVectorsRetrieverBuilder::fromXContent));
     }
 
     protected XPackLicenseState getLicenseState() {

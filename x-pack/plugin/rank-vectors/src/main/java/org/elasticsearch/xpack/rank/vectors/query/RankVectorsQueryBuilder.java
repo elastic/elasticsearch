@@ -262,7 +262,7 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         return query.clauses().isEmpty() ? null : query;
     }
 
-    private static float[][] parseQueryVectors(XContentParser parser) throws IOException {
+    static float[][] parseQueryVectors(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[" + QUERY_VECTOR_FIELD.getPreferredName() + "] must be an array");
         }

@@ -46,4 +46,9 @@ public class LocalStateRankVectors extends LocalStateCompositeXPackPlugin {
     public List<SearchPlugin.QuerySpec<?>> getQueries() {
         return rankVectorsPlugin.getQueries();
     }
+
+    @Override
+    public List<SearchPlugin.RetrieverSpec<?>> getRetrievers() {
+        return rankVectorsPlugin.getRetrievers();
+    }
 }

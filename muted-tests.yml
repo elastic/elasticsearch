@@ -552,11 +552,6 @@ tests:
   - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
   method: test {agg-ordering.testMultipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_1}
   issue: https://github.com/elastic/elasticsearch/issues/163662
-- class: org.elasticsearch.index.mapper.DocValuesParameterTests
-  tasks:
-  - :server:test
-  method: testOnFailureIgnoreParsesSuccessfullyForOlderCreatedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/163673
 - class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

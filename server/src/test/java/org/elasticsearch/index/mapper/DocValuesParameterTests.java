@@ -658,7 +658,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     public void testOnFailureIgnoreParsesSuccessfullyForOlderCreatedVersions() throws Exception {
         IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
             IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES)
         );
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(

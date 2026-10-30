@@ -147,7 +147,12 @@ public class MergeMetrics {
         StackTraceElement[] stackTrace = t.getStackTrace();
         String thrownFrom = stackTrace.length > 0 ? stackTrace[0].getClassName() : "";
         String exceptionClass = t.getClass().getName();
-        return BLOB_STORE_CLIENT_PACKAGES.stream().anyMatch(pkg -> exceptionClass.startsWith(pkg) || thrownFrom.startsWith(pkg));
+        for (String pkg : BLOB_STORE_CLIENT_PACKAGES) {
+            if (exceptionClass.startsWith(pkg) || thrownFrom.startsWith(pkg)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void onAborted(IndexMode indexMode) {

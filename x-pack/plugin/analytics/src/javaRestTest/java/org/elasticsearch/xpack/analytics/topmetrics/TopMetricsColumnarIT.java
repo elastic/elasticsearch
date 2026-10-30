@@ -129,10 +129,19 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         }
     }
 
-    public void testTextDocValuesDisabledOnColumnarIndex() throws IOException {
+    /**
+     * {@code doc_values: false} is ignored on columnar indices, which always store doc values. The text field therefore has doc values,
+     * so the request is rejected for lacking segment ordinals rather than for having no doc values.
+     */
+    public void testTextDocValuesDisabledIsIgnoredOnColumnarIndex() throws IOException {
         String mode = randomFrom(COLUMNAR_MODES);
         for (String type : List.of("text", "match_only_text")) {
-            assertRejectedWithoutDocValues(mode + "-" + type, columnarSettings(mode), type, SAMPLE_VALUES.get(type));
+            String index = mode + "-" + type;
+            createMetricIndex(index, columnarSettings(mode), mappingWithoutDocValues(type));
+            indexDocuments(index, List.of(new Document(1, SAMPLE_VALUES.get(type))));
+            ResponseException e = expectThrows(ResponseException.class, () -> search(index, true));
+            assertEquals(e.getMessage(), 400, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), containsString("segment ordinals"));
         }
     }
 

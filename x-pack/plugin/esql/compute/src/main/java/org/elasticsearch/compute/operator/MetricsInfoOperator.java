@@ -21,8 +21,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,12 +36,12 @@ import java.util.Set;
  * <p>
  * Operates in two modes, mirroring the two-phase INITIAL/FINAL pattern used by aggregations:
  * <ul>
- *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects deduplicated input
- *       (one row per {@code _tsid}) from an upstream {@link DistinctByOperator}, with blocks for
- *       {@code _timeseries_metadata} and {@code _index}. Groups metrics by (metricName, indexAbstractionName)
- *       so that different backing indices of the same data stream share one entry. Conflicting
- *       unit/metric_type/field_type values across backing indices become multi-valued. Dimension
- *       keys are assigned only to the metrics that actually appeared in each tsid's metadata.
+ *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects one row per set of fields that
+ *       occur together in a document, with blocks for the index name and the multivalued field names, as
+ *       emitted by {@code FieldPresenceOperator}. Fields that the {@link MetricFieldLookup} doesn't know as
+ *       metrics are dimensions. Groups metrics by (metricName, indexAbstractionName) so that different backing
+ *       indices of the same data stream share one entry. Conflicting unit/metric_type/field_type values across
+ *       backing indices become multi-valued. Dimension keys are assigned only to the metrics of the same row.
  *       Produces one row per distinct metric signature within the local shards.</li>
  *   <li><b>FINAL</b> (coordinator) – created via {@link FinalFactory}. Receives the 6-column
  *       output pages produced by INITIAL instances on each data node and merges rows that share
@@ -136,19 +134,16 @@ public class MetricsInfoOperator implements Operator {
     private static final int COL_DIMENSION_FIELDS = 5;
 
     /**
-     * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
+     * Factory for INITIAL mode (data nodes): builds metric metadata from the sets of fields found in the shards.
      *
-     * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param dataStreamsByIndex   backing index names mapped to their parent data streams, including cluster qualifiers
-     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
-     * @param indexChannel         channel index for {@code _index} block
+     * @param fieldLookup        on-demand lookup for metric field metadata
+     * @param dataStreamsByIndex backing index names mapped to their parent data streams, including cluster qualifiers
+     * @param indexChannel       channel of the index name block, including the cluster qualifier
+     * @param fieldNamesChannel  channel of the multivalued block with the names of fields that occur together
      */
-    public record Factory(
-        MetricFieldLookup fieldLookup,
-        Map<String, String> dataStreamsByIndex,
-        int metadataSourceChannel,
-        int indexChannel
-    ) implements OperatorFactory {
+    public record Factory(MetricFieldLookup fieldLookup, Map<String, String> dataStreamsByIndex, int indexChannel, int fieldNamesChannel)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new MetricsInfoOperator(
@@ -156,19 +151,15 @@ public class MetricsInfoOperator implements Operator {
                 driverContext.blockFactory(),
                 fieldLookup,
                 dataStreamsByIndex,
-                metadataSourceChannel,
                 indexChannel,
+                fieldNamesChannel,
                 null
             );
         }
 
         @Override
         public String describe() {
-            return "MetricsInfoOperator[mode=INITIAL, metadataSourceChannel="
-                + metadataSourceChannel
-                + ", indexChannel="
-                + indexChannel
-                + "]";
+            return "MetricsInfoOperator[mode=INITIAL, indexChannel=" + indexChannel + ", fieldNamesChannel=" + fieldNamesChannel + "]";
         }
     }
 
@@ -209,8 +200,8 @@ public class MetricsInfoOperator implements Operator {
     /** Fields used only in INITIAL mode. */
     private final MetricFieldLookup fieldLookup;
     private final Map<String, String> dataStreamsByIndex;
-    private final int metadataSourceChannel;
     private final int indexChannel;
+    private final int fieldNamesChannel;
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
 
@@ -226,8 +217,8 @@ public class MetricsInfoOperator implements Operator {
         BlockFactory blockFactory,
         MetricFieldLookup fieldLookup,
         Map<String, String> dataStreamsByIndex,
-        int metadataSourceChannel,
         int indexChannel,
+        int fieldNamesChannel,
         int[] channels
     ) {
         this.mode = mode;
@@ -235,8 +226,8 @@ public class MetricsInfoOperator implements Operator {
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
         this.dataStreamsByIndex = dataStreamsByIndex;
-        this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
+        this.fieldNamesChannel = fieldNamesChannel;
         this.finalChannels = channels;
     }
 
@@ -256,31 +247,20 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    /** INITIAL mode: extract metric metadata from _timeseries_metadata and _index blocks. */
+    /** INITIAL mode: classify each set of fields that occur together into metrics and dimensions. */
     private void addInputInitial(Page page) {
         try {
-            BytesRefBlock metadataSource = page.getBlock(metadataSourceChannel);
             BytesRefBlock indexBlock = page.getBlock(indexChannel);
+            BytesRefBlock fieldNamesBlock = page.getBlock(fieldNamesChannel);
 
-            BytesRef indexScratch = new BytesRef();
-            BytesRef sourceScratch = new BytesRef();
-
+            BytesRef scratch = new BytesRef();
             for (int p = 0; p < page.getPositionCount(); p++) {
-                if (metadataSource.isNull(p)) {
+                if (indexBlock.isNull(p) || fieldNamesBlock.isNull(p)) {
                     continue;
                 }
-                if (indexBlock.isNull(p)) {
-                    continue;
-                }
-
-                String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
+                String indexName = indexBlock.getBytesRef(indexBlock.getFirstValueIndex(p), scratch).utf8ToString();
                 String indexAbstractionName = dataStreamsByIndex.getOrDefault(indexName, indexName);
-                Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
-                if (metadata == null) {
-                    continue;
-                }
-
-                collectAndAggregateFields(metadata, null, indexName, indexAbstractionName, new HashSet<>(), new HashSet<>());
+                recordFieldSet(indexName, indexAbstractionName, readMultiValue(fieldNamesBlock, p, scratch));
             }
         } finally {
             page.releaseBlocks();
@@ -349,58 +329,27 @@ public class MetricsInfoOperator implements Operator {
     }
 
     /**
-     * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
-     * either a metric (via {@link #fieldLookup}) or a dimension key.
+     * Classifies the fields of one document as metrics (via {@link #fieldLookup}) or dimensions, and records the
+     * dimensions only on the metrics of the same document, not on every metric ever seen.
      *
-     * @param metadata             the (possibly nested) metadata map for one tsid
-     * @param prefix               dotted path prefix for the current nesting level ({@code null} at root)
      * @param indexName            concrete index name, used for the field lookup because mappings are per index
      * @param indexAbstractionName parent data-stream name or concrete index name, used as the grouping key so that
      *                             backing indices of the same data stream share a single {@link MetricInfo}
-     * @param dimensionKeys        accumulates non-metric leaf keys found in this document
-     * @param touchedMetrics       accumulates the {@link MetricInfo} entries that were created or updated
-     *                             by this document, so that dimension keys are only added to the metrics
-     *                             that actually appeared in the same tsid (not all metrics ever seen)
+     * @param fieldNames           names of the fields that occur together in a document
      */
-    @SuppressWarnings("unchecked")
-    private void collectAndAggregateFields(
-        Map<String, Object> metadata,
-        String prefix,
-        String indexName,
-        String indexAbstractionName,
-        Set<String> dimensionKeys,
-        Set<MetricInfo> touchedMetrics
-    ) {
-        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
-            String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
-            Object value = entry.getValue();
-
-            // Check the metric lookup first, before inspecting the value type.
-            // Some metric types (histogram, exponential_histogram, tdigest) produce
-            // nested JSON in synthetic source. Without this early check, the method
-            // would recurse into the nested structure and misclassify internal fields
-            // (e.g. "values", "counts", "centroids") as dimension keys.
-            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+    private void recordFieldSet(String indexName, String indexAbstractionName, Set<String> fieldNames) {
+        Set<String> dimensionKeys = new HashSet<>();
+        Set<MetricInfo> touchedMetrics = new HashSet<>();
+        for (String fieldName : fieldNames) {
+            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, fieldName);
             if (fieldInfo != null) {
                 recordMetric(fieldInfo, indexAbstractionName, touchedMetrics);
-            } else if (value instanceof Map<?, ?> nested) {
-                collectAndAggregateFields(
-                    (Map<String, Object>) nested,
-                    key,
-                    indexName,
-                    indexAbstractionName,
-                    dimensionKeys,
-                    touchedMetrics
-                );
             } else {
-                dimensionKeys.add(key);
+                dimensionKeys.add(fieldName);
             }
         }
-
-        if (prefix == null && dimensionKeys.isEmpty() == false) {
-            for (MetricInfo info : touchedMetrics) {
-                trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
-            }
+        for (MetricInfo info : touchedMetrics) {
+            trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
         }
     }
 
@@ -527,22 +476,6 @@ public class MetricsInfoOperator implements Operator {
                 builder.appendBytesRef(new BytesRef(v));
             }
             builder.endPositionEntry();
-        }
-    }
-
-    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position, BytesRef sourceScratch) {
-        if (metadataSource == null || metadataSource.isNull(position)) {
-            return null;
-        }
-        BytesRef bytes = metadataSource.getBytesRef(position, sourceScratch);
-        try (
-            var parser = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)
-        ) {
-            parser.nextToken();
-            return parser.mapOrdered();
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to parse _timeseries_metadata at position [" + position + "]", e);
         }
     }
 

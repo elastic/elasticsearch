@@ -1,0 +1,130 @@
+setup:
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: tsdb
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2026-01-01T00:00:00Z
+                end_time: 2026-01-02T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: tsdb
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2026-01-01T00:00:00Z", "host": "h1", "cpu": 0.5}'
+
+  - do:
+      security.put_role:
+        name: "no_timestamp_role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["tsdb"],
+                "privileges": ["read"],
+                "field_security": { "grant": ["host", "cpu"] }
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "tsdb_user"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": [ "no_timestamp_role" ]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "tsdb_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "no_timestamp_role"
+        ignore: 404
+
+---
+"GET with the indexed _id when field level security hides @timestamp":
+  - do:
+      search:
+        index: tsdb
+  - set: { hits.hits.0._id: indexed_id }
+
+  - do:
+      headers: { Authorization: "Basic dHNkYl91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # tsdb_user
+      get:
+        index: tsdb
+        id: $indexed_id
+  - match: { found: true }
+  - match: { _id: $indexed_id }
+  - is_false: _source.@timestamp
+
+---
+"GET with the _id returned by search when field level security hides @timestamp":
+  - do:
+      search:
+        index: tsdb
+  - set: { hits.hits.0._id: indexed_id }
+
+  - do:
+      headers: { Authorization: "Basic dHNkYl91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # tsdb_user
+      search:
+        index: tsdb
+  - length: { hits.hits: 1 }
+  - is_false: hits.hits.0._source.@timestamp
+  - set: { hits.hits.0._id: returned_id }
+  # Fails: the returned _id is built from timestamp 0.
+  # With assertions enabled, as on test clusters, the search above fails first and the node exits.
+  - match: { hits.hits.0._id: $indexed_id }
+
+  # Fails: GET with the returned _id returns found: false.
+  - do:
+      headers: { Authorization: "Basic dHNkYl91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # tsdb_user
+      get:
+        index: tsdb
+        id: $returned_id
+  - match: { found: true }
+  - match: { _id: $indexed_id }
+  - is_false: _source.@timestamp
+
+---
+"ES|QL METADATA _id when field level security hides @timestamp":
+  - do:
+      search:
+        index: tsdb
+  - set: { hits.hits.0._id: indexed_id }
+
+  # Fails: ES|QL returns HTTP 500 with a NullPointerException in IdLoader.
+  - do:
+      headers: { Authorization: "Basic dHNkYl91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # tsdb_user
+      esql.query:
+        body:
+          query: 'FROM tsdb METADATA _id | KEEP _id, host | LIMIT 10'
+  - length: { values: 1 }
+  - match: { values.0.0: $indexed_id }
+  - match: { values.0.1: "h1" }

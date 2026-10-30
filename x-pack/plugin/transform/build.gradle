@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -34,9 +37,13 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
+// The remote cluster in the multi-cluster tests runs the previous minor, not the minimum wire compatible version (7.17.x on this branch)
+Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)
+
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("transform yaml rest tests require the default distribution")
-  usesBwcDistribution(buildParams.bwcVersions.minimumWireCompatibleVersion)
+  usesBwcDistribution(ccsCompatVersion)
+  systemProperty 'tests.ccs_compat_version', ccsCompatVersion.toString()
 }
 
 addQaCheckDependencies(project)

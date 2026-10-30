@@ -46,7 +46,7 @@ public class MultiClusterWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTe
         .name("remote-cluster")
         .apply(commonConfig)
         .setting("node.roles", "[data,ingest,master]")
-        .withNode(node -> node.version(Build.current().minWireCompatVersion()))
+        .withNode(node -> node.version(System.getProperty("tests.ccs_compat_version")))
         .withNode(node -> node.version(Build.current().version()))
         .build();
 

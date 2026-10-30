@@ -507,3 +507,8 @@ tests:
   tasks:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164050
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
+  issue: https://github.com/elastic/elasticsearch/issues/164095

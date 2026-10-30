@@ -60,7 +60,7 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 /// by the [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
 /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
 /// controls the max proportion of those concurrent recovery slots that may be used for non-critical recoveries (see
-/// [PendingRecovery#isCritical()]), so that some slots are always kept free for critical ones.
+/// [PendingRecovery#isCritical()]). Slots above this limit are kept free for critical recoveries.
 ///
 /// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
@@ -597,8 +597,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// available but currently isn't. Relocations (whose source stays STARTED until they complete), recoveries of unassigned
     /// shards added for performance reasons, and snapshot restores (whose index is expected to be unavailable until they
     /// complete, which may take a long time) are ranked as non-critical. Non-critical recoveries are additionally limited by
-    /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING], so
-    /// that the node can always immediately start work on at least one new critical recovery.
+    /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING].
+    /// Slots above that limit can only be used by critical recoveries.
     ///
     /// All the critical priorities rank above all the non-critical ones in [ShardRouting.RecoveryPriority], which
     /// [#doFillSlots] relies on.

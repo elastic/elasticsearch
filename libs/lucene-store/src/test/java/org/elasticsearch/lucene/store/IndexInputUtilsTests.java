@@ -26,7 +26,9 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -236,6 +238,133 @@ public class IndexInputUtilsTests extends ESTestCase {
                 });
                 assertFalse(result);
             }
+        }
+    }
+
+    /** Non-contiguous ranges are each hinted before the action runs; a single range is not. */
+    public void testResolveFromMmapPrefetchesScatteredRanges() throws Exception {
+        byte[] data = randomByteArrayOfLength(1024);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                int sliceLen = 64;
+                int count = randomIntBetween(2, 8);
+                // leave a gap between each range so no runs can be collapsed
+                long[] offsets = new long[count];
+                for (int i = 0; i < count; i++) {
+                    offsets[i] = (long) i * sliceLen * 2;
+                }
+                var recording = new PrefetchRecordingInput((MemorySegmentAccessInput) in);
+                boolean result = IndexInputUtils.resolveFromMmap(recording, offsets, sliceLen, count, addressesScratch(count), a -> {
+                    assertEquals("all ranges should be hinted before the action runs", count, recording.prefetches.size());
+                });
+                assertTrue(result);
+                for (int i = 0; i < count; i++) {
+                    assertEquals(new PrefetchRecordingInput.Prefetch(offsets[i], sliceLen), recording.prefetches.get(i));
+                }
+
+                recording.prefetches.clear();
+                result = IndexInputUtils.resolveFromMmap(recording, offsets, sliceLen, 1, addressesScratch(1), a -> {});
+                assertTrue(result);
+                assertEquals("a single range has nothing to overlap with", 0, recording.prefetches.size());
+            }
+        }
+    }
+
+    /** Contiguous ranges collapse into a single prefetch hint per run. */
+    public void testResolveFromMmapCollapsesContiguousRanges() throws Exception {
+        byte[] data = randomByteArrayOfLength(1024);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                int sliceLen = 64;
+                // two contiguous runs of two ranges each, separated by a gap
+                long[] offsets = { 0, sliceLen, sliceLen * 4, sliceLen * 5 };
+                var recording = new PrefetchRecordingInput((MemorySegmentAccessInput) in);
+                boolean result = IndexInputUtils.resolveFromMmap(
+                    recording,
+                    offsets,
+                    sliceLen,
+                    offsets.length,
+                    addressesScratch(offsets.length),
+                    a -> {}
+                );
+                assertTrue(result);
+                assertEquals(
+                    List.of(
+                        new PrefetchRecordingInput.Prefetch(0, sliceLen * 2L),
+                        new PrefetchRecordingInput.Prefetch(sliceLen * 4L, sliceLen * 2L)
+                    ),
+                    recording.prefetches
+                );
+
+                // fully contiguous batch collapses to one hint covering all ranges
+                recording.prefetches.clear();
+                long[] contiguous = { 0, sliceLen, sliceLen * 2, sliceLen * 3 };
+                result = IndexInputUtils.resolveFromMmap(
+                    recording,
+                    contiguous,
+                    sliceLen,
+                    contiguous.length,
+                    addressesScratch(contiguous.length),
+                    a -> {}
+                );
+                assertTrue(result);
+                assertEquals(List.of(new PrefetchRecordingInput.Prefetch(0, sliceLen * 4L)), recording.prefetches);
+            }
+        }
+    }
+
+    /** Records prefetch calls, which have no otherwise observable effect, delegating the rest to a real mmap input. */
+    private static class PrefetchRecordingInput implements MemorySegmentAccessInput {
+        record Prefetch(long offset, long length) {}
+
+        final MemorySegmentAccessInput delegate;
+        final List<Prefetch> prefetches = new ArrayList<>();
+
+        PrefetchRecordingInput(MemorySegmentAccessInput delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void prefetch(long offset, long length) throws IOException {
+            prefetches.add(new Prefetch(offset, length));
+            delegate.prefetch(offset, length);
+        }
+
+        @Override
+        public MemorySegment segmentSliceOrNull(long pos, long len) throws IOException {
+            return delegate.segmentSliceOrNull(pos, len);
+        }
+
+        @Override
+        public MemorySegmentAccessInput clone() {
+            return delegate.clone();
+        }
+
+        @Override
+        public long length() {
+            return delegate.length();
+        }
+
+        @Override
+        public byte readByte(long pos) throws IOException {
+            return delegate.readByte(pos);
+        }
+
+        @Override
+        public short readShort(long pos) throws IOException {
+            return delegate.readShort(pos);
+        }
+
+        @Override
+        public int readInt(long pos) throws IOException {
+            return delegate.readInt(pos);
+        }
+
+        @Override
+        public long readLong(long pos) throws IOException {
+            return delegate.readLong(pos);
         }
     }
 

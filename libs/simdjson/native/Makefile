@@ -99,7 +99,7 @@ SO_X64  = $(OUT_DIR_AMD64)/libsimdjson.so
 DLL_WIN = $(OUT_DIR_WIN_X64)/simdjson.dll
 PDB_WIN = $(OUT_DIR_WIN_X64)/simdjson.pdb
 
-.PHONY: all clean local local-install install verify-linux-abi
+.PHONY: all clean local local-install verify-linux-abi
 
 # --- local: build for the current platform using the native compiler ---
 # On Windows (MSYS/MinGW/Cygwin shell), reuses the same llvm-mingw driver as
@@ -142,12 +142,6 @@ ifndef DEST
 endif
 	mkdir -p $(DEST)/$(LOCAL_PLATFORM)
 	cp $(LOCAL_OUTPUT) $(DEST)/$(LOCAL_PLATFORM)/$(notdir $(LOCAL_OUTPUT))
-
-# Convenience target for manual installs into the native-libraries extract tree.
-INSTALL_DIR = ../../native/libraries/build/platform/$(LOCAL_PLATFORM)
-install: local
-	mkdir -p $(INSTALL_DIR)
-	cp $(LOCAL_OUTPUT) $(INSTALL_DIR)/$(notdir $(LOCAL_OUTPUT))
 
 # --- all: cross-compile all four targets (inside Docker) ---
 

@@ -8,7 +8,6 @@
  */
 
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-import org.elasticsearch.gradle.internal.test.TestUtil
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
@@ -56,11 +55,7 @@ tasks.named('javadoc').configure {
 }
 
 tasks.named('benchmark').configure {
-  dependsOn ':libs:native:native-libraries:extractLibs'
   jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
-  // The benchmark bodies run in JMH's forked VMs; `es.nativelibs.path` needs to be passed as
-  // a system property so it get passed down to the fork.
-  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

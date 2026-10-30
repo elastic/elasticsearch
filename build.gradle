@@ -42,6 +42,7 @@ plugins {
   id 'elasticsearch.build-scan'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
+  id 'elasticsearch.native-library-collection'
   id 'elasticsearch.forbidden-dependencies'
   id 'elasticsearch.local-distribution'
   id 'elasticsearch.fips'
@@ -665,4 +666,14 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
+}
+
+// Tests run from the IDE load native libraries from this directory: elasticsearch.ide.gradle sets
+// es.nativelibs.path to it in the JUnit run configuration defaults.
+tasks.register("collectNativeLibraries", Sync) {
+  group = 'ide'
+  description = 'Copies the native libraries built in this build into one directory, for tests run from the IDE'
+  from configurations.allNativeLibraries
+  into layout.buildDirectory.dir('native-libraries')
+  includeEmptyDirs = false
 }

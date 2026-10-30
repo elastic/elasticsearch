@@ -173,12 +173,14 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:native:native-libraries:extractLibs',
+      ':collectNativeLibraries',
       ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
-  // this path is produced by the extractLibs task above
-  String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
+  // The JUnit run configuration defaults below take es.nativelibs.path as one fixed string.
+  // We use the collectNativeLibraries task of the Elasticsearch root project to fill that
+  // fixed directory with all the native libraries from projects that build them.
+  String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/build/native-libraries")
   def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
   def delegateToGradle = providers.gradleProperty("org.elasticsearch.idea-delegate-to-gradle").getOrElse("false").toBoolean()
   idea {

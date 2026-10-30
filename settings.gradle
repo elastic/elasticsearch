@@ -170,8 +170,6 @@ addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
-project(":libs:native:libraries").name = "native-libraries"
-
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
@@ -128,12 +129,16 @@ public class BenchmarkPlugin implements Plugin<Project> {
             spec -> spec.getLanguageVersion()
                 .set(buildParams.flatMap(p -> p.getRuntimeJavaVersion()).map(v -> JavaLanguageVersion.of(v.getMajorVersion())))
         );
+        NativeLibraryPathExtension nativeLibraryPath = NativeLibraryPathExtension.of(project);
         project.getTasks().register(BENCHMARK_TASK, JavaExec.class, task -> {
             task.setGroup("benchmark");
             task.setDescription("Runs JMH benchmarks in the `benchmark` source set");
             task.getMainClass().set("org.openjdk.jmh.Main");
             task.setClasspath(benchmark.getRuntimeClasspath());
             task.getJavaLauncher().set(launcher);
+            // The benchmarks run in JVMs forked by JMH, so the native library
+            // path must be a JVM option, not a program argument.
+            nativeLibraryPath.configure(task, project.getConfigurations().getByName(benchmark.getRuntimeClasspathConfigurationName()));
         });
     }
 

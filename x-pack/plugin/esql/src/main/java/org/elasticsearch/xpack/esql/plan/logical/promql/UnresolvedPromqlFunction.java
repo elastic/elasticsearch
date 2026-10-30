@@ -91,7 +91,9 @@ public final class UnresolvedPromqlFunction extends LogicalPlan implements Promq
 
     @Override
     public UnresolvedPromqlFunction replaceChildren(List<LogicalPlan> newChildren) {
-        return new UnresolvedPromqlFunction(source(), functionName, newChildren, grouping, groupingKeys);
+        UnresolvedPromqlFunction replaced = new UnresolvedPromqlFunction(source(), functionName, newChildren, grouping, groupingKeys);
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override

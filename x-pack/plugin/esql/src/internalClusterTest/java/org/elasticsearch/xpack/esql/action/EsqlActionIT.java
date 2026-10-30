@@ -3427,7 +3427,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A data node runs its shards in batches, each planned separately, and they share the table INLINE STATS joins
-     * against. With one shard per batch every batch after the first joins against the table the first one built.
+     * against. With one shard per batch the later batches reuse it, so this checks the results stay right when they do.
      */
     public void testInlineStatsAcrossShardBatches() {
         assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());

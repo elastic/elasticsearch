@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -87,10 +88,6 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
         return expectedDescriptionOfSimple();
     }
 
-    /**
-     * Operators created by one {@link ColumnLoadOperator.Factory} share a single copy of the values, charged to the
-     * drivers' common parent breaker once, and released when the last of them closes.
-     */
     public void testFactorySharesOneCopy() {
         BlockFactory blockFactory = blockFactory();
         CircuitBreaker breaker = blockFactory.breaker();
@@ -116,10 +113,6 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
         assertThat(breaker.getUsed(), equalTo(before));
     }
 
-    /**
-     * With {@link HashJoinTables} the copy outlives the operators of the factory that made it, so the next factory
-     * loading the same block reuses it, and it is released only when the tables close.
-     */
     public void testTablesKeepCopyForNextFactory() {
         BlockFactory blockFactory = blockFactory();
         CircuitBreaker breaker = blockFactory.breaker();
@@ -138,6 +131,26 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
             assertThat("the next factory reuses the copy", breaker.getUsed(), equalTo(withCopy));
         }
         assertThat("closing the tables releases the copy", breaker.getUsed(), equalTo(before));
+    }
+
+    /**
+     * The driver that made the copy can finish, closing its local breaker, while another driver still uses the copy.
+     * Bytes released to a closed local breaker never reach its parent, so the copy must be charged to the parent.
+     */
+    public void testCopyOutlivesLocalBreaker() {
+        BlockFactory blockFactory = blockFactory();
+        Operator.OperatorFactory factory = simple();
+        LocalCircuitBreaker firstBreaker = new LocalCircuitBreaker(blockFactory.breaker(), 0, Long.MAX_VALUE);
+        LocalCircuitBreaker secondBreaker = new LocalCircuitBreaker(blockFactory.breaker(), 0, Long.MAX_VALUE);
+        BlockFactory firstFactory = blockFactory.newChildFactory(firstBreaker);
+        BlockFactory secondFactory = blockFactory.newChildFactory(secondBreaker);
+        Operator first = factory.get(new DriverContext(firstFactory.bigArrays(), firstFactory, null));
+        Operator second = factory.get(new DriverContext(secondFactory.bigArrays(), secondFactory, null));
+        first.close();
+        firstBreaker.close();
+        second.close();
+        secondBreaker.close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     /**

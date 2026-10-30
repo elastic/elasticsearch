@@ -279,18 +279,20 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
     /**
      * Encodes the probed keys into a scratch buffer of its own rather than {@link #bytes} and probes with
      * {@link BytesRefHashTable#concurrentSafeFind}, so it doesn't modify the hash and a hash that is no longer
-     * added to can be probed from several threads at once.
+     * added to can be probed from several threads at once. The scratch buffer and the results are made with the
+     * probed blocks' factory, so each caller charges its own breaker rather than the one the hash was built on.
      */
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        BlockFactory resultFactory = page.getBlock(specs.get(0).channel()).blockFactory();
         BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(
-            blockFactory.breaker(),
+            resultFactory.breaker(),
             "PackedValuesBlockHash.lookup",
             nullTrackingBytes
         );
         boolean success = false;
         try {
-            LookupWork work = new LookupWork(page, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch);
+            LookupWork work = new LookupWork(page, resultFactory, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch);
             success = true;
             return work;
         } finally {
@@ -302,13 +304,15 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
     class LookupWork implements ReleasableIterator<IntBlock> {
         private final Group[] groups;
+        private final BlockFactory resultFactory;
         private final long targetByteSize;
         private final int positionCount;
         private final BreakingBytesRefBuilder bytes;
         private int position;
 
-        LookupWork(Page page, long targetByteSize, int batchSize, BreakingBytesRefBuilder bytes) {
+        LookupWork(Page page, BlockFactory resultFactory, long targetByteSize, int batchSize, BreakingBytesRefBuilder bytes) {
             this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+            this.resultFactory = resultFactory;
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
             this.bytes = bytes;
@@ -322,7 +326,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         @Override
         public IntBlock next() {
             int size = Math.toIntExact(Math.min(positionCount - position, targetByteSize / Integer.BYTES / 2));
-            try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
+            try (IntBlock.Builder ords = resultFactory.newIntBlockBuilder(size)) {
                 if (ords.estimatedBytes() > targetByteSize) {
                     throw new IllegalStateException(
                         "initial builder overshot target [" + ords.estimatedBytes() + "] vs [" + targetByteSize + "]"

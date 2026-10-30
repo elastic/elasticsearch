@@ -386,10 +386,7 @@ public class RowInTableLookupOperator implements Operator {
      */
     private void drainPending() {
         if (shared.isBuilt() == false) {
-            shared.buildIfUnclaimed();
-            if (shared.isBuilt() == false) {
-                return;
-            }
+            return;
         }
         while (pending.isEmpty() == false && mapping.needsInput()) {
             Page page = pending.poll();
@@ -429,6 +426,10 @@ public class RowInTableLookupOperator implements Operator {
      * Blocked while another driver builds the table and this one can't hold more input: either the held input
      * reached {@link #MAX_PENDING_BYTES} or no more input is coming. Below the limit it stays unblocked, so the
      * driver keeps moving pages through the upstream operators.
+     * <p>
+     *     Each call returns a listener of its own, completed with {@link SharedLookup#built}: a driver completes the
+     *     listener it waits on when it is cancelled or finishes early, which must not mark the shared table as built.
+     * </p>
      */
     @Override
     public IsBlockedResult isBlocked() {
@@ -436,7 +437,9 @@ public class RowInTableLookupOperator implements Operator {
             return NOT_BLOCKED;
         }
         if (finished || pendingBytes >= MAX_PENDING_BYTES) {
-            return new IsBlockedResult(shared.built, "row in table lookup build");
+            SubscribableListener<Void> waiting = new SubscribableListener<>();
+            shared.built.addListener(waiting);
+            return new IsBlockedResult(waiting, "row in table lookup build");
         }
         return NOT_BLOCKED;
     }

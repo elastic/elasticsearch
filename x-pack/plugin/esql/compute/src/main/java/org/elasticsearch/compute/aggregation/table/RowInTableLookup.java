@@ -31,9 +31,9 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      *     inside the {@link Page}. Close it to release those references.
      * </p>
      * <p>
-     *     Lookups don't modify the table and build their results with the factory the table was
-     *     built with, so a table built with a thread-safe factory may be probed by several threads
-     *     at once.
+     *     Lookups don't modify the table and build their results with the factory of the probed
+     *     blocks rather than the table's, so several threads may probe one table at once, each
+     *     charging its own breaker.
      * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
@@ -58,10 +58,10 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
             }
         }
         if (positions == 0) {
-            return new EmptyRowInTableLookup(blockFactory);
+            return new EmptyRowInTableLookup();
         }
         if (keys.length == 1) {
-            RowInTableLookup lookup = single(blockFactory, keys[0]);
+            RowInTableLookup lookup = single(keys[0]);
             if (lookup != null) {
                 return lookup;
             }
@@ -73,7 +73,7 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      * Build a {@link RowInTableLookup} for a single {@link Block} or returns {@code null}
      * if we don't have a special implementation for this single block.
      */
-    private static RowInTableLookup single(BlockFactory blockFactory, Block b) {
+    private static RowInTableLookup single(Block b) {
         if (b.elementType() != ElementType.INT) {
             return null;
         }
@@ -87,6 +87,6 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
                 return null;
             }
         }
-        return new AscendingSequenceRowInTableLookup(blockFactory, first, first + v.getPositionCount());
+        return new AscendingSequenceRowInTableLookup(first, first + v.getPositionCount());
     }
 }

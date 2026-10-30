@@ -1197,10 +1197,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertInnerJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
     }
 
-    /**
-     * Plans that share a {@link HashJoinTables}, like the shard batches of one data node request, join against one table:
-     * the second plan starts with the table the first built.
-     */
     public void testHashJoinTablesShareTableAcrossPlans() throws IOException {
         PhysicalPlan innerJoin = innerJoinExec(false, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
         try (HashJoinTables tables = new HashJoinTables()) {
@@ -1213,8 +1209,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * A supplier that copies its page on every call gives each plan new blocks, so plans can't find each other's table
-     * and each builds its own.
+     * A supplier that copies its page on every call gives each plan new blocks that no other plan can match, so keeping
+     * their table would only hold it until the request ends. Once the plan's drivers close, a new operator of the same
+     * plan starts unbuilt only if nothing kept the table.
      */
     public void testHashJoinTablesSkipCopyingSupplier() throws IOException {
         PhysicalPlan innerJoin = innerJoinExec(false, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
@@ -1223,9 +1220,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 l -> new LocalSourceExec(l.source(), l.output(), new CopyingLocalSupplier(l.supplier().get()))
             );
         try (HashJoinTables tables = new HashJoinTables()) {
-            List<Page> results = runPlanned(planInnerJoin(innerJoin, tables).driverFactories.get(0).driverSupplier().physicalOperation());
+            LocalExecutionPlanner.LocalExecutionPlan plan = planInnerJoin(innerJoin, tables);
+            List<Page> results = runPlanned(plan.driverFactories.get(0).driverSupplier().physicalOperation());
             assertInnerJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
-            try (Operator lookup = rowInTableLookup(planInnerJoin(innerJoin, tables))) {
+            try (Operator lookup = rowInTableLookup(plan)) {
                 assertThat(lookup.toString(), containsString("unbuilt"));
             }
         }

@@ -141,10 +141,6 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
         }
     }
 
-    /**
-     * One built table probed from several threads at once, the way drivers share the table built by
-     * {@code RowInTableLookupOperator.Factory}. Every thread must get the same answers as a single-threaded lookup.
-     */
     public void testConcurrentLookups() {
         CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
         MockBlockFactory blockFactory = new MockBlockFactory(

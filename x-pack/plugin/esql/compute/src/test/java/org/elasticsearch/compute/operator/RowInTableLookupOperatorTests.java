@@ -7,27 +7,37 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.aggregation.table.RowInTableLookup;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -35,11 +45,16 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -141,10 +156,6 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         assertSimpleOutput(runner.deepCopy(), results, 1, 2);
     }
 
-    /**
-     * Operators created by one {@link RowInTableLookupOperator.Factory} share a single table, charged to the
-     * drivers' common parent breaker once, and released when the last of them closes.
-     */
     public void testFactorySharesOneTable() {
         BlockFactory blockFactory = blockFactory();
         CircuitBreaker breaker = blockFactory.breaker();
@@ -174,10 +185,6 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         assertThat(breaker.getUsed(), equalTo(before));
     }
 
-    /**
-     * With {@link HashJoinTables} the table outlives the operators of the factory that built it, so the next factory
-     * looking up the same key blocks starts with it built, and it is released only when the tables close.
-     */
     public void testTablesKeepTableForNextFactory() {
         BlockFactory blockFactory = blockFactory();
         CircuitBreaker breaker = blockFactory.breaker();
@@ -201,10 +208,6 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         assertThat("closing the tables releases the table", breaker.getUsed(), equalTo(before));
     }
 
-    /**
-     * A build that failed for one factory is retried by the next rather than failing it the same way, as it would be
-     * without {@link HashJoinTables}.
-     */
     public void testTablesRetryFailedBuild() {
         TripOnceBreaker breaker = new TripOnceBreaker();
         BlockFactory blockFactory = trackingBlockFactory(breaker);
@@ -223,15 +226,45 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * A driver whose input is empty never needs the table, so it finishes without building one.
+     * The source stays unfinished for the driver's first iteration, so the driver asks the lookup for output before
+     * any row could have reached it.
      */
     public void testNoInputSkipsBuild() {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
         BlockFactory blockFactory = trackingBlockFactory(breaker);
-        try (Operator operator = simple().get(new DriverContext(blockFactory.bigArrays(), blockFactory, null))) {
-            operator.finish();
-            assertTrue(operator.isFinished());
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        SourceOperator noRows = new SourceOperator() {
+            private int calls;
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public boolean isFinished() {
+                return calls > 1;
+            }
+
+            @Override
+            public Page getOutput() {
+                calls++;
+                return null;
+            }
+
+            @Override
+            public void close() {}
+        };
+        List<Page> results = new ArrayList<>();
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                noRows,
+                List.of(simple().get(driverContext)),
+                new PageConsumerOperator(results::add)
+            )
+        ) {
+            new TestDriverRunner().run(driver);
         }
+        assertThat(results, empty());
         assertThat(breaker.peak(), equalTo(0L));
     }
 
@@ -314,6 +347,159 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             assertTrue(waiter.isBlocked().listener().isDone());
             assertThat(expectThrows(CircuitBreakingException.class, waiter::getOutput), sameInstance(builderFailure.get()));
         }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCancelWhileWaitingForBuild() {
+        assertOthersWaitAfterStop((driver, sink) -> driver.cancel("test"), future -> {
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(TimeValue.timeValueSeconds(10)));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(TaskCancelledException.class));
+        });
+    }
+
+    public void testFinishEarlyWhileWaitingForBuild() {
+        assertOthersWaitAfterStop((driver, sink) -> {
+            // An exchange sink is finished by the time it asks its driver to finish early.
+            sink.finish();
+            driver.finishEarly();
+        }, future -> future.actionGet(TimeValue.timeValueSeconds(10)));
+    }
+
+    /**
+     * A driver completes the listener it is blocked on when it is cancelled or finishes early. That must stop only that
+     * driver: the operators of the other drivers keep waiting for the table, then use it.
+     */
+    private void assertOthersWaitAfterStop(BiConsumer<Driver, SinkOperator> stop, Consumer<PlainActionFuture<Void>> assertStopped) {
+        PausingBreaker breaker = new PausingBreaker(-1);
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        Operator.OperatorFactory factory = simple();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (Operator builder = factory.get(driverContext); Operator other = factory.get(driverContext)) {
+            Thread build = new Thread(() -> builder.addInput(keysPage(1)));
+            build.start();
+            safeAwait(breaker.paused);
+
+            List<Page> input = new ArrayList<>();
+            List<Page> results = new ArrayList<>();
+            try {
+                DriverContext stoppedContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+                List<Page> stoppedOutput = new ArrayList<>();
+                SinkOperator sink = new PageConsumerOperator(stoppedOutput::add);
+                Driver stopped = TestDriverFactory.create(
+                    stoppedContext,
+                    new CannedSourceOperator(List.of(keysPage(10)).iterator()),
+                    List.of(factory.get(stoppedContext)),
+                    sink
+                );
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                Driver.start(new ThreadContext(Settings.EMPTY), EsExecutors.DIRECT_EXECUTOR_SERVICE, stopped, 10_000, future);
+                assertThat(stopped.status().status(), equalTo(DriverStatus.Status.ASYNC));
+
+                Page page = keysPage(10);
+                input.add(BlockTestUtils.deepCopyOf(page, TestBlockFactory.getNonBreakingInstance()));
+                other.addInput(page);
+                other.finish();
+
+                stop.accept(stopped, sink);
+                assertStopped.accept(future);
+                assertThat(stoppedOutput, empty());
+                assertFalse(other.isBlocked().listener().isDone());
+                assertThat(other.toString(), containsString("unbuilt"));
+            } finally {
+                breaker.resume.countDown();
+                safeJoin(build);
+            }
+
+            assertTrue(other.isBlocked().listener().isDone());
+            while (other.isFinished() == false) {
+                Page out = other.getOutput();
+                if (out != null) {
+                    results.add(out);
+                }
+            }
+            try {
+                assertSimpleOutput(input, results);
+            } finally {
+                Releasables.close(() -> results.forEach(Page::releaseBlocks), () -> {
+                    Page out;
+                    while ((out = builder.getOutput()) != null) {
+                        out.releaseBlocks();
+                    }
+                });
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testBlockHashResultsUseProbeFactory() {
+        assertResultsUseProbeFactory(
+            TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock(),
+            f -> f.newLongArrayVector(new long[] { 7, 3 }, 2).asBlock()
+        );
+    }
+
+    public void testAscendingSequenceResultsUseProbeFactory() {
+        int min = randomFrom(0, 5);
+        int probed = min + randomFrom(2, 9);
+        assertResultsUseProbeFactory(
+            TestBlockFactory.getNonBreakingInstance().newIntArrayVector(new int[] { min, min + 1, min + 2 }, 3).asBlock(),
+            f -> f.newIntArrayVector(new int[] { min + 1, probed }, 2).asBlock()
+        );
+    }
+
+    public void testEmptyTableResultsUseProbeFactory() {
+        assertResultsUseProbeFactory(
+            TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[0], 0).asBlock(),
+            f -> f.newLongArrayVector(new long[] { 7, 3 }, 2).asBlock()
+        );
+    }
+
+    /**
+     * The table is built with the parent factory because it outlives any one driver, but the results of each lookup
+     * belong to the driver that probed and are charged to its local breaker.
+     */
+    private void assertResultsUseProbeFactory(Block keys, Function<BlockFactory, Block> probe) {
+        BlockFactory parent = blockFactory();
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory driverFactory = parent.newChildFactory(local);
+        Operator.OperatorFactory factory = new RowInTableLookupOperator.Factory(
+            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", keys) },
+            new int[] { 0 }
+        );
+        try (Operator operator = factory.get(new DriverContext(driverFactory.bigArrays(), driverFactory, null))) {
+            operator.addInput(new Page(probe.apply(driverFactory)));
+            Page out = operator.getOutput();
+            try {
+                assertThat(out.getBlock(1).blockFactory(), sameInstance(driverFactory));
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            local.close();
+        }
+    }
+
+    /**
+     * The driver that built the table can finish, closing its local breaker, while another driver still uses the
+     * table. Bytes released to a closed local breaker never reach its parent, so the table must be charged to the
+     * parent.
+     */
+    public void testTableOutlivesBuilderLocalBreaker() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        Operator.OperatorFactory factory = simple();
+        LocalCircuitBreaker builderBreaker = new LocalCircuitBreaker(breaker, 0, Long.MAX_VALUE);
+        LocalCircuitBreaker otherBreaker = new LocalCircuitBreaker(breaker, 0, Long.MAX_VALUE);
+        BlockFactory builderFactory = blockFactory.newChildFactory(builderBreaker);
+        BlockFactory otherFactory = blockFactory.newChildFactory(otherBreaker);
+        Operator builder = factory.get(new DriverContext(builderFactory.bigArrays(), builderFactory, null));
+        Operator other = factory.get(new DriverContext(otherFactory.bigArrays(), otherFactory, null));
+        lookupOneRow(builder);
+        builder.close();
+        builderBreaker.close();
+        lookupOneRow(other);
+        other.close();
+        otherBreaker.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

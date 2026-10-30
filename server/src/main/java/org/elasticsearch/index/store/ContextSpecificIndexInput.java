@@ -52,8 +52,8 @@ class ContextSpecificIndexInput extends FilterIndexInput {
     }
 
     @Override
-    public void prefetch(long offset, long length) throws IOException {
-        in.prefetch(offset, length);
+    public boolean prefetch(long offset, long length) throws IOException {
+        return in.prefetch(offset, length);
     }
 
     @Override

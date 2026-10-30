@@ -34,6 +34,7 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -51,16 +52,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         INLINE("synonyms") {
             @Override
             public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
-                List<String> rulesList = Analysis.getWordList(
-                    factory.environment,
-                    factory.settings,
-                    SynonymsSource.INLINE.getSettingName()
-                );
-                StringBuilder sb = new StringBuilder();
-                for (String line : rulesList) {
-                    sb.append(line).append(System.lineSeparator());
-                }
-                return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings");
+                String fixedRules = factory.fixedRules();
+                String rules = fixedRules != null ? fixedRules : factory.readInlineRules();
+                return new ReaderWithOrigin(new StringReader(rules), "'" + factory.name() + "' analyzer settings");
             }
         },
         INDEX("synonyms_set") {
@@ -117,10 +111,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     );
                 }
 
+                Analysis.IndexRules rules = Analysis.getRulesFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient);
                 return new ReaderWithOrigin(
-                    Analysis.getReaderFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient),
+                    rules.reader(),
                     synonymsSets + " synonyms_sets in .synonyms index",
-                    synonymsSets
+                    synonymsSets,
+                    rules.degraded()
                 );
             }
         },
@@ -128,6 +124,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             @Override
             public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
                 String synonymsPath = factory.settings.get(SynonymsSource.LOCAL_FILE.getSettingName(), null);
+                String fixedRules = factory.fixedRules();
+                if (fixedRules != null) {
+                    return new ReaderWithOrigin(new StringReader(fixedRules), synonymsPath);
+                }
                 return new ReaderWithOrigin(
                     // Pass the inline setting name because "_path" is appended by getReaderFromFile
                     Analysis.getReaderFromFile(factory.environment, synonymsPath, SynonymsSource.INLINE.getSettingName()),
@@ -181,6 +181,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
     protected final CircuitBreaker circuitBreaker;
+    // Read on first use by sharingKey() or the chain build, so a filter no analyzer is built from is never read.
+    private boolean fixedRulesRead;
+    private String fixedRules;
+    private Object sharingKey;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -207,6 +211,103 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.circuitBreaker = circuitBreaker;
     }
 
+    private String readInlineRules() {
+        // Reads synonyms_path instead when it is also set.
+        StringBuilder sb = new StringBuilder();
+        for (String line : Analysis.getWordList(environment, settings, SynonymsSource.INLINE.getSettingName())) {
+            sb.append(line).append(System.lineSeparator());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The rule text of a source that cannot change while this factory exists (inline rules, or a non-updateable file), read once
+     * so that the sharing key and the {@link SynonymMap} come from the same text. {@code null} for rules read at load time, and
+     * when reading fails: building the chain reads the rules again and reports the failure.
+     */
+    private synchronized String fixedRules() {
+        if (fixedRulesRead == false) {
+            fixedRules = readFixedRules();
+            fixedRulesRead = true;
+        }
+        return fixedRules;
+    }
+
+    private String readFixedRules() {
+        boolean fromFile = settings.get(SynonymsSource.LOCAL_FILE.getSettingName()) != null;
+        if (synonymsSource == SynonymsSource.INDEX || (fromFile && analysisMode == AnalysisMode.SEARCH_TIME)) {
+            return null;
+        }
+        try {
+            return switch (synonymsSource) {
+                case INLINE -> readInlineRules();
+                case LOCAL_FILE -> {
+                    String path = settings.get(SynonymsSource.LOCAL_FILE.getSettingName());
+                    try (Reader reader = Analysis.getReaderFromFile(environment, path, SynonymsSource.INLINE.getSettingName())) {
+                        StringWriter text = new StringWriter();
+                        reader.transferTo(text);
+                        yield text.toString();
+                    }
+                }
+                case INDEX -> throw new AssertionError("synonyms_set rules are read at load time");
+            };
+        } catch (IOException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Keys on the inputs that determine which rules this factory loads. The chain they are parsed through is covered by
+     * the analyzer key.
+     * <ul>
+     *   <li>{@code synonyms} and non-updateable {@code synonyms_path}: a SHA-256 of the rule text that is parsed. When both
+     *       are set the file's rules are used, so the file is what is hashed.</li>
+     *   <li>{@code synonyms_set}: the set names. These filters are always updateable, and a synonyms API
+     *       update reloads the one shared instance for every sharer. An update made with
+     *       {@code refresh=false} is not seen by an index that joins an already-loaded instance until the
+     *       next reload.</li>
+     *   <li>updateable {@code synonyms_path}: never shares. Nothing reloads the file on change, and a shared
+     *       instance loads it only once per node, so an index joining it could see rules the file no
+     *       longer has.</li>
+     * </ul>
+     */
+    private Object buildSharingKey() {
+        Object rules = switch (synonymsSource) {
+            case INLINE, LOCAL_FILE -> {
+                String fixedRules = fixedRules();
+                yield fixedRules == null ? null : Analysis.sha256Hex(fixedRules);
+            }
+            // Rules are fetched with one query sorted by rule id, so the order the sets are named in does
+            // not affect the loaded rules.
+            case INDEX -> settings.getAsList(SynonymsSource.INDEX.getSettingName()).stream().distinct().sorted().toList();
+        };
+        if (rules == null) {
+            return this;
+        }
+        return new Key(synonymsSource, "wordnet".equalsIgnoreCase(format), expand, lenient, analysisMode, rules);
+    }
+
+    private record Key(SynonymsSource source, boolean wordnet, boolean expand, boolean lenient, AnalysisMode mode, Object rules) {}
+
+    /**
+     * A non-updateable {@code synonyms_path} keys on the file content read at build time, but a reload of a
+     * chain made reloadable by ANOTHER filter re-reads the file into the shared instance, stranding the entry
+     * under the old content's key. Inline rules rebuild from the same settings and {@code synonyms_set} rules
+     * reload uniformly for every sharer, so only the local file source is unstable.
+     */
+    @Override
+    public boolean sharingKeyStableOnReload() {
+        return synonymsSource != SynonymsSource.LOCAL_FILE;
+    }
+
+    @Override
+    public synchronized Object sharingKey() {
+        if (sharingKey == null) {
+            sharingKey = buildSharingKey();
+        }
+        return sharingKey;
+    }
+
     @Override
     public AnalysisMode getAnalysisMode() {
         return this.analysisMode;
@@ -228,7 +329,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resources(), ts -> new SynonymFilter(ts, synonyms, false));
+        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader, ts -> new SynonymFilter(ts, synonyms, false));
     }
 
     /**
@@ -239,9 +340,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         String name,
         SynonymMap synonyms,
         AnalysisMode analysisMode,
-        Set<String> resourceNames,
+        ReaderWithOrigin rules,
         Function<TokenStream, TokenStream> createFilter
     ) {
+        Set<String> resourceNames = rules.resources();
+        // buildSynonyms only returns EMPTY_SYNONYM_MAP when lenient swallowed a failure to build the rules.
+        boolean degraded = rules.degraded() || synonyms == EMPTY_SYNONYM_MAP;
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -280,6 +384,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public Set<String> getResourceNames() {
                 return resourceNames;
             }
+
+            @Override
+            public boolean isDegraded() {
+                return degraded;
+            }
         };
     }
 
@@ -317,7 +426,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin, Set<String> resources) {
+    /** {@code degraded}: lenient loading skipped a missing set or swallowed a failure, so {@code reader} lacks some of the rules. */
+    record ReaderWithOrigin(Reader reader, String origin, Set<String> resources, boolean degraded) {
+        ReaderWithOrigin(Reader reader, String origin, Set<String> resources) {
+            this(reader, origin, resources, false);
+        }
+
         ReaderWithOrigin(Reader reader, String origin) {
             this(reader, origin, Set.of());
         }

@@ -20,10 +20,28 @@ import java.util.List;
 /**
  * V2 triangle tree writer where vertex coordinates are stored as ordinals referencing a
  * {@link VertexLookupTable}, deduplicating shared vertices across adjacent triangles.
+ *
+ * <p>Since the vertex table is in geometry order, the two vertices of a line segment almost always have consecutive
+ * ordinals. A line then stores only its first ordinal, and flags the second as the next or previous ordinal using
+ * metadata bits that are otherwise unused for lines.
  */
 class V2TriangleTreeWriter extends TriangleTreeWriter {
 
+    /** Line metadata bit: the second ordinal is not stored, and is the first ordinal plus one. */
+    static final byte LINE_NEXT_ORDINAL = BC_FROM_TRIANGLE;
+    /** Line metadata bit: the second ordinal is not stored, and is the first ordinal minus one. */
+    static final byte LINE_PREVIOUS_ORDINAL = CA_FROM_TRIANGLE;
+
     private V2TriangleTreeWriter() {}
+
+    private static byte lineFlags(int aOrd, int bOrd) {
+        if (bOrd == aOrd + 1) {
+            return LINE_NEXT_ORDINAL;
+        } else if (bOrd == aOrd - 1) {
+            return LINE_PREVIOUS_ORDINAL;
+        }
+        return 0;
+    }
 
     /**
      * Builds the triangle tree and extent from the given fields, populating the vertex table builder
@@ -56,15 +74,23 @@ class V2TriangleTreeWriter extends TriangleTreeWriter {
         }
 
         @Override
+        byte componentFlags() {
+            return component.type == ShapeField.DecodedTriangle.TYPE.LINE ? lineFlags(aOrd, bOrd) : 0;
+        }
+
+        @Override
         void writeComponent(StreamOutput out) throws IOException {
             out.writeVInt(aOrd);
             if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
                 return;
             }
-            out.writeVInt(bOrd);
             if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
+                if (lineFlags(aOrd, bOrd) == 0) {
+                    out.writeVInt(bOrd);
+                }
                 return;
             }
+            out.writeVInt(bOrd);
             out.writeVInt(cOrd);
         }
 
@@ -73,7 +99,9 @@ class V2TriangleTreeWriter extends TriangleTreeWriter {
             countingBuffer.reset();
             countingBuffer.writeVInt(aOrd);
             if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
-                countingBuffer.writeVInt(bOrd);
+                if (lineFlags(aOrd, bOrd) == 0) {
+                    countingBuffer.writeVInt(bOrd);
+                }
             } else if (component.type == ShapeField.DecodedTriangle.TYPE.TRIANGLE) {
                 countingBuffer.writeVInt(bOrd);
                 countingBuffer.writeVInt(cOrd);

@@ -18,6 +18,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -372,6 +374,117 @@ public class TriangleTreeTests extends ESTestCase {
         TriangleCounterVisitor v2Counter = new TriangleCounterVisitor();
         v2Reader.visit(v2Counter);
         assertThat(legacyCounter.counter, equalTo(v2Counter.counter));
+    }
+
+    /**
+     * Multi-lines where each line continues from the end of the previous one, as is common in OSM data, store the shared
+     * vertex only once, and still reconstruct exactly and visit the same segments as the legacy format.
+     */
+    public void testJoinedMultiLine() throws IOException {
+        int numLines = randomIntBetween(2, 10);
+        List<Line> lines = new ArrayList<>(numLines);
+        double x = randomDoubleBetween(-170, 170, true);
+        double y = randomDoubleBetween(-80, 80, true);
+        int joinedLines = 0;
+        for (int i = 0; i < numLines; i++) {
+            boolean joined = i > 0 && randomBoolean();
+            if (i > 0 && joined == false) {
+                x += 0.01;
+                y += 0.01;
+            }
+            joinedLines += joined ? 1 : 0;
+            int numVertices = randomIntBetween(2, 20);
+            double[] xs = new double[numVertices];
+            double[] ys = new double[numVertices];
+            for (int v = 0; v < numVertices; v++) {
+                if (v > 0) {
+                    x += randomDoubleBetween(0.0001, 0.001, true);
+                    y += randomDoubleBetween(-0.001, 0.001, true);
+                }
+                xs[v] = x;
+                ys[v] = y;
+            }
+            lines.add(new Line(xs, ys));
+        }
+        MultiLine multiLine = new MultiLine(lines);
+        BytesRef v2Bytes = writeV2(multiLine);
+
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(v2Bytes);
+        assertThat(reader.getGeometry(CoordinateEncoder.GEO), equalTo(quantize(multiLine)));
+        int totalVertices = lines.stream().mapToInt(Line::length).sum();
+        assertThat(reader.getVertexTable().size(), equalTo(totalVertices - joinedLines));
+        assertSameSegmentsAsLegacy(multiLine, v2Bytes);
+    }
+
+    public void testLineSegmentsMatchLegacy() throws IOException {
+        Geometry geometry = randomBoolean() ? GeometryTestUtils.randomLine(false) : GeometryTestUtils.randomMultiLine(false);
+        assertSameSegmentsAsLegacy(geometry, writeV2(geometry));
+    }
+
+    /** The last segment returns to an earlier vertex, so its second ordinal precedes its first. */
+    public void testLineReturningToPreviousVertex() throws IOException {
+        Line line = new Line(new double[] { 0, 1, 2, 1 }, new double[] { 0, 1, 0, 1 });
+        assertSameSegmentsAsLegacy(line, writeV2(line));
+    }
+
+    private static BytesRef writeV2(Geometry geometry) throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(geometry));
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        return GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
+    }
+
+    private static void assertSameSegmentsAsLegacy(Geometry geometry, BytesRef v2Bytes) throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(geometry));
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+        GeometryDocValueReader legacyReader = new GeometryDocValueReader();
+        legacyReader.reset(legacyBytes);
+        RecordingVisitor legacy = new RecordingVisitor();
+        legacyReader.visit(legacy);
+        GeometryDocValueReader v2Reader = new GeometryDocValueReader();
+        v2Reader.reset(v2Bytes);
+        RecordingVisitor v2 = new RecordingVisitor();
+        v2Reader.visit(v2);
+        assertThat(v2.components, equalTo(legacy.components));
+    }
+
+    private static MultiLine quantize(MultiLine multiLine) {
+        List<Line> lines = new ArrayList<>();
+        for (Line line : multiLine) {
+            double[] xs = new double[line.length()];
+            double[] ys = new double[line.length()];
+            for (int i = 0; i < line.length(); i++) {
+                xs[i] = CoordinateEncoder.GEO.decodeX(CoordinateEncoder.GEO.encodeX(line.getX(i)));
+                ys[i] = CoordinateEncoder.GEO.decodeY(CoordinateEncoder.GEO.encodeY(line.getY(i)));
+            }
+            lines.add(new Line(xs, ys));
+        }
+        return new MultiLine(lines);
+    }
+
+    /** Records every visited component, including its metadata, in visiting order. */
+    private static class RecordingVisitor extends TriangleCounterVisitor {
+        final List<String> components = new ArrayList<>();
+
+        @Override
+        public void visitPoint(int x, int y) {
+            components.add("point " + x + " " + y);
+        }
+
+        @Override
+        public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
+            components.add("line " + aX + " " + aY + " " + bX + " " + bY + " " + metadata);
+        }
+
+        @Override
+        public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
+            components.add("triangle " + aX + " " + aY + " " + bX + " " + bY + " " + cX + " " + cY + " " + metadata);
+        }
     }
 
     private static class TriangleCounterVisitor implements TriangleTreeVisitor {

@@ -39,7 +39,7 @@ import java.util.List;
  *   LINE(1):               numVertices(VInt)
  *   POLYGON(2):            numRings(VInt), [numVertices(VInt)]...
  *   MULTIPOINT(3):         count(VInt)
- *   MULTILINE(4):          count(VInt), [numVertices(VInt)]...
+ *   MULTILINE(4):          count(VInt), [numVertices &lt;&lt; 1 | joined (VInt)]...
  *   MULTIPOLYGON(5):       count(VInt), [POLYGON encoding]...
  *   GEOMETRYCOLLECTION(6): count(VInt), [recursive geometry]...
  *   RECTANGLE(7):          (2 vertices: min, max)
@@ -47,6 +47,10 @@ import java.util.List;
  *
  * <p>Polygon rings are stored WITHOUT the closing vertex (which always equals the first vertex)
  * to save space. The closing vertex is restored during reading.
+ *
+ * <p>Lines in a multi-line often continue from where the previous line ended. Such a line is flagged as joined,
+ * and its first vertex is not stored again, since it equals the last vertex of the previous line. This also keeps
+ * the ordinals of every segment consecutive, which the triangle tree relies on to store lines compactly.
  */
 public class GeometryConnectivityWriter {
 
@@ -100,7 +104,15 @@ public class GeometryConnectivityWriter {
          * shared with the tessellated triangles where possible.
          */
         private void appendVertex(double x, double y) {
-            vertexTableBuilder.appendVertex(encoder.encodeX(encoder.normalizeX(x)), encoder.encodeY(encoder.normalizeY(y)));
+            vertexTableBuilder.appendVertex(encodeX(x), encodeY(y));
+        }
+
+        private int encodeX(double x) {
+            return encoder.encodeX(encoder.normalizeX(x));
+        }
+
+        private int encodeY(double y) {
+            return encoder.encodeY(encoder.normalizeY(y));
         }
 
         @Override
@@ -162,8 +174,16 @@ public class GeometryConnectivityWriter {
         public Void visit(MultiLine multiLine) throws IOException {
             out.writeByte(TYPE_MULTILINE);
             out.writeVInt(multiLine.size());
+            Line previous = null;
             for (Line line : multiLine) {
-                writeLine(line);
+                boolean joined = previous != null
+                    && encodeX(line.getX(0)) == encodeX(previous.getX(previous.length() - 1))
+                    && encodeY(line.getY(0)) == encodeY(previous.getY(previous.length() - 1));
+                out.writeVInt(line.length() << 1 | (joined ? 1 : 0));
+                for (int i = joined ? 1 : 0; i < line.length(); i++) {
+                    appendVertex(line.getX(i), line.getY(i));
+                }
+                previous = line;
             }
             return null;
         }

@@ -182,7 +182,16 @@ public class TriangleTreeWriter {
                 metadata |= component.bc ? BC_FROM_TRIANGLE : 0;
                 metadata |= component.ca ? CA_FROM_TRIANGLE : 0;
             }
+            metadata |= componentFlags();
             out.writeByte(metadata);
+        }
+
+        /**
+         * Format-specific metadata bits for the component, combined with the shared bits above. They may only use bits
+         * the shared metadata leaves unset for the component type.
+         */
+        byte componentFlags() {
+            return 0;
         }
 
         abstract void writeComponent(StreamOutput out) throws IOException;

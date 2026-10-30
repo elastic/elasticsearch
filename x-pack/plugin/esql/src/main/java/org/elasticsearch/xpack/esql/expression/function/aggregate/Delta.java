@@ -50,6 +50,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         .extendedDescription(PromqlFunctionDefinition.GAUGE_FAMILY_BEHAVIOR)
         .example("delta(cpu_temp_celsius[2h])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .stdDivergence("Not supported yet on native histograms, such as `delta(h[5m])`.")
         .name("delta");
 
     private final Expression timestamp;

@@ -22,6 +22,6 @@
 count_over_time(http_requests_total[5m])
 ```
 
-**Differences from Prometheus**
+**Differences from {{prom}}**
 
 Returns a `long` integer count rather than a floating-point value.

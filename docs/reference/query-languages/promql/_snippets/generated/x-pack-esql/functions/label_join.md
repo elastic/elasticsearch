@@ -7,6 +7,8 @@
 :::{include} brief-summary/label_join.md
 :::
 
+The destination may be a new label or may overwrite a stored label (a dimension or `__name__`).
+
 **Return type**
 
 `instant_vector`
@@ -31,6 +33,6 @@
 sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))
 ```
 
-**Differences from Prometheus**
+**Differences from {{prom}}**
 
-Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` aggregation. The destination may be a new label or may overwrite a stored label (a dimension or `__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Reading or overwriting `__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+Not supported yet outside an enclosing `by(...)` aggregation, such as a call that isn't aggregated or one under `without(...)`, over an aggregation, such as `label_replace(sum by (job) (x), ...)`, or with a destination label named `step`, which is an output column of the `PROMQL` command. Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.

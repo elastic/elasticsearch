@@ -46,6 +46,16 @@ public class PromqlBuiltinFunctionDefinitions {
      * aggregate function to build: the ctor reference passes the input field through unchanged, and the PromQL
      * translator (see {@code AcrossSeriesReduction#translate}) appends the ranking/limiting step itself.
      */
+    private static final String LABEL_FUNCTION_NOT_SUPPORTED_YET =
+        "Not supported yet outside an enclosing `by(...)` aggregation, such as a call that isn't aggregated or one under "
+            + "`without(...)`, over an aggregation, such as `label_replace(sum by (job) (x), ...)`, or with a destination "
+            + "label named `step`, which is an output column of the `PROMQL` command. ";
+
+    private static final String SORT_DIVERGENCE =
+        "Not supported yet below the top level of the query, such as `abs(sort(x))`, where {{prom}} applies the ordering "
+            + "too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
+            + "labels, where {{es}} returns them in input order.";
+
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryReduceSortDesc(PromqlFunctionDefinition.K)
         .description(
@@ -54,12 +64,13 @@ public class PromqlBuiltinFunctionDefinitions {
         )
         .example("topk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
-        .differenceFromPrometheus(
-            "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
-                + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
-                + "A `without` grouping clause is not yet supported. "
+        .stdDivergence(
+            "`without(...)`, such as `topk without (instance) (1, x)`, and a `k` that isn't a number literal, such as "
+                + "`topk(scalar(a), b)`, aren't supported yet. "
+                + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit. "
                 + "A `NaN` value ranks above `+Inf` rather than last, so a series whose value is `NaN` wins a slot ahead "
-                + "of a series with a comparable value. Prometheus ranks `NaN` farthest from the top and returns the "
+                + "of a series with a comparable value. {{prom}} ranks `NaN` farthest from the top and returns the "
                 + "comparable series instead. `bottomk` is unaffected, because its ascending ranking already places "
                 + "`NaN` last."
         )
@@ -77,10 +88,10 @@ public class PromqlBuiltinFunctionDefinitions {
         )
         .example("bottomk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
-            "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
-                + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
-                + "A `without` grouping clause is not yet supported."
+        .stdDivergence(
+            "`without(...)`, such as `bottomk without (instance) (1, x)`, isn't supported yet. "
+                + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit."
         )
         .name("bottomk");
 
@@ -96,13 +107,13 @@ public class PromqlBuiltinFunctionDefinitions {
         )
         .example("limitk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
-            "Within a shard, elements follow storage order (first-k) rather than truly arbitrary order. "
+        .stdDivergence(
+            "`without(...)`, such as `limitk without (instance) (1, x)`, isn't supported yet. "
+                + "Within a shard, elements follow storage order (first-k) rather than truly arbitrary order. "
                 + "Across shards the merge keeps k of those partials with no global tsid sort, so the subset is not "
                 + "stable. "
                 + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
-                + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
-                + "A `without` grouping clause is not yet supported."
+                + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit."
         )
         .name("limitk");
 
@@ -116,11 +127,12 @@ public class PromqlBuiltinFunctionDefinitions {
         .description("Returns a ratio `r` of the series from the input vector, keeping their full label set.")
         .example("limit_ratio(0.5, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
-            "Series are kept by hashing the series identity rather than the Prometheus label serialization, "
+        .stdDivergence(
+            "`without(...)`, such as `limit_ratio without (instance) (0.5, x)`, isn't supported yet. "
+                + "Series are kept by hashing the series identity rather than the {{prom}} label serialization, "
                 + "so the kept subset has the same statistical properties but is generally a different subset than "
-                + "the one Prometheus keeps. `by` is a membership no-op as in "
-                + "Prometheus. A `without` grouping clause is not yet supported."
+                + "the one {{prom}} keeps. `by` is a membership no-op as in "
+                + "{{prom}}."
         )
         .name("limit_ratio");
 
@@ -158,13 +170,14 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("""
             sum by (job2) (label_replace(http_requests_total, "job2", "$1", "job", "(.*)-server"))""")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
-            "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
-                + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
-                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Regular expressions use "
-                + "the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no "
-                + "backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus. Reading or overwriting "
-                + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
+        .extendedDescription(
+            "The destination may be a new label or may overwrite a stored label (a dimension or `__name__`). Regular "
+                + "expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement "
+                + "expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus."
+        )
+        .stdDivergence(
+            LABEL_FUNCTION_NOT_SUPPORTED_YET
+                + "Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; "
                 + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
         )
         .name("label_replace");
@@ -196,11 +209,10 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("""
             sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))""")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
-            "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
-                + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
-                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Reading or overwriting "
-                + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
+        .extendedDescription("The destination may be a new label or may overwrite a stored label (a dimension or `__name__`).")
+        .stdDivergence(
+            LABEL_FUNCTION_NOT_SUPPORTED_YET
+                + "Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; "
                 + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
         )
         .name("label_join");
@@ -214,11 +226,7 @@ public class PromqlBuiltinFunctionDefinitions {
             "Ordering is observable only on instant queries. Range queries return the series in their input order, "
                 + "without applying the requested ordering."
         )
-        .differenceFromPrometheus(
-            "Supported in this version only as the outermost function of the query. Prometheus also applies an ordering "
-                + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
-                + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
-        )
+        .stdDivergence(SORT_DIVERGENCE)
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort");
 
@@ -231,11 +239,7 @@ public class PromqlBuiltinFunctionDefinitions {
             "Ordering is observable only on instant queries. Range queries return the series in their input order, "
                 + "without applying the requested ordering."
         )
-        .differenceFromPrometheus(
-            "Supported in this version only as the outermost function of the query. Prometheus also applies an ordering "
-                + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
-                + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
-        )
+        .stdDivergence(SORT_DIVERGENCE)
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort_desc");
 

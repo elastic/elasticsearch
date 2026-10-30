@@ -259,6 +259,13 @@ tasks.named("internalClusterTest").configure {
   def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql")
   if (buildParams.ci) {
     systemProperty 'generateDocs', 'assert'
+    // In assert mode the test compares generated snippets against the committed ones that doFirst syncs
+    // in from snippetsDocFolder, so that folder's content determines the outcome. Declare it as a relative
+    // input (only on this CI branch " in the non-CI 'write' branch below snippetsDocFolder is an OUTPUT)
+    // so a change to only those snippets invalidates the now-cacheable task instead of yielding a stale pass.
+    inputs.dir(snippetsDocFolder)
+      .withPropertyName('esqlGeneratedSnippets')
+      .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
     doFirst {
       injected.fs.sync {
         from snippetsDocFolder

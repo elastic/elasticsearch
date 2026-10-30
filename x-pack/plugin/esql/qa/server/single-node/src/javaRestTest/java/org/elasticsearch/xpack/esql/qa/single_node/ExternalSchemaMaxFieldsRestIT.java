@@ -204,9 +204,6 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     private void putGlobDataset(String dataset, String dir, String ext, String resolution, Map<String, Object> extra) throws IOException {
         Map<String, Object> settings = new LinkedHashMap<>(extra);
         settings.put("schema_resolution", resolution);
-        if (resolution.equals("first_file_wins")) {
-            settings.put("file_sort_by", "name");
-        }
         DatasetRegistry.putDataset(client(), dataset, DATA_SOURCE, FIXTURE_DIR.resolve(dir).toUri() + "*." + ext, settings);
         datasets.add(dataset);
     }

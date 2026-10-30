@@ -316,6 +316,10 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         return max;
     }
 
+    /**
+     * Whether the bytes at {@code id} equal {@code other}. Compares in place and writes no fields, so
+     * several threads may call it at once while nothing appends.
+     */
     public boolean bytesEqual(long id, BytesRef other) {
         final long startOffset = getOffset(id);
         final long length = getOffset(id + 1) - startOffset;

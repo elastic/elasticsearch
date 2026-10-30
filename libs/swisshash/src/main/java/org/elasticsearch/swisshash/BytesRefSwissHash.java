@@ -185,7 +185,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     /**
-     * Finds an {@code id} by a {@code key}.
+     * Finds an {@code id} by a {@code key}. Reads only, comparing keys in place with
+     * {@link BytesRefArray#bytesEqual}: {@link #concurrentSafeFind} relies on it, so the cores'
+     * {@code find(BytesRef, long)} must not write any field either.
      */
     @Override
     public long find(BytesRef key) {
@@ -195,6 +197,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         } else {
             return bigCore.find(key, hash);
         }
+    }
+
+    @Override
+    public long concurrentSafeFind(BytesRef key) {
+        return find(key);
     }
 
     /**

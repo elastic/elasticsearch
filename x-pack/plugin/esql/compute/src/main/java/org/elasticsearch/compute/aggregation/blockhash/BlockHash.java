@@ -88,6 +88,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
      *     inside the {@link Page}. Close it to release those references.
      * </p>
+     * <p>
+     *     Not safe to call from several threads at once unless the implementation says so.
+     * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 

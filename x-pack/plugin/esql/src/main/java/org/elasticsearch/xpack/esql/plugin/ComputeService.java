@@ -290,9 +290,18 @@ public class ComputeService {
         return plannerSettings;
     }
 
-    /** The request circuit breaker that tracks this node's compute memory. */
-    CircuitBreaker breaker() {
-        return blockFactory.breaker();
+    /**
+     * Charges the request breaker for the copy of a plan's local data that the transport layer serializes into a request to
+     * another node and holds in its outbound buffers, which no breaker tracks. Release the returned reservation once that
+     * node has responded.
+     */
+    Releasable reserveSerializedPlan(long localDataBytes, String label) {
+        if (localDataBytes == 0) {
+            return () -> {};
+        }
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(localDataBytes, label);
+        return Releasables.releaseOnce(() -> breaker.addWithoutBreaking(-localDataBytes));
     }
 
     FormatReaderRegistry formatReaderRegistry() {

@@ -271,13 +271,16 @@ public class PlannerUtilsTests extends ESTestCase {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         int positions = between(1, 100);
         Block shared = blockFactory.newConstantIntBlockWith(1, positions);
-        Block other = blockFactory.newConstantIntBlockWith(2, positions);
+        Block equalCopy = blockFactory.newConstantIntBlockWith(1, positions);
+        assertThat(equalCopy, equalTo(shared));
         List<Attribute> output = List.of(field("a"));
-        FragmentExec fragment = new FragmentExec(new LocalRelation(Source.EMPTY, output, LocalSupplier.of(new Page(shared, other))));
+        FragmentExec fragment = new FragmentExec(
+            new LocalRelation(Source.EMPTY, List.of(field("a"), field("b")), LocalSupplier.of(new Page(shared, equalCopy)))
+        );
         LocalSourceExec joinData = new LocalSourceExec(Source.EMPTY, output, new CopyingLocalSupplier(new Page(shared)));
         HashJoinExec join = new HashJoinExec(Source.EMPTY, fragment, joinData, List.of(), List.of(), List.of());
 
-        assertThat(PlannerUtils.localDataBytes(join), equalTo(shared.ramBytesUsed() + other.ramBytesUsed()));
+        assertThat(PlannerUtils.localDataBytes(join), equalTo(shared.ramBytesUsed() + equalCopy.ramBytesUsed()));
         assertThat(PlannerUtils.localDataBytes(localSource(output)), equalTo(0L));
     }
 

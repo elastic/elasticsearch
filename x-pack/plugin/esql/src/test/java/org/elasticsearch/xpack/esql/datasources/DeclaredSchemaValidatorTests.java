@@ -189,7 +189,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         // assertion lands mid-list and is one edit away from matching nothing and passing for free.
         assertThat(
             e.getMessage(),
-            containsString("supported types are [boolean, date_nanos, datetime, double, integer, ip, keyword, long, unsigned_long]")
+            containsString("supported types are [boolean, date, date_nanos, double, integer, ip, keyword, long, unsigned_long]")
         );
     }
 

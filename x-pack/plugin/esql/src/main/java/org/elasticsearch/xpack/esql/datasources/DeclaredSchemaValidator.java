@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -158,7 +157,7 @@ public final class DeclaredSchemaValidator {
     private static List<String> supportedTypeNames() {
         Set<String> names = new TreeSet<>();
         for (DataType t : DECLARABLE_TYPES) {
-            names.add(t.typeName().toLowerCase(Locale.ROOT));
+            names.add(t.esType());
         }
         return List.copyOf(names);
     }

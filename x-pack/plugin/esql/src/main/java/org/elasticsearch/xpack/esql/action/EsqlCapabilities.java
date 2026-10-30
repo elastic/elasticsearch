@@ -4631,6 +4631,11 @@ public class EsqlCapabilities {
          */
         FIX_FOLD_NULL,
 
+        /**
+         * The {@code Project}s of a chain of {@code LOOKUP JOIN} blocks are hoisted in ONE optimizer pass.
+         */
+        HOIST_PROJECTS_PAST_LOOKUP_JOINS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

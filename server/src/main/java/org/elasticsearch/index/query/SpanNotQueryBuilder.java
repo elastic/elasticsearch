@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class SpanNotQueryBuilder extends LeafQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
+public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_not";
 
     /** the default pre parameter size */
@@ -234,11 +235,11 @@ public class SpanNotQueryBuilder extends LeafQueryBuilder<SpanNotQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
 
-        Query includeQuery = this.include.toQuery(context);
+        Query includeQuery = this.include.toQuery(context, queryVisitor);
         assert includeQuery instanceof SpanQuery;
-        Query excludeQuery = this.exclude.toQuery(context);
+        Query excludeQuery = this.exclude.toQuery(context, queryVisitor);
         assert excludeQuery instanceof SpanQuery;
 
         return new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);

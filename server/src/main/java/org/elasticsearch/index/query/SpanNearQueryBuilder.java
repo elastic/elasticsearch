@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -202,11 +203,13 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        // Gaps only exist in the built query, so the caller's visitor has to walk it as a whole. Don't charge the clauses here as well.
+        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         SpanQueryBuilder queryBuilder = clauses.get(0);
         boolean isGap = queryBuilder instanceof SpanGapQueryBuilder;
         Query query = null;
         if (isGap == false) {
-            query = queryBuilder.toQuery(context);
+            query = queryBuilder.toQuery(context, clauseVisitor);
             assert query instanceof SpanQuery;
         }
         if (clauses.size() == 1) {
@@ -247,7 +250,7 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
                 int gap = ((SpanGapQueryBuilder) queryBuilder).width();
                 builder.addGap(gap);
             } else {
-                query = clauses.get(i).toQuery(context);
+                query = clauses.get(i).toQuery(context, clauseVisitor);
                 assert query instanceof SpanQuery;
                 builder.addClause((SpanQuery) query);
             }

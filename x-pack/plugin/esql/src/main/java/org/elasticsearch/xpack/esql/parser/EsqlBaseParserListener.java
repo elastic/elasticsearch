@@ -1047,18 +1047,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
   /**
-   * Enter a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -1083,66 +1071,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
   /**
-   * Enter a parse tree produced by the {@code logicalInMultiColumnSubquery}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code logicalInMultiColumnSubquery}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code isNull}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterIsNull(EsqlBaseParser.IsNullContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code isNull}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitIsNull(EsqlBaseParser.IsNullContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code logicalInSubquery}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code logicalInSubquery}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code regexExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code regexExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code logicalIn}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code logicalIn}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitLogicalIn(EsqlBaseParser.LogicalInContext ctx);
-  /**
    * Enter a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -1155,87 +1083,111 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx);
   /**
-   * Enter a parse tree produced by the {@code likeExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * Enter a parse tree produced by the {@code logicalIn}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void enterLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
+  void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx);
   /**
-   * Exit a parse tree produced by the {@code likeExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * Exit a parse tree produced by the {@code logicalIn}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void exitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
+  void exitLogicalIn(EsqlBaseParser.LogicalInContext ctx);
   /**
-   * Enter a parse tree produced by the {@code rlikeExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * Enter a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void enterRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
+  void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
   /**
-   * Exit a parse tree produced by the {@code rlikeExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * Exit a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
+  void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code isNull}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void enterIsNull(EsqlBaseParser.IsNullContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code isNull}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void exitIsNull(EsqlBaseParser.IsNullContext ctx);
   /**
    * Enter a parse tree produced by the {@code likeListExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
   void enterLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Exit a parse tree produced by the {@code likeListExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
   void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code rlikeListExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
   void enterRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
   /**
    * Exit a parse tree produced by the {@code rlikeListExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
   void exitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * Enter a parse tree produced by the {@code likeExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  void enterLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * Exit a parse tree produced by the {@code likeExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  void exitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code valueExpressionDefault}
-   * labeled alternative in {@link EsqlBaseParser#valueExpression}.
+   * Enter a parse tree produced by the {@code rlikeExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void enterValueExpressionDefault(EsqlBaseParser.ValueExpressionDefaultContext ctx);
+  void enterRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
   /**
-   * Exit a parse tree produced by the {@code valueExpressionDefault}
-   * labeled alternative in {@link EsqlBaseParser#valueExpression}.
+   * Exit a parse tree produced by the {@code rlikeExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void exitValueExpressionDefault(EsqlBaseParser.ValueExpressionDefaultContext ctx);
+  void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code comparison}
-   * labeled alternative in {@link EsqlBaseParser#valueExpression}.
+   * Enter a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void enterComparison(EsqlBaseParser.ComparisonContext ctx);
+  void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
   /**
-   * Exit a parse tree produced by the {@code comparison}
-   * labeled alternative in {@link EsqlBaseParser#valueExpression}.
+   * Exit a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    */
-  void exitComparison(EsqlBaseParser.ComparisonContext ctx);
+  void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#valueExpression}.
+   * @param ctx the parse tree
+   */
+  void enterValueExpression(EsqlBaseParser.ValueExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#valueExpression}.
+   * @param ctx the parse tree
+   */
+  void exitValueExpression(EsqlBaseParser.ValueExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code operatorExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#operatorExpression}.

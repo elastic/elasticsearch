@@ -1226,18 +1226,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1262,49 +1250,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) { }
+  @Override public void enterLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterIsNull(EsqlBaseParser.IsNullContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitIsNull(EsqlBaseParser.IsNullContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
+  @Override public void exitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1322,37 +1274,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
+  @Override public void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
+  @Override public void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { }
+  @Override public void enterIsNull(EsqlBaseParser.IsNullContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { }
+  @Override public void exitIsNull(EsqlBaseParser.IsNullContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1382,37 +1322,49 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
+  @Override public void enterLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) { }
+  @Override public void exitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterValueExpressionDefault(EsqlBaseParser.ValueExpressionDefaultContext ctx) { }
+  @Override public void enterRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitValueExpressionDefault(EsqlBaseParser.ValueExpressionDefaultContext ctx) { }
+  @Override public void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterComparison(EsqlBaseParser.ComparisonContext ctx) { }
+  @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitComparison(EsqlBaseParser.ComparisonContext ctx) { }
+  @Override public void exitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterValueExpression(EsqlBaseParser.ValueExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitValueExpression(EsqlBaseParser.ValueExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

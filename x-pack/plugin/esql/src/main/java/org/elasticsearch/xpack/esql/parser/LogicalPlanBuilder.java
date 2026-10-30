@@ -516,22 +516,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Expression visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) {
-        Expression value = expression(ctx.valueExpression());
-        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
+    protected Expression inSubquery(
+        ParserRuleContext ctx,
+        EsqlBaseParser.ValueExpressionContext left,
+        EsqlBaseParser.LogicalInSubqueryContext in
+    ) {
         Source source = source(ctx);
-        // InSubquery is a special expression, it has a LogicalPlan as an attribute.
-        Expression e = new InSubquery(source, value, subqueryPlan);
-        return ctx.NOT() == null ? e : new Not(source, e);
-    }
-
-    @Override
-    public Expression visitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) {
-        List<Expression> values = ctx.valueExpression().stream().map(this::expression).toList();
-        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
-        Source source = source(ctx);
-        Expression e = new MultiColumnInSubquery(source, values, subqueryPlan);
-        return ctx.NOT() == null ? e : new Not(source, e);
+        List<EsqlBaseParser.BooleanExpressionContext> columns = parenthesizedList(left);
+        Expression e;
+        if (columns == null) {
+            Expression value = expression(left);
+            LogicalPlan subqueryPlan = visitSubquery(in.subquery());
+            // InSubquery is a special expression, it has a LogicalPlan as an attribute.
+            e = new InSubquery(source, value, subqueryPlan);
+        } else {
+            List<Expression> values = columns.stream().map(this::expression).toList();
+            LogicalPlan subqueryPlan = visitSubquery(in.subquery());
+            e = new MultiColumnInSubquery(source, values, subqueryPlan);
+        }
+        return in.NOT() == null ? e : new Not(source, e);
     }
 
     @Override

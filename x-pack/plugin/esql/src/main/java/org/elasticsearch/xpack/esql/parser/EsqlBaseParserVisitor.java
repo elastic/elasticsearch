@@ -635,13 +635,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
   /**
-   * Visit a parse tree produced by the {@code matchExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -656,41 +649,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
   /**
-   * Visit a parse tree produced by the {@code logicalInMultiColumnSubquery}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code isNull}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitIsNull(EsqlBaseParser.IsNullContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code logicalInSubquery}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code regexExpression}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code logicalIn}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitLogicalIn(EsqlBaseParser.LogicalInContext ctx);
-  /**
    * Visit a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -698,53 +656,67 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx);
   /**
-   * Visit a parse tree produced by the {@code likeExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * Visit a parse tree produced by the {@code logicalIn}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
+  T visitLogicalIn(EsqlBaseParser.LogicalInContext ctx);
   /**
-   * Visit a parse tree produced by the {@code rlikeExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * Visit a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
+  T visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code isNull}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIsNull(EsqlBaseParser.IsNullContext ctx);
   /**
    * Visit a parse tree produced by the {@code likeListExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code rlikeListExpression}
-   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
+   * Visit a parse tree produced by the {@code likeExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
+  T visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
   /**
-   * Visit a parse tree produced by the {@code valueExpressionDefault}
-   * labeled alternative in {@link EsqlBaseParser#valueExpression}.
+   * Visit a parse tree produced by the {@code rlikeExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitValueExpressionDefault(EsqlBaseParser.ValueExpressionDefaultContext ctx);
+  T visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
   /**
-   * Visit a parse tree produced by the {@code comparison}
-   * labeled alternative in {@link EsqlBaseParser#valueExpression}.
+   * Visit a parse tree produced by the {@code matchExpression}
+   * labeled alternative in {@link EsqlBaseParser#predicate}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitComparison(EsqlBaseParser.ComparisonContext ctx);
+  T visitMatchExpression(EsqlBaseParser.MatchExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#valueExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitValueExpression(EsqlBaseParser.ValueExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code operatorExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#operatorExpression}.

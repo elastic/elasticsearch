@@ -211,7 +211,10 @@ public class LetParserTests extends AbstractStatementParserTests {
     public void testBareInBindingRejected() {
         assumeLet();
         expectValidationError("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN top3", "no viable alternative");
-        expectValidationError("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN tbl", "mismatched input 'tbl' expecting '('");
+        expectValidationError(
+            "LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN tbl",
+            "no viable alternative at input 'IN tbl'"
+        );
     }
 
     /** {@code x IN (name)} stays a plain single-element value list (folded to equality), even when name is a LET binding. */

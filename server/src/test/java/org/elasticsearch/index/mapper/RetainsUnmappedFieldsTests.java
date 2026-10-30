@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -184,25 +185,35 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
 
     public void testStrictColumnarDropsUnmappedFields() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        MapperService mapperService = createMapperService(settings, topMapping(b -> {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> topMapping(b -> {
             b.field("dynamic", false);
             b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
-        }));
-        assertFalse(createSearchExecutionContext(mapperService).unmappedFields().mayExist());
-        assertMayHoldUnmappedFields(mapperService, b -> b.field("field", "value").field("unmapped", "value"), false);
+        });
+        // Without the sink, as on an index created before it, nothing is read, even when the segments cannot be inspected.
+        IndexVersion beforeSink = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        MapperService withoutSink = createMapperService(beforeSink, settings, mapping.get());
+        assertFalse(createSearchExecutionContext(withoutSink).unmappedFields().mayExist());
+        assertMayHoldUnmappedFields(withoutSink, b -> b.field("field", "value").field("unmapped", "value"), false);
+        // With the sink, only the segments can tell whether it absorbed: dynamic: false absorbs nothing, so none has its keyed field.
+        // Without the feature flag no index has the sink, so nothing is read, as before the version gate.
+        MapperService withSink = createMapperService(settings, mapping.get());
+        assertThat(
+            createSearchExecutionContext(withSink).unmappedFields().mayExist(),
+            equalTo(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled())
+        );
+        assertMayHoldUnmappedFields(withSink, b -> b.field("field", "value").field("unmapped", "value"), false);
     }
 
     public void testStrictColumnarSinkHoldsUnmappedFields() throws IOException {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), randomFrom("synthetic", "columnar_stored"))
             .build();
-        MapperService mapperService = createMapperService(
-            settings,
-            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
-        );
+        MapperService mapperService = createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
+        }));
         String value = randomAlphanumericOfLength(5);
         // Neither source has an _ignored_source or _ignored field for an absorbed field to go by: only the sink's keyed field tells.
         assertMayHoldUnmappedFields(mapperService, b -> b.field("field", value), false);

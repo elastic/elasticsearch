@@ -785,7 +785,7 @@ public class RootObjectMapper extends ObjectMapper {
         if (str.equalsIgnoreCase("runtime")) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [runtime]");
         }
-        // Dynamic.FLATTENED is an internal resolved value only; it is not user-settable (Dynamic.valueOf would otherwise accept it).
+        // Dynamic.FLATTENED is accepted only at the root (see ObjectMapper.TypeParser), never per prefix (Dynamic.valueOf would accept it).
         if (str.equalsIgnoreCase("flattened")) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [flattened]");
         }

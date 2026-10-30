@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -29,7 +30,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * The implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices as full dotted keys. It is a metadata field
+ * The implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices as full dotted keys. It exists on every index
+ * for which {@link #isEnabled} holds, and stays empty until the root mapping sets {@code dynamic: flattened}. It is a metadata field
  * so that its name is reserved like any other {@code _}-prefixed name: a user mapping named {@code _unmapped} fails the duplicate-name
  * check and a document key {@code _unmapped} is rejected by {@link MetadataFieldMapper#parseCreateField}. All flattened behavior comes
  * from a wrapped {@link FlattenedFieldMapper} built with no user parameters; the sink itself is never serialized.
@@ -43,8 +45,18 @@ import java.util.Map;
 public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(
-        c -> c.getIndexSettings().isFlattenedUnmappedFieldsEnabled() ? new UnmappedSinkFieldMapper(buildDelegate(c)) : null
+        c -> isEnabled(c.getIndexSettings()) ? new UnmappedSinkFieldMapper(buildDelegate(c)) : null
     );
+
+    /**
+     * Whether an index has the sink, and so accepts {@code dynamic: flattened} at its root. The flag is fixed per build, and the mode and
+     * creation version cannot change on an existing index, so the sink is present on every parse of its mapping, or on none.
+     */
+    public static boolean isEnabled(IndexSettings indexSettings) {
+        return FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()
+            && indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+    }
 
     private final FlattenedFieldMapper delegate;
 
@@ -99,12 +111,20 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * The sink takes part in the columnar batch path whenever its wrapped flattened mapper can batch the absorbed leaves. Its own
+     * {@code true} so that a sink, present on every new strict columnar index, does not turn off the columnar batch path for the whole
+     * index. Whether a batch can absorb leaves is asked per batch through {@link #supportsColumnarAbsorb}. Its own
      * {@code doSupportsColumnarParse} is deliberately left at the inherited {@code false}: a document key {@code _unmapped} resolves to the
      * sink as a column of its own, and must fall back to the sequential parser, which rejects it, rather than be mapped as a column.
      */
     @Override
     public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    /**
+     * Whether the columnar batch path can absorb unmapped leaves into the sink, which holds when its wrapped flattened mapper can batch.
+     */
+    public boolean supportsColumnarAbsorb(IndexSettings indexSettings) {
         return delegate.supportsColumnarParse(indexSettings);
     }
 

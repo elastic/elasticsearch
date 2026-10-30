@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -898,6 +899,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             })));
             assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
         }
+    }
+
+    /**
+     * Without the feature flag, as in release builds, {@code dynamic: flattened} is parsed as a boolean like any other unknown value, so
+     * the error doesn't name it, even on a strict columnar index.
+     */
+    public void testDynamicFlattenedIsNotBooleanWithoutFeatureFlag() {
+        assumeFalse("flattened_unmapped_fields must be disabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.field("dynamic", "flattened")))
+        );
+        assertThat(e.getMessage(), containsString("Could not convert [dynamic.dynamic] to boolean"));
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepOnObject() {

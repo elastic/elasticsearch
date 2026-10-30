@@ -1418,23 +1418,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      */
     public void testUnmappedFieldsInsideNestedObjects() throws Exception {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
-        DocumentMapper mapper = createMapperService(
-            settings,
-            mapping(
-                b -> b.startObject("n")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("k")
-                    .field("type", "keyword")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        ).documentMapper();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
+            b.startObject("n").field("type", "nested");
+            b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
         var filter = new CharacterRunAutomaton(
             FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "n.secret", "top_secret" })
         );
@@ -1555,11 +1547,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     private DocumentMapper unmappedFieldsMapper() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
-        return createMapperService(settings, mapping(b -> b.startObject("name").field("type", "keyword").endObject())).documentMapper();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties").startObject("name").field("type", "keyword").endObject().endObject();
+        })).documentMapper();
     }
 
     /** The keys of the {@code count} slots of {@code slots}, in the order they are stored. */

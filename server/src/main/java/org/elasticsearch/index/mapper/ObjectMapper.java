@@ -123,18 +123,11 @@ public class ObjectMapper extends Mapper {
         /**
          * Get the root-level dynamic setting for a Mapping
          *
-         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}, unless the implicit flattened
-         * {@code _unmapped} sink is present, in which case unmapped fields default to being absorbed ({@link #FLATTENED}).
+         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}.
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
-            if (rootDynamic != null) {
-                return rootDynamic;
-            }
-            if (mappingLookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME) != null) {
-                return FLATTENED;
-            }
-            return Defaults.DYNAMIC;
+            return rootDynamic != null ? rootDynamic : Defaults.DYNAMIC;
         }
     }
 
@@ -621,6 +614,27 @@ public class ObjectMapper extends Mapper {
             }
         }
 
+        /**
+         * {@code dynamic: flattened} absorbs unmapped fields into the {@code _unmapped} sink, so it is accepted only where the sink exists
+         * (see {@link UnmappedSinkFieldMapper#isEnabled}), and only at the root: in strict columnar mode a sub-object's {@code dynamic} is
+         * kept in {@code prefix_properties}, which does not accept {@code flattened}.
+         */
+        private static void validateDynamicFlattened(IndexSettings indexSettings, Builder builder) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                throw new MapperParsingException("dynamic [flattened] is only supported in strict columnar mode");
+            }
+            if (UnmappedSinkFieldMapper.isEnabled(indexSettings) == false) {
+                throw new MapperParsingException(
+                    "dynamic [flattened] is not supported on indices created before ["
+                        + IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR.toReleaseVersion()
+                        + "]"
+                );
+            }
+            if (builder instanceof RootObjectMapper.Builder == false) {
+                throw new MapperParsingException("dynamic [flattened] is only supported on the root object");
+            }
+        }
+
         @SuppressWarnings({ "unchecked", "rawtypes" })
         protected static boolean parseObjectOrDocumentTypeProperties(
             String fieldName,
@@ -637,6 +651,9 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
                     }
                     builder.dynamic(Dynamic.RUNTIME);
+                } else if (value.equalsIgnoreCase("flattened") && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+                    validateDynamicFlattened(parserContext.getIndexSettings(), builder);
+                    builder.dynamic(Dynamic.FLATTENED);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);

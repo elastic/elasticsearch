@@ -176,11 +176,19 @@ public class ClusterInfoSimulator {
                 break;
             }
         }
-        assert assertNodeNonShardHeapUsageIsCorrect(nonShardHeapUsage);
+
+        // Assertions only run in tests
+        assert indexingNodesHaveIdenticalNonShardHeapUsage(nonShardHeapUsage);
+        assert searchNodesHaveZeroNonShardHeapUsage();
+
         return nonShardHeapUsage;
     }
 
-    private boolean assertNodeNonShardHeapUsageIsCorrect(long nonShardHeapUsage) {
+    /**
+     * {@link #nonShardHeapUsage()} assumes every indexing node reports the same {@code nonShardHeapUsage},
+     * and takes the first indexing node's value, so if that stops being true we need to decide which value to use.
+     */
+    private boolean indexingNodesHaveIdenticalNonShardHeapUsage(long nonShardHeapUsage) {
         for (NodeHeapMetrics metrics : initialNodeHeapMetrics.values()) {
             final var routingNode = allocation.routingNodes().node(metrics.nodeId());
             if (routingNode == null || routingNode.node() == null) {
@@ -188,16 +196,30 @@ public class ClusterInfoSimulator {
             }
             final var roles = routingNode.node().getRoles();
             final long nodeNonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
-            if (roles.contains(DiscoveryNodeRole.INDEX_ROLE)) {
-                assert nodeNonShardHeapUsage == nonShardHeapUsage
-                    : "indexing node ["
-                        + metrics.nodeId()
-                        + "] has nonShardHeapUsage ["
-                        + nodeNonShardHeapUsage
-                        + "] but another indexing node has ["
-                        + nonShardHeapUsage
-                        + "]";
-            } else assert !roles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeNonShardHeapUsage == 0L
+            assert roles.contains(DiscoveryNodeRole.INDEX_ROLE) && nodeNonShardHeapUsage != nonShardHeapUsage
+                : "indexing node ["
+                    + metrics.nodeId()
+                    + "] has nonShardHeapUsage ["
+                    + nodeNonShardHeapUsage
+                    + "] but another indexing node has ["
+                    + nonShardHeapUsage
+                    + "]";
+        }
+        return true;
+    }
+
+    /**
+     * Search nodes should all return zero heap usage
+     */
+    private boolean searchNodesHaveZeroNonShardHeapUsage() {
+        for (NodeHeapMetrics metrics : initialNodeHeapMetrics.values()) {
+            final var routingNode = allocation.routingNodes().node(metrics.nodeId());
+            if (routingNode == null || routingNode.node() == null) {
+                continue;
+            }
+            final var roles = routingNode.node().getRoles();
+            final long nodeNonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
+            assert roles.contains(DiscoveryNodeRole.SEARCH_ROLE) && nodeNonShardHeapUsage != 0L
                 : "search node [" + metrics.nodeId() + "] has nonShardHeapUsage [" + nodeNonShardHeapUsage + "]";
         }
         return true;

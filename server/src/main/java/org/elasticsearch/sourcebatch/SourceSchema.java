@@ -126,14 +126,12 @@ public final class SourceSchema {
     }
 
     /**
-     * Like {@link #appendLeaf(String, int)}, but first checks whether the field is {@code predictedIdx}, which skips the
-     * lookup by name. A wrong prediction only costs the lookup, and the result is the same either way.
+     * Like {@link #appendLeaf(String, int)}, but first checks whether the field is at the
+     * given {@code predictedIdx}, which skips the lookup by name. A wrong prediction only
+     * costs the lookup; the result is the same either way.
      *
-     * <p>Rows of the same shape add their fields in the same order, and a schema lists its fields in the order they
-     * were first added, so the field after the previous one is the likely next one. The caller passes that index, as
-     * the successor of the field it resolved last. This is the same idea as the field name predictor in the simdjson
-     * walker, guess the successor, check it, fall back to the lookup, except that no successor has to be learned
-     * because the schema already stores the order.
+     * <p> Rows of the same shape commonly add their fields in the order the schema first saw
+     * them, so the best guess is the index right after the field the caller resolved last.
      */
     public int appendLeaf(String name, int parentIdx, int predictedIdx) {
         return leaves.append(name, parentIdx, predictedIdx);

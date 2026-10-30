@@ -266,6 +266,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         private boolean allowMultipleValues = true;
+        private boolean allowColumnarCodec = true;
         private final IndexSettings indexSettings;
 
         public static Builder docValuesOnly(String name, NumberType type, IndexSettings indexSettings) {
@@ -438,6 +439,16 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Keeps the field's doc values {@code SORTED_NUMERIC} even where the ColumNAR codec would store them, for a field built
+         * inside another mapper rather than mapped in its own right. Only a mapped field is routed to the codec, so such a field
+         * would otherwise write the codec's binary payloads into a format that doesn't expect them.
+         */
+        public Builder disallowColumnarCodec() {
+            this.allowColumnarCodec = false;
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
@@ -469,14 +480,16 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * How the field's doc values are laid out on disk. Fields of a strict columnar index write theirs with the ColumNAR codec,
          * except for those it can't serve yet: an {@code index_terms} field, whose terms and doc values share one
-         * {@code SORTED_NUMERIC} field type, and an index sort field, which Lucene's index sort reads as {@code SORTED_NUMERIC}.
+         * {@code SORTED_NUMERIC} field type, an index sort field, which Lucene's index sort reads as {@code SORTED_NUMERIC}, and a
+         * field whose owner opted it out, see {@link #disallowColumnarCodec()}.
          */
         // TODO: sort an index by a ColumNAR numeric field, as keyword fields can be.
         private DocValuesDiskFormat diskFormat(String fullName) {
             if (docValuesParameters.getValue().enabled() == false) {
                 return DocValuesDiskFormat.NONE;
             }
-            if (indexTerms.getValue() == false
+            if (allowColumnarCodec
+                && indexTerms.getValue() == false
                 && ColumnarDocValuesFormatSelector.useColumnarNumericCodec(indexSettings)
                 && indexSettings.getIndexSortConfig().hasSortOnField(fullName) == false) {
                 return DocValuesDiskFormat.COLUMNAR_BINARY;

@@ -582,11 +582,18 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                         }
                     }
                     for (IndexVersion boundary : probe.versionBoundaries) {
-                        IndexVersion before = IndexVersionUtils.getPreviousVersion(boundary);
-                        if (before.before(IndexVersionUtils.getLowestReadCompatibleVersion())) {
+                        // Once the boundary ages out of the known versions every readable index is at or after
+                        // the gate, so there is no pre-gate build to compare (and getPreviousVersion would throw).
+                        if (boundary.after(IndexVersionUtils.getLowestReadCompatibleVersion()) == false) {
                             continue;
                         }
-                        Analyzer other = build(registry, chainSettings(kind, type, probe.base), before, tracked).get("a").analyzer();
+                        IndexVersion before = IndexVersionUtils.getPreviousVersion(boundary);
+                        // Compare the builds on either side of THIS boundary rather than against the
+                        // current-version reference: a later gate in the key would otherwise mask a missing
+                        // earlier one, and the probe would not pin the flip to the declared version.
+                        Analyzer atBoundary = build(registry, chainSettings(kind, type, probe.base), boundary, tracked).get("a").analyzer();
+                        Analyzer beforeBoundary = build(registry, chainSettings(kind, type, probe.base), before, tracked).get("a")
+                            .analyzer();
                         assertNotSame(
                             kind
                                 + " ["
@@ -596,8 +603,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                                 + " is gated at index version "
                                 + boundary
                                 + " and must not share across it; the gate is not folded into sharingKey()",
-                            probeReference,
-                            other
+                            atBoundary,
+                            beforeBoundary
                         );
                     }
                 }

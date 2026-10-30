@@ -34,6 +34,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -47,8 +48,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -177,6 +182,38 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testSharedAutomatonInCompoundQueryKeepsTokenFiltering() throws Exception {
+        Term term = new Term("text", "*ox");
+        SharedAutomaton shared = SharedAutomaton.compile(
+            AutomatonQueries.toWildcardAutomaton(term, NoopCircuitBreaker.INSTANCE),
+            NoopCircuitBreaker.INSTANCE,
+            "test"
+        );
+        Query wildcard = new SharedAutomatonQuery(
+            term,
+            shared,
+            SharedAutomatonQuery.fieldPrefixed(term, ""),
+            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+        );
+        Query query = new BooleanQuery.Builder().add(wildcard, BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term("text", "quick")), BooleanClause.Occur.FILTER)
+            .build();
+        CustomUnifiedHighlighter highlighter = assertOffsetSourceAndSnippet(
+            "quick brown fox",
+            query,
+            false,
+            UnifiedHighlighter.OffsetSource.ANALYSIS,
+            "<b>quick</b> brown <b>fox</b>",
+            true
+        );
+        assertFalse(highlighter.hasUnrecognizedQuery("text"::equals, query));
+        Query withUnknownLeaf = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+            .add(new FieldExistsQuery("text"), BooleanClause.Occur.FILTER)
+            .build();
+        assertTrue(highlighter.hasUnrecognizedQuery("text"::equals, withUnknownLeaf));
+        assertFalse(highlighter.hasUnrecognizedQuery("other"::equals, withUnknownLeaf));
     }
 
     public void testSimple() throws Exception {
@@ -384,7 +421,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         assertOffsetSourceAndSnippet(content, query, singleDocumentReader, expectedOffsetSource, expectedSnippet, true);
     }
 
-    private void assertOffsetSourceAndSnippet(
+    private CustomUnifiedHighlighter assertOffsetSourceAndSnippet(
         String content,
         Query query,
         boolean singleDocumentReader,
@@ -419,6 +456,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         Snippet[] snippets = highlighter.highlightField(reader, 0, () -> content);
         assertThat(snippets.length, equalTo(1));
         assertThat(snippets[0].getText(), equalTo(expectedSnippet));
+        return highlighter;
     }
 
     public void testSentenceBoundedBreakIterator() throws Exception {

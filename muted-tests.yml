@@ -529,3 +529,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
   issue: https://github.com/elastic/elasticsearch/issues/164016
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testUsingRCS1GeneratesDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/163658

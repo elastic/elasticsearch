@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 163745
+summary: Charge batched query responses to the request breaker
+type: enhancement

@@ -34,11 +34,13 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.io.Closeable;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -49,6 +51,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -63,8 +66,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(KeyRotationCoordinator.class);
 
-    // Number of check_intervals (= scrub passes) a non-active key persists after its deactivation time before retirement.
-    // 10 leaves headroom for cluster-state propagation, in-flight writes, and one full handler walk — all typically << one tick.
+    // Number of check_intervals a non-active key persists after its deactivation time before retirement.
     private static final int GRACE_TICKS = 10;
 
     /**
@@ -269,7 +271,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         long retireCutoff = now - GRACE_TICKS * checkInterval.millis();
         if (metadata.findRetireableKeyIds(retireCutoff).isEmpty() == false) {
-            submitTaskIfOpen("retire-project-encryption-keys", new RetireKeysTask(retireCutoff));
+            submitTaskIfOpen("retire-project-encryption-keys", new RetireKeysTask(retireCutoff, metadata.getActiveKeyId()));
         }
     }
 
@@ -354,7 +356,18 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectState projectState = projectResolver.getProjectState(snapshot);
 
             T oldCustom = projectState.metadata().custom(handler.customName());
-            T newCustom = handler.reEncrypt(oldCustom, encryptionService, expectedActiveKeyId);
+            UnaryOperator<EncryptedData> rewrapper = existing -> {
+                if (existing.keyId().equals(expectedActiveKeyId)) {
+                    return existing;
+                }
+                byte[] plaintext = encryptionService.decrypt(existing);
+                try {
+                    return encryptionService.encrypt(plaintext);
+                } finally {
+                    Arrays.fill(plaintext, (byte) 0);
+                }
+            };
+            T newCustom = handler.reEncrypt(oldCustom, rewrapper);
             if (oldCustom != null && newCustom == null) {
                 listener.onFailure(new IllegalStateException("Re-encrypting non-null state returned null state"));
                 return;
@@ -564,10 +577,14 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    record RetireKeysTask(long cutoffDeactivationMillis) implements KeyRotationTask {
+    record RetireKeysTask(long cutoffDeactivationMillis, String expectedActiveKeyId) implements KeyRotationTask {
         @Override
         public String description() {
-            return "project encryption key retire (cutoff=" + cutoffDeactivationMillis + ")";
+            return "project encryption key retire (cutoff="
+                + cutoffDeactivationMillis
+                + ", expectedActiveKeyId="
+                + expectedActiveKeyId
+                + ")";
         }
     }
 
@@ -615,12 +632,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return switch (task) {
                 case InstallKeyTask install -> executeInstallInitial(clusterState, projectState, existing, install);
                 case BeginRotationTask begin -> executeBeginRotation(clusterState, projectState, existing, begin);
-                case RetireKeysTask retireKeysTask -> executeRetireKeys(
-                    clusterState,
-                    projectState,
-                    existing,
-                    retireKeysTask.cutoffDeactivationMillis()
-                );
+                case RetireKeysTask retireKeysTask -> executeRetireKeys(clusterState, projectState, existing, retireKeysTask);
                 case UpdatePasswordIdTask updatePasswordId -> executeUpdatePasswordId(
                     clusterState,
                     projectState,
@@ -678,12 +690,21 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ClusterState clusterState,
             ProjectState projectState,
             ProjectEncryptionKeyMetadata existing,
-            long cutoffDeactivationMillis
+            RetireKeysTask task
         ) {
             if (existing == null) {
                 return Tuple.tuple(clusterState, null);
             }
-            Set<String> retiredIds = existing.findRetireableKeyIds(cutoffDeactivationMillis);
+            // a rotation since the tick makes handlers pending again; retiring now would skip their pass over the new active key
+            if (existing.getActiveKeyId().equals(task.expectedActiveKeyId()) == false) {
+                logger.debug(
+                    "dropping retire task: activeKeyId drifted from [{}] to [{}]",
+                    task.expectedActiveKeyId(),
+                    existing.getActiveKeyId()
+                );
+                return Tuple.tuple(clusterState, null);
+            }
+            Set<String> retiredIds = existing.findRetireableKeyIds(task.cutoffDeactivationMillis());
             if (retiredIds.isEmpty()) {
                 return Tuple.tuple(clusterState, null);
             }

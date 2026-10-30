@@ -97,42 +97,47 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
         record CasResult(boolean termGranted, long newLeaseTerm) {}
 
-        SubscribableListener
+        getExecutor().execute(
+            ActionRunnable.wrap(
+                listener,
+                l0 -> SubscribableListener
 
-            .newForked(this::readLease)
+                    .newForked(this::readLeaseDirect)
 
-            .<CasResult>andThen((l, currentLeaseOpt) -> {
-                final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
-                final StatelessLease newLease = new StatelessLease(
-                    Math.max(proposedTerm, currentLease.currentTerm() + 1),
-                    0,
-                    // TODO: projectsUnderDeletionGeneration in the cluster state is ephemeral and is lost on a full cluster restart.
-                    // we need to either reset projectsUnderDeletionGeneration too upon master election or persist it in the cluster
-                    // metadata.
-                    // ES-12451
-                    currentLease.projectsUnderDeletionGeneration()
-                );
+                    .<CasResult>andThen((l, currentLeaseOpt) -> {
+                        final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
+                        final StatelessLease newLease = new StatelessLease(
+                            Math.max(proposedTerm, currentLease.currentTerm() + 1),
+                            0,
+                            // TODO: projectsUnderDeletionGeneration in the cluster state is ephemeral and is lost on a full cluster restart
+                            // we need to either reset projectsUnderDeletionGeneration too upon master election or persist it in the cluster
+                            // metadata.
+                            // ES-12451
+                            currentLease.projectsUnderDeletionGeneration()
+                        );
 
-                blobContainer().compareAndSetRegister(
-                    OperationPurpose.CLUSTER_STATE,
-                    LEASE_BLOB,
-                    currentLease.asBytes(),
-                    newLease.asBytes(),
-                    l.map(termGranted -> new CasResult(termGranted, newLease.currentTerm()))
-                );
-            })
+                        blobContainer().compareAndSetRegister(
+                            OperationPurpose.CLUSTER_STATE,
+                            LEASE_BLOB,
+                            currentLease.asBytes(),
+                            newLease.asBytes(),
+                            l.map(termGranted -> new CasResult(termGranted, newLease.currentTerm()))
+                        );
+                    })
 
-            .andThenApply(casResult -> {
-                if (casResult.termGranted()) {
-                    return new StartJoinRequest(candidateMasterNode, casResult.newLeaseTerm());
-                } else {
-                    throw new CoordinationStateRejectedException(
-                        Strings.format("term [%d] already claimed by a different node", casResult.newLeaseTerm())
-                    );
-                }
-            })
+                    .andThenApply(casResult -> {
+                        if (casResult.termGranted()) {
+                            return new StartJoinRequest(candidateMasterNode, casResult.newLeaseTerm());
+                        } else {
+                            throw new CoordinationStateRejectedException(
+                                Strings.format("term [%d] already claimed by a different node", casResult.newLeaseTerm())
+                            );
+                        }
+                    })
 
-            .addListener(listener);
+                    .addListener(l0)
+            )
+        );
     }
 
     public void updateLease(ClusterState clusterState) {
@@ -140,46 +145,52 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         long nodeLeftGeneration = clusterState.nodes().getNodeLeftGeneration();
         long projectsMarkedForDeletionGeneration = StatelessLease.getProjectsMarkedForDeletionGeneration(clusterState);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        SubscribableListener
 
-            .newForked(this::readLease)
+        getExecutor().execute(
+            ActionRunnable.wrap(
+                future,
+                l0 -> SubscribableListener
 
-            .<Void>andThen((l, currentLeaseOpt) -> {
-                final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
-                if (currentLease.currentTerm() != expectedTerm) {
-                    throw new CoordinationStateRejectedException(
-                        "expected term [" + expectedTerm + "] but saw [" + currentLease.currentTerm() + "]"
-                    );
-                }
-                final StatelessLease newLease = new StatelessLease(
-                    currentLease.currentTerm(),
-                    nodeLeftGeneration,
-                    projectsMarkedForDeletionGeneration
-                );
-                if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()
-                    && projectsMarkedForDeletionGeneration <= currentLease.projectsUnderDeletionGeneration()) {
-                    assert nodeLeftGeneration == currentLease.nodeLeftGeneration()
-                        && projectsMarkedForDeletionGeneration == currentLease.projectsUnderDeletionGeneration()
-                        : "tried to set [" + newLease + "] after [" + currentLease + "]";
-                    l.onResponse(null);
-                    return;
-                }
+                    .newForked(this::readLeaseDirect)
 
-                blobContainer().compareAndSetRegister(
-                    OperationPurpose.CLUSTER_STATE,
-                    LEASE_BLOB,
-                    currentLease.asBytes(),
-                    newLease.asBytes(),
-                    l.map(updated -> {
-                        if (updated == false) {
-                            throw new CoordinationStateRejectedException("unexpected concurrent modification of lease");
+                    .<Void>andThen((l, currentLeaseOpt) -> {
+                        final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
+                        if (currentLease.currentTerm() != expectedTerm) {
+                            throw new CoordinationStateRejectedException(
+                                "expected term [" + expectedTerm + "] but saw [" + currentLease.currentTerm() + "]"
+                            );
                         }
-                        return null;
-                    })
-                );
-            })
+                        final StatelessLease newLease = new StatelessLease(
+                            currentLease.currentTerm(),
+                            nodeLeftGeneration,
+                            projectsMarkedForDeletionGeneration
+                        );
+                        if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()
+                            && projectsMarkedForDeletionGeneration <= currentLease.projectsUnderDeletionGeneration()) {
+                            assert nodeLeftGeneration == currentLease.nodeLeftGeneration()
+                                && projectsMarkedForDeletionGeneration == currentLease.projectsUnderDeletionGeneration()
+                                : "tried to set [" + newLease + "] after [" + currentLease + "]";
+                            l.onResponse(null);
+                            return;
+                        }
 
-            .addListener(future);
+                        blobContainer().compareAndSetRegister(
+                            OperationPurpose.CLUSTER_STATE,
+                            LEASE_BLOB,
+                            currentLease.asBytes(),
+                            newLease.asBytes(),
+                            l.map(updated -> {
+                                if (updated == false) {
+                                    throw new CoordinationStateRejectedException("unexpected concurrent modification of lease");
+                                }
+                                return null;
+                            })
+                        );
+                    })
+
+                    .addListener(l0)
+            )
+        );
 
         FutureUtils.get(future);
     }
@@ -190,43 +201,47 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     private void doBeforeCommit(long term, long version, int retryCount, ActionListener<Void> listener) {
+        getExecutor().execute(
+            ActionRunnable.wrap(
+                listener,
+                l0 -> SubscribableListener
 
-        SubscribableListener
+                    .newForked(this::readLeaseDirect)
 
-            .newForked(this::readLease)
+                    .<Void>andThen((l, currentLeaseOpt) -> {
+                        if (currentLeaseOpt.isEmpty()) {
+                            if (retryCount >= MAX_READ_CURRENT_LEASE_TERM_RETRIES) {
+                                throw new IllegalStateException(Strings.format("""
+                                    failing commit of cluster state version [%d] in term [%d] after [%d] failed attempts to verify the \
+                                    current term""", version, term, retryCount));
+                            }
 
-            .<Void>andThen((l, currentLeaseOpt) -> {
-                if (currentLeaseOpt.isEmpty()) {
-                    if (retryCount >= MAX_READ_CURRENT_LEASE_TERM_RETRIES) {
-                        throw new IllegalStateException(Strings.format("""
-                            failing commit of cluster state version [%d] in term [%d] after [%d] failed attempts to verify the \
-                            current term""", version, term, retryCount));
-                    }
+                            threadPool.schedule(
+                                () -> doBeforeCommit(term, version, retryCount + 1, l),
+                                READ_CURRENT_LEASE_TERM_RETRY_DELAY,
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                            );
+                        } else {
+                            final long foundTerm = currentLeaseOpt.get().currentTerm();
+                            if (foundTerm != term) {
+                                assert term < foundTerm : term + " vs " + currentLeaseOpt;
+                                throw new CoordinationStateRejectedException(
+                                    Strings.format(
+                                        "failing commit of cluster state version [%d] in term [%d] since current term is now [%d]",
+                                        version,
+                                        term,
+                                        foundTerm
+                                    )
+                                );
+                            }
 
-                    threadPool.schedule(
-                        () -> doBeforeCommit(term, version, retryCount + 1, l),
-                        READ_CURRENT_LEASE_TERM_RETRY_DELAY,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE
-                    );
-                } else {
-                    final long foundTerm = currentLeaseOpt.get().currentTerm();
-                    if (foundTerm != term) {
-                        assert term < foundTerm : term + " vs " + currentLeaseOpt;
-                        throw new CoordinationStateRejectedException(
-                            Strings.format(
-                                "failing commit of cluster state version [%d] in term [%d] since current term is now [%d]",
-                                version,
-                                term,
-                                foundTerm
-                            )
-                        );
-                    }
+                            l.onResponse(null);
+                        }
+                    })
 
-                    l.onResponse(null);
-                }
-            })
-
-            .addListener(listener);
+                    .addListener(l0)
+            )
+        );
     }
 
     @Override
@@ -243,12 +258,11 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     public void readLease(ActionListener<Optional<StatelessLease>> listener) {
-        getExecutor().execute(
-            ActionRunnable.wrap(
-                listener,
-                l -> blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, l.map(StatelessLease::fromBytes))
-            )
-        );
+        getExecutor().execute(ActionRunnable.wrap(listener, this::readLeaseDirect));
+    }
+
+    private void readLeaseDirect(ActionListener<Optional<StatelessLease>> listener) {
+        blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, listener.map(StatelessLease::fromBytes));
     }
 
     protected Executor getExecutor() {

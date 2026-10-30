@@ -70,6 +70,51 @@ setup:
   - match: { hits.hits.2._id: "1" }
 
 ---
+"Sort expression setting is idempotent across GET and PUT":
+  - do:
+      indices.create:
+        index: original_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: "rank DESC MISSING_FIRST, other MV_FIRST_MAX"
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: original_index
+        flat_settings: true
+  - set: { original_index.settings.index\.sort: stored_sort }
+  - match: { original_index.settings.index\.sort: "rank DESC MISSING_FIRST, other MV_FIRST_MAX" }
+
+  # Feeding the stored value back into a create request must be accepted and yield the same stored value.
+  - do:
+      indices.create:
+        index: copied_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: $stored_sort
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: copied_index
+        flat_settings: true
+  - match: { copied_index.settings.index\.sort: $stored_sort }
+  - is_false: copied_index.settings.index\.sort\.field
+
+---
 "Sort expression cannot be combined with index.sort.field":
   - do:
       catch: bad_request

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -56,6 +57,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -68,6 +71,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
@@ -3422,6 +3426,54 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat("First executed subplan should be the MAX aggregation", subplan0Logical, containsString("MAX"));
             assertNotNull("subplan-1 logicalPlan row should be present", subplan1Logical);
             assertThat("Second executed subplan should be the SUM aggregation", subplan1Logical, containsString("SUM"));
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG",
+        reason = "asserts the size of sub-plan results is logged"
+    )
+    public void testInlineStatsLogsSubPlanResultsSize() {
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+        assertSubPlanResultsSizeLogged(
+            "FROM test | INLINE STATS m = MAX(data) BY color | INLINE STATS s = SUM(count) BY color",
+            Map.of("MAX(data)", 3, "SUM(count)", 3)
+        );
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG",
+        reason = "asserts the size of sub-plan results is logged"
+    )
+    public void testInSubqueryLogsSubPlanResultsSize() {
+        assumeTrue("IN subquery requires the capability to be enabled", WHERE_IN_SUBQUERY.isEnabled());
+        assertSubPlanResultsSizeLogged(
+            "FROM test | WHERE count IN (FROM test | WHERE color == \"red\" | KEEP count)"
+                + " | WHERE data NOT IN (FROM test | WHERE color == \"green\" | KEEP data)",
+            Map.of("KEEP count", 20, "KEEP data", 10)
+        );
+    }
+
+    private void assertSubPlanResultsSizeLogged(String query, Map<String, Integer> rowsBySubPlan) {
+        try (var mockLog = MockLog.capture(EsqlSession.class)) {
+            rowsBySubPlan.forEach(
+                (subPlan, rows) -> mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
+                        subPlan,
+                        EsqlSession.class.getName(),
+                        Level.DEBUG,
+                        "Sub-plan results for \\[.*"
+                            + Pattern.quote(subPlan)
+                            + ".*\\]: \\["
+                            + rows
+                            + "\\] rows, \\[[\\d.]+[kmg]?b\\] of the \\[[\\d.]+[kmg]?b\\] allowed by "
+                            + "\\[esql\\.intermediate_local_relation_max_size\\]"
+                    )
+                )
+            );
+            try (EsqlQueryResponse ignored = run(query)) {
+                mockLog.assertAllExpectationsMatched();
+            }
         }
     }
 

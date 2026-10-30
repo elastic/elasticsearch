@@ -13,6 +13,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -145,7 +146,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireSearcher("test");
+        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
@@ -176,7 +177,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireSearcher("test");
+        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
@@ -214,7 +215,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireSearcher("test");
+        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
@@ -251,7 +252,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireSearcher("test");
+        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();

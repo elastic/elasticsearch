@@ -88,7 +88,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index.getName());
         final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
 
-        var validationError = ReshardIndexService.validateIndex(indexAbstraction, indexMetadata);
+        var validationError = ReshardIndexService.validateIndex(projectResolver.getProjectId(), state, indexAbstraction, indexMetadata);
         if (validationError != null) {
             throw validationError.intoException(index, indexMetadata);
         }

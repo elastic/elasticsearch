@@ -453,3 +453,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:test
   issue: https://github.com/elastic/elasticsearch/issues/163299
+- class: org.elasticsearch.xpack.esql.qa.single_node.ExternalSchemaMaxFieldsRestIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: testWideFileOverDefaultCapIsRefused
+  issue: https://github.com/elastic/elasticsearch/issues/164160

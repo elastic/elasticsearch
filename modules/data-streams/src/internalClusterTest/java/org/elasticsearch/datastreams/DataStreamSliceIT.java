@@ -14,6 +14,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -86,10 +88,22 @@ public class DataStreamSliceIT extends ESIntegTestCase {
 
     private static void putTemplate(String pattern, boolean sliceEnabled, boolean allowCustomRouting, Settings extraSettings)
         throws IOException {
-        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(TEMPLATE);
+        putTemplate(TEMPLATE, pattern, 0L, sliceEnabled, allowCustomRouting, extraSettings);
+    }
+
+    private static void putTemplate(
+        String name,
+        String pattern,
+        long priority,
+        boolean sliceEnabled,
+        boolean allowCustomRouting,
+        Settings extraSettings
+    ) throws IOException {
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(name);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(pattern))
+                .priority(priority)
                 .template(
                     Template.builder()
                         .settings(
@@ -278,11 +292,44 @@ public class DataStreamSliceIT extends ESIntegTestCase {
         createDataStream("slice-ds");
 
         Exception e = expectThrows(Exception.class, () -> putTemplate("slice-ds*", false, true));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("composable template [slice-template]"));
         assertThat(ExceptionsHelper.stackTrace(e), containsString("would change [index.slice.enabled] to [false] for data streams"));
         assertThat(ExceptionsHelper.stackTrace(e), containsString("slice-ds"));
 
         // an unrelated change to the same template is still accepted
         putTemplate("slice-ds*", true, true, Settings.builder().put("index.refresh_interval", "5s").build());
+    }
+
+    /**
+     * A template update or deletion cannot hand an existing data stream to a fallback template with a different slice setting.
+     */
+    public void testWinningTemplateCannotChangeSliceForExistingDataStream() throws Exception {
+        putTemplate("fallback", "slice-ds*", 100L, false, true, Settings.EMPTY);
+        putTemplate("winner", "slice-ds*", 200L, true, true, Settings.EMPTY);
+        createDataStream("slice-ds");
+
+        Exception update = expectThrows(Exception.class, () -> putTemplate("winner", "other-ds*", 200L, true, true, Settings.EMPTY));
+        assertThat(ExceptionsHelper.stackTrace(update), containsString("composable template [winner]"));
+        assertThat(ExceptionsHelper.stackTrace(update), containsString("would change [index.slice.enabled] to [false]"));
+
+        Exception delete = expectThrows(
+            Exception.class,
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("winner")
+            )
+        );
+        assertThat(ExceptionsHelper.stackTrace(delete), containsString("removing composable templates [winner]"));
+        assertThat(ExceptionsHelper.stackTrace(delete), containsString("would change [index.slice.enabled] to [false]"));
+
+        // Deleting the winner is safe once the fallback has the same setting.
+        putTemplate("fallback", "slice-ds*", 100L, true, true, Settings.EMPTY);
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("winner")
+            ).actionGet()
+        );
     }
 
     /**
@@ -303,7 +350,37 @@ public class DataStreamSliceIT extends ESIntegTestCase {
         createDataStream("slice-ds");
 
         Exception e = expectThrows(Exception.class, () -> putComponentTemplate("slice-component", false));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("component template [slice-component]"));
         assertThat(ExceptionsHelper.stackTrace(e), containsString("would change [index.slice.enabled] to [false] for data streams"));
+    }
+
+    /**
+     * Removing an optional component template cannot change the slice setting used by the next backing index.
+     */
+    public void testOptionalComponentTemplateCannotBeRemovedFromExistingDataStream() throws Exception {
+        putComponentTemplate("slice-component", true);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(TEMPLATE);
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("slice-ds*"))
+                .componentTemplates(List.of("slice-component"))
+                .ignoreMissingComponentTemplates(List.of("slice-component"))
+                .template(Template.builder().settings(Settings.builder().put("index.number_of_replicas", 0)))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, true))
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
+        createDataStream("slice-ds");
+
+        Exception e = expectThrows(
+            Exception.class,
+            client().execute(
+                TransportDeleteComponentTemplateAction.TYPE,
+                new TransportDeleteComponentTemplateAction.Request("slice-component")
+            )
+        );
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("removing component templates [slice-component]"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("would change [index.slice.enabled] to [false]"));
     }
 
     /**

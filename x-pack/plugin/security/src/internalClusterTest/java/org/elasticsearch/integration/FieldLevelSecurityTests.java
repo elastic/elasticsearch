@@ -2818,7 +2818,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("doc_index")
                 .setMapping("field1", "type=text", "field2", "type=geo_shape")
-                .setSettings(Settings.builder().put("index.mode", "columnar").build())
+                .setSettings(Settings.builder().put("index.mode", "columnar").put("index.seq_no.index_options", "doc_values_only").build())
         );
         prepareIndex("doc_index").setId("1")
             .setSource("field1", "visible", "field2", "POINT (12.34 56.78)")

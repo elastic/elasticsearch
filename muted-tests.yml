@@ -440,11 +440,6 @@ tests:
   - :server:internalClusterTest
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/163874
-- class: org.elasticsearch.integration.FieldLevelSecurityTests
-  tasks:
-  - :x-pack:plugin:security:internalClusterTest
-  method: testColumnarGeoShapeRespectsFieldLevelSecurity
-  issue: https://github.com/elastic/elasticsearch/issues/163935
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   tasks:
   - :x-pack:plugin:esql:test

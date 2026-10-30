@@ -50,6 +50,7 @@ public final class TaskAdmissionPolicy {
             int inFlight = current.incrementAndGet();
             if (inFlight > max) {
                 current.decrementAndGet();
+                //TODO here we could potentially introduce a queue to delay rejecting, and leave some headroom
                 throw new EsRejectedExecutionException(
                     "rejected execution of action [" + action + "]; too many in-flight requests [" + inFlight + "], limit [" + max + "]",
                     false

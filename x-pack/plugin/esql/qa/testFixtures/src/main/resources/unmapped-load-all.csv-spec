@@ -2530,6 +2530,7 @@ required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 required_capability: optional_fields_warn_non_loadable_punk_combined
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so the unmapped-in-some-indices warning for k8s_nonexistent is not produced
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx, *)
 | KEEP *eth0.tx

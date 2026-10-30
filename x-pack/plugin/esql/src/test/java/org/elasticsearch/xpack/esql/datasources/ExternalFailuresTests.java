@@ -295,4 +295,18 @@ public class ExternalFailuresTests extends ESTestCase {
         result = ExternalFailures.classify(new java.net.ConnectException("Connect to minio.internal:9000 failed"));
         assertThat(result.getMessage(), not(containsString("minio.internal")));
     }
+
+    public void testValidationReasonKeepsAValidatorMessageWithTheUriRedacted() {
+        IllegalArgumentException validator = new IllegalArgumentException("endpoint [http://minio.internal:9000/x] must use https");
+        String reason = ExternalFailures.validationReason(
+            new IllegalArgumentException("Failed to resolve metadata for [f.csv]", validator)
+        );
+        assertEquals("endpoint [<location>] must use https", reason);
+        // A storage failure is not a validator: its message is never taken, even when it looks harmless.
+        assertEquals(
+            "wrapper",
+            ExternalFailures.validationReason(new IllegalArgumentException("wrapper", new IOException("connection reset")))
+        );
+        assertNull(ExternalFailures.validationReason(new RuntimeException("wrapper", new IOException("connection reset"))));
+    }
 }

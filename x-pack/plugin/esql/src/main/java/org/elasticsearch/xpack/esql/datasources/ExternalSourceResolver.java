@@ -577,6 +577,11 @@ public class ExternalSourceResolver {
             String message = e.getMessage() != null && ExternalFailures.safeForUserMessage(e.getMessage())
                 ? e.getMessage()
                 : "Failed to resolve external source [" + StoragePath.objectName(path) + "]";
+            // A validator's reason (e.g. an endpoint that must use https) lives in the dropped cause chain; keep it, with any URI redacted.
+            String reason = ExternalFailures.validationReason(e);
+            if (reason != null && message.contains(reason) == false) {
+                message = message + ": " + reason;
+            }
             return e instanceof IllegalArgumentException
                 ? new IllegalArgumentException(message)
                 : new UnsupportedOperationException(message);

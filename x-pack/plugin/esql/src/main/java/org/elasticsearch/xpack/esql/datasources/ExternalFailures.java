@@ -315,6 +315,30 @@ public final class ExternalFailures {
         return safeForUserMessage(failure.getMessage()) && namesNoHost(failure) ? detail(failure) : failure.getClass().getSimpleName();
     }
 
+    /** A URI anywhere in a message: a scheme, {@code ://}, then everything up to a delimiter. */
+    private static final Pattern URI_IN_MESSAGE = Pattern.compile("[A-Za-z][A-Za-z0-9+.-]*://[^\\s\\]\\[,;)]*");
+
+    /**
+     * The reason a validator rejected a dataset or data source: the message of the deepest {@link IllegalArgumentException}
+     * in {@code failure}'s chain (the failure itself included, since a validator's exception is often the one thrown) that
+     * is safe once any URI in it is replaced by {@code <location>} (e.g. {@code endpoint [<location>] must use https}).
+     * Only an {@code IllegalArgumentException} qualifies: validators raise those, whereas storage-client failures, which
+     * name the bucket and host, never are. Returns {@code null} if the chain has none.
+     */
+    public static String validationReason(Throwable failure) {
+        String reason = null;
+        Throwable t = failure;
+        for (int depth = 0; t != null && depth < 12; depth++, t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof IllegalArgumentException && t.getMessage() != null && namesNoHost(t)) {
+                String redacted = URI_IN_MESSAGE.matcher(t.getMessage()).replaceAll("<location>");
+                if (safeForUserMessage(redacted)) {
+                    reason = redacted;
+                }
+            }
+        }
+        return reason;
+    }
+
     /**
      * Network failures name the endpoint host ({@code Unable to resolve host minio.internal}, {@code Connect to
      * minio.internal:9000 failed}) without a scheme or a cloud domain, so {@link #safeForUserMessage} cannot recognise

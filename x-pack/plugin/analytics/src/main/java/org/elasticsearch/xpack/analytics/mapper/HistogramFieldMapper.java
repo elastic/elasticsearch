@@ -17,8 +17,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.PresentDocIterator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -29,6 +36,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -428,6 +436,71 @@ public class HistogramFieldMapper extends FieldMapper {
 
     static BytesRef encodeBytesRef(List<Double> values, List<Long> counts) throws IOException {
         return EncodedTDigest.encodeCentroids(values, counts);
+    }
+
+    /** The encoder explodes the histogram object into {@code <field>.values} and {@code <field>.counts}, which have no mapper. */
+    @Override
+    public boolean resolvesColumnGroup() {
+        return true;
+    }
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        // No mapping option changes what parse() writes, so unsupported shapes are refused per batch instead.
+        return true;
+    }
+
+    /**
+     * Combines the {@code values} and {@code counts} source columns into the binary doc-values column that
+     * {@link #parse} builds one document at a time, with the T-Digest encoding of {@link #encodeBytesRef}.
+     *
+     * <p>Any shape {@link HistogramParser#parseColumns} cannot reproduce exactly raises
+     * {@link UnsupportedOperationException}, falling the whole batch back to the row path — the only path that can
+     * record a malformed value in {@code _ignored_source}, or raise the per-document parse error when
+     * {@code ignore_malformed} is off.
+     */
+    @Override
+    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        try (
+            EscfColumnBuilder docValues = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, ctx.recycler());
+            BytesStreamOutput encoded = new BytesStreamOutput()
+        ) {
+            docValues.lockScalar(EscfColumnKind.BINARY);
+            HistogramParser.parseColumns(columns, relativeKeys, this::unsupported, (centroids, row) -> {
+                encoded.reset();
+                try {
+                    EncodedTDigest.encodeCentroidsFromIterator(centroids, encoded);
+                } catch (IOException e) {
+                    // BytesStreamOutput does not do I/O; it only grows its in-memory pages.
+                    throw new UncheckedIOException(e);
+                }
+                // An empty histogram encodes to zero bytes, which parse() writes as an empty value, not no value.
+                docValues.setBinary(row, encoded.bytes().toBytesRef());
+            });
+            if (docValues.isEmpty() == false) {
+                final EscfColumnData data = docValues.finish(ctx.docCount());
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE), data);
+            }
+        }
+    }
+
+    /**
+     * Handles the leaf at the field's own path, which the encoder produces for {@code {"field": null}}. A null
+     * histogram indexes nothing, so an all-null column emits no output column; every other value form there is
+     * malformed or multi-valued and belongs to the row path.
+     */
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn column) {
+        final PresentDocIterator presentDocs = column.presentDocs();
+        for (int row = presentDocs.nextDoc(); row != DocIdSetIterator.NO_MORE_DOCS; row = presentDocs.nextDoc()) {
+            if (column.isNull(row) == false) {
+                throw unsupported("at own path uses an unsupported value form for columnar batch indexing");
+            }
+        }
+    }
+
+    private UnsupportedOperationException unsupported(String message) {
+        return new UnsupportedOperationException("histogram [" + fullPath() + "] " + message);
     }
 
     /** re-usable {@link HistogramValue} implementation */

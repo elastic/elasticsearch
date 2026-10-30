@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -43,6 +44,8 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.hamcrest.Matcher;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,6 +85,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -3723,6 +3727,80 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     /**
+     * Every option documented in a full-text function's {@link MapParam} must be accepted by its {@code ALLOWED_OPTIONS},
+     * otherwise the docs advertise an option that the verifier rejects.
+     */
+    public void testFullTextFunctionDocumentedOptionsAreAllowed() {
+        Map<Class<?>, Map<String, DataType>> functions = Map.of(
+            QueryString.class,
+            QueryString.ALLOWED_OPTIONS,
+            Match.class,
+            Match.ALLOWED_OPTIONS,
+            MatchPhrase.class,
+            MatchPhrase.ALLOWED_OPTIONS,
+            Kql.class,
+            Kql.ALLOWED_OPTIONS,
+            Knn.class,
+            Knn.ALLOWED_OPTIONS
+        );
+        for (Map.Entry<Class<?>, Map<String, DataType>> function : functions.entrySet()) {
+            Set<String> documented = new LinkedHashSet<>();
+            for (Constructor<?> constructor : function.getKey().getConstructors()) {
+                for (Parameter parameter : constructor.getParameters()) {
+                    MapParam mapParam = parameter.getAnnotation(MapParam.class);
+                    if (mapParam != null) {
+                        for (MapParam.MapParamEntry entry : mapParam.params()) {
+                            documented.add(entry.name());
+                        }
+                    }
+                }
+            }
+            assertThat(function.getKey().getSimpleName() + " documents no options", documented.isEmpty(), equalTo(false));
+            for (String option : documented) {
+                assertThat(
+                    "option [" + option + "] of " + function.getKey().getSimpleName() + " is documented but not allowed",
+                    function.getValue().keySet(),
+                    hasItem(option)
+                );
+            }
+        }
+    }
+
+    public void testQueryStringFieldsOption() {
+        fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\"]})");
+        fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\", \"body\"]})");
+        fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": \"title\"})");
+        fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^2\", \"bo*\"], \"default_operator\": \"AND\"})");
+        // a null default_field is the same as none, as in the query_string query
+        fullText().query("FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\"], \"default_field\": null})");
+
+        fullText().error(
+            "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title\"], \"default_field\": \"body\"})",
+            containsString("cannot use option [fields] in conjunction with [default_field]")
+        );
+        fullText().error(
+            "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^high\"]})",
+            allOf(containsString("Invalid option [fields]"), containsString("invalid boost in [title^high]"))
+        );
+        fullText().error(
+            "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^-1\"]})",
+            allOf(containsString("Invalid option [fields]"), containsString("negative boost in [title^-1]"))
+        );
+        // -0.0 is negative too, matching how the query_string query checks boosts
+        fullText().error(
+            "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^-0\"]})",
+            allOf(containsString("Invalid option [fields]"), containsString("negative boost in [title^-0]"))
+        );
+        // Float.parseFloat accepts these, but Lucene's BoostQuery rejects a non-finite boost on the shard
+        for (String boost : List.of("NaN", "Infinity", "1e39")) {
+            fullText().error(
+                "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^" + boost + "\"]})",
+                allOf(containsString("Invalid option [fields]"), containsString("invalid boost in [title^" + boost + "]"))
+            );
+        }
+    }
+
+    /**
      * The {@code similarity_function} option specifies the metric knn compares vectors with, but only on the runtime
      * search path - an indexed field is compared with the similarity from its mapping, so accepting the option
      * there would silently ignore it. The accepted values are the {@link VectorSimilarityMetric} names; the runtime
@@ -5452,6 +5530,9 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
         );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE QSTR(\"fox\", {\"fields\": [\"body\"]}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
+        );
     }
 
     /** Query analyzer and values analyzer may differ, exactly like {@code WHERE MATCH}. WITH sets only the values side. */
@@ -5779,6 +5860,21 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"body\", \"title^2\"]}) ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // a wildcard in default_field or fields must match an ON field, which is what translation resolves it against
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"ti*\"]}) ON title");
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"ti*\"}) ON title");
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"fields\": [\"bo*\"]}) ON title",
+            containsString("HIGHLIGHT query field pattern [bo*] matches none of the ON fields [title]")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"bo*\"}) ON title",
+            containsString("HIGHLIGHT query field pattern [bo*] matches none of the ON fields [title]")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"title:fox\" ON body",

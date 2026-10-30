@@ -1968,6 +1968,29 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(expectedQStrQuery.toString(), is(planStr.get()));
     }
 
+    /**
+     * The {@code fields} option is list-valued, so it must reach the {@code query_string} builder as its fields and
+     * boosts rather than as a flattened string option.
+     */
+    public void testQStrFieldsOptionPushDown() {
+        assertQStrFields("{\"fields\": [\"first_name^2\", \"last_*\"]}", Map.of("first_name", 2.0f, "last_*", 1.0f));
+        assertQStrFields("{\"fields\": \"first_name\"}", Map.of("first_name", 1.0f));
+        // a repeated field keeps the last boost, as in the query_string query
+        assertQStrFields("{\"fields\": [\"first_name\", \"first_name^2\"]}", Map.of("first_name", 2.0f));
+    }
+
+    private void assertQStrFields(String options, Map<String, Float> expectedFields) {
+        var plan = plannerOptimizer.plan("from test | where QSTR(\"Anna\", " + options + ")");
+
+        AtomicReference<QueryBuilder> queryBuilder = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> queryBuilder.set(result.query()));
+
+        var qstr = as(queryBuilder.get(), QueryStringQueryBuilder.class);
+        assertThat(qstr.queryString(), is("Anna"));
+        assertThat(qstr.fields(), equalTo(expectedFields));
+        assertThat(qstr.defaultField(), nullValue());
+    }
+
     public void testKnnOptionsPushDown() {
         String query = """
             from test

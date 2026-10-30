@@ -116,9 +116,9 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        Query filter = PostFilterableKnnQuery.retryFilter(reader, excludedDocs, retryLeaves);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),

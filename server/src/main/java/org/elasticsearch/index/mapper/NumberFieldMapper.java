@@ -2057,10 +2057,6 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
 
-        public final Query termQuery(String field, Object value, IndexType indexType) {
-            return termQuery(field, value, indexType, NumericDocValuesQueries.SORTED_NUMERIC);
-        }
-
         /**
          * @param dvQueries how to query the field's doc values, if the query is answered from them
          */
@@ -2079,31 +2075,6 @@ public class NumberFieldMapper extends FieldMapper {
          */
         BytesRef encodeIndexTermOrNull(Object value) {
             throw new UnsupportedOperationException("[index_terms] is not supported on [" + name + "] fields");
-        }
-
-        public final Query rangeQuery(
-            String field,
-            Object lowerTerm,
-            Object upperTerm,
-            boolean includeLower,
-            boolean includeUpper,
-            boolean hasDocValues,
-            SearchExecutionContext context,
-            boolean hasPoints,
-            boolean hasTerms
-        ) {
-            return rangeQuery(
-                field,
-                lowerTerm,
-                upperTerm,
-                includeLower,
-                includeUpper,
-                hasDocValues,
-                context,
-                hasPoints,
-                hasTerms,
-                NumericDocValuesQueries.SORTED_NUMERIC
-            );
         }
 
         /**

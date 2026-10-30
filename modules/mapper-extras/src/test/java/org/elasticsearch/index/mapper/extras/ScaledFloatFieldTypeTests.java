@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumericDocValuesQueries;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -133,7 +134,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
                 false,
                 MOCK_CONTEXT,
                 randomBoolean(),
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_CONTEXT);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));

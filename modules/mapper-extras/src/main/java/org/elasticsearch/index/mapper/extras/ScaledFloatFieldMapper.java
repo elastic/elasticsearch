@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumericDocValuesQueries;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
@@ -366,7 +367,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType());
+            // TODO: write scaled_float doc values with the ColumNAR codec in strict columnar modes, and query them accordingly.
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType(), NumericDocValuesQueries.SORTED_NUMERIC);
         }
 
         @Override
@@ -418,7 +420,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 hasDocValues(),
                 context,
                 indexType.hasPoints(),
-                indexType.hasTerms()
+                indexType.hasTerms(),
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
         }
 

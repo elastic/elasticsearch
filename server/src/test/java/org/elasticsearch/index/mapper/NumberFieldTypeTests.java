@@ -483,7 +483,12 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             boolean indexed = randomBoolean();
             boolean hasDocValues = indexed == false || randomBoolean();
             assertTrue(
-                testCase.type.termQuery("field", testCase.value, IndexType.points(indexed, hasDocValues)) instanceof MatchNoDocsQuery
+                testCase.type.termQuery(
+                    "field",
+                    testCase.value,
+                    IndexType.points(indexed, hasDocValues),
+                    NumericDocValuesQueries.SORTED_NUMERIC
+                ) instanceof MatchNoDocsQuery
             );
         }
     }
@@ -1026,7 +1031,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 MOCK_CONTEXT,
                 randomBoolean(),
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery(
                 "half_float",
@@ -1037,7 +1043,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 MOCK_CONTEXT,
                 randomBoolean(),
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
@@ -1047,30 +1054,101 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed, false),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed, false)
+            NumberType.DOUBLE.rangeQuery(
+                "field",
+                null,
+                -0d,
+                true,
+                true,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.DOUBLE.rangeQuery(
+                "field",
+                null,
+                +0d,
+                true,
+                false,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            )
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
+            NumberType.FLOAT.rangeQuery(
+                "field",
+                null,
+                -0f,
+                true,
+                true,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.FLOAT.rangeQuery(
+                "field",
+                null,
+                +0f,
+                true,
+                false,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            )
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
+            NumberType.HALF_FLOAT.rangeQuery(
+                "field",
+                null,
+                -0f,
+                true,
+                true,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.HALF_FLOAT.rangeQuery(
+                "field",
+                null,
+                +0f,
+                true,
+                false,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            )
         );
 
         final boolean hasDocValues = isIndexed == false || randomBoolean(); // at least one should be true
         assertNotEquals(
-            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues)),
-            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues))
+            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC),
+            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC)
         );
         assertNotEquals(
-            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
-            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
+            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC),
+            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC)
         );
         assertNotEquals(
-            NumberType.HALF_FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
-            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
+            NumberType.HALF_FLOAT.termQuery(
+                "field",
+                -0f,
+                IndexType.points(isIndexed, hasDocValues),
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC)
         );
     }
 
@@ -1127,7 +1205,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 MOCK_CONTEXT,
                 true,
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
@@ -1188,7 +1267,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 context,
                 isIndexed,
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
             Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();

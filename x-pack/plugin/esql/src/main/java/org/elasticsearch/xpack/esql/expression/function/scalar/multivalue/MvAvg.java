@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 /**
@@ -70,7 +70,7 @@ public class MvAvg extends AbstractMultivalueFunction implements AnyNullIsNull {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> t.isNumeric() && isRepresentable(t), sourceText(), null, "numeric");
+        return isType(field(), t -> t.isNumeric() && isRepresentableInExpression(t), sourceText(), null, "numeric");
     }
 
     @Override

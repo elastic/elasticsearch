@@ -60,6 +60,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -290,22 +291,93 @@ public class ArrowResponseTests extends ESTestCase {
     // Tests
 
     /**
-     * Test that we support Arrow output for the same set of ESQL types as the text output
-     * (ignoring those explicitly marked as not yet implemented).
+     * Every response type must have an Arrow formatter or an explicit pending implementation. Compare the enum values
+     * rather than their output names, which can be shared by different types, and include types under construction.
      */
     public void testTypeSupportConsistency() {
-        var arrowTypes = ArrowResponse.ESQL_FORMATTERS.keySet().stream().map(DataType::outputType).sorted().toList();
-
-        var textTypes = DataType.types().stream().filter(t -> {
-            try {
-                ResponseValueUtils.valueExtractorFor(t, ZoneOffset.UTC);
-                return ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS.contains(t) == false;
-            } catch (Exception e) {
-                return false;
+        var responseTypes = EnumSet.noneOf(DataType.class);
+        for (DataType type : DataType.values()) {
+            if (DataType.isRepresentable(type)) {
+                responseTypes.add(type);
             }
-        }).map(DataType::outputType).sorted().toList();
+        }
 
-        assertEquals("Text and Arrow formats don't have the same ESQL DataType support", textTypes, arrowTypes);
+        var arrowTypes = EnumSet.noneOf(DataType.class);
+        arrowTypes.addAll(ArrowResponse.ESQL_FORMATTERS.keySet());
+        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
+            assertTrue("Formatter is both implemented and pending for [" + type + "]", arrowTypes.add(type));
+        }
+        assertEquals("Arrow formatters must cover exactly the response types", responseTypes, arrowTypes);
+    }
+
+    public void testTextTypeSupportConsistency() {
+        for (DataType type : DataType.values()) {
+            if (DataType.isRepresentable(type)) {
+                assertNotNull("Missing text formatter for [" + type + "]", ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC));
+            } else {
+                expectThrows(
+                    EsqlIllegalArgumentException.class,
+                    "Expected text output to reject [" + type + "]",
+                    () -> ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC)
+                );
+            }
+        }
+    }
+
+    public void testSpecialResponseTypes() {
+        for (DataType type : List.of(
+            DataType.COUNTER_INTEGER,
+            DataType.COUNTER_LONG,
+            DataType.COUNTER_DOUBLE,
+            DataType.SOURCE,
+            DataType.UNSUPPORTED
+        )) {
+            assertFalse(
+                "Response support must not enable general-purpose function arguments for [" + type + "]",
+                DataType.isRepresentableInExpression(type)
+            );
+            assertTrue("Expected response support for [" + type + "]", DataType.isRepresentable(type));
+            assertTrue("Missing Arrow formatter for [" + type + "]", ArrowResponse.ESQL_FORMATTERS.containsKey(type));
+        }
+        assertFalse(DataType.isRepresentableInExpression(DataType.DOC_DATA_TYPE));
+        assertFalse(DataType.isRepresentable(DataType.DOC_DATA_TYPE));
+    }
+
+    public void testNonResponseTypesRejected() {
+        for (DataType type : DataType.values()) {
+            if (DataType.isRepresentable(type) == false) {
+                IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    "Expected Arrow output to reject [" + type + "]",
+                    () -> new ArrowResponse(List.of(new ArrowResponse.Column(type, "internal")), List.of())
+                );
+                assertEquals(
+                    "Unexpected rejection for [" + type + "]",
+                    "ES|QL type [" + type.outputType() + "] is not supported by the Arrow format",
+                    exception.getMessage()
+                );
+            }
+        }
+    }
+
+    public void testPendingResponseTypesRejected() {
+        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
+            assertTrue("Pending formatter must be for a response type [" + type + "]", DataType.isRepresentable(type));
+            assertFalse(
+                "Pending formatter must not be registered as implemented [" + type + "]",
+                ArrowResponse.ESQL_FORMATTERS.containsKey(type)
+            );
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                "Expected Arrow output to reject pending type [" + type + "]",
+                () -> new ArrowResponse(List.of(new ArrowResponse.Column(type, "pending")), List.of())
+            );
+            assertEquals(
+                "Unexpected rejection for pending type [" + type + "]",
+                "ES|QL type [" + type.outputType() + "] is not supported by the Arrow format",
+                exception.getMessage()
+            );
+        }
     }
 
     public void testTestHarness() {

@@ -34,7 +34,7 @@ public class IsNotNullTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         for (DataType type : DataType.types()) {
-            if ((false == type.isCounter() && false == DataType.isRepresentable(type)) || type == DataType.TSID_DATA_TYPE) {
+            if ((false == type.isCounter() && false == DataType.isRepresentableInExpression(type)) || type == DataType.TSID_DATA_TYPE) {
                 continue;
             }
             if (type.supportedVersion().supportedLocally() == false) {

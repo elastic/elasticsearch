@@ -821,21 +821,30 @@ public enum DataType implements Writeable {
     }
 
     /**
-     * Supported types that can be contained in a block.
+     * Types that can appear in user-visible result columns and therefore require an output formatter.
+     * Includes counters, {@code _source}, and unsupported fields (which are returned as nulls). Internal types
+     * such as Lucene document IDs and types promoted before execution must not escape into responses.
      */
     public static boolean isRepresentable(DataType t) {
         return t != OBJECT
-            && t != UNSUPPORTED
             && t != DATE_PERIOD
             && t != TIME_DURATION
             && t != BYTE
             && t != SHORT
             && t != FLOAT
             && t != SCALED_FLOAT
-            && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
-            && t.isCounter() == false;
+            && t != DOC_DATA_TYPE;
+    }
+
+    /**
+     * Types permitted as general-purpose values by expression validation. Individual functions may impose further
+     * restrictions. Counters, {@code _source}, and unsupported fields can appear in responses, but require special
+     * handling in expressions rather than being accepted wherever a representable value is expected.
+     */
+    public static boolean isRepresentableInExpression(DataType t) {
+        return isRepresentable(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {

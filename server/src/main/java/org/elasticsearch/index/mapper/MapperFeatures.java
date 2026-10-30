@@ -177,7 +177,6 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FLS_FIX = new NodeFeature("mapper.columnar_stored.source_fls_fix");
-    public static final NodeFeature COLUMNAR_NUMERIC_CODEC = new NodeFeature("mapper.columnar.numeric_codec");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     /**
@@ -329,8 +328,7 @@ public class MapperFeatures implements FeatureSpecification {
             MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
             RANGE_DOCVALUE_FIELDS_FIX,
             TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
-            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK,
-            COLUMNAR_NUMERIC_CODEC
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
         );
     }
 }

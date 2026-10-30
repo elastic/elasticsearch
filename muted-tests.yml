@@ -404,11 +404,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
   issue: https://github.com/elastic/elasticsearch/issues/163325
-- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
-  tasks:
-  - :x-pack:plugin:slm:internalClusterTest
-  method: testSLMRetentionAfterRestore
-  issue: https://github.com/elastic/elasticsearch/issues/163334
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
   tasks:
   - :x-pack:plugin:esql:test

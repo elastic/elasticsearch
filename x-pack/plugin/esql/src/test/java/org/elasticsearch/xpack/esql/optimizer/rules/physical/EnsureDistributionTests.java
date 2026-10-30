@@ -511,6 +511,28 @@ public class EnsureDistributionTests extends ESTestCase {
         assertTrue("Lookup join input:\n" + PlanShape.of(lookupJoin.left()), PlanShape.of(lookupJoin.left()).startsWith("DHJ"));
     }
 
+    public void testJoinRepartitionsAfterGroupingKeyIsProjectedAway() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("subquery in FROM required", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        PhysicalPlan plan = distributedPlan("""
+            FROM test
+            | INNER JOIN (
+                FROM (FROM test | STATS emp_no = MAX(emp_no) BY languages),
+                     (FROM test | STATS emp_no = MAX(emp_no) BY languages)
+                | STATS emp_no = MAX(emp_no), c = COUNT(*) BY languages
+                | KEEP emp_no, c
+            ) ON emp_no
+            | KEEP emp_no, c
+            | LIMIT 1000
+            """, SHUFFLE_JOIN_AGG_SETTINGS);
+
+        DistributedHashJoinExec join = plan.collect(DistributedHashJoinExec.class).getFirst();
+        ShuffleExchangeExec buildExchange = as(join.right(), ShuffleExchangeExec.class);
+        assertEquals(ExchangeDistribution.HASH, buildExchange.distribution());
+        assertEquals(join.rightFields(), buildExchange.keys());
+        assertEquals(AggregatorMode.SINGLE, as(buildExchange.child(), AggregateExec.class).getMode());
+    }
+
     private static PhysicalPlan distributedPlan(String query, Settings settings) {
         return distributedPlan(query, settings, false);
     }

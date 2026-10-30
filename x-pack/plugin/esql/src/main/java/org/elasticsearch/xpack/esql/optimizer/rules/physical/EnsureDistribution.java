@@ -273,7 +273,7 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
                 && hash.exact()
                 && groups != null
                 && containsIds(groups, hash.keys())) {
-                return new Result(aggregate.replaceChild(child.plan()), translateAggregateKeys(hash, aggregate));
+                return new Result(aggregate.replaceChild(child.plan()), keepIfPresent(hash, aggregate.output()));
             }
             if (ShuffleRuleUtils.hasSupportedGroupKeyTypes(aggregate.groupings()) == false) {
                 return new Result(aggregate.replaceChild(gather(child.plan(), false, List.of())), SinglePartitioning.INSTANCE);
@@ -508,26 +508,6 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             outputKeys.add(output);
         }
         return new HashPartitioning(outputKeys, true);
-    }
-
-    private static Partitioning translateAggregateKeys(HashPartitioning partitioning, AggregateExec aggregate) {
-        List<Attribute> outputs = new ArrayList<>(partitioning.keys().size());
-        for (Attribute key : partitioning.keys()) {
-            Attribute output = findById(aggregate.output(), key);
-            if (output == null) {
-                List<Attribute> groups = groupAttributes(aggregate);
-                if (groups == null) {
-                    return ArbitraryPartitioning.INSTANCE;
-                }
-                int index = indexOfId(groups, key);
-                if (index < 0 || index >= aggregate.output().size()) {
-                    return ArbitraryPartitioning.INSTANCE;
-                }
-                output = aggregate.output().get(index);
-            }
-            outputs.add(output);
-        }
-        return new HashPartitioning(outputs, partitioning.exact());
     }
 
     private static Requirement byPosition(Requirement requirement, List<Attribute> mergeOutput, List<Attribute> branchOutput) {

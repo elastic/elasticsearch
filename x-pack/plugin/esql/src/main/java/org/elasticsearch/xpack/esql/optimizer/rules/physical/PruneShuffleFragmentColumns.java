@@ -66,7 +66,8 @@ public final class PruneShuffleFragmentColumns extends Rule<PhysicalPlan, Physic
             return join.replaceChildren(prune(join.left(), leftRequired), prune(join.right(), rightRequired));
         }
         if (plan instanceof MergeExec merge && merge.kind() == MergeExec.Kind.UNION) {
-            return merge;
+            // Union inputs align by position, so retain each branch's complete output.
+            return merge.replaceChildren(merge.children().stream().map(branch -> prune(branch, branch.outputSet())).toList());
         }
         if (plan instanceof BinaryExec || plan instanceof LeafExec) {
             return plan;

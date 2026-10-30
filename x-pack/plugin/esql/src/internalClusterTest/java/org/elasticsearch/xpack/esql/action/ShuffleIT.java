@@ -453,6 +453,22 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
             """, randomIntBetween(1, 4), true);
     }
 
+    public void testShuffleUnionPreservesScanColumns() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("subquery in FROM required", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupJoinIndices();
+        assertShuffleSubqueryJoinMatches("""
+            FROM (
+                FROM events
+                | LEFT OUTER JOIN (FROM salaries | RENAME amount AS salary) ON user_id
+                | EVAL bytes = bytes + COALESCE(salary, 0)
+                | KEEP user_id, host, bytes, dept
+            ), (FROM events)
+            | SORT user_id, host, bytes, dept
+            | LIMIT 200
+            """, randomIntBetween(1, 4), false);
+    }
+
     public void testShuffleJoinFallback() throws Exception {
         setupJoinIndices();
         assertShuffleJoinMatches("""
@@ -462,6 +478,21 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
             | STATS c = COUNT(*) BY dept
             | SORT dept
             """, randomIntBetween(1, 4), false, false);
+    }
+
+    public void testShuffleJoinAfterGroupingKeyIsProjectedAway() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("subquery in FROM required", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertShuffleSubqueryJoinMatches("""
+            FROM events
+            | INNER JOIN (
+                FROM (FROM events | STATS user_id = MAX(user_id) BY dept),
+                     (FROM events | STATS user_id = MAX(user_id) BY dept)
+                | STATS user_id = MAX(user_id), c = COUNT(*) BY dept
+                | KEEP user_id, c
+            ) ON user_id
+            | STATS matched = COUNT(*), total = SUM(c)
+            """, 2, true);
     }
 
     public void testProducerFailure() throws Exception {

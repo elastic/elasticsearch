@@ -162,6 +162,10 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163636
+- class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
+  tasks:
+  - :modules:repository-s3:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164044
 
 # Examples:
 #

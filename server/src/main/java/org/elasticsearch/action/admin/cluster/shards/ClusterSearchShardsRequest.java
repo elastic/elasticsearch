@@ -162,12 +162,11 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     }
 
     /**
-     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
-     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}.
      */
     public ClusterSearchShardsRequest searchSlice(String searchSlice) {
         Objects.requireNonNull(searchSlice, "[_slice] must not be null");
-        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
+        return routing(searchSlice).setRoutingFromSlice(true);
     }
 
     public boolean isRoutingFromSlice() {

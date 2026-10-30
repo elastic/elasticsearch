@@ -196,7 +196,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
 
         getRestClient().performRequest(new Request("POST", "/slice-query-filter-it/_refresh"));
 
-        Request filterBySlice = new Request("GET", "/slice-query-filter-it/_all/_search");
+        Request filterBySlice = new Request("GET", "/slice-query-filter-it/_search");
         filterBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -210,7 +210,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ObjectPath filterResponsePath = ObjectPath.createFromResponse(filterResponse);
         assertThat(filterResponsePath.evaluate("hits.total.value"), equalTo(2));
 
-        Request prefixBySlice = new Request("GET", "/slice-query-filter-it/_all/_search");
+        Request prefixBySlice = new Request("GET", "/slice-query-filter-it/_search");
         prefixBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -760,7 +760,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(indexS3);
         getRestClient().performRequest(new Request("POST", "/slice-search-url-all-slices-it/_refresh"));
 
-        Request searchAllSlices = new Request("GET", "/slice-search-url-all-slices-it/_all/_search");
+        Request searchAllSlices = new Request("GET", "/slice-search-url-all-slices-it/_search");
         searchAllSlices.setJsonEntity("""
             {
               "query": {

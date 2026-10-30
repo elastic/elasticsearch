@@ -491,7 +491,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         MultiSearchRequest originalRequest = new MultiSearchRequest();
         originalRequest.add(new SearchRequest("index-1").routing("s1").searchSlice("s1"));
-        originalRequest.add(new SearchRequest("index-2").searchSlice(SliceIndexing.SLICE_ALL));
+        originalRequest.add(new SearchRequest("index-2"));
 
         byte[] bytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, XContentType.JSON.xContent());
         MultiSearchRequest parsedRequest = new MultiSearchRequest();
@@ -528,8 +528,8 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(parsedSlice.searchSlice(), equalTo("s1"));
         SearchRequest parsedAll = parsedRequest.requests().get(1);
         assertNull(parsedAll.routing());
-        assertTrue(parsedAll.isRoutingFromSlice());
-        assertThat(parsedAll.searchSlice(), equalTo(SliceIndexing.SLICE_ALL));
+        assertFalse(parsedAll.isRoutingFromSlice());
+        assertNull(parsedAll.searchSlice());
     }
 
     public void testWritingExpandWildcards() throws IOException {

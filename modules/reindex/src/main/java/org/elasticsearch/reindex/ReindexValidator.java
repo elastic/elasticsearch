@@ -18,7 +18,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,10 +38,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
-import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.Arrays;
 import java.util.List;
 
 public class ReindexValidator {
@@ -111,6 +107,9 @@ public class ReindexValidator {
         final String destinationIndex = destination.index();
         final boolean destinationSliceEnabled = isDestinationSliceEnabled(destination, destinationIndex, projectMetadata);
         final boolean destSliceProvided = destination.isRoutingFromSlice();
+        if (request.getRemoteInfo() == null) {
+            SliceSourceMode.markIfSliceEnabled(request.getSearchRequest(), indexResolver, projectMetadata);
+        }
         final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
 
         validateNoRequiredRoutingMixedWithSlices(
@@ -189,7 +188,7 @@ public class ReindexValidator {
         // cluster state, and doing so throws "Cross-cluster calls are not supported in this context". Skip remote index names, mirroring
         // validateAgainstAliases, and only inspect the local source indices for slice/required-routing settings.
         if (request.getRemoteInfo() == null) {
-            final SearchRequest localSource = skipRemoteIndexNames(request.getSearchRequest());
+            final SearchRequest localSource = SliceSourceMode.skipRemoteIndexNames(request.getSearchRequest());
             if (localSource.indices().length > 0) {
                 for (Index index : indexResolver.concreteIndices(projectMetadata, localSource)) {
                     final IndexMetadata indexMetadata = projectMetadata.index(index);
@@ -331,7 +330,7 @@ public class ReindexValidator {
              */
             target = indexNameExpressionResolver.concreteWriteIndex(project, destination).getName();
         }
-        SearchRequest filteredSource = skipRemoteIndexNames(source);
+        SearchRequest filteredSource = SliceSourceMode.skipRemoteIndexNames(source);
         if (filteredSource.indices().length == 0) {
             return;
         }
@@ -343,18 +342,5 @@ public class ReindexValidator {
                 throw e;
             }
         }
-    }
-
-    private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
-        IndicesOptions indicesOptions = source.indicesOptions();
-        if (indicesOptions.resolveCrossProjectIndexExpression()) {
-            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        }
-        // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
-        // expression, e.g., cluster0:index-name
-        return new SearchRequest(source).indicesOptions(indicesOptions)
-            .indices(
-                Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
-            );
     }
 }

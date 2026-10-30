@@ -40,7 +40,7 @@
             },
             "_slice": {
               "type": "list",
-              "description": "Slice identifier(s) for a slice-enabled index (`index.slice.enabled=true`). A single slice, a comma-separated list (for example `tenant-a,tenant-b`), or the reserved token `_all` to update across all slices.",
+              "description": "Slice identifier(s) for a slice-enabled index (`index.slice.enabled=true`). A single slice or a comma-separated list (for example `tenant-a,tenant-b`). Omit the slice to update across all slices.",
               "feature_flag": "es.slice_indexing_feature_flag_enabled"
             }
           }

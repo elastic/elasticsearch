@@ -18,6 +18,6 @@ import org.elasticsearch.test.ESTestCase;
  */
 public class DynamicRegionSupplier extends DynamicIdentifierSupplier {
     public DynamicRegionSupplier() {
-        super(() -> "DynamicRegionSupplier-");
+        super(() -> "DynamicRegionSupplier");
     }
 }

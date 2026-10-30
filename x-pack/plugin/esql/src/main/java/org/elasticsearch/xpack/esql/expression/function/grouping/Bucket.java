@@ -930,24 +930,22 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             );
         }
         var bucketsType = buckets.dataType();
-        if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
 
         if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),
+                dt -> isSupportedBucketsWholeNumber(dt) || DataType.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
-                "integral",
+                "integer",
+                "long",
                 "date_period",
                 "time_duration"
             );
             // 4-arg ctor: range + time unit or number of buckets
             // e.g. BUCKET(@timestamp, 1 day, "2023-01-01", "2024-01-01")
             // or BUCKET(@timestamp, 5, "2023-01-01", "2024-01-01")
-            if (bucketsType.isWholeNumber() || from != null) {
+            if (isSupportedBucketsWholeNumber(bucketsType) || from != null) {
                 return resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH));
@@ -958,7 +956,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         // Histogram fields take the same bucket size arguments as numbers.
         if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
-            return isNumeric(buckets, sourceText(), SECOND).and(() -> {
+            return isType(buckets, Bucket::isSupportedBucketsNumeric, sourceText(), SECOND, "integer", "long", "double").and(() -> {
                 if (bucketsType.isRationalNumber()) {
                     return checkArgsCount(2);
                 } else { // second arg is a whole number: either a span, but as a whole, or count, and we must expect a range
@@ -971,7 +969,40 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 }
             });
         }
+        if (fieldType == DataType.NULL) {
+            // NULL field is allowed, but the other arguments must still be valid for some BUCKET overload.
+            return isType(
+                buckets,
+                dt -> isSupportedBucketsNumeric(dt) || DataType.isTemporalAmount(dt),
+                sourceText(),
+                SECOND,
+                "numeric",
+                "date_period",
+                "time_duration"
+            ).and(() -> {
+                if (from == null && to == null) {
+                    return TypeResolution.TYPE_RESOLVED;
+                }
+                if (bucketsType.isRationalNumber()) {
+                    return checkArgsCount(2);
+                }
+                return checkArgsCount(4).and(() -> isStringOrDateOrNumeric(from, sourceText(), THIRD))
+                    .and(() -> isStringOrDateOrNumeric(to, sourceText(), FOURTH));
+            });
+        }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
+    }
+
+    /**
+     * {@code unsigned_long} type-checks as a whole number but folding it as a signed {@code long}
+     * yields a nonsense bucket width, so the histogram collapses to null. Reject it as count/span.
+     */
+    private static boolean isSupportedBucketsWholeNumber(DataType dt) {
+        return dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG;
+    }
+
+    private static boolean isSupportedBucketsNumeric(DataType dt) {
+        return dt.isNumeric() && dt != DataType.UNSIGNED_LONG;
     }
 
     private static boolean isSupportedHistogramType(DataType fieldType) {
@@ -1010,6 +1041,19 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             "datetime",
             "date_nanos",
             "string"
+        );
+    }
+
+    private static TypeResolution isStringOrDateOrNumeric(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(
+            e,
+            dt -> DataType.isString(dt) || DataType.isMillisOrNanos(dt) || dt.isNumeric(),
+            operationName,
+            paramOrd,
+            "datetime",
+            "date_nanos",
+            "string",
+            "numeric"
         );
     }
 

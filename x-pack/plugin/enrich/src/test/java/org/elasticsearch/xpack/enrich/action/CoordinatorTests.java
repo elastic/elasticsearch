@@ -18,9 +18,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -216,32 +219,47 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Each slot must be released as soon as its listener returned, so that a finished document is not kept reachable by the batch's
-     * slot list until all listeners of the batch ran.
-     */
-    public void testSlotsReleasedAfterNotification() {
-        final boolean failWholeBatch = randomBoolean();
-        final int batchSize = between(2, 10);
+    public void testSlotsReleasedAfterNotificationWholeBatchFails() {
+        assertSlotsReleasedAfterNotification(4, null, new RuntimeException("simulated"));
+    }
+
+    public void testSlotsReleasedAfterNotificationWholeBatchSucceeds() {
+        assertSlotsReleasedAfterNotification(4, multiSearchResponse(100, 100, 100, 100), null);
+    }
+
+    public void testSlotsReleasedAfterNotificationMixedItemResults() {
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[] {
+            new MultiSearchResponse.Item(searchResponse(100), null),
+            new MultiSearchResponse.Item(null, new RuntimeException("simulated item failure")),
+            new MultiSearchResponse.Item(searchResponse(100), null),
+            new MultiSearchResponse.Item(null, new RuntimeException("simulated item failure")) };
+        assertSlotsReleasedAfterNotification(4, new MultiSearchResponse(items, 1L), null);
+    }
+
+    private void assertSlotsReleasedAfterNotification(
+        int batchSize,
+        @Nullable MultiSearchResponse response,
+        @Nullable Exception batchFailure
+    ) {
         final Coordinator coordinator = new Coordinator(new MockLookupFunction(), batchSize, 1, 100);
         final List<Coordinator.Slot> slots = new ArrayList<>();
         final AtomicInteger notified = new AtomicInteger();
         for (int i = 0; i < batchSize; i++) {
             final int index = i;
             final ActionListener<SearchResponse> listener = new ActionListener<>() {
+
                 @Override
                 public void onResponse(SearchResponse response) {
-                    assertThat(failWholeBatch, is(false));
-                    assertSlotsReleasedUpTo(index);
+                    assertSlotsReleasedUpTo(index, false);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(failWholeBatch, is(true));
-                    assertSlotsReleasedUpTo(index);
+                    assertSlotsReleasedUpTo(index, true);
                 }
 
-                private void assertSlotsReleasedUpTo(int lastReleased) {
+                private void assertSlotsReleasedUpTo(int lastReleased, boolean isFailure) {
+                    assertThat(batchFailure != null || response.getResponses()[index].isFailure(), is(isFailure));
                     assertThat(notified.getAndIncrement(), equalTo(lastReleased));
                     for (int j = 0; j < slots.size(); j++) {
                         // an entry is nulled once its own listener returned, so the current one is still set
@@ -249,27 +267,20 @@ public class CoordinatorTests extends ESTestCase {
                     }
                 }
             };
-            slots.add(new Coordinator.Slot(new SearchRequest("my-index"), listener));
+            slots.add(slot("my-index", listener));
         }
         // handleResponse releases the permit that coordinateLookups acquired
         assertTrue(coordinator.remoteRequestPermits.tryAcquire());
 
-        if (failWholeBatch) {
-            coordinator.handleResponse(slots, null, new RuntimeException("simulated"));
-        } else {
-            final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[batchSize];
-            for (int i = 0; i < batchSize; i++) {
-                items[i] = new MultiSearchResponse.Item(emptySearchResponse(), null);
-            }
-            final MultiSearchResponse response = new MultiSearchResponse(items, 1L);
-            try {
-                coordinator.handleResponse(slots, response, null);
-            } finally {
+        try {
+            coordinator.handleResponse(slots, response, batchFailure);
+        } finally {
+            if (response != null) {
                 response.decRef();
             }
         }
         assertThat(notified.get(), equalTo(batchSize));
-        assertThat(slots, everyItem(nullValue(Coordinator.Slot.class)));
+        assertThat(slots, everyItem(nullValue()));
     }
 
     public void testNoBlockingWhenQueueing() {
@@ -426,6 +437,28 @@ public class CoordinatorTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private static MultiSearchResponse multiSearchResponse(int... sourceBytesPerItem) {
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[sourceBytesPerItem.length];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = new MultiSearchResponse.Item(searchResponse(sourceBytesPerItem[i]), null);
+        }
+        return new MultiSearchResponse(items, 1L);
+    }
+
+    private static SearchResponse searchResponse(int sourceBytes) {
+        SearchHit hit = new SearchHit(0).sourceRef(new BytesArray(new byte[sourceBytes]));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
+        try {
+            return SearchResponseUtils.successfulResponse(searchHits);
+        } finally {
+            searchHits.decRef();
+        }
+    }
+
+    private static Coordinator.Slot slot(String index, ActionListener<SearchResponse> listener) {
+        return new Coordinator.Slot(new SearchRequest(index), listener);
     }
 
     private static SearchResponse emptySearchResponse() {

@@ -14,8 +14,8 @@ A view is a virtual index defined by an {{esql}} query. It stores the query, not
 A view has the following components:
 
 * **Name**: used anywhere an index name is accepted in `FROM`. Refer to [](#esql-views-names) for naming rules.
-* **Definition**: a complete {{esql}} query that runs each time the view is referenced.
-* {applies_to}`stack: ga 9.6+` **Description**: optional text that helps identify the view.
+* **View definition**: a complete {{esql}} query that runs each time the view is referenced. In the REST API, this is the `query` field.
+* {applies_to}`stack: ga 9.6+` **Description**: optional text that explains the view's purpose.
 
 ## Basic example
 
@@ -87,6 +87,11 @@ With `validate=true`:
 * Failures unrelated to the query, such as an overloaded cluster, produce no warning.
 
 ### Reserved views [esql-views-reserved]
+```{applies_to}
+stack: ga 9.6+
+serverless: ga
+```
+
 Reserved views are created by {{es}} or its components, so they're read-only. You can query and read them like any other view, subject to the same [privileges](#esql-views-privileges). The [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response marks them with `"reserved": true`.
 
 The REST API rejects these requests:

@@ -711,7 +711,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
         // Completed tasks contribute their full execution time to a poll interval, including time before the last
         // utilization poll, so the reported write load can exceed the write thread pool size.
-        // As a result we can't assert each result will be <= 1.0 and the total <= writePoolMaximumSize
+        // As a result we can't assert the result will be <= writePoolMaximumSize
         assertThat(mostRecentAverageWriteLoadMetrics.values(), everyItem(greaterThan(0d)));
     }
 

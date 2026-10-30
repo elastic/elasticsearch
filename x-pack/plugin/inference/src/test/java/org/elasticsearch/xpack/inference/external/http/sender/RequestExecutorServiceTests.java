@@ -50,6 +50,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -65,6 +66,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -316,7 +318,16 @@ public class RequestExecutorServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(requestSender).send(any(), any(), any(), any(), any(), any());
 
-        var service = createRequestExecutorService(null, requestSender);
+        // never elapses on its own, the test fires the timeout manually once the exchange started instead of relying on the clock
+        var timeout = TimeValue.MAX_VALUE;
+        var onTimeout = new AtomicReference<Runnable>();
+        var service = new RequestExecutorService(
+            threadPoolCapturingTimeout(timeout, onTimeout),
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            requestSender,
+            new TestCircuitBreaker()
+        );
         threadPool.generic().execute(service::start);
 
         // randomly exercise the fast path and the rate limited path
@@ -324,16 +335,18 @@ public class RequestExecutorServiceTests extends ESTestCase {
             INFERENCE_ID,
             new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
         );
-        // long enough for the request to be sent before it times out, the test asserts the order below
-        var timeout = TimeValue.timeValueSeconds(1);
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(requestManager, new EmbeddingsInput(List.of(), InputType.SEARCH), timeout, listener);
 
-        assertTrue("the exchange must start before the request times out", exchangeStarted.await(timeout.millis(), TimeUnit.MILLISECONDS));
+        assertTrue(exchangeStarted.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
         assertThat(exchangeAborted.getCount(), is(1L));
+        assertNotNull("the request timeout must have been scheduled", onTimeout.get());
+
+        onTimeout.get().run();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
-        assertTrue(exchangeAborted.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        // the timeout runs the abort handlers synchronously after notifying the listener
+        assertThat(exchangeAborted.getCount(), is(0L));
 
         service.shutdown();
         service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
@@ -1318,6 +1331,23 @@ public class RequestExecutorServiceTests extends ESTestCase {
         long getTotalCharged() {
             return totalCharged;
         }
+    }
+
+    /**
+     * Spies on the test thread pool so that the request timeout is captured instead of scheduled, letting tests fire it manually
+     * rather than relying on the clock. Every other call, including the executor service's own scheduling, uses the real thread pool.
+     */
+    private ThreadPool threadPoolCapturingTimeout(TimeValue requestTimeout, AtomicReference<Runnable> onTimeout) {
+        var spiedThreadPool = spy(threadPool);
+        doAnswer(invocation -> {
+            TimeValue delay = invocation.getArgument(1);
+            if (delay.equals(requestTimeout) == false) {
+                return invocation.callRealMethod();
+            }
+            onTimeout.set(invocation.getArgument(0));
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(spiedThreadPool).schedule(any(Runnable.class), any(), any());
+        return spiedThreadPool;
     }
 
     private RequestExecutorService createRequestExecutorServiceWithMocks() {

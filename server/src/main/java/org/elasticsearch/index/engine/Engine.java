@@ -1130,8 +1130,17 @@ public abstract class Engine implements Closeable {
         return acquireSearcher(source, SearcherScope.EXTERNAL);
     }
 
+    public final Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         return acquireSearcher(source, scope, Function.identity());
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope, SplitShardCountSummary splitShardCountSummary)
+        throws EngineException {
+        return acquireSearcher(source, scope, splitShardCountSummary, Function.identity());
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {

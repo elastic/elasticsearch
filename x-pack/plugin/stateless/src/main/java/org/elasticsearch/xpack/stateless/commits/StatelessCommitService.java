@@ -932,7 +932,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    private void createAndRunCommitUpload(
+    /**
+     * Creates and runs the upload of the given virtual BCC. Overridable by tests, for instance to interact with the object store around the
+     * upload.
+     */
+    protected void createAndRunCommitUpload(
         ShardCommitState commitState,
         VirtualBatchedCompoundCommit virtualBcc,
         ShardCommitState.BlobReference blobReference

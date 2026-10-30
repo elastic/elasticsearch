@@ -39,6 +39,8 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      *   <li> We need to discount size of cached pages in {@code PageCacheRecycler}.
      *        Those cached pages are invisible to the breaker but still consume heap. </li>
      *   <li> ES classpath also takes up heap space </li>
+     *   <li> Memory fragmentation might cause the circuit breaker to think we can allocate
+     *        an array when it's not possible to find a big enough gap in heap </li>
      * </ul>
      */
     @Before

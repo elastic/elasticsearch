@@ -88,6 +88,11 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         return bytesToString(values[index].toBytesRef());
     }
 
+    @Override
+    public int byteLength(int index) {
+        return values[index].length();
+    }
+
     protected static String bytesToString(BytesRef bytesRef) {
         return bytesRef.utf8ToString();
     }

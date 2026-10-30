@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IntroSelector;
+import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -464,9 +465,16 @@ public final class Vocabulary {
      * <p>The totals are what the writer's counting pass collects: a null slot is counted in them, as a slot
      * and as a null, and is not offered to the survey, which has no term for it. A value is read once and
      * serves both its length and the survey.
+     *
+     * <p>The walk is also the one that says which documents hold a value, so it hands them to
+     * {@code docsWithField} and the writer need not walk the field again for the column's presence.
      */
-    public static Counted countAndSurvey(StringColumnValues values, DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy)
-        throws IOException {
+    public static Counted countAndSurvey(
+        StringColumnValues values,
+        DictionaryPolicy dictionaryPolicy,
+        SummaryPolicy summaryPolicy,
+        DocsWithFieldCollector docsWithField
+    ) throws IOException {
         final Surveyor surveyor = new Surveyor(dictionaryPolicy, summaryPolicy);
         int numDocsWithField = 0;
         long numValues = 0;
@@ -476,6 +484,7 @@ public final class Vocabulary {
         boolean oneSlotADocument = true;
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             numDocsWithField++;
+            docsWithField.add(doc);
             final int count = values.valueCount();
             oneSlotADocument &= count == 1;
             numValues += count;

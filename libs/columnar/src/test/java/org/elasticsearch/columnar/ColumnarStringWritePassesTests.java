@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.EmptyDocValuesProducer;
@@ -25,6 +26,8 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
@@ -38,10 +41,14 @@ import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodecForField;
 
 /**
  * How many times writing a string column goes back to Lucene's in-memory field, and how many values it
@@ -52,20 +59,22 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
  * <p>Counted at the {@link DocValuesProducer} the consumer is handed: {@code getBinary} is one cursor, one
  * pass, and {@code binaryValue} is one payload copied. What the counts should be follows from the writer:
  * <ul>
- * <li>a column is counted and surveyed in one pass, which reads every payload once;</li>
- * <li>a sparse column then writes its presence from a cursor of its own, which moves through the documents
- * and reads no payload;</li>
+ * <li>a column is counted and surveyed in one pass, which reads every payload once and notes which documents
+ * hold a value;</li>
+ * <li>a sparse column writes its presence from those notes, so it takes no pass for it;</li>
  * <li>the values are then written in one more pass, dictionary or plain, which reads every payload once.</li>
  * </ul>
  * A dictionary column streams its ordinals as it writes them and stages only its escapes, which it replays
  * from a temporary file rather than from the field, so it takes no pass more than a plain column does. So a
- * column takes two cursors and two reads a document when dense, and three cursors and still two reads a
- * document when sparse, whether it is written as a dictionary or plain and whether or not the survey found
- * anything.
+ * column takes two cursors and two reads a document, dense or sparse, whether it is written as a dictionary
+ * or plain and whether or not the survey found anything.
  */
 public class ColumnarStringWritePassesTests extends ESTestCase {
 
     private static final String FIELD = "field";
+
+    /** The field an index sort is on in the tests that sort one. */
+    private static final String SORT = "sort";
 
     /** The longest value a dictionary's term table admits; anything longer is never a candidate. */
     private static final int MAX_TERM_BYTES = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
@@ -82,13 +91,13 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
     }
 
     /**
-     * The same terms over half the documents: the presence pass is one cursor more, but it reads no payload,
-     * so the payloads are read as often as in the dense shape.
+     * The same terms over half the documents: the presence comes from what the first pass noted, so the
+     * column takes no cursor more than in the dense shape.
      */
     public void testSparseDictionaryColumn() throws IOException {
         final BytesRef[][] docSlots = repeating(between(200, 600), true);
         final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, true);
-        assertEquals("cursors", 3, passes.cursors());
+        assertEquals("cursors", 2, passes.cursors());
         assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
     }
 
@@ -101,12 +110,12 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
         assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
     }
 
-    /** As above over half the documents: the presence pass adds a cursor and reads nothing. */
+    /** As above over half the documents: the presence comes from the count, so no cursor is added. */
     public void testSparsePlainColumnWithoutADictionaryPolicy() throws IOException {
         final BytesRef[][] docSlots = repeating(between(200, 600), true);
         final StringColumnOptions options = StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE);
         final Passes passes = write(docSlots, options, false);
-        assertEquals("cursors", 3, passes.cursors());
+        assertEquals("cursors", 2, passes.cursors());
         assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
     }
 
@@ -137,7 +146,7 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
         assertEquals("payloads read", 2L * docSlots.length, passes.values());
     }
 
-    /** The sparse shape of the same: a presence pass, and still no second survey. */
+    /** The sparse shape of the same: no presence pass, and still no second survey. */
     public void testSparseColumnWhereTheSurveyFindsNothingWorthNaming() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[between(20, 60)][];
         for (int doc = 0; doc < docSlots.length; doc += 2) {
@@ -146,7 +155,35 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
             docSlots[doc] = new BytesRef[] { new BytesRef(bytes) };
         }
         final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, false);
-        assertEquals("cursors", 3, passes.cursors());
+        assertEquals("cursors", 2, passes.cursors());
+        assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
+    }
+
+    /**
+     * The sparse shape again with the index sorted on another field, so that the segment is flushed in an
+     * order other than the one the documents arrived in. The presence is collected in the order the cursor
+     * goes through the documents, which is the sorted one, and must come out the way it would have walked.
+     */
+    public void testSparseDictionaryColumnInAnIndexSort() throws IOException {
+        final BytesRef[][] docSlots = repeating(between(200, 600), true);
+        final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, true, shuffledKeys(docSlots.length));
+        assertEquals("cursors", 2, passes.cursors());
+        assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
+    }
+
+    /** As above, for a column written plain. */
+    public void testSparsePlainColumnInAnIndexSort() throws IOException {
+        final BytesRef[][] docSlots = distinct(between(200, 600), true);
+        final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, false, shuffledKeys(docSlots.length));
+        assertEquals("cursors", 2, passes.cursors());
+        assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
+    }
+
+    /** A dense column in an index sort, which needs no presence at all. */
+    public void testDenseDictionaryColumnInAnIndexSort() throws IOException {
+        final BytesRef[][] docSlots = repeating(between(100, 400), false);
+        final Passes passes = write(docSlots, StringColumnOptions.DEFAULT, true, shuffledKeys(docSlots.length));
+        assertEquals("cursors", 2, passes.cursors());
         assertEquals("payloads read", 2L * docsWithField(docSlots), passes.values());
     }
 
@@ -158,6 +195,15 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
      * field, reads the column back to check it survived the passes it took, and reports the counts.
      */
     private Passes write(BytesRef[][] docSlots, StringColumnOptions options, boolean expectDictionary) throws IOException {
+        return write(docSlots, options, expectDictionary, null);
+    }
+
+    /**
+     * As above, and where {@code sortKeys} is given, with the index sorted on a field holding the key of each
+     * document, so that the segment is written with the documents in key order and the column is read back
+     * in that order too.
+     */
+    private Passes write(BytesRef[][] docSlots, StringColumnOptions options, boolean expectDictionary, int[] sortKeys) throws IOException {
         final int[] cursors = new int[1];
         final long[] values = new long[1];
         final ColumNARDocValuesFormat columnar = new ColumNARDocValuesFormat(
@@ -166,13 +212,22 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             StringColumnOptionsSelector.always(options)
         );
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(counting(columnar, cursors, values)));
+        final DocValuesFormat counting = counting(columnar, cursors, values);
+        final IndexWriterConfig iwc = new IndexWriterConfig();
+        // The key a sort is on is a numeric field, which the columnar format does not write, so it keeps the default.
+        iwc.setCodec(sortKeys == null ? columnarCodec(counting) : columnarCodecForField(FIELD, counting));
+        if (sortKeys != null) {
+            iwc.setIndexSort(new Sort(new SortField(SORT, SortField.Type.INT)));
+        }
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (BytesRef[] slots : docSlots) {
+                for (int i = 0; i < docSlots.length; i++) {
                     final Document doc = new Document();
-                    if (slots != null) {
-                        doc.add(new Field(FIELD, payload(slots), columnarBinaryFieldType()));
+                    if (docSlots[i] != null) {
+                        doc.add(new Field(FIELD, payload(docSlots[i]), columnarBinaryFieldType()));
+                    }
+                    if (sortKeys != null) {
+                        doc.add(new NumericDocValuesField(SORT, sortKeys[i]));
                     }
                     writer.addDocument(doc);
                 }
@@ -184,12 +239,13 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
                 final BinaryDocValues dv = leaf.getBinaryDocValues(FIELD);
                 assertTrue("a columnar column", dv instanceof ColumnarStringBinaryDocValues);
                 assertEquals("layout", expectDictionary, ((ColumnarStringBinaryDocValues) dv).reader().hasDictionary());
-                for (int doc = 0; doc < docSlots.length; doc++) {
-                    if (docSlots[doc] == null) {
+                final BytesRef[][] inSegmentOrder = sortKeys == null ? docSlots : inKeyOrder(docSlots, sortKeys);
+                for (int doc = 0; doc < inSegmentOrder.length; doc++) {
+                    if (inSegmentOrder[doc] == null) {
                         continue;
                     }
                     assertEquals("doc " + doc, doc, dv.nextDoc());
-                    assertEquals("doc " + doc, payload(docSlots[doc]), dv.binaryValue());
+                    assertEquals("doc " + doc, payload(inSegmentOrder[doc]), dv.binaryValue());
                 }
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, dv.nextDoc());
             }
@@ -292,6 +348,25 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
                 return in.cost();
             }
         };
+    }
+
+    /** Every key from 0 up to {@code maxDoc}, once, in a random order. */
+    private static int[] shuffledKeys(int maxDoc) {
+        final List<Integer> keys = new ArrayList<>();
+        for (int key = 0; key < maxDoc; key++) {
+            keys.add(key);
+        }
+        Collections.shuffle(keys, random());
+        return keys.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /** {@code docSlots} as the segment holds them once it is sorted: the document with key k is document k. */
+    private static BytesRef[][] inKeyOrder(BytesRef[][] docSlots, int[] sortKeys) {
+        final BytesRef[][] sorted = new BytesRef[docSlots.length][];
+        for (int i = 0; i < docSlots.length; i++) {
+            sorted[sortKeys[i]] = docSlots[i];
+        }
+        return sorted;
     }
 
     /** One of a few terms a document, over every document or over every other one. */

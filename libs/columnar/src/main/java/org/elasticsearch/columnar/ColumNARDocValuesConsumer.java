@@ -51,6 +51,7 @@ import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -704,9 +705,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      *
      * <p>Where the column may take a dictionary and nothing has settled its terms yet, the same pass surveys
      * them: on ingest every pass copies each value out of the indexing buffer again, and the count and the
-     * survey each need every value, so the two share one walk and the writer is handed both. A sparse column
-     * then walks its documents once more for its presence, reading no value, and every column reads its
-     * values once more to write them — two reads of each value, dense or sparse.
+     * survey each need every value, so the two share one walk and the writer is handed both. That walk also
+     * collects which documents hold a value, so a sparse column's presence is written without a walk of its
+     * own, and every column reads its values once more to write them — two reads of each value and two
+     * cursors, dense or sparse, sorted or not.
      *
      * <p>A cursor that already knows the totals — a merge of our own columns, which each recorded theirs —
      * reports them instead and the pass is skipped; such a merge mostly knows its terms from what the inputs
@@ -725,8 +727,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         StringColumnValues counter = cursors.get();
         StringColumnValues.Totals totals = counter.totals();
         Vocabulary.Survey survey = known == null ? null : new Vocabulary.Survey(known);
+        // Whichever pass counts the column also sees which documents hold a value, so it keeps them and a
+        // sparse column's presence is written from that instead of from a cursor of its own.
+        final DocsWithFieldCollector docsWithField = totals == null ? new DocsWithFieldCollector(maxDoc) : null;
         if (totals == null && known == null && options.dictionary().enabled()) {
-            final Vocabulary.Counted counted = Vocabulary.countAndSurvey(counter, options.dictionary(), options.summary());
+            final Vocabulary.Counted counted = Vocabulary.countAndSurvey(counter, options.dictionary(), options.summary(), docsWithField);
             totals = counted.totals();
             survey = counted.survey();
         } else if (totals == null) {
@@ -740,6 +745,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             boolean oneSlotADocument = true;
             for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
                 numDocsWithField++;
+                docsWithField.add(doc);
                 final int count = counter.valueCount();
                 oneSlotADocument &= count == 1;
                 numValues += count;
@@ -764,6 +770,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             cursors,
             options,
             survey,
+            docsWithField,
             directory,
             context,
             outputs,

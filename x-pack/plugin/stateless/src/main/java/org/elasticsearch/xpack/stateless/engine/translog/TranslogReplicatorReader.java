@@ -202,6 +202,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             } catch (NoSuchFileException e) {
                 // It is possible for an indexing shard to delete a file since we listed files. This is valid as it is possible this file
                 // was not related to the shard we are recovering. Just proceed to read the next file.
+                // (Note that in case the translog file is modified while we are reading it, we intentionally
+                // throw `BlobVersionMismatchException` instead of `NoSuchFileException`, so the exception is not caught here and the
+                // recovery fails.)
                 logger.debug(
                     format("listed translog [%s] not found while searching for shard directory, moving to next file", translogGeneration),
                     e

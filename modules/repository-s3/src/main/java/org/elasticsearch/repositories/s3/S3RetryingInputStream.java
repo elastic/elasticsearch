@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.core.Nullable;
@@ -89,14 +90,10 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
                         );
                     }
                     if (version != null && sdkServiceException.statusCode() == RestStatus.PRECONDITION_FAILED.getStatus()) {
-                        throw new NoSuchFileException(
-                            "Blob object ["
-                                + blobKey
-                                + "] with ETag ["
-                                + version
-                                + "] unavailable on resume: "
-                                + sdkServiceException.getMessage()
-                        );
+                        // Because `version` is set and S3 returns `PRECONDITION_FAILED`, this means that the object was modified.
+                        // We deliberately do not throw `NoSuchFileException`, so that callers do not mistake a file partially read with
+                        // one that was not there.
+                        throw new BlobVersionMismatchException(blobKey, version, sdkServiceException);
                     }
                 }
                 throw e;

@@ -136,6 +136,17 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw addSuppressedExceptions(e);
+            } catch (BlobVersionMismatchException e) {
+                logger.warn(
+                    () -> format(
+                        "failed to resume reading [%s] at offset [%s] with purpose [%s]: the blob changed while it was being read",
+                        blobStoreServices.getBlobDescription(),
+                        start + offset,
+                        purpose.getKey()
+                    ),
+                    e
+                );
+                throw addSuppressedExceptions(e);
             } catch (RuntimeException e) {
                 retryOrAbortOnOpen(e);
             } catch (IOException e) {

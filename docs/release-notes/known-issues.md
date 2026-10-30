@@ -14,6 +14,10 @@ Known issues are significant defects or limitations that may impact your impleme
 
   Refer to [#163612](https://github.com/elastic/elasticsearch/issues/163612) for further details.
 
+* In ES|QL, when the [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) field argument is an inline `TO_DENSE_VECTOR` over a field, KNN yields incorrect results or a failure.
+
+  Refer to [#163402](https://github.com/elastic/elasticsearch/issues/163402) for further details.
+
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
 
 * A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
@@ -214,11 +218,11 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
   MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04.
   An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
   To determine whether MGLRU is enabled, run:
-  
+
   ```bash
   cat /sys/kernel/mm/lru_gen/enabled
   ```
-  
+
   A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
   This issue is fixed in {{es}} 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
   It does not affect {{es}} 8.19.

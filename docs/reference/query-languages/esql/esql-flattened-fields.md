@@ -220,6 +220,9 @@ behind the extracted value, so the match is evaluated at runtime, row by row, ra
 [`TO_DENSE_VECTOR`](functions-operators/type-conversion-functions/to_dense_vector.md) to cast a hex-encoded byte vector,
 or the [`DENSE_VECTOR`](commands/dense-vector.md) command to generate embeddings from the extracted text.
 
+`KNN` with `TO_DENSE_VECTOR` as inline field argument, does not yield correct results. Please refer to [known issues](/release-notes/known-issues.md) for details. As a workaround,
+you can use `EVAL` to create a new column with the dense vector and then use that column as the argument for `KNN`.
+
 ## Related resources [esql-flattened-fields-related]
 
 - [`FIELD_EXTRACT`](functions-operators/string-functions/field_extract.md): the function reference, including null handling and JSONPath restrictions.

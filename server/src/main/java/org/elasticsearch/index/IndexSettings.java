@@ -1163,7 +1163,7 @@ public final class IndexSettings {
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
             return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
         }
-        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar() || IndexSettings.MODE.get(settings).isTsdb());
     }, value -> {
         if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException(

@@ -91,21 +91,20 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
         checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
 
-        // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", fieldMapping(b -> {
-            b.field("type", "text");
+            b.field("type", "search_as_you_type");
             b.field("norms", false);
         }), fieldMapping(b -> {
-            b.field("type", "text");
+            b.field("type", "search_as_you_type");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck("norms", b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "search_as_you_type");
             b.field("norms", true);
-        }, b -> {
+        }), fieldMapping(b -> {
             b.field("type", "search_as_you_type");
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }));
 
         checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");

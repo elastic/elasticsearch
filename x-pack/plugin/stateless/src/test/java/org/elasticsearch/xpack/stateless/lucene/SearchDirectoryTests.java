@@ -548,9 +548,9 @@ public class SearchDirectoryTests extends ESTestCase {
     public void testBlobLengthTracksMetadataUpdates() throws IOException {
         try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            final String blobName = "stateless_commit_1";
-            assertThat(searchDirectory.blobLength(1L, blobName).isPresent(), equalTo(false));
-            expectThrows(AssertionError.class, () -> searchDirectory.blobLength(1L, "not-a-blob"));
+            final var commit1 = new PrimaryTermAndGeneration(1L, 1L);
+            final var commit2 = new PrimaryTermAndGeneration(1L, 2L);
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
 
             final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
             final var locationB = createBlobLocation(1L, 1L, 100L, 150L);
@@ -570,8 +570,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(1L, blobName).getAsLong(), equalTo(250L));
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_2").isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(250L));
+            assertThat(searchDirectory.blobLength(commit2).isPresent(), equalTo(false));
 
             final var locationC = createBlobLocation(1L, 1L, 250L, 80L);
             searchDirectory.updateCommit(
@@ -589,22 +589,22 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(1L, blobName).getAsLong(), equalTo(330L));
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_2").getAsLong(), equalTo(40L));
-            assertThat(searchDirectory.blobLength(2L, blobName).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(new PrimaryTermAndGeneration(2L, 1L)).isPresent(), equalTo(false));
 
             // Dropping files, including the one at the end, leaves the length while any file still references the blob.
             searchDirectory.retainFiles(Set.of("fileA", "fileC", "other"));
-            assertThat(searchDirectory.blobLength(1L, blobName).getAsLong(), equalTo(330L));
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_2").getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
 
             searchDirectory.retainFiles(Set.of("fileA", "other"));
-            assertThat(searchDirectory.blobLength(1L, blobName).getAsLong(), equalTo(330L));
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_2").getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
 
             searchDirectory.retainFiles(Set.of("other"));
-            assertThat(searchDirectory.blobLength(1L, blobName).isPresent(), equalTo(false));
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_2").getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
         }
     }
 
@@ -629,7 +629,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_1").getAsLong(), equalTo(500L));
+            assertThat(searchDirectory.blobLength(fileEarly.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(500L));
         }
     }
 
@@ -653,7 +653,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_1").getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
 
             // A later commit carries the same generational file from a longer copy in a new blob. The directory keeps
             // the first location, but the copy still extends the new blob past the file that is stored there.
@@ -674,8 +674,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     null
                 )
             );
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_1").getAsLong(), equalTo(80L));
-            assertThat(searchDirectory.blobLength(1L, "stateless_commit_2").getAsLong(), equalTo(240L));
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(newFile.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(240L));
         }
     }
 

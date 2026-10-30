@@ -100,23 +100,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
-    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of(
-        // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
-        "missing references \\[.*\\]",
-        // https://github.com/elastic/elasticsearch/issues/142026
-        "column \\[.*\\] already resolved",
-        // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
-        // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
-        "is not supported with unmapped_fields",
-        "does not support full-text search function",
-        "type \\[null\\] .* not supported",
-        // https://github.com/elastic/elasticsearch/issues/145555
-        "Multiple index patterns should be disabled with unmapped fields",
-        // https://github.com/elastic/elasticsearch/issues/146036
-        "argument of \\[.*\\] must be \\[unsupported\\], found value",
-        // https://github.com/elastic/elasticsearch/issues/146074
-        "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
-    );
+    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of();
 
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
         GenerativeFeature.SUBQUERIES,
@@ -139,14 +123,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ),
         GenerativeFeature.UNMAPPED_FIELDS_LOAD,
         UNMAPPED_FIELDS_LOAD_ERRORS,
-        // Permanent design constraint: keep this text identical to Verifier.checkLoadAllModeSupportedCommands.
+        // Permanent design constraint: keep this pattern matching the message of Verifier.checkLoadAllModeSupportedCommands.
         GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL,
         Sets.union(
             UNMAPPED_FIELDS_LOAD_ERRORS,
-            Set.of(
-                "only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, STATS, INLINE STATS, "
-                    + "LOOKUP JOIN, ENRICH, FORK and subquery commands"
-            )
+            Set.of("only supports the FROM, .* and subquery commands; \\[[^\\]]+\\] is not supported yet")
         ),
         GenerativeFeature.PARQUET_DATASET,
         Set.of(
@@ -673,7 +654,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isUserAgentLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
@@ -1583,8 +1563,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
     }
 
-    private static final Pattern USER_AGENT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*USER_AGENT\\b");
-    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\d+\\s+BY\\b");
     private static final Pattern EVAL_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*EVAL\\b");
 
     private static final Pattern PROBLEM_LINE = Pattern.compile("line (-?\\d+):(-?\\d+)(?: \\(in view \\[[^\\]]*\\]\\))?: ");
@@ -1778,22 +1756,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern WHERE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*WHERE\\b");
-
-    /**
-     * The LIMIT BY optimizer prunes the {@code USER_AGENT} input field from {@code ProjectExec}
-     * because it does not appear in the LIMIT BY output columns, but {@code UserAgentExec} still
-     * needs it as its source reference.
-     * See https://github.com/elastic/elasticsearch/issues/154069
-     */
-    static boolean isUserAgentLimitByBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        return USER_AGENT_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
-    }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
     private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(

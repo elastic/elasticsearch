@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -359,22 +358,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob.
-     * {@code blobName} must be a batched compound commit blob; any other name fails an assertion. Empty when that
-     * primary term and blob are not tracked.
+     * Empty when that primary term and generation are not tracked.
      * <p>
      * The value grows as a virtual batched compound commit is appended, including when a generational file is carried
      * in a later blob whose location this directory does not store. It is kept while any file still references the blob,
      * because an uploaded blob is immutable and a virtual one only grows, so it can stay past the end of the files that
      * remain after a later file is removed.
      */
-    public OptionalLong blobLength(long primaryTerm, String blobName) {
-        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
-            assert false : "blob name [" + blobName + "] is not a batched compound commit blob";
-            return OptionalLong.empty();
-        }
-        final Long length = blobLengths.get(
-            new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(blobName))
-        );
+    public OptionalLong blobLength(PrimaryTermAndGeneration termAndGeneration) {
+        final Long length = blobLengths.get(termAndGeneration);
         return length == null ? OptionalLong.empty() : OptionalLong.of(length);
     }
 
@@ -383,31 +375,31 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * @param filesToRetain the files to retain
      */
     public void retainFiles(Set<String> filesToRetain) {
-        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+        final var current = currentMetadata;
+        if (filesToRetain.containsAll(current.keySet()) == false) {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
-                final var updated = new HashMap<>(currentMetadata);
-                final var filesToRemove = Sets.difference(updated.keySet(), filesToRetain);
-                final var termGensRemoved = filesToRemove.stream()
-                    .map(updated::get)
-                    .map(BlobFileRanges::blobLocation)
-                    .map(BlobLocation::getBatchedCompoundCommitTermAndGeneration)
-                    .collect(Collectors.toCollection(HashSet::new));
-                final var filesRemoved = updated.keySet().removeAll(filesToRemove);
+                final var currentLengths = blobLengths;
+                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>(currentLengths.size());
+                final var updated = new HashMap<String, BlobFileRanges>(current.size());
+
+                for (var entry : current.entrySet()) {
+                    if (filesToRetain.contains(entry.getKey())) {
+                        updated.put(entry.getKey(), entry.getValue());
+                        termGensRetained.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                    }
+                }
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
+                final boolean filesRemoved = updated.size() < current.size();
                 assert filesRemoved;
 
-                // Refine which generations to remove from blob lengths, by skipping any generations still referenced by the directory
-                for (BlobFileRanges ranges : updated.values()) {
-                    if (termGensRemoved.isEmpty()) {
-                        break;
-                    }
-                    termGensRemoved.remove(ranges.blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                // A removed file does not drop its blob while another retained file still references it.
+                if (termGensRetained.size() != currentLengths.size()) {
+                    final var lengths = new HashMap<>(currentLengths);
+                    lengths.keySet().retainAll(termGensRetained);
+                    blobLengths = Map.copyOf(lengths);
                 }
-                final var lengths = new HashMap<>(blobLengths);
-                lengths.keySet().removeAll(termGensRemoved);
-                blobLengths = Map.copyOf(lengths);
                 currentMetadata = Map.copyOf(updated);
                 assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
 

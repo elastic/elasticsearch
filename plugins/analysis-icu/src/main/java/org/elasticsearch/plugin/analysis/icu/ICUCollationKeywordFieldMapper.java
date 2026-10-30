@@ -291,7 +291,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParams(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
@@ -310,6 +310,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesPameters,
+                docValuesPameters.multiValue(),
+                docValuesPameters.nullability(),
+                docValuesPameters.onFailure(),
                 stored,
                 indexOptions,
                 hasNorms,

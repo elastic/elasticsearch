@@ -83,6 +83,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         throttlingRecoveryService = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,

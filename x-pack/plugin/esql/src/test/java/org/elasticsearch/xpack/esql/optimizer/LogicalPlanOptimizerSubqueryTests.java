@@ -574,12 +574,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         return planSubquery(subqueryAnalyzer(), query, pragmaSettings, flags);
     }
 
-    /**
-     * A view is a boundary {@code unmapped_fields="load_all"} does not reach into, and its output carries a null
-     * {@code _unmapped_fields} instead. Whichever way views, indices and subqueries are combined, the optimizer must find that column
-     * where the plan above it reads it; nothing may be left referencing an attribute that no subplan provides.
-     */
-
     private LogicalPlan planSubquery(TestAnalyzer analyzer, String query, Settings pragmaSettings, EsqlFlags flags) {
         return optimizeWithPragmas(analyzer.query(query), query, pragmaSettings, flags);
     }

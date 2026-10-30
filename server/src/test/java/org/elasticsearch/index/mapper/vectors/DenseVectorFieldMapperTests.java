@@ -31,6 +31,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -73,6 +74,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -605,7 +607,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 checker,
                 "index_options",
                 indexedMapping::build,
-                b -> b.field("index_options", Map.of("type", "int4_flat", "m", 32)),
+                b -> b.field("index_options", Map.of("type", "int4_flat")),
                 b -> b.field("index_options", Map.of("type", newType))
             );
         }
@@ -1470,7 +1472,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).build(b)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
@@ -1479,7 +1480,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -2963,6 +2963,17 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    /** The post-filter threshold is user-settable, so it must reject anything outside [0, 1], including NaN. */
+    public void testPostFilterSelectivityThresholdValidation() {
+        Setting<Float> setting = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD;
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, setting.get(Settings.EMPTY), 0f);
+        float valid = randomFloatBetween(0f, 1f, true);
+        assertEquals(valid, setting.get(Settings.builder().put(setting.getKey(), valid).build()), 0f);
+        for (String invalid : List.of("-0.1", "1.1", "NaN")) {
+            expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), invalid).build()));
+        }
     }
 
     /** {@code on_disk_merge} can be flipped by a mapping update: the index type stays the same, so the update is not rejected. */

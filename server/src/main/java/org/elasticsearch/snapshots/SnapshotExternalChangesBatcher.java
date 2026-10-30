@@ -39,8 +39,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
-
 /**
  * Manages batching of cluster state tasks that update in-progress snapshots in response to external cluster
  * changes (e.g. master fail-over, node removal, or shards that were waiting for snapshot becoming available).
@@ -281,6 +279,7 @@ final class SnapshotExternalChangesBatcher {
                                 .processWaitingShardsAndRemovedNodes(
                                     snapshotEntry,
                                     currentState.routingTable(projectId),
+                                    currentState.metadata().getProject(projectId),
                                     nodes,
                                     snapshotsInProgress::isNodeIdForRemoval,
                                     knownFailures
@@ -304,9 +303,7 @@ final class SnapshotExternalChangesBatcher {
                         logger.debug("[{}] was found in dangling INIT or ABORTED state", snapshotEntry);
                     } else {
                         // Now we're down to completed or un-modified snapshots
-                        if (snapshotEntry.state().completed() || completed(snapshotEntry.shardSnapshotStatusByRepoShardId().values())) {
-                            // TODO: Simplify the if statement if the assertion holds as expected
-                            assert snapshotEntry.state().completed() : "if all its shards completed then the snapshot should be completed";
+                        if (snapshotEntry.state().completed()) {
                             finishedSnapshots.add(snapshotEntry);
                         }
                         updatedEntriesForRepo.add(snapshotEntry);

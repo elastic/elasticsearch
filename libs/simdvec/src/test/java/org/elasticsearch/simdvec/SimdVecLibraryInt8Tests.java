@@ -92,8 +92,13 @@ public class SimdVecLibraryInt8Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
         float[] bulkScores = new float[numVecs];
-        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
+        // only the dot product binding is @Critical; the others reject heap segments
+        if (function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT) {
+            similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
+            assertArrayEquals(expectedScores, bulkScores, delta);
+        } else {
+            assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
+        }
     }
 
     // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,

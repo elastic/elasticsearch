@@ -82,6 +82,8 @@ public class EscfBatchRowSizesTests extends ESTestCase {
         assertKnownSize("{\"l\":1}", 8);
         assertKnownSize("{\"d\":1.5}", 8);
         assertKnownSize("{\"b\":true}", 0);
+        // A boolean array is a union array: one type byte per element, unlike a scalar boolean.
+        assertKnownSize("{\"ba\":[true,false,true]}", 3);
         assertKnownSize("{\"n\":null}", 0);
         assertKnownSize("{\"e\":{}}", 0);
         assertKnownSize("{}", 0);

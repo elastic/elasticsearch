@@ -243,6 +243,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -426,7 +427,15 @@ public class LocalExecutionPlanner {
         return new LocalExecutionPlan(context.driverFactories);
     }
 
+    /**
+     * Plans {@code node}. Operators added for this node are tagged with its {@link org.elasticsearch.xpack.esql.plan.PlanId}
+     * so PROFILE can join {@code plan_node_id} to {@code plan_json}. Child operators keep the ids assigned when they were planned.
+     */
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
+        return planNode(node, context).tagPlanNode(node.planId().toString());
+    }
+
+    private PhysicalOperation planNode(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context, false);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
@@ -2843,8 +2852,12 @@ public class LocalExecutionPlanner {
      */
     public static class PhysicalOperation {
         final SourceOperatorFactory sourceOperatorFactory;
+        final String sourcePlanNodeId;
         final List<OperatorFactory> intermediateOperatorFactories;
+        /** Parallel to {@link #intermediateOperatorFactories}. Null entries are filled by {@link #tagPlanNode}. */
+        final List<String> intermediatePlanNodeIds;
         final SinkOperatorFactory sinkOperatorFactory;
+        final String sinkPlanNodeId;
 
         final Layout layout; // maps field names to channels
 
@@ -2885,8 +2898,11 @@ public class LocalExecutionPlanner {
 
         private PhysicalOperation(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             this.sourceOperatorFactory = sourceOperatorFactory;
+            this.sourcePlanNodeId = null;
             this.intermediateOperatorFactories = List.of();
+            this.intermediatePlanNodeIds = List.of();
             this.sinkOperatorFactory = null;
+            this.sinkPlanNodeId = null;
             this.layout = layout;
         }
 
@@ -2897,13 +2913,75 @@ public class LocalExecutionPlanner {
             Layout layout
         ) {
             sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            this.sourcePlanNodeId = physicalOperation.sourcePlanNodeId;
             this.intermediateOperatorFactories = new ArrayList<>(
                 physicalOperation.intermediateOperatorFactories.size() + intermediateOperatorFactories.size()
             );
             this.intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
             this.intermediateOperatorFactories.addAll(intermediateOperatorFactories);
+            this.intermediatePlanNodeIds = new ArrayList<>(physicalOperation.intermediatePlanNodeIds);
+            for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
+                this.intermediatePlanNodeIds.add(null);
+            }
             this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
+            // with() clears the sink; withSink installs a new one that has not been tagged yet.
+            this.sinkPlanNodeId = null;
             this.layout = layout;
+        }
+
+        private PhysicalOperation(
+            PhysicalOperation physicalOperation,
+            String sourcePlanNodeId,
+            List<String> intermediatePlanNodeIds,
+            String sinkPlanNodeId
+        ) {
+            this.sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            this.sourcePlanNodeId = sourcePlanNodeId;
+            this.intermediateOperatorFactories = physicalOperation.intermediateOperatorFactories;
+            this.intermediatePlanNodeIds = intermediatePlanNodeIds;
+            this.sinkOperatorFactory = physicalOperation.sinkOperatorFactory;
+            this.sinkPlanNodeId = sinkPlanNodeId;
+            this.layout = physicalOperation.layout;
+        }
+
+        /**
+         * Fills plan-node ids that are still null with {@code planNodeId}. Ids already set (child operators)
+         * are kept. Called once per physical plan node after that node's operators have been appended.
+         */
+        PhysicalOperation tagPlanNode(String planNodeId) {
+            String sourceId = sourcePlanNodeId != null ? sourcePlanNodeId : planNodeId;
+            List<String> intermediateIds = new ArrayList<>(intermediatePlanNodeIds.size());
+            for (String id : intermediatePlanNodeIds) {
+                intermediateIds.add(id != null ? id : planNodeId);
+            }
+            String sinkId = sinkOperatorFactory == null ? null : (sinkPlanNodeId != null ? sinkPlanNodeId : planNodeId);
+            return new PhysicalOperation(this, sourceId, intermediateIds, sinkId);
+        }
+
+        /**
+         * Identity map from the operators this operation just built to their plan-node ids.
+         * Operators with a null id are omitted so PROFILE leaves {@code plan_node_id} out.
+         */
+        Map<Operator, String> planNodeIds(SourceOperator source, List<Operator> operators, SinkOperator sink) {
+            if (operators.size() != intermediatePlanNodeIds.size()) {
+                throw new IllegalStateException(
+                    "operator count [" + operators.size() + "] != plan node id count [" + intermediatePlanNodeIds.size() + "]"
+                );
+            }
+            Map<Operator, String> ids = new IdentityHashMap<>();
+            if (source != null && sourcePlanNodeId != null) {
+                ids.put(source, sourcePlanNodeId);
+            }
+            for (int i = 0; i < operators.size(); i++) {
+                String id = intermediatePlanNodeIds.get(i);
+                if (id != null) {
+                    ids.put(operators.get(i), id);
+                }
+            }
+            if (sink != null && sinkPlanNodeId != null) {
+                ids.put(sink, sinkPlanNodeId);
+            }
+            return ids;
         }
 
         public SourceOperator source(DriverContext driverContext) {
@@ -3051,7 +3129,7 @@ public class LocalExecutionPlanner {
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(
+                Driver driver = new Driver(
                     sessionId,
                     description,
                     clusterName,
@@ -3066,6 +3144,8 @@ public class LocalExecutionPlanner {
                     statusInterval,
                     localBreaker
                 );
+                driver.setPlanNodeIds(physicalOperation.planNodeIds(source, operators, sink));
+                return driver;
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);

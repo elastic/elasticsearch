@@ -22,23 +22,45 @@ import java.io.IOException;
  *
  * @param operator String representation of the {@link Operator}.
  * @param status Status as reported by the {@link Operator}.
+ * @param planNodeId Id of the physical plan node that created this operator, or null when there is none
+ *                   (output, exchange plumbing, tests). Omitted on the wire before {@link PlanProfile#JSON_PLANS_VERSION}.
  */
-public record OperatorStatus(String operator, @Nullable Operator.Status status) implements Writeable, ToXContentObject {
+public record OperatorStatus(String operator, @Nullable Operator.Status status, @Nullable String planNodeId)
+    implements
+        Writeable,
+        ToXContentObject {
+
+    /** Operators profiled before plan-node ids existed. */
+    public OperatorStatus(String operator, @Nullable Operator.Status status) {
+        this(operator, status, null);
+    }
 
     public static OperatorStatus readFrom(StreamInput in) throws IOException {
-        return new OperatorStatus(in.readString(), in.readOptionalNamedWriteable(Operator.Status.class));
+        String operator = in.readString();
+        Operator.Status status = in.readOptionalNamedWriteable(Operator.Status.class);
+        String planNodeId = null;
+        if (in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
+            planNodeId = in.readOptionalString();
+        }
+        return new OperatorStatus(operator, status, planNodeId);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(operator);
         out.writeOptionalNamedWriteable(status != null && status.supportsVersion(out.getTransportVersion()) ? status : null);
+        if (out.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
+            out.writeOptionalString(planNodeId);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("operator", operator);
+        if (planNodeId != null) {
+            builder.field("plan_node_id", planNodeId);
+        }
         if (status != null) {
             builder.field("status", status);
         }

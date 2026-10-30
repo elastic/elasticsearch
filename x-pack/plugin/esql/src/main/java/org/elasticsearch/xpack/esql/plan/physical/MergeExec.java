@@ -69,7 +69,9 @@ public class MergeExec extends PhysicalPlan {
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        return new MergeExec(source(), newChildren, output(), kind);
+        MergeExec replaced = new MergeExec(source(), newChildren, output(), kind);
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSample
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
@@ -68,6 +69,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             throw new VerificationException(failures);
         }
         log.debug("Local Physical plan:\n{}", optimizedPlan);
+        PlanJsonLog.debug("local_physical", optimizedPlan);
         return optimizedPlan;
     }
 

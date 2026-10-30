@@ -766,8 +766,8 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertEquals("EXPLAIN stream must emit exactly one columns header frame", 1L, headerFrameCount);
         List<String> explainColumnNames = columnNames(lines.get(0), "columns");
         assertEquals(
-            "EXPLAIN columns must be cluster, node, role, type, plan",
-            List.of("cluster", "node", "role", "type", "plan"),
+            "EXPLAIN columns must be cluster, node, role, type, plan, plan_json",
+            List.of("cluster", "node", "role", "type", "plan", "plan_json"),
             explainColumnNames
         );
     }

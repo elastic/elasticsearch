@@ -63,7 +63,11 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
             return p;
         };
-        return innerTransform(realRule);
+        T result = innerTransform(realRule);
+        if (result != node) {
+            result.adoptIdentityFrom(node);
+        }
+        return result;
     }
 
     protected abstract T innerTransform(Function<Object, Object> rule);

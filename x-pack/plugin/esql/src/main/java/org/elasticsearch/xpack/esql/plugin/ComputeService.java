@@ -2002,6 +2002,7 @@ public class ComputeService {
             );
             PhysicalPlan localPlan;
             final String logicalPlanString;
+            final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
@@ -2020,6 +2021,7 @@ public class ComputeService {
                         datasetConfigResolver
                     );
                     logicalPlanString = null;
+                    logicalPlanJson = null;
                     approximationApplied = false;
                 } else {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
@@ -2033,6 +2035,7 @@ public class ComputeService {
                     );
                     localPlan = localPlanResult.physicalPlan();
                     logicalPlanString = localPlanResult.logicalPlanString();
+                    logicalPlanJson = localPlanResult.logicalPlanJson();
                     approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
@@ -2041,6 +2044,7 @@ public class ComputeService {
                 // idempotent and free on a plan without external sources, so apply it rather than rely on that.
                 localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
+                logicalPlanJson = null;
                 approximationApplied = false;
             }
             if (LOGGER.isDebugEnabled()) {
@@ -2124,6 +2128,7 @@ public class ComputeService {
                 context,
                 localPlan,
                 logicalPlanString,
+                logicalPlanJson,
                 planTimeProfile,
                 planningBytesRead,
                 approximationApplied
@@ -2151,6 +2156,7 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan localPlan,
         String logicalPlanString,
+        String logicalPlanJson,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
         boolean approximated
@@ -2159,8 +2165,11 @@ public class ComputeService {
          * We *really* don't want to close over the localPlan because it can
          * be quite large, and it isn't tracked.
          */
-        boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
+        boolean profile = context.configuration().profile();
+        boolean needPlanString = LOGGER.isDebugEnabled() || profile;
         String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
+        // JSON only when a consumer will read it. EXPLAIN turns profile on, so it takes this path too.
+        String planJson = profile ? localPlan.toJsonString() : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
@@ -2172,7 +2181,9 @@ public class ComputeService {
                     logicalPlanString,
                     planTimeProfile,
                     planningBytesRead,
-                    approximated
+                    approximated,
+                    planJson,
+                    logicalPlanJson
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {

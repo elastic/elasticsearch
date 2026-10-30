@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -185,7 +186,9 @@ public record DriverCompletionInfo(
         String logicalPlanTree,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
-        boolean approximationApplied
+        boolean approximationApplied,
+        @Nullable String planJson,
+        @Nullable String logicalPlanJson
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
@@ -220,7 +223,9 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             collectedProfiles,
-            List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
+            List.of(
+                new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, planJson, logicalPlanJson)
+            ),
             collectCapturedSourceMetadata(drivers),
             collectPartial(drivers),
             approximationApplied,

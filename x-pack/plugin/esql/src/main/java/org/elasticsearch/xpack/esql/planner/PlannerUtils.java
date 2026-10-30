@@ -341,7 +341,12 @@ public class PlannerUtils {
     /**
      * Result of local plan optimization containing both physical and logical plans.
      */
-    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString, boolean approximationApplied) {}
+    public record LocalPlanResult(
+        PhysicalPlan physicalPlan,
+        String logicalPlanString,
+        @Nullable String logicalPlanJson,
+        boolean approximationApplied
+    ) {}
 
     public static LocalPlanResult localPlanWithLogical(
         PlannerSettings plannerSettings,
@@ -379,7 +384,7 @@ public class PlannerUtils {
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
 
-        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, configuration.profile());
     }
 
     public static LocalPlanResult localPlanWithLogical(
@@ -388,11 +393,25 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, false);
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        boolean capturePlanJson
+    ) {
         var logicalPlanString = new Holder<String>(null);
+        var logicalPlanJson = new Holder<String>(null);
         PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
             logicalPlanString.set(optimizedFragment.toString());
+            if (capturePlanJson) {
+                logicalPlanJson.set(optimizedFragment.toJsonString());
+            }
         });
-        return new LocalPlanResult(resultPlan, logicalPlanString.get(), physicalOptimizer.approximationApplied());
+        return new LocalPlanResult(resultPlan, logicalPlanString.get(), logicalPlanJson.get(), physicalOptimizer.approximationApplied());
     }
 
     public static PhysicalPlan localPlan(

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -58,12 +59,80 @@ public class SplitSourceServiceTests extends ESTestCase {
                 new ShardId(goneIndex, 0),
                 1L,
                 1L,
+                "history",
                 new AtomicBoolean(true),
                 permitsClosed::incrementAndGet,
                 handoff
             );
 
             expectThrows(IndexNotFoundException.class, handoff::actionGet);
+        }
+        assertEquals(1, permitsClosed.get());
+    }
+
+    /// A restore over an index that is being resharded replaces its metadata, dropping the resharding metadata and, if the snapshot has
+    /// fewer shards than the split target index has, the target shard itself. The handoff observer of the source shard then sees a
+    /// state without the target shard. It must abandon the handoff and release the permits, not throw from the cluster state listener
+    /// (which would leave the observer registered and the permits held).
+    public void testHandoffIsAbandonedWhenRestoreRemovedTheTargetShard() throws Exception {
+        assertHandoffIsAbandonedByRestore(2, 3, null);
+    }
+
+    /// As above, but the restored index has as many shards as the split was going to create, so the target shard still exists. Its
+    /// primary term has not advanced yet, which only happens once the restored shard has been allocated, and the handoff is abandoned
+    /// regardless.
+    public void testHandoffIsAbandonedWhenRestoreRecreatedTheTargetShard() throws Exception {
+        assertHandoffIsAbandonedByRestore(4, 3, null);
+    }
+
+    /// A handoff that was stuck while a restore replaced the index and a new split was then started on it only looks at the cluster state
+    /// afterward. The state has resharding metadata, but of a split that doesn't have the handoff's shards (here a split of 1 shard
+    /// into 2, for a handoff to shard 3 from shard 1). The handoff belongs to the split that was discarded, and needs to be abandoned
+    /// without looking up the primary terms of shards that the index doesn't have.
+    public void testHandoffIsAbandonedWhenANewSplitWithoutItsShardsHasStarted() throws Exception {
+        assertHandoffIsAbandonedByRestore(2, 3, IndexReshardingMetadata.newSplitByMultiple(1, 2));
+    }
+
+    private void assertHandoffIsAbandonedByRestore(int restoredShardCount, int targetShardId, IndexReshardingMetadata newSplit)
+        throws Exception {
+        final var permitsClosed = new AtomicInteger();
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {
+            final var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
+            final var index = new Index("restored", "restored-uuid");
+            // The state after the restore: no resharding metadata (unless a new split has started), and the shard count of the snapshot
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(ProjectId.DEFAULT)
+                            .put(
+                                IndexMetadata.builder(index.getName())
+                                    .settings(
+                                        indexSettings(IndexVersion.current(), restoredShardCount, 0).put(
+                                            IndexMetadata.SETTING_INDEX_UUID,
+                                            index.getUUID()
+                                        ).put(IndexMetadata.SETTING_HISTORY_UUID, "restored-history")
+                                    )
+                                    .reshardingMetadata(newSplit)
+                            )
+                    )
+                    .build()
+            );
+            final var handoff = new PlainActionFuture<ActionResponse>();
+
+            splitSourceService.waitForHandoffSuccessOrFailure(
+                new ShardId(index, targetShardId),
+                new ShardId(index, targetShardId / 2),
+                1L,
+                1L,
+                "history",
+                new AtomicBoolean(true),
+                permitsClosed::incrementAndGet,
+                handoff
+            );
+
+            assertTrue("the handoff should have been abandoned", handoff.isDone());
+            expectThrows(StaleSplitRequestException.class, handoff::actionGet);
         }
         assertEquals(1, permitsClosed.get());
     }

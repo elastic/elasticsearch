@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -119,11 +120,14 @@ public class RowInTableLookupOperator implements Operator {
      * shares one table: the first of them to receive input builds it and the last
      * to close releases it. A table per driver would multiply the build time and the
      * memory by the number of drivers, which matters once the table holds hundreds
-     * of thousands of keys.
+     * of thousands of keys. With {@link HashJoinTables} the table also outlives the
+     * operators, for the next factory that looks up the same key blocks.
      */
     public static final class Factory implements Operator.OperatorFactory {
         private final Key[] keys;
         private final int[] blockMapping;
+        @Nullable
+        private final HashJoinTables tables;
         /**
          * The table shared by the operators this factory created, or {@code null} before the first {@link #get}.
          * Guarded by {@code this}.
@@ -131,11 +135,20 @@ public class RowInTableLookupOperator implements Operator {
         private SharedLookup shared;
 
         public Factory(Key[] keys, int[] blockMapping) {
+            this(keys, blockMapping, null);
+        }
+
+        /**
+         * @param tables keeps the table for other factories of the same request that look up the same key blocks, or
+         *               {@code null} to share it only among the operators of this factory
+         */
+        public Factory(Key[] keys, int[] blockMapping, @Nullable HashJoinTables tables) {
             if (keys.length < 1) {
                 throw new IllegalArgumentException("expected [keys] to be non-empty");
             }
             this.keys = keys;
             this.blockMapping = blockMapping;
+            this.tables = tables;
         }
 
         @Override
@@ -154,7 +167,17 @@ public class RowInTableLookupOperator implements Operator {
          */
         private synchronized SharedLookup acquire(BlockFactory blockFactory) {
             if (shared == null || shared.tryIncRef() == false) {
-                shared = new SharedLookup(blockFactory, keys);
+                if (tables == null) {
+                    shared = new SharedLookup(blockFactory, keys);
+                } else {
+                    // A build that failed in an earlier plan may succeed now, as it would have without the shared tables.
+                    shared = tables.acquire(
+                        SharedLookup.class,
+                        keyBlocks(keys),
+                        s -> s.failed() == false,
+                        () -> new SharedLookup(blockFactory, keys)
+                    );
+                }
             }
             return shared;
         }
@@ -166,10 +189,11 @@ public class RowInTableLookupOperator implements Operator {
     }
 
     /**
-     * A table and the count of operators using it. The first operator to receive input builds it and the others
-     * wait on {@link #built}. Building on a driver thread rather than a separate task ties the build to the
-     * query's lifetime, so the key blocks it reads cannot be released under it. The table is closed when the last
-     * operator releases it, which cannot happen mid-build because the building operator holds a reference.
+     * A table and the count of operators using it, plus one if a {@link HashJoinTables} keeps it. The first operator
+     * to receive input builds it and the others wait on {@link #built}. Building on a driver thread rather than a
+     * separate task ties the build to the query's lifetime, so the key blocks it reads cannot be released under it.
+     * The table is closed when the last of them releases it, which cannot happen mid-build because the building
+     * operator holds a reference.
      */
     private static final class SharedLookup extends AbstractRefCounted {
         private final BlockFactory blockFactory;
@@ -217,6 +241,10 @@ public class RowInTableLookupOperator implements Operator {
 
         boolean isBuilt() {
             return built.isDone();
+        }
+
+        boolean failed() {
+            return isBuilt() && failure != null;
         }
 
         /**
@@ -271,6 +299,14 @@ public class RowInTableLookupOperator implements Operator {
             // Only the copies are released. Closing a wrapper would release the shared vector it wraps.
             Releasables.closeExpectNoException(copies);
         }
+    }
+
+    private static Block[] keyBlocks(Key[] keys) {
+        Block[] blocks = new Block[keys.length];
+        for (int k = 0; k < keys.length; k++) {
+            blocks[k] = keys[k].block;
+        }
+        return blocks;
     }
 
     private static List<String> keyNames(Key[] keys) {

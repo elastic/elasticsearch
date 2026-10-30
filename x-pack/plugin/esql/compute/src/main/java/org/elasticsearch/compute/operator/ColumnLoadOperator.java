@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
@@ -33,11 +34,15 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
      * a single shared copy of it: the first {@link #get} makes the copy and the last
      * operator to close releases it. A copy per driver would multiply the copy time
      * and the memory by the number of drivers, and drivers are created one at a time,
-     * so the copies would also delay every driver's start.
+     * so the copies would also delay every driver's start. With {@link HashJoinTables}
+     * the copy also outlives the operators, for the next factory that loads the same
+     * block.
      */
     public static final class Factory implements OperatorFactory {
         private final Values values;
         private final int positionsOrd;
+        @Nullable
+        private final HashJoinTables tables;
         /**
          * The copy shared by the operators this factory created, or {@code null} before the first {@link #get}.
          * Guarded by {@code this}.
@@ -45,8 +50,17 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         private SharedValues shared;
 
         public Factory(Values values, int positionsOrd) {
+            this(values, positionsOrd, null);
+        }
+
+        /**
+         * @param tables keeps the copy for other factories of the same request that load the same block, or
+         *               {@code null} to share it only among the operators of this factory
+         */
+        public Factory(Values values, int positionsOrd, @Nullable HashJoinTables tables) {
             this.values = values;
             this.positionsOrd = positionsOrd;
+            this.tables = tables;
         }
 
         @Override
@@ -56,7 +70,7 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
              * driver and is released from whichever driver closes last, so it must not be charged to a
              * driver-local breaker.
              */
-            return new ColumnLoadOperator(acquire(driverContext.blockFactory().parent()), positionsOrd);
+            return new ColumnLoadOperator(values, acquire(driverContext.blockFactory().parent()), positionsOrd);
         }
 
         /**
@@ -64,7 +78,16 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
          */
         private synchronized SharedValues acquire(BlockFactory blockFactory) {
             if (shared == null || shared.tryIncRef() == false) {
-                shared = new SharedValues(values.name, values.block.deepCopy(blockFactory));
+                if (tables == null) {
+                    shared = new SharedValues(values.block.deepCopy(blockFactory));
+                } else {
+                    shared = tables.acquire(
+                        SharedValues.class,
+                        new Block[] { values.block },
+                        v -> true,
+                        () -> new SharedValues(values.block.deepCopy(blockFactory))
+                    );
+                }
             }
             return shared;
         }
@@ -76,7 +99,8 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     }
 
     /**
-     * A copy of the values and the count of operators using it. The copy is closed when the last operator releases it.
+     * A copy of the values and the count of operators using it, plus one if a {@link HashJoinTables} keeps it. The copy
+     * is closed when the last of them releases it.
      * <p>
      * {@link Block}s are immutable, so reading the copy from many drivers at once is safe, but their reference counts are
      * not thread-safe. {@link Block#lookup} takes a reference to the block it reads from and the returned iterator
@@ -84,14 +108,14 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
      * </p>
      */
     private static final class SharedValues extends AbstractRefCounted {
-        private final Values values;
+        private final Block copy;
 
-        private SharedValues(String name, Block block) {
-            this.values = new Values(name, block);
+        private SharedValues(Block copy) {
+            this.copy = copy;
         }
 
         synchronized ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-            ReleasableIterator<? extends Block> delegate = values.block.lookup(positions, targetBlockSize);
+            ReleasableIterator<? extends Block> delegate = copy.lookup(positions, targetBlockSize);
             return new ReleasableIterator<>() {
                 @Override
                 public boolean hasNext() {
@@ -114,14 +138,19 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
         @Override
         protected void closeInternal() {
-            values.block.close();
+            copy.close();
         }
     }
 
+    /**
+     * The values as the plan supplied them. Only their name and type are read, for {@link #toString}.
+     */
+    private final Values values;
     private final SharedValues shared;
     private final int positionsOrd;
 
-    private ColumnLoadOperator(SharedValues shared, int positionsOrd) {
+    private ColumnLoadOperator(Values values, SharedValues shared, int positionsOrd) {
+        this.values = values;
         this.shared = shared;
         this.positionsOrd = positionsOrd;
     }
@@ -148,6 +177,6 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
     @Override
     public String toString() {
-        return "ColumnLoad[values=" + shared.values + ", positions=" + positionsOrd + "]";
+        return "ColumnLoad[values=" + values + ", positions=" + positionsOrd + "]";
     }
 }

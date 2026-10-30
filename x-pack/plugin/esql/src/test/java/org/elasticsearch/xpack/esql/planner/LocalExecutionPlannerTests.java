@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
+import org.elasticsearch.compute.operator.HashJoinTables;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -128,6 +129,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -170,6 +172,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -1194,6 +1197,40 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertInnerJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
     }
 
+    /**
+     * Plans that share a {@link HashJoinTables}, like the shard batches of one data node request, join against one table:
+     * the second plan starts with the table the first built.
+     */
+    public void testHashJoinTablesShareTableAcrossPlans() throws IOException {
+        PhysicalPlan innerJoin = innerJoinExec(false, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
+        try (HashJoinTables tables = new HashJoinTables()) {
+            List<Page> results = runPlanned(planInnerJoin(innerJoin, tables).driverFactories.get(0).driverSupplier().physicalOperation());
+            assertInnerJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+            try (Operator lookup = rowInTableLookup(planInnerJoin(innerJoin, tables))) {
+                assertThat(lookup.toString(), not(containsString("unbuilt")));
+            }
+        }
+    }
+
+    /**
+     * A supplier that copies its page on every call gives each plan new blocks, so plans can't find each other's table
+     * and each builds its own.
+     */
+    public void testHashJoinTablesSkipCopyingSupplier() throws IOException {
+        PhysicalPlan innerJoin = innerJoinExec(false, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+            .transformUp(
+                LocalSourceExec.class,
+                l -> new LocalSourceExec(l.source(), l.output(), new CopyingLocalSupplier(l.supplier().get()))
+            );
+        try (HashJoinTables tables = new HashJoinTables()) {
+            List<Page> results = runPlanned(planInnerJoin(innerJoin, tables).driverFactories.get(0).driverSupplier().physicalOperation());
+            assertInnerJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+            try (Operator lookup = rowInTableLookup(planInnerJoin(innerJoin, tables))) {
+                assertThat(lookup.toString(), containsString("unbuilt"));
+            }
+        }
+    }
+
     public void testInnerJoinOneToOneUniqueProbe() throws IOException {
         List<Page> results = runInnerJoin(
             innerJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
@@ -1372,7 +1409,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner.LocalExecutionPlan planInnerJoin(PhysicalPlan innerJoin) throws IOException {
-        return planner().plan(
+        return planInnerJoin(innerJoin, null);
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan planInnerJoin(PhysicalPlan innerJoin, HashJoinTables tables) throws IOException {
+        return planner(null, true, null, true, tables).plan(
             "test",
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
@@ -1380,6 +1421,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EmptyIndexedByShardId.instance(),
             randomBoolean()
         );
+    }
+
+    /** The {@link RowInTableLookupOperator} of the plan's single driver, before it received any input. */
+    private static Operator rowInTableLookup(LocalExecutionPlanner.LocalExecutionPlan plan) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        for (var factory : plan.driverFactories.get(0).driverSupplier().physicalOperation().intermediateOperatorFactories) {
+            if (factory instanceof RowInTableLookupOperator.Factory) {
+                return factory.get(driverContext);
+            }
+        }
+        throw new AssertionError("no row in table lookup in " + plan);
     }
 
     /**
@@ -1857,6 +1910,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         InferenceService inferenceService,
         boolean snapshotBuild
     ) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, snapshotBuild, null);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild,
+        HashJoinTables hashJoinTables
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1886,7 +1949,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            hashJoinTables
         );
     }
 

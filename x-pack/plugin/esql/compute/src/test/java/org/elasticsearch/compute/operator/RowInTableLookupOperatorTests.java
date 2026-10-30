@@ -37,9 +37,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RowInTableLookupOperatorTests extends OperatorTestCase {
@@ -97,14 +99,15 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RowInTableLookupOperator.Factory(
-            new RowInTableLookupOperator.Key[] {
-                new RowInTableLookupOperator.Key(
-                    "foo",
-                    TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
-                ) },
-            new int[] { 0 }
-        );
+        return new RowInTableLookupOperator.Factory(simpleKeys(), new int[] { 0 });
+    }
+
+    private static RowInTableLookupOperator.Key[] simpleKeys() {
+        return new RowInTableLookupOperator.Key[] {
+            new RowInTableLookupOperator.Key(
+                "foo",
+                TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
+            ) };
     }
 
     @Override
@@ -169,6 +172,54 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         assertThat(breaker.getUsed(), equalTo(withTable));
         third.close();
         assertThat(breaker.getUsed(), equalTo(before));
+    }
+
+    /**
+     * With {@link HashJoinTables} the table outlives the operators of the factory that built it, so the next factory
+     * looking up the same key blocks starts with it built, and it is released only when the tables close.
+     */
+    public void testTablesKeepTableForNextFactory() {
+        BlockFactory blockFactory = blockFactory();
+        CircuitBreaker breaker = blockFactory.breaker();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        RowInTableLookupOperator.Key[] keys = simpleKeys();
+        long before = breaker.getUsed();
+        try (HashJoinTables tables = new HashJoinTables()) {
+            try (Operator first = new RowInTableLookupOperator.Factory(keys, new int[] { 0 }, tables).get(driverContext)) {
+                lookupOneRow(first);
+            }
+            long withTable = breaker.getUsed();
+            assertThat("the table outlives the operators", withTable, greaterThan(before));
+
+            try (Operator next = new RowInTableLookupOperator.Factory(keys, new int[] { 0 }, tables).get(driverContext)) {
+                assertThat(next.toString(), not(containsString("unbuilt")));
+                lookupOneRow(next);
+                assertThat("the next factory reuses the table", breaker.getUsed(), equalTo(withTable));
+            }
+            assertThat(breaker.getUsed(), equalTo(withTable));
+        }
+        assertThat("closing the tables releases the table", breaker.getUsed(), equalTo(before));
+    }
+
+    /**
+     * A build that failed for one factory is retried by the next rather than failing it the same way, as it would be
+     * without {@link HashJoinTables}.
+     */
+    public void testTablesRetryFailedBuild() {
+        TripOnceBreaker breaker = new TripOnceBreaker();
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        RowInTableLookupOperator.Key[] keys = simpleKeys();
+        try (HashJoinTables tables = new HashJoinTables()) {
+            try (Operator first = new RowInTableLookupOperator.Factory(keys, new int[] { 0 }, tables).get(driverContext)) {
+                expectThrows(CircuitBreakingException.class, () -> first.addInput(keysPage(1)));
+            }
+            try (Operator next = new RowInTableLookupOperator.Factory(keys, new int[] { 0 }, tables).get(driverContext)) {
+                assertThat(next.toString(), containsString("unbuilt"));
+                lookupOneRow(next);
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /**
@@ -319,6 +370,21 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             if (first.compareAndSet(true, false)) {
                 paused.countDown();
                 safeAwait(resume);
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+    }
+
+    /**
+     * Trips the first reservation, which is the start of a table build, and allows the rest.
+     */
+    private static class TripOnceBreaker extends TrackingCircuitBreaker {
+        private final AtomicBoolean first = new AtomicBoolean(true);
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            if (first.compareAndSet(true, false)) {
+                throw new CircuitBreakingException("tripped once", CircuitBreaker.Durability.TRANSIENT);
             }
             super.addEstimateBytesAndMaybeBreak(bytes, label);
         }

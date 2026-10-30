@@ -43,6 +43,7 @@ import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.HashJoinTables;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
@@ -179,6 +180,7 @@ import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -313,6 +315,9 @@ public class LocalExecutionPlanner {
     private final MatcherWatchdog grokMatcherWatchdog;
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
+    /** Keeps hash join tables for other plans of the same request, or {@code null} if this plan is the only one. */
+    @Nullable
+    private final HashJoinTables hashJoinTables;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -337,7 +342,8 @@ public class LocalExecutionPlanner {
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
-        TransportVersion minTransportVersion
+        TransportVersion minTransportVersion,
+        @Nullable HashJoinTables hashJoinTables
     ) {
 
         this.sessionId = sessionId;
@@ -366,6 +372,7 @@ public class LocalExecutionPlanner {
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
+        this.hashJoinTables = hashJoinTables;
     }
 
     /**
@@ -1687,6 +1694,11 @@ public class LocalExecutionPlanner {
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
         Page localData = localSourceExec.supplier().get();
+        /*
+         * Other plans find the tables by the identity of the blocks they were made from. A supplier that copies its page
+         * on every call would never match, and would keep a table per plan alive until the request ends.
+         */
+        HashJoinTables tables = localSourceExec.supplier() instanceof ImmediateLocalSupplier ? hashJoinTables : null;
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}
         Attribute marker = null;
@@ -1731,7 +1743,7 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, tables), layout);
 
         // Load the "values" from each match
         int loadedFields = 0;
@@ -1750,7 +1762,7 @@ public class LocalExecutionPlanner {
                 throw new IllegalArgumentException("can't find local data for [" + f + "]");
             }
             source = source.with(
-                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel),
+                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel, tables),
                 layout
             );
             loadedFields++;

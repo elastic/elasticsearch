@@ -117,6 +117,30 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * With {@link HashJoinTables} the copy outlives the operators of the factory that made it, so the next factory
+     * loading the same block reuses it, and it is released only when the tables close.
+     */
+    public void testTablesKeepCopyForNextFactory() {
+        BlockFactory blockFactory = blockFactory();
+        CircuitBreaker breaker = blockFactory.breaker();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        ColumnLoadOperator.Values values = new ColumnLoadOperator.Values(
+            "values",
+            TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 0, 3, 6, 9, 12 }, 5).asBlock()
+        );
+        long before = breaker.getUsed();
+        try (HashJoinTables tables = new HashJoinTables()) {
+            new ColumnLoadOperator.Factory(values, 0, tables).get(driverContext).close();
+            long withCopy = breaker.getUsed();
+            assertThat("the copy outlives the operators", withCopy, greaterThan(before));
+
+            new ColumnLoadOperator.Factory(values, 0, tables).get(driverContext).close();
+            assertThat("the next factory reuses the copy", breaker.getUsed(), equalTo(withCopy));
+        }
+        assertThat("closing the tables releases the copy", breaker.getUsed(), equalTo(before));
+    }
+
+    /**
      * The values contain a null so they are an array block rather than a vector block: looking up from an array block
      * takes a reference to the shared copy itself, which is what concurrent drivers must not race on.
      */

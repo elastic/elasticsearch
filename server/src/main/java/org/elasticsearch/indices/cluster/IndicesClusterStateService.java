@@ -1380,13 +1380,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         Exception failure
     ) {
+        final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
                     failureStrategy.notifyMaster(),
-                    "failed recovery",
+                    message,
                     failure,
                     clusterService.state(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -1447,16 +1448,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         final ShardId shardId = shardRouting.shardId();
         try {
-            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
-            final ShardFailureType failureType = ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null
+            final ShardFailureType failureType = isRecoveryCancellation(failure)
                 ? ShardFailureType.RECOVERY_CANCELLED
                 : ShardFailureType.FAILED;
+            if (failureType == ShardFailureType.RECOVERY_CANCELLED) {
+                // A recovery cancelled by the master is an expected failure, do not warn about it
+                logger.info(() -> format("%s marking cancelled by master [%s]", shardId, message), failure);
+            } else {
+                logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
+            }
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm, failureType));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(() -> format("%s failed to mark shard as failed (because of [%s])", shardId, message), inner);
         }
+    }
+
+    private static boolean isRecoveryCancellation(@Nullable Exception failure) {
+        return ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null;
     }
 
     private class FailedShardHandler implements Consumer<IndexShard.ShardFailure> {

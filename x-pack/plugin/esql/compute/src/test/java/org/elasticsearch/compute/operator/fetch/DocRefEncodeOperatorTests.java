@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -33,10 +33,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DocRefEncodeOperatorTests extends ComputeTestCase {
     private final CountingRefCounted[] shards = { new CountingRefCounted(), new CountingRefCounted(), new CountingRefCounted() };
-    private final DocRefOrigin[] origins = {
-        RandomBlock.randomDocRefOrigin(),
-        RandomBlock.randomDocRefOrigin(),
-        RandomBlock.randomDocRefOrigin() };
+    private final DocOrigin[] origins = { RandomBlock.randomDocOrigin(), RandomBlock.randomDocOrigin(), RandomBlock.randomDocOrigin() };
 
     public void testOneShardSharesTheVectors() {
         BlockFactory blockFactory = blockFactory();
@@ -92,7 +89,7 @@ public class DocRefEncodeOperatorTests extends ComputeTestCase {
                 assertThat(refs.asVector().origins().get(1), equalTo(origins[0]));
                 assertThat(refs.asVector().origins().get(2), equalTo(origins[1]));
                 for (int p = 0; p < rowShards.length; p++) {
-                    assertThat(BlockUtils.toJavaObject(refs, p), equalTo(new BlockUtils.DocRef(origins[rowShards[p]], p, 10 * p)));
+                    assertThat(BlockUtils.toJavaObject(refs, p), equalTo(new BlockUtils.DetachedDoc(origins[rowShards[p]], p, 10 * p)));
                 }
             }
         }
@@ -107,7 +104,7 @@ public class DocRefEncodeOperatorTests extends ComputeTestCase {
      */
     public void testReadsOnlyTheOriginsRowsReference() {
         BlockFactory blockFactory = blockFactory();
-        IndexedByShardId<DocRefOrigin> withTombstone = view(slot -> {
+        IndexedByShardId<DocOrigin> withTombstone = view(slot -> {
             if (slot == 2) {
                 throw new AssertionError("read the origin of a slot no row references");
             }
@@ -171,7 +168,7 @@ public class DocRefEncodeOperatorTests extends ComputeTestCase {
         }
     }
 
-    private Page encode(BlockFactory blockFactory, Page page, IndexedByShardId<DocRefOrigin> originsView) {
+    private Page encode(BlockFactory blockFactory, Page page, IndexedByShardId<DocOrigin> originsView) {
         try (DocRefEncodeOperator operator = new DocRefEncodeOperator(blockFactory, 0, originsView)) {
             operator.addInput(page);
             operator.finish();
@@ -197,19 +194,19 @@ public class DocRefEncodeOperatorTests extends ComputeTestCase {
         return new IndexedByShardIdFromList<>(Arrays.asList(shards));
     }
 
-    private IndexedByShardId<DocRefOrigin> allOrigins() {
+    private IndexedByShardId<DocOrigin> allOrigins() {
         return view(slot -> origins[slot]);
     }
 
-    private IndexedByShardId<DocRefOrigin> view(Function<Integer, DocRefOrigin> bySlot) {
+    private IndexedByShardId<DocOrigin> view(Function<Integer, DocOrigin> bySlot) {
         return new IndexedByShardId<>() {
             @Override
-            public DocRefOrigin get(int shardId) {
+            public DocOrigin get(int shardId) {
                 return bySlot.apply(shardId);
             }
 
             @Override
-            public Iterable<? extends DocRefOrigin> iterable() {
+            public Iterable<? extends DocOrigin> iterable() {
                 throw new AssertionError("only single slots are read");
             }
 
@@ -219,7 +216,7 @@ public class DocRefEncodeOperatorTests extends ComputeTestCase {
             }
 
             @Override
-            public <S> IndexedByShardId<S> map(Function<DocRefOrigin, S> mapper) {
+            public <S> IndexedByShardId<S> map(Function<DocOrigin, S> mapper) {
                 throw new AssertionError("not mapped");
             }
         };

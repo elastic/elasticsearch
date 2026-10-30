@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * contexts of the query phase closed. Dropping the last reference to a reader can unmap files and block, and a request can
  * end on a transport thread, for example when it is cancelled.
  */
-public final class NodeFetchContexts implements DocRefOriginResolver, Releasable {
+public final class NodeFetchContexts implements DocOriginResolver, Releasable {
     private static final Logger logger = LogManager.getLogger(NodeFetchContexts.class);
 
     private enum State {
@@ -61,7 +61,7 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
      *
      * @param nodeLease the request's reference on the context, dropped by {@link #close}
      */
-    private record OpenContext(ReaderContext readerContext, DocRefOrigin origin, Releasable nodeLease, Flags flags) {}
+    private record OpenContext(ReaderContext readerContext, DocOrigin origin, Releasable nodeLease, Flags flags) {}
 
     /**
      * What happened to an {@link OpenContext} since it opened.
@@ -137,17 +137,17 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
         contexts.put(open.readerContext().id(), open);
     }
 
-    private static DocRefOrigin origin(SearchContext searchContext) {
+    private static DocOrigin origin(SearchContext searchContext) {
         SearchShardTarget target = searchContext.shardTarget();
         String clusterAlias = target.getClusterAlias() == null ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY : target.getClusterAlias();
-        return new DocRefOrigin(clusterAlias, target.getNodeId(), target.getShardId(), searchContext.readerContext().id());
+        return new DocOrigin(clusterAlias, target.getNodeId(), target.getShardId(), searchContext.readerContext().id());
     }
 
     /**
      * Marks the context of {@code searchContext} as contributing, because some of its rows are leaving the node.
      */
     @Override
-    public DocRefOrigin originOf(SearchContext searchContext) {
+    public DocOrigin originOf(SearchContext searchContext) {
         ShardSearchContextId id = searchContext.readerContext().id();
         OpenContext open = contexts.get(id);
         if (open == null) {

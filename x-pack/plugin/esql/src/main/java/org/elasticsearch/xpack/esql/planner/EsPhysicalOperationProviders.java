@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
@@ -823,7 +823,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
         private final ShardSearchStats shardSearchStats;
-        private final Supplier<DocRefOrigin> origin;
+        private final Supplier<DocOrigin> origin;
 
         /**
          * A context for shards whose rows never leave the node as document references, like lookup indices.
@@ -842,7 +842,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             Releasable releasable,
             SearchExecutionContext ctx,
             AliasFilter aliasFilter,
-            Supplier<DocRefOrigin> origin
+            Supplier<DocOrigin> origin
         ) {
             this.index = index;
             this.releasable = releasable;
@@ -855,7 +855,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public DocRefOrigin origin() {
+        public DocOrigin origin() {
             return origin.get();
         }
 

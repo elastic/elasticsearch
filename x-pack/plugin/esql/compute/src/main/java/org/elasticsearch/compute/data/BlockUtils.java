@@ -295,14 +295,10 @@ public final class BlockUtils {
     public record Doc(int shard, int segment, int doc) {}
 
     /**
-     * Returned by {@link #toJavaObject} for "doc" type blocks whose rows left the node that read them.
+     * Returned by {@link #toJavaObject} for "doc ref" type blocks, and for "doc" type blocks whose rows left the node that
+     * read them.
      */
     public record DetachedDoc(DocOrigin origin, int segment, int doc) {}
-
-    /**
-     * Returned by {@link #toJavaObject} for "doc ref" type blocks.
-     */
-    public record DocRef(DocRefOrigin origin, int segment, int doc) {}
 
     /**
      * Read all values from a positions into a java object. This is not fast
@@ -381,7 +377,7 @@ public final class BlockUtils {
             }
             case DOC_REF -> {
                 DocRefVector v = ((DocRefBlock) block).asVector();
-                yield new DocRef(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+                yield new DetachedDoc(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

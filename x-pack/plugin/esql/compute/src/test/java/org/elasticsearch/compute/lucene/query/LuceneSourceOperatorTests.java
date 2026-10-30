@@ -44,7 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -1110,8 +1110,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         }
 
         @Override
-        public DocRefOrigin origin() {
-            return new DocRefOrigin("", "test_node", new ShardId("test", "_na_", index), new ShardSearchContextId("test_session", index));
+        public DocOrigin origin() {
+            return new DocOrigin("", "test_node", new ShardId("test", "_na_", index), new ShardSearchContextId("test_session", index));
         }
 
         public void incRef() {}

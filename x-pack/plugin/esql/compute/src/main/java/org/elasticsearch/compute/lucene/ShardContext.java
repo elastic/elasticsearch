@@ -10,7 +10,7 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -80,5 +80,5 @@ public interface ShardContext extends RefCounted {
      * The reader this shard's documents come from, named so that other nodes can send rows back to it. Only shards
      * whose rows leave the node as document references need one.
      */
-    DocRefOrigin origin();
+    DocOrigin origin();
 }

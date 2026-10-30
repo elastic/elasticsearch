@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -68,8 +68,8 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
-        public DocRefOrigin origin() {
-            return new DocRefOrigin("", "test_node", new ShardId("test", "_na_", 0), new ShardSearchContextId("test_session", 0));
+        public DocOrigin origin() {
+            return new DocOrigin("", "test_node", new ShardId("test", "_na_", 0), new ShardSearchContextId("test_session", 0));
         }
 
         @Override

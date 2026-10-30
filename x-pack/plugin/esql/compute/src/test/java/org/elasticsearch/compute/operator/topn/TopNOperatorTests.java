@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocOrigins;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -2838,9 +2837,9 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         var layout = ChannelLayout.forDataColumns(2, groupKeys());
-        List<DocRefOrigin> origins = new ArrayList<>();
+        List<DocOrigin> origins = new ArrayList<>();
         while (origins.size() < 4) {
-            DocRefOrigin origin = RandomBlock.randomDocRefOrigin();
+            DocOrigin origin = RandomBlock.randomDocOrigin();
             if (origins.contains(origin) == false) {
                 origins.add(origin);
             }
@@ -2851,18 +2850,18 @@ public class TopNOperatorTests extends OperatorTestCase {
             keys.add(k);
         }
         Collections.shuffle(keys, random());
-        List<Tuple<Long, BlockUtils.DocRef>> rows = new ArrayList<>();
+        List<Tuple<Long, BlockUtils.DetachedDoc>> rows = new ArrayList<>();
         List<Page> pages = new ArrayList<>();
         int next = 0;
         while (next < keys.size()) {
             int positions = Math.min(between(1, 50), keys.size() - next);
-            List<DocRefOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
+            List<DocOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
             Collections.shuffle(pageOrigins, random());
             try (
                 LongBlock.Builder keyColumn = blockFactory.newLongBlockBuilder(positions);
                 DocRefBlock.Builder refColumn = DocRefBlock.newBlockBuilder(blockFactory, positions)
             ) {
-                for (DocRefOrigin origin : pageOrigins) {
+                for (DocOrigin origin : pageOrigins) {
                     refColumn.addOrigin(origin);
                 }
                 for (int p = 0; p < positions; p++) {
@@ -2872,7 +2871,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     int doc = between(0, 1000);
                     keyColumn.appendLong(key);
                     refColumn.append(ordinal, segment, doc);
-                    rows.add(tuple(key, new BlockUtils.DocRef(pageOrigins.get(ordinal), segment, doc)));
+                    rows.add(tuple(key, new BlockUtils.DetachedDoc(pageOrigins.get(ordinal), segment, doc)));
                 }
                 pages.add(new Page(layout.buildPageBlocks(positions, blockFactory, keyColumn.build(), refColumn.build())));
             }
@@ -2893,7 +2892,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 encoders.add(DocRefEncoder.PROTOTYPE);
             }
         }
-        List<Tuple<Long, BlockUtils.DocRef>> actual = new ArrayList<>();
+        List<Tuple<Long, BlockUtils.DetachedDoc>> actual = new ArrayList<>();
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -2915,9 +2914,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                     try {
                         LongBlock keyColumn = page.getBlock(layout.dataChannel(0));
                         DocRefBlock refColumn = page.getBlock(layout.dataChannel(1));
-                        Set<DocRefOrigin> referenced = new HashSet<>();
+                        Set<DocOrigin> referenced = new HashSet<>();
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            BlockUtils.DocRef ref = (BlockUtils.DocRef) toJavaObject(refColumn, p);
+                            BlockUtils.DetachedDoc ref = (BlockUtils.DetachedDoc) toJavaObject(refColumn, p);
                             referenced.add(ref.origin());
                             actual.add(tuple(keyColumn.getLong(p), ref));
                         }

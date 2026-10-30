@@ -53,10 +53,10 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     // About 1.4 MB of JSON per sub-search, so about 86 MB of body, under the default http.max_content_length of 100 MB, while the parsed
     // sub-searches are several times that and more than the heap.
     private static final int OVERSIZED_MULTI_SEARCH_SIZE = 60;
-    // Each sub-search parses its own TermsQueryBuilder. A parsed JSON string becomes a BytesRef whose byte[] is sized for the worst-case
-    // UTF-8 length, 3 bytes per char, so a 20-char id takes about 108 bytes and TERMS ids about 6.7 MB, on top of about 1.4 MB of request
-    // JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
-    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 320 MB, more than the heap.
+    // Each sub-search parses its own TermsQueryBuilder. A parsed JSON string becomes a BytesRef whose byte[] is exactly the UTF-8 length,
+    // so a 20-char ASCII id takes about 68 bytes (BytesRef, byte[] and the reference to it) and TERMS ids about 4.2 MB, on top of about
+    // 1.4 MB of request JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
+    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 220 MB, most of the heap.
 
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m")
@@ -250,6 +250,6 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
                 .collect(Collectors.joining(","));
             return Strings.format("{\"id\": \"%s\", \"chunks\": [%s]}", id(i), chunks);
         });
-        logger.info("Created index " + INDEX);
+        logger.info("Created index [{}]", INDEX);
     }
 }

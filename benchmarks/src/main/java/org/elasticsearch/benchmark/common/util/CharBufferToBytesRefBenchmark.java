@@ -199,8 +199,8 @@ public class CharBufferToBytesRefBenchmark {
     }
 
     /**
-     * {@code TermEncoder.encode2}: narrows the chars into a byte array while OR-ing them, in one pass, and keeps it if all were ASCII.
-     * Otherwise the array is wasted and it encodes into {@code scratch}.
+     * If the first char is not ASCII, encodes into {@code scratch} without allocating. Otherwise narrows the chars into a byte array
+     * while OR-ing them, in one pass, and keeps it if all were ASCII. If not, the array is wasted and it encodes into {@code scratch}.
      */
     static BytesRef fusedAsciiCopy(CharBuffer value, byte[] scratch) {
         int length = value.length();
@@ -210,6 +210,10 @@ public class CharBufferToBytesRefBenchmark {
         }
         char[] chars = value.array();
         int from = value.arrayOffset() + value.position();
+        if (length > 0 && chars[from] > 0x7F) {
+            int used = UnicodeUtil.UTF16toUTF8(chars, from, length, scratch);
+            return new BytesRef(Arrays.copyOf(scratch, used));
+        }
         byte[] bytes = new byte[length];
         int bits = 0;
         for (int i = 0; i < length; i++) {

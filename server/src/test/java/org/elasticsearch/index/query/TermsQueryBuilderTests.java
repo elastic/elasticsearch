@@ -616,8 +616,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 case 1 -> randomRealisticUnicodeOfLengthBetween(1, 100);
                 case 2 -> new String(Character.toChars(0x1F600 + randomIntBetween(0, 0x3F))).repeat(randomIntBetween(1, 30));
                 case 3 -> String.valueOf((char) randomIntBetween(0x4E00, 0x9FFF)).repeat(randomIntBetween(1, 30));
-                // short after long, so that the buffer is bigger than the term needs
-                case 4 -> randomAlphaOfLength(1);
+                case 4 -> randomAlphaOfLengthBetween(1, 10) + randomFrom("\u00E9", "\u65E5", "\uD83D\uDE00");
                 default -> throw new AssertionError();
             });
         }

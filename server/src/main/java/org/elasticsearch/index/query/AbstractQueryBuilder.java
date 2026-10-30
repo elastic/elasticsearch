@@ -258,7 +258,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (obj instanceof String v) {
             return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
         } else if (obj instanceof CharBuffer v) {
-            // new BytesRef(CharSequence) sizes the array for 3 bytes per char, and a parsed terms list keeps one per term
             return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
         } else if (obj instanceof BigInteger v) {
             return BytesRefs.toBytesRef(v);

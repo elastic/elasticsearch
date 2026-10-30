@@ -136,9 +136,6 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Test that invalid field mapping containing no metrics is not accepted
-     */
-    /**
      * The metric fields aren't mapped in their own right, so the ColumNAR codec never stores them: in a strictly columnar index they
      * keep writing {@code SORTED_NUMERIC}, unlike a numeric field mapped beside them.
      */
@@ -163,6 +160,9 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         }
     }
 
+    /**
+     * Test that invalid field mapping containing no metrics is not accepted
+     */
     public void testInvalidMapping() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

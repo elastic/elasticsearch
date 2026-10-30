@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -151,13 +152,57 @@ public class ColumnarNumericCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * Collapsing groups documents by the field's single value, which it reads from the doc values whatever layout stores them.
+     */
+    public void testCollapseAgreesWithoutTheCodec() throws IOException {
+        final String type = randomFrom(TYPES);
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"n":{"type":"%s","index":%s}}}""", type, randomBoolean());
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        createIndex(WITH_CODEC, mode, true, mapping);
+        createIndex(WITHOUT_CODEC, mode, false, mapping);
+
+        // Collapsing requires a single value a document, so documents hold one value or none.
+        final List<String> values = valuesFor(type);
+        final int docs = between(2, 60);
+        final List<String> sources = new ArrayList<>(docs);
+        for (int i = 0; i < docs; i++) {
+            final String timestamp = "\"@timestamp\":\"2024-01-01T00:00:" + String.format(Locale.ROOT, "%02d", i) + "Z\"";
+            // The last document always has a value, so there are doc values to look at.
+            sources.add(i < docs - 1 && randomBoolean() ? "{" + timestamp + "}" : "{" + timestamp + ",\"n\":" + randomFrom(values) + "}");
+        }
+        indexSources(sources, 0);
+        refresh();
+
+        assertEquals(ColumnarFormat.NAME, docValuesFormat(WITH_CODEC));
+        assertEquals(collapsedValues(WITHOUT_CODEC), collapsedValues(WITH_CODEC));
+    }
+
+    /** The value of each group collapsing on {@code n} returns, in order. */
+    private List<String> collapsedValues(String index) {
+        final List<String> values = new ArrayList<>();
+        final SearchRequestBuilder search = client().prepareSearch(index).setCollapse(new CollapseBuilder("n")).setSize(100);
+        assertResponse(search, response -> {
+            for (SearchHit hit : response.getHits()) {
+                final Object value = hit.field("n") == null ? null : hit.field("n").getValue();
+                values.add(String.valueOf(value));
+            }
+        });
+        values.sort(null);
+        return values;
+    }
+
+    /** The {@link #VALUES} a field of {@code type} holds exactly. */
+    private static List<String> valuesFor(String type) {
+        return type.endsWith("float") || type.equals("double") ? VALUES : VALUES.stream().filter(v -> v.contains(".") == false).toList();
+    }
+
+    /**
      * Random documents for a field of {@code type}: absent, a single value, or an array that may repeat values, hold nulls or
      * be empty, which the codec has to reproduce through {@code _source} in order.
      */
     private List<String> randomSources(String type) {
-        final List<String> values = type.endsWith("float") || type.equals("double")
-            ? VALUES
-            : VALUES.stream().filter(v -> v.contains(".") == false).toList();
+        final List<String> values = valuesFor(type);
         final int docs = between(2, 60);
         final List<String> sources = new ArrayList<>(docs);
         for (int i = 0; i < docs; i++) {

@@ -1824,6 +1824,11 @@ public abstract class FieldMapper extends Mapper {
         private final boolean supportsExtendedDocValues;
         /** True when this index supports the top-level {@code multi_value}, {@code nullability}, and {@code on_failure} attributes. */
         private final boolean supportsTopLevelAttributes;
+        /**
+         * True when the {@code doc_values} attribute itself is inert: strict-columnar indices always store doc values, so an explicit
+         * {@code true} or {@code false} is parsed and then dropped, and never reaches the persisted mapping.
+         */
+        private final boolean ignoresDocValuesAttribute;
         private final Parameter<Values.OnFailure> onFailureParameter;
         private boolean nestedFormParsed;
         /** Also set by the nested form (it delegates to the sub-parameters' parse); use {@link #nestedFormParsed} to tell them apart. */
@@ -1900,6 +1905,8 @@ public abstract class FieldMapper extends Mapper {
             this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
+            this.ignoresDocValuesAttribute = supportsExtendedDocValues
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
 
             multiValueParameter = new Parameter<>(
                 "multi_value",
@@ -2020,7 +2027,8 @@ public abstract class FieldMapper extends Mapper {
          * <p>
          * Doc values can be configured in the following ways:
          * <ul>
-         *   <li>{@code "doc_values": false} - doc_values disabled</li>
+         *   <li>{@code "doc_values": false} - doc_values disabled (ignored in strict-columnar indices created on or after
+         *       {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}, where doc values are always enabled)</li>
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
          *   <li>{@code "multi_value": true} - allow multiple values per document (default; columnar only)</li>
          *   <li>{@code "multi_value": false} - reject any document that has more than one value for the field (columnar only)</li>
@@ -2071,7 +2079,12 @@ public abstract class FieldMapper extends Mapper {
                 }
                 super.setValue(backingValue(true, getDefaultValue().cardinality));
             } else {
-                if (XContentMapValues.nodeBooleanValue(value, name)) {
+                boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
+                if (ignoresDocValuesAttribute) {
+                    // Validated above, then dropped: leaving the value unset keeps it out of the persisted mapping.
+                    return;
+                }
+                if (enabled) {
                     super.setValue(backingValue(true, getDefaultValue().cardinality));
                 } else {
                     // Cardinality has no meaning when doc values are disabled. If the default is itself disabled, an explicit

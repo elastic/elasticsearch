@@ -73,11 +73,15 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         }
     }
 
-    public void testColumnarRejectsDocValuesFalseOnRootField() {
+    public void testColumnarRejectsDocValuesFalseOnRootFieldBeforeNoOpGate() {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)))
+            () -> createMapperService(
+                preNoOpGateVersion(),
+                settings,
+                fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
+            )
         );
         assertThat(
             e.getMessage(),
@@ -88,11 +92,11 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
-    public void testColumnarAllowsDocValuesFalseOnMultiField() throws IOException {
+    public void testColumnarAllowsDocValuesFalseOnMultiFieldBeforeNoOpGate() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // A search-only multi-field may opt out of doc values: it never appears in _source, so it needs no columnar
         // representation (the user accepts they can't aggregate on it).
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
+        MapperService mapperService = createMapperService(preNoOpGateVersion(), settings, mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "keyword");
@@ -1282,5 +1286,103 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field.raw".equals(f.stringValue())),
             equalTo(true)
         );
+    }
+
+    private static IndexVersion preNoOpGateVersion() {
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // doc_values attribute is a no-op in strict-columnar modes
+    // -----------------------------------------------------------------------
+
+    /**
+     * An ECS-style {@code event.original}: a non-indexed keyword with {@code doc_values: false}. In strict-columnar modes the attribute
+     * is ignored, so the field keeps its doc values and the attribute is not persisted.
+     */
+    public void testColumnarIgnoresDocValuesFalse() throws Exception {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("event.original");
+                b.field("type", "keyword").field("index", false).field("doc_values", false).field("ignore_above", 1024);
+                b.endObject();
+                b.startObject("count").field("type", "long").field("doc_values", false).endObject();
+            }));
+            assertTrue(mapperService.fieldType("event.original").hasDocValues());
+            assertTrue(mapperService.fieldType("count").hasDocValues());
+            assertThat(Strings.toString(mapperService.documentMapper().mapping()), not(containsString("doc_values")));
+        }
+    }
+
+    public void testColumnarIgnoresDocValuesTrue() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", true))
+        );
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+        assertThat(Strings.toString(mapperService.documentMapper().mapping()), not(containsString("doc_values")));
+    }
+
+    public void testColumnarDocValuesFalseWithMultiValueFalse() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("multi_value", false))
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().enabled(), equalTo(true));
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(false));
+        String serialized = Strings.toString(mapperService.documentMapper().mapping());
+        assertThat(serialized, containsString("\"multi_value\":false"));
+        assertThat(serialized, not(containsString("\"doc_values\"")));
+    }
+
+    public void testColumnarDocValuesFalseMergesWithOmittedDocValues() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
+        merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+    }
+
+    public void testColumnarDocValuesFalseInDynamicTemplate() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("no_dv");
+            b.field("match", "tmpl_*");
+            b.startObject("mapping").field("type", "keyword").field("index", false).field("doc_values", false).endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("tmpl_a", "value")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+        assertTrue(mapperService.fieldType("tmpl_a").hasDocValues());
+        // The template body is stored verbatim; only the mapped field is trimmed.
+        assertThat(Strings.toString(mapperService.documentMapper().mappers().getMapper("tmpl_a")), not(containsString("doc_values")));
+    }
+
+    public void testColumnarDocValuesNonBooleanStillRejected() {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        expectThrows(
+            Exception.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", "not-a-boolean")))
+        );
+    }
+
+    public void testNonColumnarDocValuesFalseStillHonoured() throws Exception {
+        for (IndexMode mode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+            MapperService mapperService = createMapperService(
+                settings,
+                fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
+            );
+            assertFalse(mapperService.fieldType("field").hasDocValues());
+        }
     }
 }

@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -421,7 +423,12 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testDocValuesDisabledFallsBack() throws IOException {
+        // doc_values: false is ignored in strict-columnar indices created on or after DOC_VALUES_NO_OP_IN_COLUMNAR, so pin an older one.
         MapperService ms = createMapperService(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+            ),
             columnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "text").field("doc_values", false).endObject())
         );

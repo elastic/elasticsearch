@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.query.SpanNearQueryBuilder;
 import org.elasticsearch.index.query.SpanNotQueryBuilder;
 import org.elasticsearch.index.query.SpanOrQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -164,6 +166,11 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         );
         assertRefuses(
             createMapperService(
+                // doc_values: false is ignored in strict-columnar indices created on or after DOC_VALUES_NO_OP_IN_COLUMNAR.
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+                ),
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(
                     b -> b.startObject("body").field("type", "text").field("index_options", "docs").field("doc_values", false).endObject()
@@ -176,6 +183,11 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     public void testParentWithANormalizerIsNotRead() throws IOException {
         assertRefuses(
             createMapperService(
+                // doc_values: false is ignored in strict-columnar indices created on or after DOC_VALUES_NO_OP_IN_COLUMNAR.
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+                ),
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(
                     b -> b.startObject("host")

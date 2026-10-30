@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +29,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
 /**
  * Builder for {@link org.apache.lucene.queries.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends LeafQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
+public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_within";
 
     private static final ParseField BIG_FIELD = new ParseField("big");
@@ -151,10 +152,10 @@ public class SpanWithinQueryBuilder extends LeafQueryBuilder<SpanWithinQueryBuil
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        Query innerBig = big.toQuery(context);
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
+        Query innerBig = big.toQuery(context, queryVisitor);
         assert innerBig instanceof SpanQuery;
-        Query innerLittle = little.toQuery(context);
+        Query innerLittle = little.toQuery(context, queryVisitor);
         assert innerLittle instanceof SpanQuery;
         return new SpanWithinQuery((SpanQuery) innerBig, (SpanQuery) innerLittle);
     }

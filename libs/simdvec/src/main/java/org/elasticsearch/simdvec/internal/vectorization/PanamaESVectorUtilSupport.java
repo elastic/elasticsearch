@@ -2172,35 +2172,81 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return -1;
     }
 
+    // String handling is commonly more efficient at 256 bits than at 512, so the preferred width is capped at 256.
+    private static final VectorSpecies<Byte> SEARCH_BYTE_SPECIES = BYTE_SPECIES.vectorBitSize() > 256
+        ? ByteVector.SPECIES_256
+        : BYTE_SPECIES;
+
     @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
-        // Scalar logic is faster for short values (below approximately 24 bytes)
-        if (valueLength < 24) {
+        final int vectorSize = SEARCH_BYTE_SPECIES.length();
+        final int maxPos = valueOffset + valueLength - termLength;
+        // Start of the last block: the one that ends exactly at the last position a match can start.
+        final int lastBlock = maxPos - vectorSize + 1;
+        // Scalar logic is faster for short values (below approximately 24 bytes). It is also the only option when
+        // the value is too short to hold a full block of candidate positions.
+        if (valueLength < 24 || lastBlock < valueOffset) {
             return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
         }
 
-        byte first = term[termOffset];
-        byte last = term[termOffset + termLength - 1];
-        int maxPos = valueOffset + valueLength - termLength;
+        final ByteVector firstVec = ByteVector.broadcast(SEARCH_BYTE_SPECIES, term[termOffset]);
+        final ByteVector lastVec = ByteVector.broadcast(SEARCH_BYTE_SPECIES, term[termOffset + termLength - 1]);
 
-        ByteVector firstVec = ByteVector.broadcast(BYTE_SPECIES, first);
-        ByteVector lastVec = ByteVector.broadcast(BYTE_SPECIES, last);
-        int vectorSize = BYTE_SPECIES.length();
+        final int lastDelta = termLength - 1;
         int i = valueOffset;
-        int loopBound = maxPos - vectorSize + 1;
-        for (; i <= loopBound; i += vectorSize) {
-            ByteVector blockFirst = ByteVector.fromArray(BYTE_SPECIES, value, i);
-            ByteVector blockLast = ByteVector.fromArray(BYTE_SPECIES, value, i + termLength - 1);
-            long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
-            while (mask != 0) {
-                int absPos = i + Long.numberOfTrailingZeros(mask);
-                if (middleBytesMatch(value, absPos, term, termOffset, termLength)) {
-                    return true;
-                }
-                mask &= mask - 1;
+        // Two blocks per iteration, gated by a single any-true on their combined candidates: most pairs have no
+        // candidate, so they pay one reduction instead of two and halve the loop's branches.
+        for (; i + vectorSize < lastBlock; i += 2 * vectorSize) {
+            VectorMask<Byte> first = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i)
+                .eq(firstVec)
+                .and(ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + lastDelta).eq(lastVec));
+            VectorMask<Byte> second = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + vectorSize)
+                .eq(firstVec)
+                .and(ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + vectorSize + lastDelta).eq(lastVec));
+            if (first.or(second).anyTrue()
+                && (matchesAtCandidates(first.toLong(), value, i, term, termOffset, termLength)
+                    || matchesAtCandidates(second.toLong(), value, i + vectorSize, term, termOffset, termLength))) {
+                return true;
             }
         }
-        return ByteArrayUtils.contains(value, i, valueOffset + valueLength - i, term, termOffset, termLength);
+        for (; i < lastBlock; i += vectorSize) {
+            if (containsInBlock(value, i, term, termOffset, termLength, firstVec, lastVec)) {
+                return true;
+            }
+        }
+        // The final block is placed to end at maxPos instead of stepping past it, so it overlaps the previous one
+        // rather than leaving a partial block for a scalar loop. Re-checking positions is harmless: a match among
+        // them would already have returned.
+        return containsInBlock(value, lastBlock, term, termOffset, termLength, firstVec, lastVec);
+    }
+
+    /**
+     * Whether {@code term} starts at any of the {@code SEARCH_BYTE_SPECIES.length()} positions beginning at {@code i}.
+     * The caller guarantees every one of those positions leaves room for the whole term.
+     */
+    private static boolean containsInBlock(
+        byte[] value,
+        int i,
+        byte[] term,
+        int termOffset,
+        int termLength,
+        ByteVector firstVec,
+        ByteVector lastVec
+    ) {
+        ByteVector firstBlock = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i);
+        ByteVector secondBlock = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + termLength - 1);
+        return matchesAtCandidates(firstBlock.eq(firstVec).and(secondBlock.eq(lastVec)).toLong(), value, i, term, termOffset, termLength);
+    }
+
+    /** Whether the whole term matches at any position {@code i + k} for a set bit {@code k} of {@code mask}. */
+    private static boolean matchesAtCandidates(long mask, byte[] value, int i, byte[] term, int termOffset, int termLength) {
+        while (mask != 0) {
+            if (middleBytesMatch(value, i + Long.numberOfTrailingZeros(mask), term, termOffset, termLength)) {
+                return true;
+            }
+            mask &= mask - 1;
+        }
+        return false;
     }
 
     /** Checks bytes between first and last (exclusive) since those were already verified by the SIMD masks. */
@@ -2234,34 +2280,81 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int termOffset,
         int termLength
     ) {
-        // Scalar logic is faster for short values (below approximately 24 bytes)
-        if (valueLength < 24) {
+        final int vectorSize = SEARCH_BYTE_SPECIES.length();
+        final int maxPos = valueOffset + valueLength - termLength;
+        // Start of the last block: the one that ends exactly at the last position a match can start.
+        final int lastBlock = maxPos - vectorSize + 1;
+        // Scalar logic is faster for short values (below approximately 24 bytes). It is also the only option when
+        // the value is too short to hold a full block of candidate positions.
+        if (valueLength < 24 || lastBlock < valueOffset) {
             return ByteArrayUtils.indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
         }
 
         // The term's own bytes are folded once here; the value's are folded a block at a time below.
-        byte first = ByteArrayUtils.foldAsciiCase(term[termOffset]);
-        byte last = ByteArrayUtils.foldAsciiCase(term[termOffset + termLength - 1]);
-        int maxPos = valueOffset + valueLength - termLength;
-
-        ByteVector firstVec = ByteVector.broadcast(BYTE_SPECIES, first);
-        ByteVector lastVec = ByteVector.broadcast(BYTE_SPECIES, last);
-        int vectorSize = BYTE_SPECIES.length();
+        final ByteVector firstVec = ByteVector.broadcast(SEARCH_BYTE_SPECIES, ByteArrayUtils.foldAsciiCase(term[termOffset]));
+        final ByteVector lastVec = ByteVector.broadcast(
+            SEARCH_BYTE_SPECIES,
+            ByteArrayUtils.foldAsciiCase(term[termOffset + termLength - 1])
+        );
+        final int lastDelta = termLength - 1;
         int i = valueOffset;
-        int loopBound = maxPos - vectorSize + 1;
-        for (; i <= loopBound; i += vectorSize) {
-            ByteVector blockFirst = ByteVector.fromArray(BYTE_SPECIES, value, i).or((byte) 0x20);
-            ByteVector blockLast = ByteVector.fromArray(BYTE_SPECIES, value, i + termLength - 1).or((byte) 0x20);
-            long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
-            while (mask != 0) {
-                int absPos = i + Long.numberOfTrailingZeros(mask);
-                if (middleBytesFoldOnto(value, absPos, term, termOffset, termLength)) {
-                    return absPos;
+        // Two blocks per iteration, gated by a single any-true on their combined candidates, as in contains.
+        for (; i + vectorSize < lastBlock; i += 2 * vectorSize) {
+            VectorMask<Byte> first = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i)
+                .or((byte) 0x20)
+                .eq(firstVec)
+                .and(ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + lastDelta).or((byte) 0x20).eq(lastVec));
+            VectorMask<Byte> second = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + vectorSize)
+                .or((byte) 0x20)
+                .eq(firstVec)
+                .and(ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + vectorSize + lastDelta).or((byte) 0x20).eq(lastVec));
+            if (first.or(second).anyTrue()) {
+                int at = firstFoldedCandidate(first.toLong(), value, i, term, termOffset, termLength);
+                if (at < 0) {
+                    at = firstFoldedCandidate(second.toLong(), value, i + vectorSize, term, termOffset, termLength);
                 }
-                mask &= mask - 1;
+                if (at >= 0) {
+                    return at;
+                }
             }
         }
-        return ByteArrayUtils.indexOfCandidateIgnoringAsciiCase(value, i, valueOffset + valueLength - i, term, termOffset, termLength);
+        for (; i < lastBlock; i += vectorSize) {
+            int at = firstFoldedCandidateInBlock(value, i, term, termOffset, termLength, firstVec, lastVec);
+            if (at >= 0) {
+                return at;
+            }
+        }
+        // The final block ends exactly at maxPos and so overlaps the previous one rather than leaving a scalar
+        // tail. Positions it re-checks were already ruled out, so the first candidate it reports is still the
+        // first of the value.
+        return firstFoldedCandidateInBlock(value, lastBlock, term, termOffset, termLength, firstVec, lastVec);
+    }
+
+    /** The first candidate of the block at {@code i}, folding case, or -1. */
+    private static int firstFoldedCandidateInBlock(
+        byte[] value,
+        int i,
+        byte[] term,
+        int termOffset,
+        int termLength,
+        ByteVector firstVec,
+        ByteVector lastVec
+    ) {
+        ByteVector blockFirst = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i).or((byte) 0x20);
+        ByteVector blockLast = ByteVector.fromArray(SEARCH_BYTE_SPECIES, value, i + termLength - 1).or((byte) 0x20);
+        return firstFoldedCandidate(blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong(), value, i, term, termOffset, termLength);
+    }
+
+    /** The lowest {@code i + k}, for a set bit {@code k} of {@code mask}, at which the folded middle bytes match; or -1. */
+    private static int firstFoldedCandidate(long mask, byte[] value, int i, byte[] term, int termOffset, int termLength) {
+        while (mask != 0) {
+            int absPos = i + Long.numberOfTrailingZeros(mask);
+            if (middleBytesFoldOnto(value, absPos, term, termOffset, termLength)) {
+                return absPos;
+            }
+            mask &= mask - 1;
+        }
+        return -1;
     }
 
     @Override

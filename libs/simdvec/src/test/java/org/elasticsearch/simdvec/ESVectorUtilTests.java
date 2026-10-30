@@ -1322,6 +1322,70 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    /**
+     * Places the term at every start position of every value length around the vector block boundaries, so
+     * that a match in the final, overlapping block (and in the first one) is exercised, along with a near miss
+     * that has the right first and last byte at the final position but a wrong middle.
+     */
+    public void testContainsAtEveryPosition() {
+        for (int valueLen = 1; valueLen <= 150; valueLen++) {
+            for (int termLen = 1; termLen <= Math.min(valueLen, 40); termLen++) {
+                byte[] term = new byte[termLen];
+                for (int k = 0; k < termLen; k++) {
+                    term[k] = (byte) ('a' + k % 5);
+                }
+                for (int start = 0; start + termLen <= valueLen; start++) {
+                    byte[] value = new byte[valueLen];
+                    Arrays.fill(value, (byte) 'z');
+                    System.arraycopy(term, 0, value, start, termLen);
+                    assertTrue("len=" + valueLen + " term=" + termLen + " start=" + start, containsOnAllImpls(value, term));
+                    if (termLen > 2) {
+                        value[start + termLen / 2] = (byte) 'q';
+                        assertFalse("len=" + valueLen + " term=" + termLen + " start=" + start, containsOnAllImpls(value, term));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The term sits entirely outside the range given, or straddles one of its edges, at every position around it,
+     * for every short range and term length. None of those is a match, so a block that reads before the range's
+     * offset or past its end, as the overlapping final block could, finds one.
+     */
+    public void testContainsIgnoresTheTermOutsideTheRange() {
+        final int padding = 16;
+        for (int valueLen = 1; valueLen <= 100; valueLen++) {
+            for (int termLen = 1; termLen <= Math.min(valueLen, 12); termLen++) {
+                byte[] term = new byte[termLen];
+                for (int k = 0; k < termLen; k++) {
+                    term[k] = (byte) ('a' + k % 5);
+                }
+                final int rangeEnd = padding + valueLen;
+                for (int start = padding - termLen; start <= rangeEnd; start++) {
+                    if (start >= padding && start + termLen <= rangeEnd) {
+                        continue; // wholly inside the range, which is a match
+                    }
+                    byte[] backing = new byte[rangeEnd + padding];
+                    Arrays.fill(backing, (byte) 'z');
+                    System.arraycopy(term, 0, backing, start, termLen);
+                    final String message = "len=" + valueLen + " term=" + termLen + " start=" + start;
+                    assertFalse(message, ESVectorUtil.contains(backing, padding, valueLen, term, 0, termLen));
+                    assertFalse(message, defaultedProvider.getVectorUtilSupport().contains(backing, padding, valueLen, term, 0, termLen));
+                    assertFalse(message, panamaProvider.getVectorUtilSupport().contains(backing, padding, valueLen, term, 0, termLen));
+                }
+            }
+        }
+    }
+
+    private boolean containsOnAllImpls(byte[] value, byte[] term) {
+        boolean expected = scalarContains(value, 0, value.length, term, 0, term.length);
+        assertEquals(expected, ESVectorUtil.contains(value, 0, value.length, term, 0, term.length));
+        assertEquals(expected, defaultedProvider.getVectorUtilSupport().contains(value, 0, value.length, term, 0, term.length));
+        assertEquals(expected, panamaProvider.getVectorUtilSupport().contains(value, 0, value.length, term, 0, term.length));
+        return expected;
+    }
+
     private void assertContains(String value, String term, boolean expected) {
         byte[] valueBytes = value.getBytes(UTF_8);
         byte[] termBytes = term.getBytes(UTF_8);

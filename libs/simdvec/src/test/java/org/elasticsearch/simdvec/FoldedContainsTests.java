@@ -12,6 +12,7 @@ package org.elasticsearch.simdvec;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -104,6 +105,50 @@ public class FoldedContainsTests extends BaseVectorizationTests {
         }
     }
 
+    /**
+     * The term, in the other case, at every start of every value length up to 150, so the vector search meets pairs
+     * of blocks, the single-block remainder and the overlapping final block with the match in each of them, and
+     * the first candidate reported is the one where the term sits. A near miss, with one middle byte replaced,
+     * checks that both implementations agree about what is not found.
+     */
+    public void testTheTermAtEveryPositionOfEveryLength() {
+        for (int valueLength = 1; valueLength <= 150; valueLength++) {
+            for (int termLength = 1; termLength <= Math.min(valueLength, 40); termLength++) {
+                final byte[] term = new byte[termLength];
+                final byte[] upper = new byte[termLength];
+                for (int k = 0; k < termLength; k++) {
+                    term[k] = (byte) ('a' + (k % 26));
+                    upper[k] = (byte) ('A' + (k % 26));
+                }
+                for (int at = 0; at + termLength <= valueLength; at++) {
+                    final byte[] value = new byte[valueLength];
+                    Arrays.fill(value, (byte) 'x');
+                    System.arraycopy(upper, 0, value, at, termLength);
+                    assertEquals(
+                        "scalar at " + at + " of " + valueLength,
+                        at,
+                        SCALAR.indexOfCandidateIgnoringAsciiCase(value, 0, valueLength, term, 0, termLength)
+                    );
+                    assertEquals(
+                        "vector at " + at + " of " + valueLength,
+                        at,
+                        VECTOR.indexOfCandidateIgnoringAsciiCase(value, 0, valueLength, term, 0, termLength)
+                    );
+                    assertEquals("public", at, ESVectorUtil.indexOfCandidateIgnoringAsciiCase(value, 0, valueLength, term, 0, termLength));
+                    assertTrue(VECTOR.mayContainIgnoringAsciiCase(value, 0, valueLength, term, 0, termLength));
+                    if (termLength > 2) {
+                        value[at + termLength / 2] = (byte) '#';
+                        assertEquals(
+                            "near miss at " + at + " of " + valueLength,
+                            SCALAR.indexOfCandidateIgnoringAsciiCase(value, 0, valueLength, term, 0, termLength),
+                            VECTOR.indexOfCandidateIgnoringAsciiCase(value, 0, valueLength, term, 0, termLength)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /** Neither implementation may read outside the range it was given. */
     public void testOnlyTheRangeGivenIsRead() {
         for (int iteration = 0; iteration < 2000; iteration++) {
@@ -128,7 +173,7 @@ public class FoldedContainsTests extends BaseVectorizationTests {
         for (int length = 1; length <= 80; length++) {
             for (int at = 0; at < length; at++) {
                 final byte[] value = new byte[length];
-                java.util.Arrays.fill(value, (byte) 'a');
+                Arrays.fill(value, (byte) 'a');
                 assertFalse("all of ASCII", anyNonAscii(value, 0, length));
                 value[at] = (byte) 0xC3;
                 assertTrue("a byte outside ASCII at " + at + " of " + length, anyNonAscii(value, 0, length));
@@ -138,7 +183,7 @@ public class FoldedContainsTests extends BaseVectorizationTests {
 
     public void testOnlyTheRangeGivenIsReadForAByteOutsideAscii() {
         final byte[] value = new byte[64];
-        java.util.Arrays.fill(value, (byte) 'a');
+        Arrays.fill(value, (byte) 'a');
         value[40] = (byte) 0x80;
         assertTrue(anyNonAscii(value, 0, 64));
         assertFalse("the stretch before it is all ASCII", anyNonAscii(value, 0, 40));

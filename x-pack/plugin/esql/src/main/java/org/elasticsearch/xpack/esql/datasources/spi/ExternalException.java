@@ -115,6 +115,19 @@ public abstract class ExternalException extends QlException {
                     ? "Unexpected internal failure reading external source"
                     : "Unexpected internal failure reading external source: " + detailCode;
             }
+        },
+        /**
+         * The worker that received external splits has not yet applied the cluster state the coordinator planned from (a node that
+         * has just joined, or one behind a dataset change), so it cannot bind the plan's datasets or credentials. Not tied to any
+         * object; the store is not involved. A coordinator with another worker hands the splits to it; otherwise the worker waits
+         * for the state, and this is what it fails with when that wait runs out.
+         */
+        WORKER_NOT_READY {
+            @Override
+            public String render(String objectName, String detailCode, String remedy) {
+                String base = "Node has not yet applied the cluster state this query was planned from";
+                return detailCode.isEmpty() ? base : base + " (" + detailCode + ")";
+            }
         };
 
         /** Message naming the object, with {@code {}} standing for its name; {@code null} if {@link #render} is overridden. */
@@ -219,6 +232,28 @@ public abstract class ExternalException extends QlException {
         this.detailCode = detailCode != null ? detailCode : "";
         this.remedy = remedy != null ? remedy : "";
         recordConditionMetadata();
+    }
+
+    /**
+     * Structured constructor for a condition that names no object, such as {@link Condition#WORKER_NOT_READY}: the
+     * message is {@code condition.render("", detailCode, remedy)} and {@link #objectName()} is empty.
+     */
+    @SuppressWarnings("this-escape") // addMetadata only fills a map owned by ElasticsearchException; see recordConditionMetadata
+    protected ExternalException(Condition condition, String detailCode, String remedy, Throwable cause) {
+        super(condition.render("", detailCode, remedy), cause);
+        this.condition = condition;
+        this.objectName = "";
+        this.detailCode = detailCode != null ? detailCode : "";
+        this.remedy = remedy != null ? remedy : "";
+        recordConditionMetadata();
+    }
+
+    /**
+     * Structured constructor for a condition that names no object, without a cause.
+     * See {@link #ExternalException(Condition, String, String, Throwable)}.
+     */
+    protected ExternalException(Condition condition, String detailCode, String remedy) {
+        this(condition, detailCode, remedy, null);
     }
 
     /**

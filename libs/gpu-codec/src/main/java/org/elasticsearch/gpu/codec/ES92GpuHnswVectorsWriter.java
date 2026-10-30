@@ -43,6 +43,7 @@ import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborArray;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.quantization.BaseQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
@@ -622,13 +623,35 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     }
 
     /**
-     * Builds the graph on CPU from raw float vectors, for all types: the same vectors the GPU builds the graph from, so a
-     * segment gets a graph of similar quality whichever device built it.
+     * Builds the graph on CPU from raw float vectors. Flush only has the raw vectors in memory, and its segments are small,
+     * so this is used for all types there; merges use {@link #buildCpuGraphForMergeAndWriteMeta} instead.
      */
     private void buildCpuGraphAndWriteMeta(FieldInfo fieldInfo, FloatVectorValues vectors) throws IOException {
-        int numVectors = vectors.size();
         var flatVectorsScorer = flatVectorWriter.getFlatVectorScorer();
         var scorerSupplier = flatVectorsScorer.getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectors);
+        buildCpuGraphAndWriteMeta(fieldInfo, scorerSupplier, vectors.size());
+    }
+
+    /**
+     * Builds the graph on CPU for a merge that couldn't be done on GPU, scoring the same vectors as the CPU format of the
+     * type does in {@link org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter}: the quantized vectors for int8_hnsw
+     * and bbq_hnsw, and the raw vectors for hnsw. Scoring quantized vectors is much faster than raw ones, which matters
+     * as the merges that fall back to CPU are the largest ones, and the segment gets the same graph as on a CPU node.
+     */
+    private void buildCpuGraphForMergeAndWriteMeta(FieldInfo fieldInfo) throws IOException {
+        if (flatVectorsReader instanceof QuantizedVectorsReader quantizedVectorsReader) {
+            // may write temporary files, for example bbq's quantized query vectors, deleted when the supplier is closed
+            try (var scorerSupplier = quantizedVectorsReader.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)) {
+                assert scorerSupplier != null : "no quantized vectors for field: " + fieldInfo.name;
+                buildCpuGraphAndWriteMeta(fieldInfo, scorerSupplier, scorerSupplier.totalVectorCount());
+            }
+        } else {
+            buildCpuGraphAndWriteMeta(fieldInfo, flatVectorsReader.getFloatVectorValues(fieldInfo.name));
+        }
+    }
+
+    private void buildCpuGraphAndWriteMeta(FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier, int numVectors)
+        throws IOException {
         var graphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed, numVectors);
         OnHeapHnswGraph cpuGraph = graphBuilder.build(numVectors);
 
@@ -680,7 +703,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                         // can't build the graph, for example because it doesn't have the memory for this merge, retrying
                         // would likely fail the same way, and a failed merge fails the engine. So build the graph on CPU.
                         logCpuFallback(fieldInfo, numVectors, "merge", e);
-                        buildCpuGraphAndWriteMeta(fieldInfo, flatVectorsReader.getFloatVectorValues(fieldInfo.name));
+                        buildCpuGraphForMergeAndWriteMeta(fieldInfo);
                     }
                 }
                 var elapsed = System.nanoTime() - started;

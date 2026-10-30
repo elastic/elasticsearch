@@ -67,7 +67,9 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
             new Object[] { ".kibana_1" },
             new Object[] { ".reporting-1" },
             new Object[] { ".apm-agent-configuration" },
-            new Object[] { ".apm-custom-link" }
+            new Object[] { ".apm-custom-link" },
+            new Object[] { ".feature-flags-definitions" },
+            new Object[] { ".feature-flags-observed-contexts" }
         );
     }
 

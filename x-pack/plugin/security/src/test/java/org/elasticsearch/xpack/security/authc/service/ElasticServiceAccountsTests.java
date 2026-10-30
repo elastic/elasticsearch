@@ -327,6 +327,63 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
 
+        final IndexAbstraction featureFlagsDefinitionsIndex = mockIndexAbstraction(
+            ".feature-flags-definitions" + randomAlphaOfLengthBetween(0, 20)
+        );
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(featureFlagsDefinitionsIndex), is(false));
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(featureFlagsDefinitionsIndex),
+            is(false)
+        );
+        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(featureFlagsDefinitionsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(featureFlagsDefinitionsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(featureFlagsDefinitionsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(featureFlagsDefinitionsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(featureFlagsDefinitionsIndex), is(true));
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(featureFlagsDefinitionsIndex),
+            is(true)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(featureFlagsDefinitionsIndex),
+            is(false)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(featureFlagsDefinitionsIndex),
+            is(false)
+        );
+        assertThat(role.indices().allowedIndicesMatcher(GetSettingsAction.NAME).test(featureFlagsDefinitionsIndex), is(true));
+
+        final IndexAbstraction featureFlagsObservedContextsIndex = mockIndexAbstraction(
+            ".feature-flags-observed-contexts" + randomAlphaOfLengthBetween(0, 20)
+        );
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(featureFlagsObservedContextsIndex), is(true));
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(featureFlagsObservedContextsIndex),
+            is(false)
+        );
+        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(featureFlagsObservedContextsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(featureFlagsObservedContextsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(featureFlagsObservedContextsIndex), is(true));
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(featureFlagsObservedContextsIndex),
+            is(true)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(featureFlagsObservedContextsIndex),
+            is(false)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(featureFlagsObservedContextsIndex),
+            is(false)
+        );
+        assertThat(role.indices().allowedIndicesMatcher(GetSettingsAction.NAME).test(featureFlagsObservedContextsIndex), is(false));
+
+        // Other feature flags indices are not accessible
+        final IndexAbstraction otherFeatureFlagsIndex = mockIndexAbstraction(".feature-flags-other" + randomAlphaOfLengthBetween(0, 20));
+        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(otherFeatureFlagsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(otherFeatureFlagsIndex), is(false));
+
         final TransportRequest request = mock(TransportRequest.class);
         assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
         assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));

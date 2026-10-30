@@ -35,9 +35,19 @@ public class KibanaPluginTests extends ESTestCase {
                 ".contextengine-*",
                 KibanaPlugin.WORKFLOWS_SYSTEM_INDEX_PATTERN,
                 ".apm-agent-configuration*",
-                ".apm-custom-link*"
+                ".apm-custom-link*",
+                ".feature-flags*"
             )
         );
+    }
+
+    public void testFeatureFlagsSystemIndexDescriptor() {
+        SystemIndexDescriptor descriptor = KibanaPlugin.FEATURE_FLAGS_INDEX_DESCRIPTOR;
+        assertTrue(descriptor.matchesIndexPattern(".feature-flags-definitions"));
+        assertTrue(descriptor.matchesIndexPattern(".feature-flags-observed-contexts"));
+        assertTrue(descriptor.isExternal());
+        assertFalse(descriptor.isAutomaticallyManaged());
+        assertThat(descriptor.getAllowedElasticProductOrigins(), contains("kibana", "fleet"));
     }
 
     public void testKibanaDataStreamsRegistered() {

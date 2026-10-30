@@ -358,7 +358,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      */
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", USER_TOKEN).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", USER_TOKEN)
+            // Indexing into a semantic_text field downloads and deploys the default ELSER model on first use
+            .put(CLIENT_SOCKET_TIMEOUT, "120s")
+            .build();
     }
 
     /**

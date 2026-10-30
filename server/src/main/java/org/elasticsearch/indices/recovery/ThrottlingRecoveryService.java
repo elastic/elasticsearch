@@ -320,6 +320,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return pendingRecoveries.stream().map(PendingRecovery::allocationId).collect(Collectors.toUnmodifiableSet());
     }
 
+    /// Returns true if any recovery is waiting in this node's queue, i.e. could be held back by a recovery gate block.
+    public synchronized boolean hasPendingRecoveries() {
+        return pendingRecoveries.isEmpty() == false;
+    }
+
     /// Returns the current blocked state, or `null` if recovery dispatch is not blocked.
     public @Nullable BlockedState blockedState() {
         return blockedState.get();

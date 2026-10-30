@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164145
+summary: "Emit JSON plans for logs, EXPLAIN, PROFILE"
+type: enhancement

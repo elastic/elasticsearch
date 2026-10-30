@@ -13,9 +13,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class UpdateCtxMapTests extends ESTestCase {
@@ -34,6 +36,35 @@ public class UpdateCtxMapTests extends ESTestCase {
     public void testSourceWrapping() {
         assertThat((Map<String, Object>) map.get("_source"), hasEntry("foo", "bar"));
         assertThat(map.getSource(), hasEntry("foo", "bar"));
+    }
+
+    /**
+     * Source fields are only reachable via {@code ctx._source}, so they may share names with update metadata keys.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSourceFieldsMayShareNamesWithMetadata() {
+        Map<String, Object> source = new HashMap<>(Map.of("_type", "event", "op", "x", "_now", 1, "foo", "bar"));
+        map = new UpdateCtxMap("myIndex", "myId", 5, "myRoute", "_doc", "index", TS, source);
+        meta = map.getMetadata();
+
+        assertThat(map.get("_type"), equalTo("_doc"));
+        assertThat(map.get("op"), equalTo("index"));
+        assertThat(map.get("_now"), equalTo(TS));
+        assertThat(meta.getOp(), equalTo("index"));
+
+        assertThat(map.getSource().get("_type"), equalTo("event"));
+        assertThat(map.getSource().get("op"), equalTo("x"));
+        assertThat(map.getSource().get("_now"), equalTo(1));
+
+        Map<String, Object> ctxSource = (Map<String, Object>) map.get("_source");
+        ctxSource.put("_type", "alert");
+        ctxSource.put("op", "y");
+        map.put("op", "noop");
+
+        assertThat(map.getSource().get("_type"), equalTo("alert"));
+        assertThat(map.getSource().get("op"), equalTo("y"));
+        assertThat(meta.getOp(), equalTo("noop"));
+        assertThat(map.get("_type"), equalTo("_doc"));
     }
 
     public void testGetters() {

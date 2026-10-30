@@ -37,12 +37,15 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -65,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -217,7 +221,10 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear*",
         "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
     );
-    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME);
+    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(
+        EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME,
+        EsqlViewActionNames.ESQL_VALIDATE_VIEW_ACTION_NAME
+    );
     private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
     private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
     private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
@@ -362,9 +369,13 @@ public final class IndexPrivilege extends Privilege {
         Setting.Property.NodeScope
     );
 
+    /** The least time between two warnings from {@link EvictionWarning}. */
+    private static final TimeValue EVICTION_WARNING_INTERVAL = TimeValue.timeValueMinutes(10);
+
     private static final Set<IndexPrivilege> NONE_SET = Set.of(NONE);
 
-    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(Settings.EMPTY);
+    private static volatile long cacheMaximumWeight = CACHE_SIZE_SETTING.get(Settings.EMPTY).getBytes();
+    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(cacheMaximumWeight);
 
     private final IndexComponentSelectorPredicate selectorPredicate;
 
@@ -438,13 +449,16 @@ public final class IndexPrivilege extends Privilege {
      * Any previously cached entries are discarded.
      */
     public static void updateConfiguration(Settings settings) {
-        cache = buildCache(settings);
+        final long maximumWeight = CACHE_SIZE_SETTING.get(settings).getBytes();
+        cache = buildCache(maximumWeight);
+        cacheMaximumWeight = maximumWeight;
     }
 
-    private static Cache<Set<String>, CachedPrivileges> buildCache(Settings settings) {
+    private static Cache<Set<String>, CachedPrivileges> buildCache(long maximumWeight) {
         return CacheBuilder.<Set<String>, CachedPrivileges>builder()
-            .setMaximumWeight(CACHE_SIZE_SETTING.get(settings).getBytes())
+            .setMaximumWeight(maximumWeight)
             .weigher((names, cached) -> cached.weight())
+            .removalListener(new EvictionWarning(maximumWeight, EVICTION_WARNING_INTERVAL, System::nanoTime))
             .build();
     }
 
@@ -453,6 +467,56 @@ public final class IndexPrivilege extends Privilege {
      */
     record CachedPrivileges(Set<IndexPrivilege> privileges, long weight) {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedPrivileges.class);
+    }
+
+    /**
+     * Warns when the cache evicts an entry, which means the resolved privileges in use do not fit and the node resolves the evicted ones
+     * again. Every eviction is caused by the size limit because the cache has no expiry. Warnings are at least an interval apart, and
+     * each reports the entries and bytes evicted since the previous one.
+     * <p>
+     * The listener is synchronized because the counters are read and reset together. The cache already serializes the calls under its
+     * LRU lock, so the monitor is uncontended.
+     */
+    static final class EvictionWarning implements RemovalListener<Set<String>, CachedPrivileges> {
+
+        private final long maximumWeight;
+        private final long intervalNanos;
+        private final LongSupplier nanoTime;
+        private long lastWarningNanos;
+        private long evictions;
+        private long evictedWeight;
+
+        EvictionWarning(long maximumWeight, TimeValue interval, LongSupplier nanoTime) {
+            this.maximumWeight = maximumWeight;
+            this.intervalNanos = interval.nanos();
+            this.nanoTime = nanoTime;
+            this.lastWarningNanos = nanoTime.getAsLong() - intervalNanos;
+        }
+
+        @Override
+        public synchronized void onRemoval(RemovalNotification<Set<String>, CachedPrivileges> notification) {
+            if (notification.getRemovalReason() != RemovalNotification.RemovalReason.EVICTED) {
+                return;
+            }
+            logger.trace("evicted resolved index privileges for names {} from the cache", notification.getKey());
+            evictions++;
+            evictedWeight += notification.getValue().weight();
+            final long now = nanoTime.getAsLong();
+            if (now - lastWarningNanos >= intervalNanos) {
+                logger.warn(
+                    "The index privileges cache evicted [{}] entries ([{}]) because it reached its size limit of [{}]."
+                        + " Evicted entries are resolved again when they are next used, which is CPU intensive."
+                        + " Consider increasing the value of [{}]",
+                    evictions,
+                    ByteSizeValue.ofBytes(evictedWeight),
+                    ByteSizeValue.ofBytes(maximumWeight),
+                    CACHE_SIZE_SETTING.getKey()
+                );
+                lastWarningNanos = now;
+                evictions = 0;
+                evictedWeight = 0;
+            }
+        }
     }
 
     /**
@@ -480,6 +544,24 @@ public final class IndexPrivilege extends Privilege {
     // visible for testing
     static Cache<Set<String>, CachedPrivileges> getCache() {
         return cache;
+    }
+
+    /** Hit, miss and eviction counts of the current cache of resolved privileges. */
+    public static Cache.Stats cacheStats() {
+        return cache.stats();
+    }
+
+    public static int cacheEntryCount() {
+        return cache.count();
+    }
+
+    public static long cacheWeightBytes() {
+        return cache.weight();
+    }
+
+    /** The limit the current cache was built with, see {@link #CACHE_SIZE_SETTING}. */
+    public static long cacheMaximumWeightBytes() {
+        return cacheMaximumWeight;
     }
 
     @Nullable
@@ -610,10 +692,7 @@ public final class IndexPrivilege extends Privilege {
             names.addAll(actions);
             automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toList()));
         }
-        // Built-in privilege automata and the result of patterns(...) are already minimal.
-        // Combining multiple automata requires minimization, but a single one can be reused.
-        final Automaton automaton = automata.size() == 1 ? automata.iterator().next() : unionAndMinimize(automata);
-        return new IndexPrivilege(names, automaton, selectorPredicate);
+        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
     }
 
     static Map<String, IndexPrivilege> values() {

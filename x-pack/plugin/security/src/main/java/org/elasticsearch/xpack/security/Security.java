@@ -377,6 +377,7 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.metric.IndexPrivilegesCacheMetrics;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -1124,6 +1125,7 @@ public class Security extends Plugin
             featureService
         );
         components.add(apiKeyService);
+        components.add(new IndexPrivilegesCacheMetrics(telemetryProvider.getMeterRegistry()));
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,

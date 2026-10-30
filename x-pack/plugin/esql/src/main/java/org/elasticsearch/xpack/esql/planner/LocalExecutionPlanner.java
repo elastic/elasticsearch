@@ -1945,7 +1945,8 @@ public class LocalExecutionPlanner {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
-        if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+        Attribute docAttr = FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child());
+        if (docAttr == null) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "planMetricsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
@@ -1974,9 +1975,8 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
 
-        // Step 2: Dedup by _tsid
-        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
+        // Step 2: Dedup by _tsid within each shard
+        PhysicalOperation dedupedSource = dedupTimeSeriesPerShard(tsidSource, docAttr, tsidAttr);
 
         // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -2057,7 +2057,8 @@ public class LocalExecutionPlanner {
             return planTsInfoFinal(tsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
-        if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+        Attribute docAttr = FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child());
+        if (docAttr == null) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "planTsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
@@ -2086,9 +2087,12 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
 
-        // Step 2: Dedup by _tsid
-        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
+        // Step 2: Dedup by _tsid within each shard
+        PhysicalOperation dedupedSource = dedupTimeSeriesPerShard(tsidSource, docAttr, tsidAttr);
+        int sampleRows = tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
+        if (sampleRows != TsInfoOperator.NO_LIMIT) {
+            dedupedSource = dedupedSource.with(new LimitOperator.Factory(sampleRows), dedupedSource.layout);
+        }
 
         // Step 3: Extract _timeseries metadata and _index
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -2140,6 +2144,14 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private static int tsInfoSampleRows(Integer limit, PlannerSettings plannerSettings) {
+        if (limit == null) {
+            return TsInfoOperator.NO_LIMIT;
+        }
+        long sampleRows = Math.max(plannerSettings.tsInfoSampleMinRows(), (long) limit * plannerSettings.tsInfoSampleLimitMultiplier());
+        return (int) Math.min(sampleRows, Integer.MAX_VALUE);
+    }
+
     /**
      * FINAL mode: runs on the coordinator. Reads the 7-column TsInfo output from the
      * exchange (produced by data-node INITIAL phases) and merges rows by ts signature.
@@ -2156,7 +2168,23 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(outputAttrs);
 
-        return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
+        int limit = switch (tsInfoExec.mode()) {
+            case FINAL -> tsInfoExec.limit() == null ? TsInfoOperator.NO_LIMIT : tsInfoExec.limit();
+            case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
+            case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
+        };
+        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
+    }
+
+    /**
+     * Drops the repeated rows of each time series within a shard. Deduplicating across shards would be wrong: a time series
+     * exists in every backing index it was written to, and each of those indices contributes its own data stream and
+     * mapping to {@code METRICS_INFO} and {@code TS_INFO}.
+     */
+    private static PhysicalOperation dedupTimeSeriesPerShard(PhysicalOperation source, Attribute docAttr, Attribute tsidAttr) {
+        int docChannel = source.layout.get(docAttr.id()).channel();
+        int tsidChannel = source.layout.get(tsidAttr.id()).channel();
+        return source.with(new DistinctByOperator.BytesRefKeyPerShardFactory(docChannel, tsidChannel), source.layout);
     }
 
     private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {

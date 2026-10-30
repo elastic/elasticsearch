@@ -87,7 +87,7 @@ In places where the {{security-features}} accept wildcard patterns (e.g. index p
 
 You can set the following index privilege settings in `elasticsearch.yml`. For more information, see [Indices privileges](/reference/elasticsearch/security-privileges.md#privileges-list-indices).
 
-`xpack.security.authz.index_privileges.cache.size` {applies_to}`stack: ga 9.6`
+`xpack.security.authz.index_privileges.cache.size` {applies_to}`stack: ga 9.7`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum memory usage of the cache of resolved index privileges. Each distinct set of index privileges granted by a role (or by the role descriptors of an API key) is compiled into an automaton, which can be CPU intensive, and the result is cached. Accepts either a percentage of the node’s JVM heap memory or a [byte size value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units). When the configured value is exceeded, the least recently used entries are evicted. Defaults to `5%`.
 
 

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -516,6 +517,13 @@ public class EsqlCapabilities {
          * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
          */
         LOAD_FLATTENED_FIELD,
+
+        /**
+         * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
+         * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
+         * deduplicated. A field below a nested object is still read from {@code _source}.
+         */
+        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
@@ -1412,7 +1420,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V5(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1619,6 +1627,15 @@ public class EsqlCapabilities {
          * traversal triggered by FORK skipped the subquery's right child during field-caps resolution.
          */
         WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
+
+        /**
+         * FORK / UnionAll no longer treat IN-subquery MarkJoin marks ({@code $$in_subquery_mark$…})
+         * as user-visible merge columns. Union-type cast synthetics ({@code $$<field>$converted_to$<type>})
+         * stay in the merge output so a conversion above the merge can still reference them.
+         * Without this, {@code INLINE STATS} or {@code EVAL} of an unmapped field under
+         * {@code unmapped_fields="nullify"} / {@code "load"} leaked the mark into the result schema.
+         */
+        WHERE_IN_SUBQUERY_FORK_MARK_NOT_IN_OUTPUT,
 
         /**
          * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
@@ -2896,6 +2913,10 @@ public class EsqlCapabilities {
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
+        /**
+         * Dense_vector aggregation functions applied over timeseries.
+         */
+        DENSE_VECTOR_OVER_TIME_AGG_FUNCTIONS,
         /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.
          */
@@ -4297,6 +4318,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FILLNULL(FILLNULL.isEnabled()),
 
         /**
+         * {@code FILLNULL} patterns also match the fields {@code unmapped_fields} loads for a later command or for a union, and
+         * {@code ON *} is allowed in a subquery under {@code unmapped_fields="LOAD_ALL"}.
+         */
+        FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4624,6 +4651,11 @@ public class EsqlCapabilities {
          * than the score from before the {@code WHERE}.
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
+
+        /**
+         * The {@code Project}s of a chain of {@code LOOKUP JOIN} blocks are hoisted in ONE optimizer pass.
+         */
+        HOIST_PROJECTS_PAST_LOOKUP_JOINS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -46,16 +46,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
      * For analyzers whose behavior does not depend on the index version; instances are shared across indices by name.
      */
     public PreBuiltAnalyzerProviderFactory(String name, PreBuiltCacheFactory.CachingStrategy cache, Supplier<Analyzer> create) {
-        this(name, cache, version -> create.get(), true);
-    }
-
-    private PreBuiltAnalyzerProviderFactory(
-        String name,
-        PreBuiltCacheFactory.CachingStrategy cache,
-        Function<IndexVersion, Analyzer> create,
-        boolean versionInvariant
-    ) {
-        this(name, PreBuiltCacheFactory.getCache(cache), create, versionInvariant);
+        this(name, PreBuiltCacheFactory.getCache(cache), version -> create.get(), true);
     }
 
     private PreBuiltAnalyzerProviderFactory(
@@ -67,25 +58,10 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         super(name, cache);
         this.create = create;
         this.versionInvariant = versionInvariant;
-        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.apply(IndexVersion.current()), versionInvariant);
+        this.current = newProvider(name, create.apply(IndexVersion.current()), versionInvariant);
         if (versionInvariant == false) {
             cache.put(IndexVersion.current(), current);
         }
-    }
-
-    /** For analyzers whose behavior may vary with the Lucene version. */
-    public static PreBuiltAnalyzerProviderFactory luceneVersion(String name, Function<org.apache.lucene.util.Version, Analyzer> create) {
-        return new PreBuiltAnalyzerProviderFactory(
-            name,
-            PreBuiltCacheFactory.CachingStrategy.LUCENE,
-            create.compose(IndexVersion::luceneVersion),
-            false
-        );
-    }
-
-    /** For analyzers whose behavior may vary with the Elasticsearch index version. */
-    public static PreBuiltAnalyzerProviderFactory indexVersion(String name, Function<IndexVersion, Analyzer> create) {
-        return new PreBuiltAnalyzerProviderFactory(name, PreBuiltCacheFactory.CachingStrategy.INDEX, create, false);
     }
 
     /**
@@ -119,7 +95,13 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     @Override
     protected AnalyzerProvider<?> create(IndexVersion version) {
         assert IndexVersion.current().equals(version) == false;
-        return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, create.apply(version), versionInvariant);
+        return newProvider(name, create.apply(version), versionInvariant);
+    }
+
+    private static PreBuiltAnalyzerProvider newProvider(String name, Analyzer analyzer, boolean versionInvariant) {
+        return versionInvariant
+            ? new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer)
+            : new CacheKeyedPreBuiltAnalyzerProvider(name, analyzer);
     }
 
     @Override
@@ -129,6 +111,23 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
             IOUtils.close(closeables);
         } else {
             IOUtils.close(current.get(), () -> IOUtils.close(closeables));
+        }
+    }
+
+    /**
+     * The versioned cache canonicalizes each behavior key to one provider, so provider identity is also the analyzer sharing key.
+     * Keeping this behavior on a distinct provider type matches {@link AnalysisRegistry.FactoryKey}, which isolates sharing keys by
+     * their provider class.
+     */
+    private static final class CacheKeyedPreBuiltAnalyzerProvider extends PreBuiltAnalyzerProvider {
+
+        private CacheKeyedPreBuiltAnalyzerProvider(String name, Analyzer analyzer) {
+            super(name, AnalyzerScope.INDICES, analyzer);
+        }
+
+        @Override
+        public Object sharingKey() {
+            return this;
         }
     }
 

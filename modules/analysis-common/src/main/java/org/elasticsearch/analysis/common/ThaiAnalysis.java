@@ -2,7 +2,7 @@
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License, v 1"; you may not use this file except in compliance with, at
+ * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
@@ -55,6 +55,7 @@ final class ThaiAnalysis {
     }
 
     static Generation generation(Version luceneVersion) {
+        // Keep this gate aligned with the _thai_ stopword gate in Analysis.namedStopWords.
         return luceneVersion.onOrAfter(Version.LUCENE_10_6_0) ? Generation.CURRENT : Generation.LEGACY;
     }
 

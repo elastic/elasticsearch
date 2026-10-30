@@ -159,6 +159,7 @@ public class Analysis {
      * terms at query time than were removed at index time.
      */
     private static Map<String, Set<?>> namedStopWords(IndexVersion indexCreatedVersion) {
+        // Keep this gate aligned with ThaiAnalysis.generation in analysis-common.
         return indexCreatedVersion.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? LegacyNamedStopWords.MAP : NAMED_STOP_WORDS;
     }
 

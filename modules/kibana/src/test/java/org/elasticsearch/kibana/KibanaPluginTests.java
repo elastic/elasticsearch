@@ -32,6 +32,7 @@ public class KibanaPluginTests extends ESTestCase {
                 KibanaPlugin.KIBANA_SYSTEM_INDEX_PATTERN,
                 ".reporting-*",
                 ".chat-*",
+                ".context-engine-*",
                 ".contextengine-*",
                 KibanaPlugin.WORKFLOWS_SYSTEM_INDEX_PATTERN,
                 ".apm-agent-configuration*",

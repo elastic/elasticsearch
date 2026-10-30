@@ -1016,6 +1016,10 @@ public final class AnalysisRegistry implements Closeable {
         // fresh per-index analyzer.
         if (indexSettings != null && SHARED_ANALYZERS_ENABLED) {
             AnalyzerKey key = computeAnalyzerKey(analyzerFactory, analyzerSettings, tokenizers, charFilters, tokenFilters);
+            if (key == null) {
+                // Reloadable chain with a component whose key does not survive an in-place reload.
+                return buildNamedAnalyzer(context, name, analyzerFactory, tokenFilters, charFilters, tokenizers);
+            }
             CacheEntry cached = analyzerCache.get(key);
             if (cached != null) {
                 InternedAnalyzer acquired = acquireIfLive(key, cached, analyzerCache);
@@ -1286,6 +1290,11 @@ public final class AnalysisRegistry implements Closeable {
         });
     }
 
+    /**
+     * Derives the cache key for one analyzer recipe, or {@code null} when the analyzer must not be
+     * shared at all (a reloadable chain containing a filter whose key does not survive an in-place
+     * reload).
+     */
     private static AnalyzerKey computeAnalyzerKey(
         AnalyzerProvider<?> provider,
         Settings analyzerSettings,
@@ -1305,10 +1314,18 @@ public final class AnalysisRegistry implements Closeable {
                 .stream()
                 .map(n -> sharingKey(charFilterFactories.get(n)))
                 .toList();
-            List<Object> tokenFilterKeys = recipeSettings.getAsList("filter")
+            List<TokenFilterFactory> chainTokenFilters = recipeSettings.getAsList("filter")
                 .stream()
-                .map(n -> sharingKey(tokenFilterFactories.get(n)))
+                .map(tokenFilterFactories::get)
                 .toList();
+            // A chain with any SEARCH_TIME filter becomes a ReloadableCustomAnalyzer, rebuilt in place from
+            // current resource state on reload. Sharing one is only sound when every filter's key stays true
+            // across that rebuild (see TokenFilterFactory#sharingKeyStableOnReload); otherwise build privately.
+            if (chainTokenFilters.stream().anyMatch(f -> f != null && f.getAnalysisMode() == AnalysisMode.SEARCH_TIME)
+                && chainTokenFilters.stream().anyMatch(f -> f != null && f.sharingKeyStableOnReload() == false)) {
+                return null;
+            }
+            List<Object> tokenFilterKeys = chainTokenFilters.stream().map(AnalysisRegistry::sharingKey).toList();
             int gap = recipeSettings.getAsInt("position_increment_gap", TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
             // offset_gap is baked per-index into the (Reloadable)CustomAnalyzer just like the
             // position gap, so it must be part of the key or indices differing only in offset_gap
@@ -1407,6 +1424,11 @@ public final class AnalysisRegistry implements Closeable {
         // flag is disabled we build a fresh per-index normalizer and never touch the cache.
         if (indexSettings != null && SHARED_ANALYZERS_ENABLED) {
             AnalyzerKey key = computeAnalyzerKey(normalizerFactory, normalizerSettings, Map.of(), charFilters, tokenFilters);
+            if (key == null) {
+                // Unreachable for normalizers today (no SEARCH_TIME normalizer filters), but mirror produceAnalyzer.
+                normalizers.put(name, buildNamedNormalizer(name, normalizerFactory, tokenizerFactory, tokenFilters, charFilters));
+                return;
+            }
             CacheEntry cached = cache.get(key);
             if (cached != null) {
                 InternedAnalyzer acquired = acquireIfLive(key, cached, cache);

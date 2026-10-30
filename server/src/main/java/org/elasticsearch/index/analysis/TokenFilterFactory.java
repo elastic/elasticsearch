@@ -141,6 +141,20 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Whether {@link #sharingKey()} stays true to this factory's behavior across an in-place reload of a
+     * {@link ReloadableCustomAnalyzer} containing it. A reload rebuilds every component from its current
+     * resource state, so a key folding content read from a local file at build time goes stale when the
+     * file has changed since: the shared instance then behaves per the new content while staying reachable
+     * under the old content's key, and a later index whose file matches the old content would wrongly join
+     * it. Return {@code false} in that case; {@link AnalysisRegistry} then builds reloadable analyzers
+     * containing this factory privately. Keys derived from settings alone, or naming a resource that
+     * reloads uniformly for every sharer (a {@code synonyms_set}), stay true and keep the default.
+     */
+    default boolean sharingKeyStableOnReload() {
+        return true;
+    }
+
+    /**
      * A TokenFilterFactory that does no filtering to its TokenStream
      */
     TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {

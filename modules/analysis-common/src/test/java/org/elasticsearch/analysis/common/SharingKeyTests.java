@@ -253,6 +253,25 @@ public class SharingKeyTests extends ESTestCase {
         assertNotSame(build(IndexVersion.current(), chain), build(IndexVersion.current(), chain));
     }
 
+    /**
+     * A non-updateable synonyms file inside a chain that ANOTHER filter makes reloadable must not share:
+     * an in-place reload re-reads the file into the shared instance while its cache entry stays keyed on
+     * the original content, so a later index whose file matches that content would join the wrong rules.
+     */
+    public void testFixedFileInReloadableChainDoesNotShare() throws IOException {
+        writeConfigFile("fixed.txt", "a, b");
+        Settings chain = Settings.builder()
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "fsyn", "usyn")
+            .put("index.analysis.filter.fsyn.type", synonymType)
+            .put("index.analysis.filter.fsyn.synonyms_path", "fixed.txt")
+            .put("index.analysis.filter.usyn.type", synonymType)
+            .putList("index.analysis.filter.usyn.synonyms", "c, d")
+            .put("index.analysis.filter.usyn.updateable", true)
+            .build();
+        assertNotSame(build(IndexVersion.current(), chain), build(IndexVersion.current(), chain));
+    }
+
     /** A wrapper must report a wrapped filter's lenient fallback, which only the wrapped filter can see. */
     public void testWrappersReportDegradedSynonymFilter() throws IOException {
         CircuitBreaker tripping = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA) {

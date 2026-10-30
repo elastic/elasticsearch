@@ -289,6 +289,17 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private record Key(SynonymsSource source, boolean wordnet, boolean expand, boolean lenient, AnalysisMode mode, Object rules) {}
 
+    /**
+     * A non-updateable {@code synonyms_path} keys on the file content read at build time, but a reload of a
+     * chain made reloadable by ANOTHER filter re-reads the file into the shared instance, stranding the entry
+     * under the old content's key. Inline rules rebuild from the same settings and {@code synonyms_set} rules
+     * reload uniformly for every sharer, so only the local file source is unstable.
+     */
+    @Override
+    public boolean sharingKeyStableOnReload() {
+        return synonymsSource != SynonymsSource.LOCAL_FILE;
+    }
+
     @Override
     public synchronized Object sharingKey() {
         if (sharingKey == null) {

@@ -8,6 +8,12 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.6.0 [elasticsearch-9.6.0-known-issues]
+
+* In ES|QL, a [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) function that is followed by `STATS` fails with `Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find`, even if a `LIMIT` is set after `STATS` or the `k` option is specified. As a workaround, add an explicit `LIMIT` immediately after the `KNN` filter and before `STATS`, for example `WHERE KNN(vector_field, [2.0, 3.0, 1.0]) | LIMIT 10 | STATS COUNT(*)`.
+
+  Refer to [#163612](https://github.com/elastic/elasticsearch/issues/163612) for further details.
+
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
 
 * A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.

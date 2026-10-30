@@ -55,6 +55,7 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
     public static final ParseField FILTER_FIELD = new ParseField("filter");
 
     private static final int MAX_CANDIDATES = 10_000;
+    private static final long MAX_EXACT_DOT_PRODUCTS = 10_000_000L;
 
     private static final ConstructingObjectParser<RankVectorsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -297,14 +298,14 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         if (queryVectors == null || queryVectors.length == 0) {
             throw new IllegalArgumentException("[" + QUERY_VECTOR_FIELD.getPreferredName() + "] must not be empty");
         }
-        if (queryVectors.length > RankVectorsFieldMapper.MAX_VECTORS) {
+        if (queryVectors.length > RankVectorsFieldMapper.MAX_MUVERA_VECTORS) {
             throw new IllegalArgumentException(
                 "["
                     + QUERY_VECTOR_FIELD.getPreferredName()
                     + "] vector count ["
                     + queryVectors.length
                     + "] exceeds the maximum of ["
-                    + RankVectorsFieldMapper.MAX_VECTORS
+                    + RankVectorsFieldMapper.MAX_MUVERA_VECTORS
                     + "]"
             );
         }
@@ -328,6 +329,24 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         }
         if (numCandidates > MAX_CANDIDATES) {
             throw new IllegalArgumentException("[" + NUM_CANDIDATES_FIELD.getPreferredName() + "] cannot exceed [" + MAX_CANDIDATES + "]");
+        }
+        validateRescoreWork(queryVectors.length, numCandidates);
+    }
+
+    /** Rejects a MaxSim rescore whose worst-case dot-product count exceeds the query safety limit. */
+    public static void validateRescoreWork(int queryVectorCount, int numCandidates) {
+        long exactDotProducts = Math.multiplyExact(
+            Math.multiplyExact((long) numCandidates, RankVectorsFieldMapper.MAX_MUVERA_VECTORS),
+            queryVectorCount
+        );
+        if (exactDotProducts > MAX_EXACT_DOT_PRODUCTS) {
+            throw new IllegalArgumentException(
+                "exact MaxSim work ["
+                    + exactDotProducts
+                    + " dot products] exceeds the maximum of ["
+                    + MAX_EXACT_DOT_PRODUCTS
+                    + "]; reduce [num_candidates] or the number of query vectors"
+            );
         }
     }
 

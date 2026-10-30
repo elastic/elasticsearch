@@ -228,11 +228,11 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
     }
 
     public void testMuveraQueryRejectsExcessiveExactWork() {
-        float[][] queryVectors = new float[RankVectorsFieldMapper.MAX_VECTORS][];
+        float[][] queryVectors = new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS][];
         Arrays.fill(queryVectors, new float[RankVectorsFieldMapper.MUVERA_TOKEN_DIMS]);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new MuveraMaxSimQuery("field", queryVectors, 1, 25, null)
+            () -> new MuveraMaxSimQuery("field", queryVectors, 1, MuveraMaxSimQuery.MAX_CANDIDATES, null, encoder())
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("exact MaxSim work"));
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -86,5 +87,17 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
             () -> new RankVectorsQueryBuilder("tokens", new float[][] { { Float.NaN } }, 1, 1)
         );
         assertThat(e.getMessage(), containsString("non-finite"));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsQueryBuilder("tokens", new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS + 1][1], 1, 1)
+        );
+        assertThat(e.getMessage(), containsString("vector count"));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsQueryBuilder("tokens", new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS][1], 1, 10_000)
+        );
+        assertThat(e.getMessage(), containsString("exact MaxSim work"));
     }
 }

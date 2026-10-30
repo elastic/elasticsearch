@@ -63,11 +63,26 @@ public class RankVectorsEvalSpecTests extends ESTestCase {
             () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1f, 1f } }, 1, 1, true)
         );
         assertThat(exception.getMessage(), containsString("must have unit magnitude"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1.00075f } }, 1, 1, true)
+        );
+        assertThat(exception.getMessage(), containsString("must have unit magnitude"));
     }
 
     public void testCaps() {
         expectThrows(IllegalArgumentException.class, () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1f } }, 1001, 1001, true));
         expectThrows(IllegalArgumentException.class, () -> new RankVectorsEvalSpec("vectors", new float[][] { { 1f } }, 1, 10001, true));
+        float[][] queryVectors = new float[RankVectorsEvalSpec.MAX_QUERY_VECTORS][];
+        for (int i = 0; i < queryVectors.length; i++) {
+            queryVectors[i] = new float[] { 1f };
+        }
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsEvalSpec("vectors", queryVectors, 1, RankVectorsEvalSpec.MAX_NUM_CANDIDATES, true)
+        );
+        assertThat(exception.getMessage(), containsString("exact MaxSim work"));
         assertEquals(Long.MAX_VALUE, TransportRankVectorsEvalAction.saturatingMultiply(Long.MAX_VALUE, 2));
     }
 }

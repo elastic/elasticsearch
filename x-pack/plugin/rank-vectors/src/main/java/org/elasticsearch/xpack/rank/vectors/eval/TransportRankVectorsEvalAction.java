@@ -126,15 +126,17 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
             if (indices.isEmpty()) {
                 throw new IllegalArgumentException("no matching indices to evaluate");
             }
-            int primaryShards = validateIndices(project, indices, request.spec());
-            resolveMapping(task, request, indices, primaryShards, listener);
+            IndexValidation indexValidation = validateIndices(project, indices, request.spec());
+            resolveMapping(task, request, indices, indexValidation, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private int validateIndices(ProjectMetadata project, Set<String> indices, RankVectorsEvalSpec spec) {
+    private IndexValidation validateIndices(ProjectMetadata project, Set<String> indices, RankVectorsEvalSpec spec) {
         int primaryShards = 0;
+        String encodingProfile = null;
+        int encodingVersion = -1;
         for (String index : indices) {
             IndexMetadata metadata = project.index(index);
             if (metadata == null) {
@@ -151,6 +153,14 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                         + "]"
                 );
             }
+            String indexEncodingProfile = RankVectorsFieldMapper.muveraEncodingProfile(metadata.getCreationVersion());
+            int indexEncodingVersion = RankVectorsFieldMapper.muveraEncodingVersion(metadata.getCreationVersion());
+            if (encodingProfile == null) {
+                encodingProfile = indexEncodingProfile;
+                encodingVersion = indexEncodingVersion;
+            } else if (encodingProfile.equals(indexEncodingProfile) == false || encodingVersion != indexEncodingVersion) {
+                throw new IllegalArgumentException("all target indices must use the same rank_vectors encoding profile");
+            }
             primaryShards = Math.addExact(primaryShards, metadata.getNumberOfShards());
         }
         if (primaryShards > MAX_PRIMARY_SHARDS) {
@@ -162,14 +172,14 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                 "[num_candidates] times primary shard count [" + totalCandidates + "] exceeds [" + MAX_TOTAL_CANDIDATES + "]"
             );
         }
-        return primaryShards;
+        return new IndexValidation(primaryShards, encodingProfile, encodingVersion);
     }
 
     private void resolveMapping(
         Task task,
         RankVectorsEvalRequest request,
         Set<String> indices,
-        int primaryShards,
+        IndexValidation indexValidation,
         ActionListener<RankVectorsEvalResponse> listener
     ) {
         GetFieldMappingsRequest mappingRequest = new GetFieldMappingsRequest().indices(request.indices())
@@ -177,8 +187,14 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
             .fields(request.spec().field());
         setParent(task, mappingRequest);
         client.execute(GetFieldMappingsAction.INSTANCE, mappingRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            MappingInfo mappingInfo = validateMappings(indices, request.spec(), response);
-            rejectNested(task, request, primaryShards, mappingInfo, delegate);
+            MappingInfo mappingInfo = validateMappings(
+                indices,
+                request.spec(),
+                response,
+                indexValidation.encodingProfile,
+                indexValidation.encodingVersion
+            );
+            rejectNested(task, request, indexValidation.primaryShards, mappingInfo, delegate);
         }));
     }
 
@@ -388,7 +404,13 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
         }));
     }
 
-    private static MappingInfo validateMappings(Set<String> indices, RankVectorsEvalSpec spec, GetFieldMappingsResponse response) {
+    private static MappingInfo validateMappings(
+        Set<String> indices,
+        RankVectorsEvalSpec spec,
+        GetFieldMappingsResponse response,
+        String encodingProfile,
+        int encodingVersion
+    ) {
         if (response.mappings().keySet().containsAll(indices) == false) {
             throw new IllegalArgumentException("could not read the field mapping across all target indices");
         }
@@ -403,7 +425,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                 throw new IllegalArgumentException("invalid mapping for field [" + spec.field() + "]");
             }
             Map<?, ?> mapping = (Map<?, ?>) mappingObject;
-            MappingInfo current = MappingInfo.from(mapping);
+            MappingInfo current = MappingInfo.from(mapping, encodingProfile, encodingVersion);
             if (first != null && first.equals(current) == false) {
                 throw new IllegalArgumentException("field [" + spec.field() + "] resolves differently across target indices");
             }
@@ -493,8 +515,10 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
 
     private record Identity(String index, String id) {}
 
+    private record IndexValidation(int primaryShards, String encodingProfile, int encodingVersion) {}
+
     private record MappingInfo(int dimensions, String elementType, String encodingProfile, int encodingVersion) {
-        private static MappingInfo from(Map<?, ?> mapping) {
+        private static MappingInfo from(Map<?, ?> mapping, String encodingProfile, int encodingVersion) {
             if ("rank_vectors".equals(mapping.get("type")) == false || Boolean.TRUE.equals(mapping.get("index")) == false) {
                 throw new IllegalArgumentException("field must be an indexed [rank_vectors] field");
             }
@@ -506,12 +530,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                 throw new IllegalArgumentException("rank_vectors field must declare [dims]");
             }
             Number dimensions = (Number) mapping.get("dims");
-            return new MappingInfo(
-                dimensions.intValue(),
-                elementType,
-                RankVectorsFieldMapper.muveraEncodingProfile(),
-                RankVectorsFieldMapper.muveraEncodingVersion()
-            );
+            return new MappingInfo(dimensions.intValue(), elementType, encodingProfile, encodingVersion);
         }
     }
 }

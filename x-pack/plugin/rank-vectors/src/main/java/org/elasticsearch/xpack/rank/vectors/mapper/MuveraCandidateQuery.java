@@ -12,6 +12,7 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,11 +29,13 @@ public final class MuveraCandidateQuery extends Query {
     private final String field;
     private final float[][] queryVectors;
     private final int numCandidates;
+    private final MuveraEncoder encoder;
 
-    public MuveraCandidateQuery(String field, float[][] queryVectors, int numCandidates) {
+    public MuveraCandidateQuery(String field, float[][] queryVectors, int numCandidates, MuveraEncoder encoder) {
         this.field = Objects.requireNonNull(field);
         this.queryVectors = deepCopy(queryVectors);
         this.numCandidates = numCandidates;
+        this.encoder = Objects.requireNonNull(encoder);
     }
 
     @Override
@@ -40,8 +43,7 @@ public final class MuveraCandidateQuery extends Query {
         Runnable checkCancelled = searcher instanceof ContextIndexSearcher contextSearcher
             ? contextSearcher::checkCancelled
             : NO_CANCELLATION;
-        return new KnnFloatVectorQuery(field, RankVectorsFieldMapper.encodeMuveraQuery(queryVectors, checkCancelled), numCandidates)
-            .rewrite(searcher);
+        return new KnnFloatVectorQuery(field, encoder.encodeQuery(queryVectors, checkCancelled), numCandidates).rewrite(searcher);
     }
 
     @Override
@@ -60,12 +62,15 @@ public final class MuveraCandidateQuery extends Query {
             return false;
         }
         MuveraCandidateQuery other = (MuveraCandidateQuery) object;
-        return field.equals(other.field) && Arrays.deepEquals(queryVectors, other.queryVectors) && numCandidates == other.numCandidates;
+        return field.equals(other.field)
+            && Arrays.deepEquals(queryVectors, other.queryVectors)
+            && numCandidates == other.numCandidates
+            && encoder == other.encoder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), numCandidates);
+        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), numCandidates, encoder);
     }
 
     private static float[][] deepCopy(float[][] vectors) {

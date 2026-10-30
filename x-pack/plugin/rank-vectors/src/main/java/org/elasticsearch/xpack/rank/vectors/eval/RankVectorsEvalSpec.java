@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
+import org.elasticsearch.xpack.rank.vectors.query.RankVectorsQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +31,7 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
     private static final double UNIT_MAGNITUDE_TOLERANCE = 1e-3;
     public static final int MAX_K = 1_000;
     public static final int MAX_NUM_CANDIDATES = 10_000;
-    public static final int MAX_QUERY_VECTORS = 256;
+    public static final int MAX_QUERY_VECTORS = RankVectorsFieldMapper.MAX_MUVERA_VECTORS;
 
     static final ParseField FIELD = new ParseField("field");
     static final ParseField QUERY_VECTOR = new ParseField("query_vector");
@@ -79,10 +81,9 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
                 }
                 squaredMagnitude += (double) value * value;
             }
-            double magnitude = Math.sqrt(squaredMagnitude);
-            if (Math.abs(magnitude - 1d) > UNIT_MAGNITUDE_TOLERANCE) {
+            if (Math.abs(squaredMagnitude - 1d) > UNIT_MAGNITUDE_TOLERANCE) {
                 throw new IllegalArgumentException(
-                    "[query_vector] vector [" + i + "] must have unit magnitude; magnitude was [" + magnitude + "]"
+                    "[query_vector] vector [" + i + "] must have unit magnitude; squared magnitude was [" + squaredMagnitude + "]"
                 );
             }
         }
@@ -92,6 +93,7 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         if (numCandidates < k || numCandidates > MAX_NUM_CANDIDATES) {
             throw new IllegalArgumentException("[num_candidates] must be between [k] and " + MAX_NUM_CANDIDATES);
         }
+        RankVectorsQueryBuilder.validateRescoreWork(queryVector.length, numCandidates);
         if (allowExact == false) {
             throw new IllegalArgumentException(
                 "[allow_exact] must be true because the exact MaxSim baseline can severely slow other searches"

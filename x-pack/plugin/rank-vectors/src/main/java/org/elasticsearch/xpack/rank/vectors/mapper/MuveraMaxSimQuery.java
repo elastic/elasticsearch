@@ -23,6 +23,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
+import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
+import org.elasticsearch.xpack.rank.vectors.query.RankVectorsQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +40,6 @@ import java.util.Objects;
 final class MuveraMaxSimQuery extends Query {
 
     static final int MAX_CANDIDATES = 10_000;
-    static final long MAX_EXACT_DOT_PRODUCTS = 10_000_000L;
     private static final Runnable NO_CANCELLATION = () -> {};
 
     private final String field;
@@ -47,14 +48,19 @@ final class MuveraMaxSimQuery extends Query {
     private final int numCandidates;
     @Nullable
     private final Query filter;
+    private final MuveraEncoder encoder;
 
-    MuveraMaxSimQuery(String field, float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
+    MuveraMaxSimQuery(String field, float[][] queryVectors, int k, int numCandidates, @Nullable Query filter, MuveraEncoder encoder) {
         if (queryVectors == null || queryVectors.length == 0) {
             throw new IllegalArgumentException("query vectors must not be empty");
         }
-        if (queryVectors.length > RankVectorsFieldMapper.MAX_VECTORS) {
+        if (queryVectors.length > RankVectorsFieldMapper.MAX_MUVERA_VECTORS) {
             throw new IllegalArgumentException(
-                "query vector count [" + queryVectors.length + "] exceeds the maximum of [" + RankVectorsFieldMapper.MAX_VECTORS + "]"
+                "query vector count ["
+                    + queryVectors.length
+                    + "] exceeds the maximum of ["
+                    + RankVectorsFieldMapper.MAX_MUVERA_VECTORS
+                    + "]"
             );
         }
         if (k < 1) {
@@ -66,24 +72,13 @@ final class MuveraMaxSimQuery extends Query {
         if (numCandidates > MAX_CANDIDATES) {
             throw new IllegalArgumentException("[num_candidates] cannot exceed [" + MAX_CANDIDATES + "]");
         }
-        long exactDotProducts = Math.multiplyExact(
-            Math.multiplyExact((long) numCandidates, RankVectorsFieldMapper.MAX_MUVERA_VECTORS),
-            queryVectors.length
-        );
-        if (exactDotProducts > MAX_EXACT_DOT_PRODUCTS) {
-            throw new IllegalArgumentException(
-                "exact MaxSim work ["
-                    + exactDotProducts
-                    + " dot products] exceeds the maximum of ["
-                    + MAX_EXACT_DOT_PRODUCTS
-                    + "]; reduce [num_candidates] or the number of query vectors"
-            );
-        }
+        RankVectorsQueryBuilder.validateRescoreWork(queryVectors.length, numCandidates);
         this.field = Objects.requireNonNull(field);
         this.queryVectors = deepCopy(queryVectors);
         this.k = k;
         this.numCandidates = numCandidates;
         this.filter = filter;
+        this.encoder = Objects.requireNonNull(encoder);
     }
 
     @Override
@@ -91,7 +86,7 @@ final class MuveraMaxSimQuery extends Query {
         Runnable checkCancelled = searcher instanceof ContextIndexSearcher contextSearcher
             ? contextSearcher::checkCancelled
             : NO_CANCELLATION;
-        float[] queryFde = RankVectorsFieldMapper.encodeMuveraQuery(queryVectors, checkCancelled);
+        float[] queryFde = encoder.encodeQuery(queryVectors, checkCancelled);
         TopDocs candidates = searcher.search(new KnnFloatVectorQuery(field, queryFde, numCandidates, filter), numCandidates);
         if (candidates.scoreDocs.length == 0) {
             return new KnnScoreDocQuery(new ScoreDoc[0], searcher.getIndexReader());
@@ -192,12 +187,13 @@ final class MuveraMaxSimQuery extends Query {
             && Arrays.deepEquals(queryVectors, other.queryVectors)
             && k == other.k
             && numCandidates == other.numCandidates
-            && Objects.equals(filter, other.filter);
+            && Objects.equals(filter, other.filter)
+            && encoder == other.encoder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), k, numCandidates, filter);
+        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), k, numCandidates, filter, encoder);
     }
 
     private static float[][] deepCopy(float[][] vectors) {

@@ -75,7 +75,7 @@ public class ESVectorUtil {
     }
 
     /** Creates an ASH integer-query scorer. */
-    public static AshScorer<byte[]> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+    public static AshScorer<ScoringQuery> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
         return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
     }

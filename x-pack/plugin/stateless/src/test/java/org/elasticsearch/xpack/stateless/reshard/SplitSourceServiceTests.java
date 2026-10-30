@@ -14,10 +14,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -25,11 +30,21 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +53,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +64,12 @@ public class SplitSourceServiceTests extends ESTestCase {
     /// permits, so a lookup that throws on a deleted index strands them.
     public void testHandoffReleasesPermitsWhenIndexIsGone() throws Exception {
         final var permitsClosed = new AtomicInteger();
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(
+                new DeterministicTaskQueue().getThreadPool(),
+                clusterSettingsWithHandoffThrottle()
+            )
+        ) {
             final var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
             final var goneIndex = new Index("gone", "gone-uuid");
             final var handoff = new PlainActionFuture<ActionResponse>();
@@ -230,6 +251,7 @@ public class SplitSourceServiceTests extends ESTestCase {
 
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsWithHandoffThrottle());
 
         // The null args are not reached before the request is rejected.
         var splitSourceService = new SplitSourceService(
@@ -255,7 +277,10 @@ public class SplitSourceServiceTests extends ESTestCase {
     /// must prevent adding a new state machine entry. This is the race that requires cancelSplits to run from
     /// afterIndexShardClosed (after IndexShard.close() sets the state to CLOSED) rather than beforeIndexShardClosed.
     public void testSetupSourceShardStateMachineSkipsClosedShard() {
-        var splitSourceService = new SplitSourceService(null, mock(ClusterService.class), null, null, null, null, null, Settings.EMPTY);
+        // The constructor watches the handoff throttle setting
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettingsWithHandoffThrottle());
+        var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
 
         var shardId = new ShardId("index", "uuid", 0);
         var indexShard = mock(IndexShard.class);
@@ -313,5 +338,188 @@ public class SplitSourceServiceTests extends ESTestCase {
                 logger.warn("acquiring failed", e);
             }
         };
+    }
+
+    private void testHandoffThrottled(int numShards, int maxConcurrentHandoffs) {
+        int percentage = Math.ceilDiv(maxConcurrentHandoffs * 100, numShards);
+        assert maxConcurrentHandoffs == (int) (numShards * percentage / 100.0);
+
+        try (var split = new ThrottleFixture(numShards, percentage)) {
+            var service = split.service;
+            var index = split.index;
+
+            var futures = new ArrayList<PlainActionFuture<Void>>();
+            for (int i = 0; i < numShards; i++) {
+                var task = new CancellableTask(i, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
+                var future = new PlainActionFuture<Void>();
+                service.awaitHandoffSlot(task, future, new ShardId(index, i), new ShardId(index, numShards + i));
+                futures.add(future);
+            }
+            var inHandoff = new ArrayDeque<Integer>();
+            for (int i = 0; i < numShards; i++) {
+                assertThat(
+                    "shard " + i + " should only proceed while handoff slots are free",
+                    futures.get(i).isDone(),
+                    equalTo(i < maxConcurrentHandoffs)
+                );
+                if (i < maxConcurrentHandoffs) {
+                    service.finishPreparingForHandoff(new ShardId(index, i));
+                    split.transitionTarget(i, IndexReshardingState.Split.TargetShardState.HANDOFF);
+                    inHandoff.add(i);
+                }
+            }
+
+            for (int i = 0; i < numShards - maxConcurrentHandoffs; i++) {
+                split.transitionTarget(inHandoff.poll(), IndexReshardingState.Split.TargetShardState.SPLIT);
+                var proceeded = new ArrayList<Integer>();
+                for (int j = maxConcurrentHandoffs; j < numShards; j++) {
+                    var targetState = split.reshardingMetadata.getSplit().getTargetShardState(numShards + j);
+                    if (targetState == IndexReshardingState.Split.TargetShardState.CLONE && futures.get(j).isDone()) {
+                        proceeded.add(j);
+                    }
+                }
+                assertThat("one handoff slot should have been freed", proceeded, hasSize(1));
+                int next = proceeded.get(0);
+                service.finishPreparingForHandoff(new ShardId(index, next));
+                split.transitionTarget(next, IndexReshardingState.Split.TargetShardState.HANDOFF);
+                inHandoff.add(next);
+            }
+
+            futures.forEach(future -> future.actionGet(SAFE_AWAIT_TIMEOUT));
+        }
+    }
+
+    public void testThrottleHandoffOneShard() {
+        testHandoffThrottled(randomIntBetween(3, 8), 1);
+    }
+
+    public void testThrottleHandoffMultipleShards() {
+        int numShards = randomIntBetween(5, 20);
+        testHandoffThrottled(numShards, randomIntBetween(2, numShards - 1));
+    }
+
+    public void testHandoffThrottleDisabled() {
+        int numShards = randomIntBetween(2, 10);
+        testHandoffThrottled(numShards, numShards);
+    }
+
+    public void testHandoffThrottleCancelledWhileWaiting() {
+        // 12.5% of up to 8 shards is a single slot
+        int numShards = randomIntBetween(2, 8);
+        try (var split = new ThrottleFixture(numShards, 12.5)) {
+            var firstTask = new CancellableTask(0, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
+            var firstFuture = new PlainActionFuture<Void>();
+            split.service.awaitHandoffSlot(firstTask, firstFuture, new ShardId(split.index, 0), new ShardId(split.index, numShards));
+            firstFuture.actionGet(SAFE_AWAIT_TIMEOUT);
+
+            var secondTask = new CancellableTask(1, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
+            var secondFuture = new PlainActionFuture<Void>();
+            var secondSource = new ShardId(split.index, 1);
+            split.service.awaitHandoffSlot(secondTask, secondFuture, secondSource, new ShardId(split.index, numShards + 1));
+            assertFalse("listener should be blocked while handoff slot is taken", secondFuture.isDone());
+            TaskCancelHelper.cancel(secondTask, "test");
+            expectThrows(TaskCancelledException.class, () -> secondFuture.actionGet(SAFE_AWAIT_TIMEOUT));
+
+            split.service.finishPreparingForHandoff(new ShardId(split.index, 0));
+            split.transitionTarget(0, IndexReshardingState.Split.TargetShardState.HANDOFF);
+            split.transitionTarget(0, IndexReshardingState.Split.TargetShardState.SPLIT);
+            assertFalse("cancelled handoff must not claim a slot", split.service.isPreparingForHandoff(secondSource));
+        }
+    }
+
+    public void testHandoffThrottleHoldsWhileAboveLimit() {
+        int numShards = randomIntBetween(3, 20);
+        double maxConcurrentHandoffPercentage = randomIntBetween(1, 30);
+        int maxConcurrentHandoffs = Math.max(1, (int) (numShards * maxConcurrentHandoffPercentage / 100.0));
+        assert maxConcurrentHandoffs < numShards - 1;
+        // initial shards in handoff > maxConcurrentHandoffs
+        int initialShardsInHandoff = randomIntBetween(maxConcurrentHandoffs + 1, numShards - 1);
+        try (var split = new ThrottleFixture(numShards, maxConcurrentHandoffPercentage)) {
+            for (int i = 0; i < initialShardsInHandoff; i++) {
+                split.transitionTarget(i, IndexReshardingState.Split.TargetShardState.HANDOFF);
+            }
+            var handoffFuture = new PlainActionFuture<Void>();
+            var task = new CancellableTask(1, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
+            split.service.awaitHandoffSlot(
+                task,
+                handoffFuture,
+                new ShardId(split.index, initialShardsInHandoff),
+                new ShardId(split.index, numShards + initialShardsInHandoff)
+            );
+            for (int i = 0; i < initialShardsInHandoff - maxConcurrentHandoffs + 1; i++) {
+                assertFalse("listener should be blocked while handoff is at or above the limit", handoffFuture.isDone());
+                split.transitionTarget(i, IndexReshardingState.Split.TargetShardState.SPLIT);
+            }
+            handoffFuture.actionGet(SAFE_AWAIT_TIMEOUT);
+        }
+    }
+
+    private class ThrottleFixture implements AutoCloseable {
+        final SplitSourceService service;
+        final Index index;
+        private final TestThreadPool threadPool;
+        private final ClusterService clusterService;
+        private final ProjectId projectId = randomProjectIdOrDefault();
+        private final IndexMetadata initialIndexMetadata;
+        private final int numShards;
+        private final double maxConcurrentHandoffPercentage;
+        private IndexReshardingMetadata reshardingMetadata;
+
+        ThrottleFixture(int numShards, double maxConcurrentHandoffPercentage) {
+            this.numShards = numShards;
+            this.maxConcurrentHandoffPercentage = maxConcurrentHandoffPercentage;
+            threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService generic() {
+                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettingsWithHandoffThrottle());
+            var reshardIndexService = mock(ReshardIndexService.class);
+            when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+            service = new SplitSourceService(null, clusterService, null, null, null, reshardIndexService, null, Settings.EMPTY);
+
+            initialIndexMetadata = IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), numShards, 0))
+                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(numShards, 2))
+                .build();
+            index = initialIndexMetadata.getIndex();
+            reshardingMetadata = initialIndexMetadata.getReshardingMetadata();
+            publish();
+        }
+
+        void transitionTarget(int source, IndexReshardingState.Split.TargetShardState state) {
+            reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(new ShardId(index, numShards + source), state);
+            publish();
+        }
+
+        private void publish() {
+            var persistentSettings = Settings.builder()
+                .put(SplitSourceService.RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE.getKey(), maxConcurrentHandoffPercentage)
+                .build();
+            var indexMetadata = IndexMetadata.builder(initialIndexMetadata).reshardingMetadata(reshardingMetadata).build();
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(ClusterName.DEFAULT)
+                    .metadata(
+                        Metadata.builder()
+                            .persistentSettings(persistentSettings)
+                            .put(ProjectMetadata.builder(projectId).put(indexMetadata, true).build())
+                    )
+                    .build()
+            );
+        }
+
+        @Override
+        public void close() {
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
+    private static ClusterSettings clusterSettingsWithHandoffThrottle() {
+        var registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registered.add(SplitSourceService.RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE);
+        return new ClusterSettings(Settings.EMPTY, registered);
     }
 }

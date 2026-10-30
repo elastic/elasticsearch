@@ -96,6 +96,8 @@ When sources have different schemas, columns that do not exist in a given source
 - {applies_to}`stack: preview 9.6+` Use `METADATA _name` and `METADATA _class`. `_name` returns the dataset name for dataset rows and the index name for index rows. `_class` returns `index` or `dataset`, so a query can tell the two apart without knowing the names in advance. `_index` returns `null` for dataset rows, because a dataset is not an index.
 - {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows. `_class` and `_name` are not available.
 
+A view definition can also read from a dataset. For how datasets behave inside views, refer to [](/reference/query-languages/esql/esql-views.md#data-federation-datasets).
+
 ### Match datasets with wildcards
 ```{applies_to}
 stack: preview 9.6+
@@ -203,6 +205,8 @@ Unexpected nulls in query results
 
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.
+
+    {applies_to}`stack: preview 9.6+` To end a long query against a dataset and keep the rows read so far, run it as an [async query](/reference/query-languages/esql/esql-rest.md#esql-rest-async-query) and stop it with the async stop API. The response returns those rows with `is_partial: true`.
 
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.

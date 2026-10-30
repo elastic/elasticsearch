@@ -113,7 +113,7 @@ public class NodeQueryResponseTests extends ESTestCase {
 
     /**
      * Stands in for the pooled network buffer a response is read from: it starts with the reference that the transport layer holds
-     * while it reads, and records whether it has been released. Releasing it more often than it was retained fails the test.
+     * while it reads, and records whether it has been released.
      */
     private static final class TrackedBuffer {
         private final AtomicBoolean released = new AtomicBoolean();

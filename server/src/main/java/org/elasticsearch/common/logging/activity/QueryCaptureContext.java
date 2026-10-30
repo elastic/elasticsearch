@@ -29,8 +29,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Context for {@link QueryInterceptor}: the information captured about a completed query, extended by specific contexts for each
- * action. {@link ActivityLogProducer} uses the context data to compose fields for the log message.
+ * Captured context for {@link QueryInterceptor}: the information captured about a completed query,
+ * extended by specific contexts for each search action.
  */
 public abstract class QueryCaptureContext {
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));

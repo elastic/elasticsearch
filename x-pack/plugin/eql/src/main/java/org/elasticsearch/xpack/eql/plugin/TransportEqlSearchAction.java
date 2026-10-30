@@ -79,7 +79,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
-    private final QueryInterceptor<EqlCaptureContext> activityInterceptor;
+    private final QueryInterceptor<EqlCaptureContext> queryInterceptor;
 
     @Inject
     public TransportEqlSearchAction(
@@ -118,7 +118,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
-        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
     }
 
     @Override
@@ -155,7 +155,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             username(securityContext),
             transportService,
             clusterService,
-            activityInterceptor,
+            queryInterceptor,
             listener
         );
     }
@@ -196,7 +196,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 username(securityContext),
                 transportService,
                 clusterService,
-                activityInterceptor,
+                queryInterceptor,
                 listener
             );
         }

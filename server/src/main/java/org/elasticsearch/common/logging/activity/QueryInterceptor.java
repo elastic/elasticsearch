@@ -20,12 +20,14 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Captures a query action - its completion, whether successful or not - and hands it to the {@link QuerySink}s.
- * The context is built once and passed to every enabled sink. The interceptor neither logs nor knows what the sinks do: the
- * query log ({@link QueryLogger}) is one sink among others. Capturing is best effort: a failure to build the context or in a
- * sink is logged and never changes the outcome of the action.
- * Specific details are added in the specific context types for each action, such as search, ESQL query, etc.
- * @param <Context> Logging context type
+ * Queries are intercepted by wrapping the {@code ActionListener} to capture the query response.
+ * {@code QueryCaptureContext} binds the request and response and is passed to the downstream {@link QuerySink}s for processing.
+ *
+ * Interception should be lean and efficient and an error in interception must not fail the intercepted query. {@link QuerySink}s are
+ * notified in the wrapping before the original listener is called. Work done in the {@code QuerySink} should be minimal or passed
+ * to another worker so as not to delay the query response.
+ *
+ * @param <Context> Logging context type, specific context types exist for each action, such as search, ESQL query, etc.
  */
 // TODO: move these classes out of org.elasticsearch.common.logging.activity. Capturing queries for sinks is no longer logging.
 public final class QueryInterceptor<Context extends QueryCaptureContext> {
@@ -41,7 +43,7 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
         return sinks.stream().anyMatch(QueryInterceptor::isEnabled);
     }
 
-    /** A sink whose switch fails is treated as disabled: a sink must never fail the action. */
+    /** A sink whose switch fails is treated as disabled: a sink must never fail the intercepted query. */
     private static boolean isEnabled(QuerySink<?> sink) {
         try {
             return sink.isEnabled();
@@ -58,7 +60,7 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
                 try {
                     sink.accept(context);
                 } catch (Exception e) {
-                    // a sink must never fail the action or starve the other sinks
+                    // a sink must never fail the query or starve the other sinks
                     logger.warn(() -> Strings.format("query sink [%s] failed", sink), e);
                 }
             }
@@ -67,7 +69,7 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
 
     /**
      * Build the context and hand it to the sinks. Capturing is best effort: a failure to build the context is logged and
-     * swallowed so that it can never change the outcome of the action.
+     * swallowed so that it can never change the outcome of the query.
      */
     private void capture(Supplier<Context> contextSupplier) {
         final Context context;
@@ -81,14 +83,9 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
     }
 
     /**
-     * Wrap a listener, capturing either outcome of it - success or failure.
-     * Both will be passed to the enabled sinks and then propagated to the delegate listener.
-     * If no sink is enabled, it's a no-op.
+     * Wrap a listener with the context and capture the response - success or failure.
      */
-    public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final QueryCaptureContextBuilder<Context, Req, R> contextBuilder) {
-        if (anySinkEnabled() == false) {
-            return listener;
-        }
+    <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final QueryCaptureContextBuilder<Context, Req, R> contextBuilder) {
         return new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(R r) {
@@ -110,12 +107,8 @@ public final class QueryInterceptor<Context extends QueryCaptureContext> {
     }
 
     /**
-     * Wrap a runnable using a listener, capturing either outcome of it - success or failure.
-     * This is a complement to the wrap method, which is to be used when it is not guaranteed that the underlying code
-     * is going to catch all exceptions and convert them to listener failures.
-     * Exceptions are passed to the sinks and re-thrown upstream - practically, when used in TransportAction context,
-     * they will be caught by TransportAction's exception handling mechanism (e.g., RequestFilterChain.proceed).
-     * If no sink is enabled, it's a no-op.
+     * Wrap the listener to capture the query response and execute the {@code action}.
+     * If no sink is enabled the action is run without any wrapping
      */
     public <Req, R> void wrapAndRun(
         ActionListener<R> listener,

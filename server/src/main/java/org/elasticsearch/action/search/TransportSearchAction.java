@@ -200,7 +200,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final QueryInterceptor<SearchCaptureContext> activityInterceptor;
+    private final QueryInterceptor<SearchCaptureContext> queryInterceptor;
 
     @Inject
     public TransportSearchAction(
@@ -275,7 +275,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -427,7 +427,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             namedWriteableRegistry,
             searchRequest
         );
-        activityInterceptor.wrapAndRun(
+        queryInterceptor.wrapAndRun(
             listener,
             searchCaptureContextBuilder,
             l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)

@@ -141,7 +141,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final Client client;
-    private final QueryInterceptor<EsqlCaptureContext> activityInterceptor;
+    private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
@@ -171,7 +171,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         this.computeService = transportEsqlQueryAction.computeService();
         this.enrichPolicyResolver = transportEsqlQueryAction.enrichPolicyResolver();
         this.datasetResolver = transportEsqlQueryAction.datasetResolver();
-        this.activityInterceptor = transportEsqlQueryAction.activityInterceptor();
+        this.queryInterceptor = transportEsqlQueryAction.activityInterceptor();
         this.transportEsqlQueryAction = transportEsqlQueryAction;
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
@@ -215,7 +215,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
         AtomicReference<Result> resultRef = new AtomicReference<>();
-        activityInterceptor.wrapAndRun(
+        queryInterceptor.wrapAndRun(
             listener,
             new EsqlStreamCaptureContextBuilder(task, request, executionInfo, publisher, resultRef::get),
             l -> innerExecute(task, request, executionInfo, publisher, resultRef, l)

@@ -121,7 +121,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    private final QueryInterceptor<EsqlCaptureContext> activityInterceptor;
+    private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
     private final QueryMetricsListener metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
@@ -269,7 +269,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -388,7 +388,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ActionListener.run(EsqlFailureBounds.wrap(listener, request.query()), bounded -> innerExecute(task, request, bounded));
             return;
         }
-        activityInterceptor.wrapAndRun(
+        queryInterceptor.wrapAndRun(
             listener,
             new EsqlCaptureContextBuilder(task, request),
             (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
@@ -832,6 +832,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     public QueryInterceptor<EsqlCaptureContext> activityInterceptor() {
-        return activityInterceptor;
+        return queryInterceptor;
     }
 }

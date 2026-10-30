@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
@@ -39,14 +40,36 @@ public class QueryInterceptorTests extends ESTestCase {
         listener = ActionListener.wrap(responses::add, failures::add);
     }
 
-    public void testWrapIsNoopWhenNoSinkIsEnabled() {
+    public void testWrapAndRunDoesNotWrapWhenNoSinkIsEnabled() {
         var sink = new RecordingSink(false);
+        var received = new ArrayList<ActionListener<String>>();
 
-        assertThat(interceptor(List.of(sink.sink)).wrap(listener, new TestContextBuilder()), sameInstance(listener));
+        interceptor(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), received::add);
+
+        assertThat(received.size(), equalTo(1));
+        assertThat(received.get(0), sameInstance(listener));
     }
 
-    public void testWrapIsNoopWithoutSinks() {
-        assertThat(interceptor(List.of()).wrap(listener, new TestContextBuilder()), sameInstance(listener));
+    public void testWrapAndRunDoesNotWrapWithoutSinks() {
+        var received = new ArrayList<ActionListener<String>>();
+
+        interceptor(List.of()).wrapAndRun(listener, new TestContextBuilder(), received::add);
+
+        assertThat(received.size(), equalTo(1));
+        assertThat(received.get(0), sameInstance(listener));
+    }
+
+    public void testWrapAndRunWrapsWhenASinkIsEnabled() {
+        var sink = new RecordingSink(true);
+        var received = new ArrayList<ActionListener<String>>();
+
+        interceptor(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), received::add);
+
+        assertThat(received.size(), equalTo(1));
+        assertThat(received.get(0), not(sameInstance(listener)));
+        received.get(0).onResponse("done");
+        assertThat(sink.accepted.size(), equalTo(1));
+        assertThat(responses, contains("done"));
     }
 
     public void testSinkSeesResponseAndDelegateStillCalled() {
@@ -79,6 +102,17 @@ public class QueryInterceptorTests extends ESTestCase {
 
         assertThat(disabled.accepted, empty());
         assertThat(enabled.accepted.size(), equalTo(1));
+    }
+
+    public void testAllEnabledSinksAreCalledWithTheSameContext() {
+        var first = new RecordingSink(true);
+        var second = new RecordingSink(true);
+
+        interceptor(List.of(first.sink, second.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+        assertThat(first.accepted.size(), equalTo(1));
+        assertThat(second.accepted.size(), equalTo(1));
+        assertThat(second.accepted.get(0), sameInstance(first.accepted.get(0)));
     }
 
     public void testSinkCheckedForEnabledOnEveryAction() {

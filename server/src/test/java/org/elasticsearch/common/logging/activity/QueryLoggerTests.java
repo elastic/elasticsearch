@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.logging.activity;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,13 +21,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -36,7 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link QueryLogger}, as a sink of an {@link QueryInterceptor}, that exercise {@link ClusterSettings}-backed
+ * Tests for {@link QueryLogger}, as a sink of a {@link QueryInterceptor}, that exercise {@link ClusterSettings}-backed
  * query log settings.
  */
 public class QueryLoggerTests extends ESTestCase {
@@ -110,57 +106,6 @@ public class QueryLoggerTests extends ESTestCase {
         interceptor.notifySinks(context);
 
         verify(writer).write(Level.INFO, randomMessage);
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testWrapDisabled() {
-        ActionListener<String> listener = ActionListener.noop();
-        QueryCaptureContextBuilder<TestContext, String, String> builder = mock(QueryCaptureContextBuilder.class);
-
-        ActionListener<String> wrapped = interceptor.wrap(listener, builder);
-
-        assertThat(wrapped, sameInstance(listener));
-        verifyNoInteractions(builder);
-    }
-
-    public void testExtraSinkCalledWhenQueryLogDisabled() {
-        List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestQuerySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
-        var interceptor = new QueryInterceptor<>(List.of(queryLogger(), sink));
-        TestContext context = new TestContext(100);
-
-        interceptor.notifySinks(context);
-
-        assertThat(accepted, contains(sameInstance(context)));
-        verifyNoInteractions(writer);
-    }
-
-    public void testExtraSinkAndQueryLogBothCalledWhenEnabled() {
-        enableLogger();
-        List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestQuerySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
-        var interceptor = new QueryInterceptor<>(List.of(queryLogger(), sink));
-        TestContext context = new TestContext(100);
-        ESLogMessage randomMessage = randomMessage();
-        when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
-
-        interceptor.notifySinks(context);
-
-        assertThat(accepted, contains(sameInstance(context)));
-        verify(writer).write(Level.INFO, randomMessage);
-    }
-
-    public void testDisabledExtraSinkIsSkippedWhileQueryLogIsEnabled() {
-        enableLogger();
-        List<TestContext> accepted = new ArrayList<>();
-        var sink = new TestQuerySink<TestContext>(() -> false, accepted::add, () -> "test-sink");
-        var interceptor = new QueryInterceptor<>(List.of(queryLogger(), sink));
-        TestContext context = new TestContext(100);
-        when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage()));
-
-        interceptor.notifySinks(context);
-
-        assertTrue(accepted.isEmpty());
     }
 
     public void testSinkDescriptionNamesTheProducer() {

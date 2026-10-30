@@ -25,9 +25,11 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
- * The query log. It is a {@link QuerySink}, registered with the {@link QueryInterceptor} of a query action like any other
- * sink. Its switch, threshold, level and system index filter are driven by the {@code elasticsearch.querylog.*} settings.
- * On {@link #accept} it uses its {@link ActivityLogProducer} to turn the context into an {@link ESLogMessage}, which it
+ * The query logger is a {@link QuerySink}, registered with a {@link QueryInterceptor}.
+ * Queries against system indices are not logged by default and a configurable threshold against the query took time
+ * can be raised to act as a slow log filter.
+ *
+ * On {@link #accept} it uses its {@link ActivityLogProducer} to turn the capture context into an {@link ESLogMessage}, which it
  * hands to its {@link ActivityLogWriter}.
  */
 public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<Context> {

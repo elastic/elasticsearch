@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
@@ -346,6 +347,19 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
         assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
         assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
+    }
+
+    public void testQueryStringBreakerEstimate() throws IOException {
+        // Inference path: queryVectors == null; cost = BASELINE + fieldName + inferenceId + query
+        // SPARSE_VECTOR_FIELD (19 chars = 102) + "inferenceId" (11 chars = 86) + "hi" (2 chars = 68)
+        String smallQueryString = "hi";
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + SPARSE_VECTOR_FIELD.length() * 2L + 64L + "inferenceId"
+            .length() * 2L + 64L + smallQueryString.length() * 2L + 64L;
+        assertParseTimeBreaker(
+            limit,
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, "inferenceId", smallQueryString),
+            new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, "inferenceId", "x".repeat(500))
+        );
     }
 
     public void testNullShouldPruneTokensSerializesToOlderTransportVersion() throws IOException {

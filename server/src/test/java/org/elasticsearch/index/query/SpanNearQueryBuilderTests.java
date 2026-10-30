@@ -216,4 +216,41 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_near [clauses] as a nested span clause can't have non-default boost value [2.0]"));
     }
+
+    public void testSpanGapFieldNameBreakerEstimate() throws IOException {
+        // SpanGapQueryBuilder.parseTimeBreakerEstimate() = BASELINE + fieldName.length()*2 + 64.
+        // Previously only BASELINE (256) was charged, so a long field name was not accounted for.
+        // small: span_near{ span_term("f","v"), span_gap("f",1) }
+        // term cost: 256 + (1*2+64) + (1+64) = 387 [value "v" stored as BytesRef: length+64]
+        // short gap: 256 + (1*2+64) = 322
+        // parent(2cls):256 + 2*8 = 272
+        // total: 981 — set limit = 981 (strict > so exactly-at-limit does not trip)
+        // big: replace gap field with 200-char name → gap cost = 256 + (200*2+64) = 720
+        // term(387) + big-gap(720) = 1107 > 981 → trips
+        SpanTermQueryBuilder term = new SpanTermQueryBuilder("f", "v");
+        long termCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "f".length() * 2L + 64L + "v".length() + 64L;
+        long shortGapCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "f".length() * 2L + 64L;
+        long parentCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 8L;
+        long limit = termCost + shortGapCost + parentCost; // 387 + 322 + 272 = 981
+        String longField = "f".repeat(200);
+        assertParseTimeBreaker(
+            limit,
+            new SpanNearQueryBuilder(term, 0).addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder("f", 1)),
+            new SpanNearQueryBuilder(term, 0).addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder(longField, 1))
+        );
+    }
+
+    public void testClausesBreakerEstimate() throws IOException {
+        // BASELINE + clauses.size()*8. SpanTerm children are charged via namedObject before the parent.
+        // SpanTermQueryBuilder("field","value"): 256 + (5*2+64) + (5+64) = 399.
+        // limit = 2*childCost + BASELINE = 1054.
+        // Without the override the parent charges exactly 256 (= limit, strict > → no trip).
+        // With the override the parent charges 256 + 2*8 = 272 → total 1070 > 1054 → trips on
+        // the collection overhead term.
+        // small = 1 clause: 399 (child) + 264 (own) = 663 ≤ 1054 → passes.
+        SpanTermQueryBuilder term = new SpanTermQueryBuilder("field", "value");
+        long childCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + ("field".length() * 2L + 64L) + ("value".length() + 64L);
+        long limit = 2 * childCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        assertParseTimeBreaker(limit, new SpanNearQueryBuilder(term, 0), new SpanNearQueryBuilder(term, 0).addClause(term));
+    }
 }

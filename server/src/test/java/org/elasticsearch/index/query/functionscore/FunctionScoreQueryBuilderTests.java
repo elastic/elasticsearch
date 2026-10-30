@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -970,6 +971,60 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
         searcher.getIndexReader().close();
         directory.close();
+    }
+
+    public void testScriptFunctionBreakerEstimate() throws IOException {
+        // FunctionScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + Σ(source.length()*2 + estimateValue(params) + lang + 128)
+        // Inner MatchAllQueryBuilder also charges BASELINE (256) via namedObject.
+        // Small: source = "1" (1 char), empty params, lang "mockscript" (10 chars → 84) → own 256+2+32+84+128=502; total 256+502=1014
+        // Large: same source, Map.of("k", "x".repeat(500)) → own 256+2+1210+84+128=1680; total 256+1680=1936
+        String source = "1";
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // namedObject charges: (1) the function's default match_all filter, (2) the top-level match_all query
+        long innerMatchAllCost = baseline;
+        long functionFilterMatchAllCost = baseline;
+        long ownSmallCost = baseline + source.length() * 2L + 32L + MockScriptEngine.NAME.length() * 2L + 64L + 128L;
+        long limit = innerMatchAllCost + functionFilterMatchAllCost + ownSmallCost;
+        Script smallScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, source, Collections.emptyMap());
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, source, Map.of("k", "x".repeat(500)));
+        assertParseTimeBreaker(
+            limit,
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(new ScriptScoreFunctionBuilder(smallScript)) }
+            ),
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(new ScriptScoreFunctionBuilder(largeScript)) }
+            )
+        );
+    }
+
+    public void testDecayFunctionBreakerEstimate() throws IOException {
+        // Decay functions retain functionBytes (serialized field-param JSON) and fieldName.
+        // Estimate per function = 128 + functionBytes.length() + fieldName.length()*2+64.
+        // 2 namedObject charges: filter's implicit match_all + the top-level match_all query.
+        // Compute limit from the small decay's actual bytes; large origin "x"*500 produces ~540 bytes.
+        GaussDecayFunctionBuilder smallDecay = new GaussDecayFunctionBuilder("f", "2024", "1d", null);
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long filterMatchAllCost = baseline;
+        long topMatchAllCost = baseline;
+        long ownSmallCost = baseline + 128L + smallDecay.getFunctionBytes().length() + smallDecay.getFieldName().length() * 2L + 64L;
+        long limit = topMatchAllCost + filterMatchAllCost + ownSmallCost;
+        GaussDecayFunctionBuilder largeDecay = new GaussDecayFunctionBuilder("f", "x".repeat(500), "1d", null);
+        assertParseTimeBreaker(
+            limit,
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] { new FunctionScoreQueryBuilder.FilterFunctionBuilder(smallDecay) }
+            ),
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] { new FunctionScoreQueryBuilder.FilterFunctionBuilder(largeDecay) }
+            )
+        );
     }
 
     private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {

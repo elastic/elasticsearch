@@ -191,6 +191,22 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         assertThat(e.getMessage(), containsString("[script] query does not support token [VALUE_NULL]"));
     }
 
+    public void testScriptParamsBreakerEstimate() throws IOException {
+        // ScriptQueryBuilder.parseTimeBreakerEstimate() = BASELINE + estimateValue(source) + estimateValue(params) + lang
+        // estimateValue(String s) = s.length()*2 + 64.
+        // Small: source = "doc['score'].value", empty params (emptyMap → 32), lang "painless" (8 chars → 8*2+64=80)
+        // Large: same source, Map.of("k", "x".repeat(500)) → map estimate 1210; largeCost > limit → trips
+        String source = "doc['score'].value";
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 64L + 32L + "painless".length()
+            * 2L + 64L;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new ScriptQueryBuilder(new Script(source)),
+            new ScriptQueryBuilder(new Script(ScriptType.INLINE, "painless", source, Map.of("k", "x".repeat(500))))
+        );
+    }
+
     public void testReportedCost() throws IOException {
         SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
         FilterScript.LeafFactory leafFactory = docReader -> new FilterScript(Map.of(), null, docReader) {

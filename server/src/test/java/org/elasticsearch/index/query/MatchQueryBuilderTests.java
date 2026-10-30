@@ -883,4 +883,40 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             () -> new MatchQueryBuilder(TEXT_FIELD_NAME, longText).fuzziness(Fuzziness.AUTO)
         );
     }
+
+    public void testAnalyzerAndMsmBreakerEstimate() throws IOException {
+        // Setting analyzer or minimumShouldMatch should increase the estimate by exactly
+        // the string cost, and cause a breaker trip when the limit was sized without them.
+        MatchQueryBuilder base = new MatchQueryBuilder(TEXT_FIELD_NAME, "v");
+        long noOptionalEstimate = base.parseTimeBreakerEstimate();
+        String analyzer = "english";
+        assertEquals(noOptionalEstimate + analyzer.length() * 2L + 64L, base.analyzer(analyzer).parseTimeBreakerEstimate());
+        String msm = "2";
+        assertEquals(
+            noOptionalEstimate + analyzer.length() * 2L + 64L + msm.length() * 2L + 64L,
+            base.minimumShouldMatch(msm).parseTimeBreakerEstimate()
+        );
+        // A breaker sized for the estimate without analyzer trips when analyzer is present
+        long limit = noOptionalEstimate;
+        assertParseTimeBreaker(
+            limit,
+            new MatchQueryBuilder(TEXT_FIELD_NAME, "v"),
+            new MatchQueryBuilder(TEXT_FIELD_NAME, "v").analyzer(analyzer)
+        );
+    }
+
+    public void testFieldValueBreakerEstimate() throws IOException {
+        // MatchQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.
+        // "hi" → estimateValue = 2*2+64 = 68. Small cost = BASELINE + 90 + 68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new MatchQueryBuilder(TEXT_FIELD_NAME, shortValue),
+            new MatchQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500))
+        );
+    }
 }

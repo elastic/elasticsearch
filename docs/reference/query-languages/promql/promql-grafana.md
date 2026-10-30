@@ -84,7 +84,7 @@ The data source has more options than the ones above; for the authoritative step
 ::::{note}
 Grafana sends Prometheus queries with `POST` by default, which {{es}} accepts on authenticated HTTPS endpoints such as {{es-serverless}}.
 If TLS terminates before {{es}} and the node receives plain HTTP, set the data source **HTTP method** to `GET` instead.
-See [Form-encoded POST requests](promql-limitations.md#promql-limitations-form-post).
+See [Form-encoded POST requests](promql-limitations.md#promql-limitations-http-api).
 ::::
 
 ### Add the data source with provisioning [promql-grafana-datasource-provisioning]
@@ -180,8 +180,8 @@ For metric discovery, autocompletion, or template-variable problems, check the r
   Confirm the expression is valid PromQL, for example with [PromLens](https://demo.promlens.com/).
   Then check whether the behavior is an expected difference:
     - The expression might use a [construct that {{es}} does not evaluate yet](promql-limitations.md#promql-limitations-unsupported-constructs). These return a `4xx` with `errorType: bad_data`.
-    - The request might include a [query parameter {{es}} does not support yet](promql-limitations.md#promql-limitations-unsupported-query-params), which also fails with `4xx`.
-    - [Instant queries](promql-limitations.md#promql-limitations-instant-query) and [staleness handling](promql-limitations.md#promql-limitations-staleness) differ from upstream Prometheus.
+    - The request might include a [query parameter {{es}} does not support yet](promql-limitations.md#promql-limitations-http-api), which also fails with `4xx`.
+    - [Instant queries](promql-limitations.md#promql-limitations-lookback) and [staleness handling](promql-limitations.md#promql-limitations-lookback) differ from upstream Prometheus.
 
     If the query is valid and the behavior is not explained by a documented limitation, [open an {{es}} issue](https://github.com/elastic/elasticsearch/issues) with the request and the full response body.
 
@@ -189,7 +189,7 @@ For metric discovery, autocompletion, or template-variable problems, check the r
 
 | Symptom | Likely cause | What to check                                                                                                                                                                                    |
 | --- | --- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version; ensure TLS terminates at {{es}}. See [Form-encoded POST requests](promql-limitations.md#promql-limitations-form-post) |
+| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version; ensure TLS terminates at {{es}}. See [Form-encoded POST requests](promql-limitations.md#promql-limitations-http-api) |
 | `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*` and `exemplars-*.prometheus-*`                              |
 | Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly                                           |
 | `bad_data` error on a specific expression | Unsupported PromQL construct | Compare the expression against [unsupported constructs](promql-limitations.md#promql-limitations-unsupported-constructs)                                                                         |

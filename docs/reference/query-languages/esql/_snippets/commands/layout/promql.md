@@ -7,7 +7,7 @@ The `PROMQL` source command queries [time series indices](docs-content://manage-
 Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
 
 ::::{note}
-`PROMQL` supports most, but not all, of PromQL. Refer to [Limitations](#esql-promql-limitations) for unsupported constructs, to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) for behavioral differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
+`PROMQL` supports most, but not all, of PromQL. Refer to [Limitations](#esql-promql-limitations) for unsupported constructs and differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
 ::::
 
 
@@ -182,10 +182,42 @@ expression at the end of the time range of the date picker
 
 ## Limitations [esql-promql-limitations]
 
-:::{include} ../../../../promql/_snippets/promql-unsupported-constructs.md
+These are the same rows as on the [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) page, which also lists the differences of the Prometheus HTTP API.
+
+### Unsupported constructs [esql-promql-limitations-unsupported-constructs]
+
+:::{include} ../../../../promql/_snippets/limitations/unsupported-constructs.md
 :::
 
-For behavioral differences from Prometheus, refer to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md).
+### Lookback and time [esql-promql-limitations-lookback]
+
+:::{include} ../../../../promql/_snippets/limitations/lookback.md
+:::
+
+### Metric names in results [esql-promql-limitations-metric-name]
+
+:::{include} ../../../../promql/_snippets/limitations/metric-names.md
+:::
+
+### Combined results [esql-promql-limitations-combined]
+
+:::{include} ../../../../promql/_snippets/limitations/combined-results.md
+:::
+
+### Function results [esql-promql-limitations-functions]
+
+:::{include} ../../../../promql/_snippets/limitations/function-results.md
+:::
+
+### Query validation [esql-promql-limitations-errors]
+
+:::{include} ../../../../promql/_snippets/limitations/query-validation.md
+:::
+
+### Native histograms [esql-promql-limitations-native-histograms]
+
+:::{include} ../../../../promql/_snippets/limitations/native-histograms.md
+:::
 
 ## Examples
 

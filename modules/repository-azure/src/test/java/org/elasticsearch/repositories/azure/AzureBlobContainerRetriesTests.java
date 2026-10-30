@@ -96,8 +96,10 @@ import static org.elasticsearch.repositories.azure.AzureStorageSettings.TIMEOUT_
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -380,7 +382,8 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         logger.info("--> data size: {} ({} blocks, {} last size)", data.length, nbBlocks, data.length % ByteSizeUnit.MB.toIntBytes(1));
 
         final int nbErrors = 2; // we want all requests to fail at least once
-        final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
+        // blocks may be staged concurrently, so each block counts its own attempts to fail exactly once before succeeding
+        final Map<String, AtomicInteger> uploadAttemptsPerBlock = new ConcurrentHashMap<>();
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
@@ -394,8 +397,9 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     final String blockId = params.get("blockid");
                     assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
 
-                    if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
-                        logger.info("--> succeeding block {}, countDownUploads: {}", blockId, countDownUploads.get());
+                    if (Strings.hasText(blockId)
+                        && uploadAttemptsPerBlock.computeIfAbsent(blockId, k -> new AtomicInteger()).incrementAndGet() % nbErrors == 0) {
+                        logger.info("--> succeeding block {}, attempts: {}", blockId, uploadAttemptsPerBlock.get(blockId));
                         blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
                         exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                         exchange.close();
@@ -478,7 +482,8 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                 blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
             }
         }
-        assertThat(countDownUploads.get(), equalTo(0));
+        assertThat(uploadAttemptsPerBlock, aMapWithSize(nbBlocks));
+        assertThat(uploadAttemptsPerBlock.values().stream().map(AtomicInteger::get).toList(), everyItem(equalTo(nbErrors)));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
     }

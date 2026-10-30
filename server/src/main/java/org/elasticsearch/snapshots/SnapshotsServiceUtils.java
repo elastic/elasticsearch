@@ -388,6 +388,7 @@ public class SnapshotsServiceUtils {
      * Walks through the snapshot entries' shard snapshots and creates applies updates from looking at removed nodes or indexes and known
      * failed shard snapshots on the same shard IDs.
      *
+     * @param projectMetadata the metadata of the snapshot's project, used to detect indices that are being resharded
      * @param nodeIdRemovalPredicate identify any nodes that are marked for removal / in shutdown mode
      * @param knownFailures already known failed shard snapshots, but more may be found in this method
      * @return an updated map of shard statuses
@@ -395,6 +396,7 @@ public class SnapshotsServiceUtils {
     public static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
         SnapshotsInProgress.Entry snapshotEntry,
         RoutingTable routingTable,
+        ProjectMetadata projectMetadata,
         DiscoveryNodes nodes,
         Predicate<String> nodeIdRemovalPredicate,
         Map<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> knownFailures
@@ -432,6 +434,21 @@ public class SnapshotsServiceUtils {
             } else if (shardStatus.state() == SnapshotsInProgress.ShardState.WAITING
                 || shardStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
                     // The shard primary wasn't assigned, or the shard snapshot was paused because the node was shutting down.
+                    if (indexIsBeingResharded(projectMetadata.index(shardId.getIndex()))) {
+                        // The index started resharding while this shard snapshot was waiting, and the data node would
+                        // fail it as soon as it starts. Fail it now.
+                        snapshotChanged = true;
+                        logger.debug("failing snapshot of shard [{}] because its index is being resharded", shardId);
+                        final SnapshotsInProgress.ShardSnapshotStatus failedState = new SnapshotsInProgress.ShardSnapshotStatus(
+                            shardStatus.nodeId(),
+                            SnapshotsInProgress.ShardState.FAILED,
+                            shardStatus.generation(),
+                            SnapshotsService.SHARD_BEING_RESHARDED_REASON
+                        );
+                        shards.put(shardId, failedState);
+                        knownFailures.put(shardSnapshotEntry.getKey(), failedState);
+                        continue;
+                    }
                     IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
                     if (indexShardRoutingTable != null) {
                         IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
@@ -508,7 +525,12 @@ public class SnapshotsServiceUtils {
         }
     }
 
-    public static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
+    /**
+     * Whether a routing table change requires re-evaluating waiting, paused or queued shard snapshots, see
+     * {@link #processWaitingShardsAndRemovedNodes}. This is the case when a shard's primary started or became unassigned,
+     * its index was deleted, or its index started resharding.
+     */
+    public static boolean waitingShardsNeedUpdate(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (entry.state() == SnapshotsInProgress.State.STARTED && entry.isClone() == false) {
@@ -528,6 +550,12 @@ public class SnapshotsServiceUtils {
                             IndexRoutingTable indexShardRoutingTable = event.state().routingTable(projectId).index(index);
                             if (indexShardRoutingTable == null) {
                                 // index got removed concurrently and we have to fail WAITING, QUEUED and PAUSED_FOR_REMOVAL state shards
+                                return true;
+                            }
+                            final IndexMetadata indexMetadata = event.state().metadata().getProject(projectId).index(index);
+                            if (state != SnapshotsInProgress.ShardState.QUEUED && indexIsBeingResharded(indexMetadata)) {
+                                // catches a reshard split that started while a shard snapshot was waiting or paused, in
+                                // which case the shard snapshot will be failed without waiting for its primary to start
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
@@ -1015,6 +1043,7 @@ public class SnapshotsServiceUtils {
                         shardSnapshotStatus = initShardSnapshotStatus(
                             shardRepoGeneration,
                             indexRoutingTable.shard(i).primaryShard(),
+                            indexMetadata,
                             snapshotsInProgress::isNodeIdForRemoval,
                             partial,
                             restoreInProgress
@@ -1033,6 +1062,7 @@ public class SnapshotsServiceUtils {
      *
      * @param shardRepoGeneration    repository generation of the shard in the repository
      * @param primary                primary routing entry for the shard
+     * @param indexMetadata          current metadata of the shard's index, or {@code null} if the index no longer exists
      * @param nodeIdRemovalPredicate tests whether a node ID is currently marked for removal from the cluster
      * @param partial                whether the snapshot was created with {@code partial=true}; when {@code true}, an
      *                               actively-restoring INITIALIZING primary causes the shard to be recorded as
@@ -1045,6 +1075,7 @@ public class SnapshotsServiceUtils {
     public static SnapshotsInProgress.ShardSnapshotStatus initShardSnapshotStatus(
         ShardGeneration shardRepoGeneration,
         ShardRouting primary,
+        @Nullable IndexMetadata indexMetadata,
         Predicate<String> nodeIdRemovalPredicate,
         boolean partial,
         RestoreInProgress restoreInProgress
@@ -1103,7 +1134,28 @@ public class SnapshotsServiceUtils {
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
         }
+        if (indexIsBeingResharded(indexMetadata) && shardSnapshotStatus.state().completed() == false) {
+            // The data node fails every shard snapshot of an index with resharding metadata (see
+            // SnapshotShardContextHelper#acquireSnapshotIndexCommit). Fail it here instead of waiting for it to start.
+            // This avoids keeping the snapshot open while split targets are still recovering. Shard snapshots that are
+            // already completed (e.g. MISSING) keep their state.
+            logger.debug("failing snapshot of shard [{}] because its index is being resharded", primary.shardId());
+            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                shardSnapshotStatus.nodeId(),
+                SnapshotsInProgress.ShardState.FAILED,
+                shardRepoGeneration,
+                SnapshotsService.SHARD_BEING_RESHARDED_REASON
+            );
+        }
         return shardSnapshotStatus;
+    }
+
+    /**
+     * Whether the given index is being resharded, in which case the data node would fail any of its shard snapshots, see
+     * {@code SnapshotShardContextHelper#acquireSnapshotIndexCommit}.
+     */
+    private static boolean indexIsBeingResharded(@Nullable IndexMetadata indexMetadata) {
+        return indexMetadata != null && indexMetadata.getReshardingMetadata() != null;
     }
 
     /**

@@ -96,9 +96,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainFailuresLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/151602
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
@@ -215,24 +212,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/158881
-- class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
-  method: testGrantTargetCanUpdateApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/159567
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159710
-- class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
-  method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
-  issue: https://github.com/elastic/elasticsearch/issues/159795
-- class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
-  method: testInstantExplicitOnMatchesRetainedMetricNames
-  issue: https://github.com/elastic/elasticsearch/issues/159796
-- class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
-  method: testRangeAggregatedOperandsMatchAcrossIngestionPaths
-  issue: https://github.com/elastic/elasticsearch/issues/159797
-- class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
-  method: testRangeExplicitOnMatchesRetainedMetricNames
-  issue: https://github.com/elastic/elasticsearch/issues/159798
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159814
@@ -266,9 +248,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/160368
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testErrorRecordingOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/160410
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
@@ -458,31 +437,12 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
   method: test {csv-spec:k8s-timeseries-changes.changes_of_double_ts_with_multivalued_dimension}
   issue: https://github.com/elastic/elasticsearch/issues/163420
-- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
-  tasks:
-  - :server:test
-  method: testAMultiValuedFieldCountsTheSame
-  issue: https://github.com/elastic/elasticsearch/issues/163464
-- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
-  tasks:
-  - :server:test
-  method: testASubAggregationStillAddsUp
-  issue: https://github.com/elastic/elasticsearch/issues/163479
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:rolling-upgrade:v9.0.8#yamlBwcTest
   - :x-pack:qa:rolling-upgrade:v9.2.8#yamlBwcTest
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357
-- class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
-  tasks:
-  - :server:test
-  issue: https://github.com/elastic/elasticsearch/issues/163500
-- class: org.elasticsearch.xpack.stateless.cache.SearchShardRecoveryWarmingTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
-  issue: https://github.com/elastic/elasticsearch/issues/163504
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.19.24#yamlRestTest
@@ -492,12 +452,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest
   issue: https://github.com/elastic/elasticsearch/issues/163562
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.24#yamlRestTest
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/142793
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -518,11 +472,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/163773
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionHealthIT
-  tasks:
-  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
-  method: testEligibleUnmarkedIndexTurnsIndicatorYellowThenGreenAfterTransition
-  issue: https://github.com/elastic/elasticsearch/issues/163332
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -546,3 +495,17 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
   issue: https://github.com/elastic/elasticsearch/issues/164016
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testUsingRCS1GeneratesDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/163658
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164050
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
+  issue: https://github.com/elastic/elasticsearch/issues/164095

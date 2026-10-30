@@ -507,56 +507,65 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         for (final var entry : pendingAllocationStates.entrySet()) {
             final ShardAllocationKey key = entry.getKey();
-            final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
-            Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
-
-            if (entry.getValue() instanceof PendingAllocationState.InFlight
-                || entry.getValue() instanceof PendingAllocationState.AwaitingRecoveryRetry) {
-                PendingAllocationState ticket = entry.getValue();
-                if (shardAllocationTicketIsOutOfDate(key, state)) {
-                    logger.debug("{} evicting stale {} ticket: allocation no longer current", key, entry.getValue());
-                    pendingAllocationStates.remove(key);
-                    continue;
-                }
-                if (currentPrimaryTerm.isPresent() && currentPrimaryTerm.get() > ticket.primaryTerm()) {
-                    // Primary term advanced, treated as a new allocation
-                    logger.debug(
-                        "{} evicting stale {} ticket: primary term advanced from {} to {}",
-                        key,
-                        ticket,
-                        ticket.primaryTerm(),
-                        currentPrimaryTerm.get()
-                    );
-                    pendingAllocationStates.remove(key);
-                }
-                continue;
+            switch (entry.getValue()) {
+                case PendingAllocationState.InFlight ticket -> evictIfAttemptStale(key, ticket, state);
+                case PendingAllocationState.AwaitingRecoveryRetry ticket -> evictIfAttemptStale(key, ticket, state);
+                case PendingAllocationState.FailureReported ticket -> evictOrResendFailure(key, ticket, state, masterNode);
             }
+        }
+    }
 
-            if (entry.getValue() instanceof PendingAllocationState.FailureReported ticket) {
-                if (shardAllocationGone(key, state)) {
-                    logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
-                    pendingAllocationStates.remove(key);
-                    continue;
-                }
-                if (indexMetadata.isEmpty() || currentPrimaryTerm.get() > ticket.primaryTerm()) {
-                    // Index was deleted, or the master already processed the failure and bumped the primary term.
-                    // Either way, the entry is stale and can be discarded.
-                    logger.debug(
-                        "{} evicting stale {} ticket: {}",
-                        key,
-                        ticket,
-                        indexMetadata.isEmpty() ? "index deleted" : "master already bumped primary term"
-                    );
-                    pendingAllocationStates.remove(key);
-                } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
-                    String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
-                    logger.trace("[{}] re-sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);
-                    final Exception resendFailure = ticket.failureType() == ShardFailureType.RECOVERY_CANCELLED
-                        ? new RecoveryCancelledException(key.shardId(), null, state.nodes().getLocalNode())
-                        : null;
-                    shardStateAction.localShardFailed(ticket.routing(), message, resendFailure, ActionListener.noop(), state);
-                }
-            }
+    private void evictIfAttemptStale(ShardAllocationKey key, PendingAllocationState ticket, ClusterState state) {
+        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
+        Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
+        if (shardAllocationTicketIsOutOfDate(key, state)) {
+            logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
+            pendingAllocationStates.remove(key);
+            return;
+        }
+        if (currentPrimaryTerm.isPresent() && currentPrimaryTerm.get() > ticket.primaryTerm()) {
+            // Primary term advanced, treated as a new allocation
+            logger.debug(
+                "{} evicting stale {} ticket: primary term advanced from {} to {}",
+                key,
+                ticket,
+                ticket.primaryTerm(),
+                currentPrimaryTerm.get()
+            );
+            pendingAllocationStates.remove(key);
+        }
+    }
+
+    private void evictOrResendFailure(
+        ShardAllocationKey key,
+        PendingAllocationState.FailureReported ticket,
+        ClusterState state,
+        DiscoveryNode masterNode
+    ) {
+        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
+        Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
+        if (shardAllocationGone(key, state)) {
+            logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
+            pendingAllocationStates.remove(key);
+            return;
+        }
+        if (indexMetadata.isEmpty() || currentPrimaryTerm.get() > ticket.primaryTerm()) {
+            // Index was deleted, or the master already processed the failure and bumped the primary term.
+            // Either way, the entry is stale and can be discarded.
+            logger.debug(
+                "{} evicting stale {} ticket: {}",
+                key,
+                ticket,
+                indexMetadata.isEmpty() ? "index deleted" : "master already bumped primary term"
+            );
+            pendingAllocationStates.remove(key);
+        } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
+            String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
+            logger.trace("[{}] re-sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);
+            final Exception resendFailure = ticket.failureType() == ShardFailureType.RECOVERY_CANCELLED
+                ? new RecoveryCancelledException(key.shardId(), null, state.nodes().getLocalNode())
+                : null;
+            shardStateAction.localShardFailed(ticket.routing(), message, resendFailure, ActionListener.noop(), state);
         }
     }
 

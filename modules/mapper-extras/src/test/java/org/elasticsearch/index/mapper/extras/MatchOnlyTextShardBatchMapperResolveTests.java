@@ -9,12 +9,16 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -79,9 +83,17 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends AbstractShardBatc
     }
 
     public void testMatchOnlyTextDocValuesDisabledFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
-            b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject();
-        }));
+        // doc_values: false is ignored in strict-columnar indices created on or after DOC_VALUES_NO_OP_IN_COLUMNAR, so pin an older one.
+        MapperService ms = createMapperService(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+            ),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject();
+            })
+        );
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings));
     }
 

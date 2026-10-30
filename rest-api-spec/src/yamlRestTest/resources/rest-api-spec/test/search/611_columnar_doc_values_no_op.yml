@@ -1,0 +1,145 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index mode required"
+  - requires:
+      cluster_features: ["mapper.columnar.doc_values_no_op"]
+      reason: "doc_values must be a no-op in strictly columnar mode"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test
+        ignore_unavailable: true
+
+---
+
+doc_values false is ignored and trimmed from the mapping in columnar:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              event.original:
+                type: keyword
+                index: false
+                doc_values: false
+                ignore_above: 1024
+              count:
+                type: long
+                doc_values: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          "@timestamp": "2026-10-30T00:00:00Z"
+          event.original: "raw event text"
+          count: 7
+
+  # _source round-trips from the doc values the field still has
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+  - match: { hits.hits.0._source.event\.original: "raw event text" }
+  - match: { hits.hits.0._source.count: 7 }
+
+  # The field has doc values, so it can be aggregated on
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            total: { sum: { field: count } }
+            originals: { terms: { field: event.original } }
+  - match: { aggregations.total.value: 7 }
+  - match: { aggregations.originals.buckets.0.key: "raw event text" }
+
+  # doc_values is not stored in the mapping, so GET _mapping does not return it
+  - do:
+      indices.get_mapping:
+        index: test
+  - is_false: test.mappings.properties.event\.original.doc_values
+  - is_false: test.mappings.properties.count.doc_values
+  - match: { test.mappings.properties.event\.original.type: keyword }
+  - match: { test.mappings.properties.count.type: long }
+
+---
+
+doc_values true is also trimmed in columnar:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                doc_values: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings.properties.kwd.type: keyword }
+  - is_false: test.mappings.properties.kwd.doc_values
+
+---
+
+doc_values false does not conflict with an omitted doc_values on mapping update:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            kwd:
+              type: keyword
+              doc_values: false
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - is_false: test.mappings.properties.kwd.doc_values
+
+---
+
+doc_values false is still honoured outside columnar modes:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings.properties.kwd.doc_values: false }

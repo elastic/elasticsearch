@@ -373,9 +373,9 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             assertThat(safeGet(future), is(SearchCommitPrefetcher.PrefetchResult.FOREGROUND));
 
             final var counts = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, SearchCommitPrefetcherMetrics.PREFETCH_TOTAL_METRIC);
+                .getMeasurements(InstrumentType.LONG_COUNTER, SearchCommitPrefetcherMetrics.COMMIT_PREFETCH_TOTAL_METRIC);
             final var durations = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, SearchCommitPrefetcherMetrics.PREFETCH_DURATION_HISTOGRAM_METRIC);
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, SearchCommitPrefetcherMetrics.COMMIT_PREFETCH_DURATION_HISTOGRAM_METRIC);
             if (metricsEnabled) {
                 assertThat(counts, hasSize(1));
                 assertThat(counts.getFirst().getLong(), equalTo(1L));

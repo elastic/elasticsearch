@@ -249,7 +249,7 @@ public class SearchRecoveryTimeoutCalculationService {
                         TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
                     );
                 }
-                return relocationWithOtherNodeShutdownTimeout(state, shardRouting.currentNodeId(), totalBytesToWarm, previousPlan);
+                return relocationWithOtherNodeShutdownTimeout(state, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationTimeout,
@@ -311,16 +311,10 @@ public class SearchRecoveryTimeoutCalculationService {
     /// deadline that has already passed is skipped, as waiting less cannot help its shards, but its shards still compete for the target
     /// with the shards of the later deadlines.
     ///
-    /// Like when the relocation source is shutting down, the first plan decides by the larger of the equal share and the data-volume
-    /// share, and a re-evaluation of an equal-share plan (`previousPlan`) only extends the wait by the time saved since then: the part of
-    /// the fresh per-shard share above the one the previous plan was computed from, so that repeated extensions do not take the whole
-    /// time left from the shards of the shutting-down nodes.
-    private SearchRecoveryTimeout relocationWithOtherNodeShutdownTimeout(
-        ClusterState state,
-        String targetNodeId,
-        long totalBytesToWarm,
-        @Nullable SearchRecoveryTimeout previousPlan
-    ) {
+    /// Like when the relocation source is shutting down, the plan is the larger of the equal share and the data-volume share. An
+    /// equal-share plan is capped to the relocation-with-shutdown timeout and is not extended again. A data-volume plan is waited for in a
+    /// single slice, so that a big shard gets time proportional to its data.
+    private SearchRecoveryTimeout relocationWithOtherNodeShutdownTimeout(ClusterState state, String targetNodeId, long totalBytesToWarm) {
         final var relocationsToTarget = countSearchRelocationsToTarget(state, targetNodeId);
         // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count above includes it:
         // it is added to the competing shards (+1) below, and left out of the "other" relocations by the record.
@@ -376,22 +370,6 @@ public class SearchRecoveryTimeoutCalculationService {
         // and not only the relocation-with-shutdown timeout. It is bound by the time left and by the total timeout cap.
         final long maxDataVolumeShareMs = Math.min(tightestEqualShare.remainingMs(), searchRecoveryWarmingTotalTimeoutCap.millis());
         final double equalShareMs = tightestEqualShare.inMillis();
-        // Deliberately not capped to the relocation-with-shutdown timeout, unlike the slice we return: the cap limits how long this shard
-        // holds a relocation slot, so what the cap cut off is not handed out in later slices, only the time saved by finished shards.
-        final double perShardShareMs = tightestEqualShare.perShardShareMs();
-        if (previousPlan != null
-            && previousPlan.timeoutContext() == TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE
-            && previousPlan.perShardShareMs() > 0) {
-            // Re-evaluation of an equal-share plan: every shard competing for the target was already budgeted
-            // previousPlan.perShardShareMs() when the previous plan was computed, so only the part of the fresh share above that is time
-            // saved by shards that finished early. When none did, the fresh share is not larger and there is nothing to extend by.
-            final double extensionMs = Math.max(0.0, perShardShareMs - previousPlan.perShardShareMs()) * tightestEqualShare.slotShare();
-            return new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(Math.round(Math.min(maxShareMs, extensionMs))),
-                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE,
-                perShardShareMs
-            );
-        }
         final double dataVolumeMs = dataVolumeShareMs(totalBytesToWarm, tightestEqualShare.remainingMs()) * tightestEqualShare.slotShare();
         if (dataVolumeMs > equalShareMs) {
             return new SearchRecoveryTimeout(
@@ -401,8 +379,7 @@ public class SearchRecoveryTimeoutCalculationService {
         } else {
             return new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(Math.round(Math.min(maxShareMs, equalShareMs))),
-                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE,
-                perShardShareMs
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
             );
         }
     }
@@ -425,13 +402,8 @@ public class SearchRecoveryTimeoutCalculationService {
     /// the target's relocation limit.
     private record EqualShare(long remainingMs, long shardsCompetingForTarget, double slotShare) {
 
-        /// The time left until the deadline per competing shard, before scaling by the slot share.
-        double perShardShareMs() {
-            return remainingMs / (double) shardsCompetingForTarget;
-        }
-
         double inMillis() {
-            return perShardShareMs() * slotShare;
+            return (remainingMs / (double) shardsCompetingForTarget) * slotShare;
         }
     }
 

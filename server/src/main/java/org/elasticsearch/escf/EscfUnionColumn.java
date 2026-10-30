@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -126,6 +127,40 @@ final class EscfUnionColumn extends EscfColumn {
     private BytesRef value(int row) {
         int off0 = intAt(offsets, row);
         return data.slice(off0, intAt(offsets, row + 1) - off0).toBytesRef();
+    }
+
+    @Override
+    public int sizeInBytes(int row) {
+        return isAbsent(row) ? 0 : sizeOfPresent(row);
+    }
+
+    @Override
+    public void addSizesInBytes(int[] sizes) {
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += sizeOfPresent(d);
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += sizeOfPresent(d);
+        }
+    }
+
+    /**
+     * Every row of a union carries its own type, so the size is settled per cell: a variable-length
+     * value (string, binary, inline array or key-value) is its payload length, read from the offset fence
+     * posts, and a fixed-width scalar is {@link SourceValueType#elemDataSize} of its type, floored at 0
+     * for the zero-byte types.
+     */
+    private int sizeOfPresent(int row) {
+        byte type = byteAt(typeVec, row);
+        if (SourceValueType.isVariable(type)) {
+            int base = offsets.offset + row;
+            return offsets.ints[base + 1] - offsets.ints[base];
+        }
+        return Math.max(SourceValueType.elemDataSize(type), 0);
     }
 
     @Override

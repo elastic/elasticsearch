@@ -1009,7 +1009,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     Stage.DONE,
                     null,
                     nodeA,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                    ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING
                 );
                 validateIndexRecoveryState(recoveryState.getIndex());
             }
@@ -1070,7 +1070,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     Stage.DONE,
                     null,
                     nodeA,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                    ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING
                 );
                 validateIndexRecoveryState(recoveryState.getIndex());
             }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -60,6 +61,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -99,6 +101,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -144,7 +147,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
@@ -195,7 +200,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin {
 
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
@@ -799,6 +804,39 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
         );
     }
+
+    /**
+     * Graceful shutdown waits for the tasks that keep an ES|QL query's work alive on a node:
+     * <ul>
+     *     <li>on the coordinator, the async query tasks, which outlive the HTTP request that started them and only complete once the
+     *     result is stored;</li>
+     *     <li>on the nodes holding the queried shards, the data node tasks;</li>
+     *     <li>on the node of a remote cluster that a cross-cluster query enters through, the cluster tasks;</li>
+     *     <li>on the nodes holding the lookup or enrich shards, the lookup tasks.</li>
+     * </ul>
+     * The compute and exchange tasks are not listed: they only run while one of the above is still running, since those tasks wait
+     * for their drivers and for their exchange sinks to be fully consumed before completing. The synchronous {@link EsqlQueryAction}
+     * and {@link EsqlStreamQueryAction} tasks are not listed either: they are only started by REST requests on the coordinator and
+     * complete within them, so the HTTP server's shutdown already waits for them.
+     */
+    @Override
+    public Collection<String> getActionsToAwaitOnShutdown() {
+        return List.of(
+            EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX,
+            ComputeService.DATA_ACTION_NAME,
+            ComputeService.CLUSTER_ACTION_NAME,
+            EnrichLookupService.LOOKUP_ACTION_NAME,
+            LookupFromIndexService.LOOKUP_ACTION_NAME
+        );
+    }
+
+    @Override
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        return true;
+    }
+
+    @Override
+    public void signalShutdown(Collection<String> shutdownNodeIds) {}
 
     @Override
     public List<RestHandler> getRestHandlers(

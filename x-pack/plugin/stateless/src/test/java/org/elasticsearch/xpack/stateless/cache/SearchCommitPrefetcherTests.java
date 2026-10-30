@@ -23,6 +23,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.FileTimestampResolver;
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -273,13 +276,16 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         // Mark the BCC as uploaded so the prefetcher proceeds to populate the cache for the current generation.
         final var notification = new NewCommitNotification(commit, generation, new PrimaryTermAndGeneration(1L, generation), 0L, "node");
 
+        final boolean metricsEnabled = randomBoolean();
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
+            .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
             .put("path.home", createTempDir())
             .build();
 
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         record CapturedRegion(FileCacheKey key, int region) {}
         final Map<CapturedRegion, Long> capturedTimestamps = new ConcurrentHashMap<>();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -292,6 +298,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
@@ -356,13 +363,49 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 threadPool,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 clusterSettings,
-                new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+                new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+                SearchCommitPrefetcherMetrics.register(meterRegistry)
             );
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<SearchCommitPrefetcher.PrefetchResult> future = new PlainActionFuture<>();
             prefetcher.maybePrefetchLatestCommit(notification, 0L, future);
             taskQueue.runAllRunnableTasks();
-            safeGet(future);
+            assertThat(safeGet(future), is(SearchCommitPrefetcher.PrefetchResult.FOREGROUND));
+
+            final var counts = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, SearchCommitPrefetcherMetrics.PREFETCH_TOTAL_METRIC);
+            final var durations = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, SearchCommitPrefetcherMetrics.PREFETCH_DURATION_HISTOGRAM_METRIC);
+            if (metricsEnabled) {
+                assertThat(counts, hasSize(1));
+                assertThat(counts.getFirst().getLong(), equalTo(1L));
+                assertThat(
+                    counts.getFirst().attributes(),
+                    equalTo(
+                        Map.of(
+                            SearchCommitPrefetcherMetrics.TYPE_ATTRIBUTE,
+                            "foreground",
+                            SearchCommitPrefetcherMetrics.UPLOADED_ATTRIBUTE,
+                            true
+                        )
+                    )
+                );
+                assertThat(durations, hasSize(1));
+                assertThat(
+                    durations.getFirst().attributes(),
+                    equalTo(
+                        Map.of(
+                            SearchCommitPrefetcherMetrics.TYPE_ATTRIBUTE,
+                            "foreground",
+                            SearchCommitPrefetcherMetrics.UPLOADED_ATTRIBUTE,
+                            true
+                        )
+                    )
+                );
+            } else {
+                assertThat(counts, empty());
+                assertThat(durations, empty());
+            }
 
             final FileCacheKey internalBlobKey = new FileCacheKey(shardId, internalBlob.primaryTerm(), internalBlob.blobName());
             final long expectedTimestamp = notificationRange.midpointMillis();

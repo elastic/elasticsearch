@@ -221,7 +221,10 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear*",
         "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
     );
-    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME);
+    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(
+        EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME,
+        EsqlViewActionNames.ESQL_VALIDATE_VIEW_ACTION_NAME
+    );
     private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
     private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
     private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
@@ -63,7 +62,7 @@ public class CreateIndexCapabilities {
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     /**
-     * Support for the {@code index.sort} expression setting. Advertised only when the feature flag is on.
+     * Support for the {@code index.sort} expression setting.
      */
     private static final String INDEX_SORT_EXPRESSION_CAPABILITY = "index_sort_expression";
 
@@ -100,9 +99,7 @@ public class CreateIndexCapabilities {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }
-        if (IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled()) {
-            caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
-        }
+        caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
         if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
             caps.add(FLATTENED_UNMAPPED_FIELDS_CAPABILITY);
         }

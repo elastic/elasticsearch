@@ -5,7 +5,7 @@ setup:
         - method: PUT
           path: /{index}
           capabilities: [index_sort_expression]
-      reason: index.sort setting is behind a feature flag
+      reason: index.sort expression setting is not supported on older nodes
 
 ---
 "Sort expression configures the index sort":
@@ -26,20 +26,22 @@ setup:
         index: sorted_index
         flat_settings: true
 
-  # The expression is expanded into the index.sort.* settings and is not stored itself.
-  - match: { sorted_index.settings.index\.sort\.field: [ "rank" ] }
-  - match: { sorted_index.settings.index\.sort\.order: [ "desc" ] }
-  - match: { sorted_index.settings.index\.sort\.mode: [ "max" ] }
-  - match: { sorted_index.settings.index\.sort\.missing: [ "_first" ] }
-  - is_false: sorted_index.settings.index\.sort
+  # The expression is stored as is, so that PUT and GET are idempotent, and the index.sort.* settings stay unset.
+  - match: { sorted_index.settings.index\.sort: "rank DESC MISSING_FIRST" }
+  - is_false: sorted_index.settings.index\.sort\.field
+  - is_false: sorted_index.settings.index\.sort\.order
+  - is_false: sorted_index.settings.index\.sort\.mode
+  - is_false: sorted_index.settings.index\.sort\.missing
 
-  # The expression has no default to report, which must not change how the index.sort.* settings are rendered.
+  # The expression has no default to report, the derived index.sort.* values are reported as defaults.
   - do:
       indices.get_settings:
         index: sorted_index
         include_defaults: true
-  - match: { sorted_index.settings.index.sort.field: [ "rank" ] }
-  - is_false: sorted_index.defaults.index\.sort
+  - match: { sorted_index.defaults.index.sort.field: [ "rank" ] }
+  - match: { sorted_index.defaults.index.sort.order: [ "desc" ] }
+  - match: { sorted_index.defaults.index.sort.mode: [ "max" ] }
+  - match: { sorted_index.defaults.index.sort.missing: [ "_first" ] }
 
   # Index a document without a rank first, then ranks in ascending order, and flush each into its own segment.
   - do:
@@ -129,9 +131,8 @@ setup:
       indices.get_settings:
         index: sorted_template_index
         flat_settings: true
-  - match: { sorted_template_index.settings.index\.sort\.field: [ "rank", "other" ] }
-  - match: { sorted_template_index.settings.index\.sort\.order: [ "desc", "asc" ] }
-  - is_false: sorted_template_index.settings.index\.sort
+  - match: { sorted_template_index.settings.index\.sort: "rank DESC, other" }
+  - is_false: sorted_template_index.settings.index\.sort\.field
 
   - do:
       indices.delete_index_template:

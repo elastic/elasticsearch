@@ -38,7 +38,6 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -264,10 +263,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedProject, matchingTemplate);
 
         ComposableIndexTemplate template = simulatedProject.templatesV2().get(matchingTemplate);
-        // index.sort is expanded into the index.sort.* settings when an index is created, so simulate the expansion
-        Settings templateSettings = IndexSortConfig.expandSortSetting(
-            collectSettings(simulatedProject, dataStream, matchingTemplate, template)
-        );
+        Settings templateSettings = collectSettings(simulatedProject, dataStream, matchingTemplate, template);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

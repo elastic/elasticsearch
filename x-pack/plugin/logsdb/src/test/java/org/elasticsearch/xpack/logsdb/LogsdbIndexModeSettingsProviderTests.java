@@ -936,6 +936,15 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
     }
 
+    public void testRoutingPathOnSortExpression() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
     public void testRoutingPathOnSortFieldsDisabledInOldNode() throws Exception {
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")

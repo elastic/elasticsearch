@@ -908,8 +908,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
     }
 
-    public void testAggregateSettingsExpandsSortExpression() {
-        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
+    public void testAggregateSettingsKeepsSortExpression() {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> builder.settings(Settings.builder().put("a", "b")));
         ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
@@ -927,37 +926,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Collections.emptySet()
         );
 
-        assertThat(aggregatedIndexSettings.hasValue("index.sort"), equalTo(false));
-        assertThat(aggregatedIndexSettings.getAsList("index.sort.field"), equalTo(List.of("field1", "field2")));
-        assertThat(aggregatedIndexSettings.getAsList("index.sort.order"), equalTo(List.of("desc", "asc")));
-        assertThat(aggregatedIndexSettings.getAsList("index.sort.mode"), equalTo(List.of("max", "min")));
-        assertThat(aggregatedIndexSettings.getAsList("index.sort.missing"), equalTo(List.of("_last", "_last")));
-    }
-
-    public void testAggregateSettingsRejectsSortExpressionCombinedAcrossTemplateAndRequest() {
-        assumeTrue("index.sort requires its feature flag", IndexSortConfig.INDEX_SORT_EXPRESSION_FEATURE_FLAG.isEnabled());
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
-            builder -> builder.settings(Settings.builder().put("index.sort", "field1"))
-        );
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
-        request.settings(Settings.builder().putList("index.sort.field", "field2").build());
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                clusterState,
-                request,
-                templateMetadata.settings(),
-                null,
-                null,
-                Settings.EMPTY,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(e.getMessage(), containsString("setting [index.sort] cannot be combined with [index.sort.field]"));
+        assertThat(aggregatedIndexSettings.get("index.sort"), equalTo("field1 DESC, field2"));
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(aggregatedIndexSettings), equalTo(false));
     }
 
     public void testAggregateSettingsProviderOverrulesSettingsFromRequest() {

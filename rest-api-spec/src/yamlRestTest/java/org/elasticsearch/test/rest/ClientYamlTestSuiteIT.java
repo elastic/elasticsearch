@@ -38,7 +38,6 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
         .feature(FeatureFlag.SLICE_INDEXING)
-        .feature(FeatureFlag.INDEX_SORT_EXPRESSION)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -233,7 +233,12 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             // Inject routing path matching sort fields.
             if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
                 if (supportFallbackLogsdbRouting.get() == false || licenseService.allowLogsdbRoutingOnSortField(isTemplateValidation)) {
-                    List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
+                    String sortExpression = settings.get(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "");
+                    List<String> sortFields = new ArrayList<>(
+                        sortExpression.isEmpty()
+                            ? settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())
+                            : IndexSortConfig.parseSortExpression(sortExpression).fields()
+                    );
                     sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
                     if (sortFields.size() < 2) {
                         throw new IllegalStateException(
@@ -323,7 +328,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
                 var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
-                if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
+                if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(indexTemplateAndCreateRequestSettings)
+                    || IndexSortConfig.INDEX_SORT_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
                     // Custom sort config, no point for further checks on [host.name] field.
                     return new MappingHints(hasSyntheticSourceUsage, false, false, false, true);
                 }

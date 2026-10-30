@@ -23,16 +23,16 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
-    private final boolean legacy;
+    private final ThaiAnalysis.Generation generation;
 
     ThaiTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        this.legacy = indexSettings.getIndexVersionCreated().before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        this.generation = ThaiAnalysis.generation(indexSettings.getIndexVersionCreated().luceneVersion());
     }
 
     @Override
     public Tokenizer create() {
-        return legacy ? new LegacyThaiTokenizer() : new ThaiTokenizer();
+        return generation.newTokenizer();
     }
 
     /**
@@ -41,8 +41,8 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
      */
     @Override
     public Object sharingKey() {
-        return new Key(legacy);
+        return new Key(generation);
     }
 
-    private record Key(boolean legacy) {}
+    private record Key(ThaiAnalysis.Generation generation) {}
 }

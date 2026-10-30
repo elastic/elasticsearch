@@ -97,7 +97,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiNormalizationFilter;
 import org.apache.lucene.analysis.th.ThaiRepeatFilter;
-import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
@@ -497,7 +496,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.add(new PreBuiltAnalyzerProviderFactory("spanish", CachingStrategy.LUCENE, SpanishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("swedish", CachingStrategy.LUCENE, SwedishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("turkish", CachingStrategy.LUCENE, TurkishAnalyzer::new));
-        analyzers.add(ThaiAnalyzerProvider.preBuiltFactory());
+        analyzers.add(ThaiAnalysis.preBuiltAnalyzerFactory());
         return analyzers;
     }
 
@@ -639,12 +638,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
         }));
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
-        tokenizers.add(
-            PreConfiguredTokenizer.indexVersion(
-                "thai",
-                version -> version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? new ThaiTokenizer() : new LegacyThaiTokenizer()
-            )
-        );
+        tokenizers.add(ThaiAnalysis.preConfiguredTokenizer());
         // TODO deprecate and remove in API
         // This is already broken with normalization, so backwards compat isn't necessary?
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));

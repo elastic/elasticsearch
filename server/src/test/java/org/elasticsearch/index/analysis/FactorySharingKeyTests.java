@@ -173,6 +173,28 @@ public class FactorySharingKeyTests extends ESTestCase {
         }
     }
 
+    /** A custom version key shares one provider across index and Lucene versions with equivalent behavior. */
+    public void testCustomVersionPrebuiltAnalyzerSharesByVersionKey() throws IOException {
+        Environment env = env();
+        IndexVersion firstLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
+        IndexVersion secondLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_5_2;
+        assertNotEquals(firstLegacy.luceneVersion(), secondLegacy.luceneVersion());
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.versioned(
+                "versioned",
+                version -> version.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0),
+                legacy -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> firstProvider = factory.get(indexSettings(firstLegacy), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> secondProvider = factory.get(indexSettings(secondLegacy), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
+            assertSame(firstProvider, secondProvider);
+            assertNotSame(firstProvider, currentProvider);
+            assertSame(currentProvider, factory.get(indexSettings(), env, "versioned", Settings.EMPTY));
+        }
+    }
+
     /** Prebuilt analyzers registered with a plain supplier are version-invariant and keep sharing by name across versions. */
     public void testSupplierPrebuiltAnalyzerSharesAcrossVersions() throws IOException {
         Environment env = env();

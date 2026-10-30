@@ -21,6 +21,7 @@ import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -125,6 +126,34 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder().put("index.analysis.analyzer.thai_only.tokenizer", "thai").build();
         assertPreLucene106ThaiTokenizer(analysis(legacyVersion(), settings).indexAnalyzers.get("thai_only"));
         assertLucene106ThaiTokenizer(analysis(gatedVersion(), settings).indexAnalyzers.get("thai_only"));
+    }
+
+    /** Preconfigured tokenizers are cached by Thai behavior generation, not by each distinct Lucene version. */
+    public void testPreconfiguredThaiTokenizerCachesByGeneration() throws IOException {
+        PreConfiguredTokenizer preconfigured = new CommonAnalysisPlugin().getPreConfiguredTokenizers()
+            .stream()
+            .filter(t -> t.getName().equals("thai"))
+            .findFirst()
+            .orElseThrow();
+        Environment env = env();
+        TokenizerFactory firstLegacy = preconfigured.get(
+            indexSettings(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
+            env,
+            "thai",
+            Settings.EMPTY
+        );
+        TokenizerFactory secondLegacy = preconfigured.get(
+            indexSettings(IndexVersions.UPGRADE_TO_LUCENE_10_5_2),
+            env,
+            "thai",
+            Settings.EMPTY
+        );
+        TokenizerFactory current = preconfigured.get(indexSettings(IndexVersion.current()), env, "thai", Settings.EMPTY);
+
+        assertSame(firstLegacy, secondLegacy);
+        assertNotSame(firstLegacy, current);
+        assertThat(firstLegacy.create(), instanceOf(LegacyThaiTokenizer.class));
+        assertThat(current.create(), not(instanceOf(LegacyThaiTokenizer.class)));
     }
 
     /** The version immediately before the gate is legacy and the gate version itself is not. */

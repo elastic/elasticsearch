@@ -22,8 +22,8 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
     }
 
     /**
-     * @param shareByName {@code false} if the analyzer was built for one index version and must only be shared by indices that
-     *                    resolved this very provider
+     * @param shareByName {@code false} if the analyzer was built for one version key and must only be shared by indices that resolved
+     *                    this very provider
      */
     PreBuiltAnalyzerProvider(String name, AnalyzerScope scope, Analyzer analyzer, boolean shareByName) {
         // we create the named analyzer here so the resources associated with it will be shared

@@ -55,6 +55,15 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         Function<IndexVersion, Analyzer> create,
         boolean versionInvariant
     ) {
+        this(name, PreBuiltCacheFactory.getCache(cache), create, versionInvariant);
+    }
+
+    private PreBuiltAnalyzerProviderFactory(
+        String name,
+        PreBuiltCacheFactory.PreBuiltCache<AnalyzerProvider<?>> cache,
+        Function<IndexVersion, Analyzer> create,
+        boolean versionInvariant
+    ) {
         super(name, cache);
         this.create = create;
         this.versionInvariant = versionInvariant;
@@ -74,6 +83,23 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     /** For analyzers whose behavior may vary with the Elasticsearch index version. */
     public static PreBuiltAnalyzerProviderFactory indexVersion(String name, Function<IndexVersion, Analyzer> create) {
         return new PreBuiltAnalyzerProviderFactory(name, PreBuiltCacheFactory.CachingStrategy.INDEX, create, false);
+    }
+
+    /**
+     * For analyzers whose behavior is grouped into caller-defined versions. The version key determines both cache identity and the
+     * value passed to {@code create}, so behaviorally equivalent index versions share one provider.
+     */
+    public static <V> PreBuiltAnalyzerProviderFactory versioned(
+        String name,
+        Function<IndexVersion, V> version,
+        Function<V, Analyzer> create
+    ) {
+        return new PreBuiltAnalyzerProviderFactory(
+            name,
+            PreBuiltCacheFactory.getCache(version),
+            indexVersion -> create.apply(version.apply(indexVersion)),
+            false
+        );
     }
 
     @Override

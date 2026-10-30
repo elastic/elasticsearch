@@ -51,9 +51,30 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
         return new PreConfiguredTokenizer(name, CachingStrategy.INDEX, create);
     }
 
+    /**
+     * Create a pre-configured tokenizer whose behavior is grouped into caller-defined versions. The version key determines both
+     * cache identity and the value passed to {@code create}.
+     */
+    public static <V> PreConfiguredTokenizer versioned(String name, Function<IndexVersion, V> version, Function<V, Tokenizer> create) {
+        return new PreConfiguredTokenizer(
+            name,
+            PreBuiltCacheFactory.getCache(version),
+            indexVersion -> create.apply(version.apply(indexVersion))
+        );
+    }
+
     private final Function<IndexVersion, Tokenizer> create;
 
     private PreConfiguredTokenizer(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<IndexVersion, Tokenizer> create) {
+        super(name, cache);
+        this.create = create;
+    }
+
+    private PreConfiguredTokenizer(
+        String name,
+        PreBuiltCacheFactory.PreBuiltCache<TokenizerFactory> cache,
+        Function<IndexVersion, Tokenizer> create
+    ) {
         super(name, cache);
         this.create = create;
     }

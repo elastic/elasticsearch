@@ -61,7 +61,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -72,7 +71,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -85,7 +83,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
@@ -711,14 +708,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         refreshClusterInfo();
         mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics();
 
-        final ThreadPool dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, randomFrom(dataNodes));
-        final int writePoolMaximumSize = asInstanceOf(ThreadPoolExecutor.class, dataNodeThreadPool.executor(ThreadPool.Names.WRITE))
-            .getMaximumPoolSize();
         assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
-        assertThat(
-            mostRecentAverageWriteLoadMetrics.values(),
-            everyItem(Matchers.allOf(greaterThan(0d), lessThanOrEqualTo((double) writePoolMaximumSize)))
-        );
+        // Completed tasks contribute their full execution time to a poll interval, including time before the last
+        // utilization poll, so the reported write load can exceed the write thread pool size.
+        // As a result we can't assert each result will be <= 1.0 and the total <= writePoolMaximumSize
+        assertThat(mostRecentAverageWriteLoadMetrics.values(), everyItem(greaterThan(0d)));
     }
 
     public void testMaxSingleShardWriteLoadSetting() {

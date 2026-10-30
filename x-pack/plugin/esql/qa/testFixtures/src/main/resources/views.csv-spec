@@ -3753,3 +3753,21 @@ null                           | Disconnected    | fork2
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;
+
+forkAfterSingleForkView
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: fork_after_single_fork_subquery_or_view
+
+FROM view_with_fork
+| FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10092
+fork2         | 10091
+;

@@ -456,8 +456,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
                 Subquery only = subqueries.get(0);
-                // if there is only one child without metadata - return it directly, no need for UnionAll
-                inner = metadataFields.isEmpty() ? only.plan() : only;
+                // A single FROM subquery does not need UnionAll unless the body contains a FORK, so that forks inside and outside the
+                // subquery are not treated as consecutive forks.
+                if (Fork.containsFork(only.plan())) {
+                    inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), List.of(only), List.of());
+                } else {
+                    // if there is only one child without metadata - return it directly, no need for UnionAll
+                    inner = metadataFields.isEmpty() ? only.plan() : only;
+                }
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());

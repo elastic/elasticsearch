@@ -411,7 +411,14 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                  (FROM test | WHERE category == 2 | SORT id | LIMIT 5)
             | WHERE match(title, "data")
             """));
-        assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT when it targets an indexed field"));
+        assertThat(
+            err,
+            containsString(
+                "[MATCH] function cannot search column [title] after FORK: the merged column is not index-backed, so its values"
+                    + " are analyzed with the [standard] analyzer rather than the analyzer mapped for [title]. Search [title] in the FORK"
+                    + " branches instead, or declare an analyzer for the merged column with TO_TEXT(title, {\"analyzer\": ...})"
+            )
+        );
     }
 
     public void testRuntimeTextSearchRejectedAfterForkThroughCast() {

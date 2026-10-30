@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FlattenMergePlanWithOneBranch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistProjects;
@@ -297,7 +298,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneInlineJoinOnEmptyRightSide(),
             new HoistOrderByBeforeInlineJoin(),
             new PruneEmptyAggregates(),
-            new PruneEmptyMergeBranches()
+            new PruneEmptyMergeBranches(),
+            new FlattenMergePlanWithOneBranch()
         );
     }
 

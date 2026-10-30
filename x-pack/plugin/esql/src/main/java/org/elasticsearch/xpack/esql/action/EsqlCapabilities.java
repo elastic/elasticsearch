@@ -1569,9 +1569,10 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         * Fixes a false failure when a FORK follows a single {@code FROM (...)} subquery, a single inlined view, or a named/let subquery
+         * whose body already contains a FORK. They are different from consecutive FORKs within one pipeline.
          */
-        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+        FORK_AFTER_SINGLE_FORK_SUBQUERY_OR_VIEW,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -1665,6 +1666,11 @@ public class EsqlCapabilities {
          * Support non-correlated IN subqueries in the {@code EVAL} command.
          */
         EVAL_IN_SUBQUERY,
+
+        /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
 
         /**
          * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.

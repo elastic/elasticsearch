@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeE
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -112,14 +113,17 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * stay separate rather than merging via a combined field-caps call.
      *
      * @param preserveViewBoundaries {@code true} when the request carries a DSL filter that must be
-     *                               applied at view-output boundaries. This is the <em>only</em> reason
-     *                               to keep a wrapper that would otherwise be compacted away: when
-     *                               {@code false} every collapse that was possible before the
-     *                               request-filter feature is still performed. When {@code true}, a
-     *                               single-survivor {@link BranchPlan} whose surviving branch is a view
+     *                               applied at view-output boundaries. When {@code false} every collapse
+     *                               that was possible before the request-filter feature is still performed,
+     *                               except a single-survivor wrapper whose body contains a {@link Fork}:
+     *                               that merge is kept so {@code checkFork} can treat the view or
+     *                               {@code FROM (...)} scope as a boundary, and so a body-topping
+     *                               {@link Fork} can be lifted into this {@link BranchPlan}. When {@code true},
+     *                               a single-survivor {@link BranchPlan} whose surviving branch is a view
      *                               branch is kept intact so that
      *                               {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter}
-     *                               can find the boundary; every other branch kind still collapses.
+     *                               can find the boundary; every other branch kind still collapses unless
+     *                               it contains a {@code Fork}.
      */
     public static LogicalPlan postIndexResolution(LogicalPlan plan, boolean preserveViewBoundaries) {
         return postIndexResolution(plan, preserveViewBoundaries, EsqlFlags.DEFAULTS.maxBranchCount());
@@ -170,7 +174,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // applied above; a bare index or a user-written subquery takes the ordinary Lucene
                 // pushdown path instead and so collapses freely even when a filter is present.
                 String survivingKey = prunedVua.namedSubqueries().keySet().iterator().next();
-                if (preserveViewBoundaries == false || prunedVua.isViewBranch(survivingKey) == false) {
+                if ((preserveViewBoundaries == false || prunedVua.isViewBranch(survivingKey) == false)
+                    && Fork.containsFork(prunedVua.children().getFirst()) == false) {
                     // Recurse into the exposed child rather than just returning it. Collapsing can expose another
                     // BranchPlan — nested pass-through views under CPS produce exactly that — and transformDown
                     // descends into the *children* of whatever the rule returns, so the rule would never be applied
@@ -379,7 +384,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (inner instanceof MergePlan) {
+            if (inner instanceof UnionAll) {
                 mergeEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 String assignedKey = makeUniqueKey(flat, key);
@@ -485,7 +490,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             // Same two-part decision as in stripViewShadowRelations: collapse the lone entry unless a
             // request filter still needs this view boundary. With no filter this always collapses, so
             // the pre-feature compaction is preserved in full.
-            if (preserveViewBoundaries == false || flatIdentities.get(survivingKey).isView() == false) {
+            if ((preserveViewBoundaries == false || flatIdentities.get(survivingKey).isView() == false)
+                && Fork.containsFork(survivingPlan) == false) {
                 return survivingPlan;
             }
         }

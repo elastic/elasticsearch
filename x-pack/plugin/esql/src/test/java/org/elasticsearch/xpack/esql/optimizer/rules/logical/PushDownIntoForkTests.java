@@ -43,15 +43,11 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * {@snippet lang="text":
-     * TopN[[Order[emp_no{r}#18,ASC,LAST]],10[INTEGER],false]
-     * \_Fork[[_meta_field{r}#17, emp_no{r}#18, first_name{r}#19, gender{r}#20, hire_date{r}#21, job{r}#22, job.raw{r}#23, l
-     * anguages{r}#24, last_name{r}#25, long_noidx{r}#26, salary{r}#27, _fork{r}#28]]
-     *   \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
-     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, _fork{r}#4]]
-     *     \_TopN[[Order[emp_no{f}#6,ASC,LAST]],10[INTEGER],false]
-     *       \_Eval[[fork1[KEYWORD] AS _fork#4]]
-     *         \_Filter[emp_no{f}#6 > 100[INTEGER]]
-     *           \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[...]]
+     * \_TopN[[Order[emp_no,ASC,LAST]],10[INTEGER],false]
+     *   \_Eval[[fork1[KEYWORD] AS _fork]]
+     *     \_Filter[emp_no > 100]
+     *       \_EsRelation[employees][...]
      * }
      */
     public void testWithASingleBranch() {
@@ -62,15 +58,10 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
              | LIMIT 10
             """;
         var plan = plan(query);
-        var topN = as(plan, TopN.class);
-        assertThat(((Literal) topN.limit()).value(), equalTo(10));
-        assertOrders(List.of("emp_no", "ASC"), topN);
-
-        var fork = as(topN.child(), Fork.class);
-        assertEquals(1, fork.children().size());
-        var project = as(fork.children().getFirst(), Project.class);
-        topN = as(project.child(), TopN.class);
-        assertThat(((Literal) topN.limit()).value(), equalTo(10));
+        Project project = as(plan, Project.class);
+        TopN topN = as(project.child(), TopN.class);
+        Literal limitLiteral = as(topN.limit(), Literal.class);
+        assertEquals(10, limitLiteral.value());
         assertOrders(List.of("emp_no", "ASC"), topN);
         var eval = as(topN.child(), Eval.class);
         var filter = as(eval.child(), Filter.class);
@@ -481,15 +472,11 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * {@snippet lang="text":
-     * TopN[[Order[emp_no{r}#32,ASC,LAST]],10[INTEGER],false]
-     * \_Fork[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37, l
-     * anguages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, _fork{r}#42]]
-     *   \_Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
-     * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, _fork{r}#5]]
-     *     \_TopN[[Order[emp_no{f}#9,ASC,LAST]],10[INTEGER],false]
-     *       \_Eval[[fork1[KEYWORD] AS _fork#5]]
-     *         \_Filter[emp_no{f}#9 > 100[INTEGER]]
-     *           \_EsRelation[employees][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * Project[[...]]
+     * \_TopN[[Order[emp_no,ASC,LAST]],10[INTEGER],false]
+     *   \_Eval[[fork1[KEYWORD] AS _fork]]
+     *     \_Filter[emp_no > 100]
+     *       \_EsRelation[employees][...]
      * }
      */
     public void testPushDownFilterAndBranchTrimming() {
@@ -502,14 +489,10 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
              | limit 10
             """;
         var plan = plan(query);
-        var topN = as(plan, TopN.class);
-        var fork = as(topN.child(), Fork.class);
-
-        assertEquals(1, fork.children().size());
-
-        var project = as(fork.children().getFirst(), Project.class);
-        topN = as(project.child(), TopN.class);
-        assertThat(((Literal) topN.limit()).value(), equalTo(10));
+        Project project = as(plan, Project.class);
+        TopN topN = as(project.child(), TopN.class);
+        Literal limitLiteral = as(topN.limit(), Literal.class);
+        assertEquals(10, limitLiteral.value());
         assertOrders(List.of("emp_no", "ASC"), topN);
         var eval = as(topN.child(), Eval.class);
         var filter = as(eval.child(), Filter.class);

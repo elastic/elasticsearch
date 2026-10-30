@@ -1,0 +1,4 @@
+FROM fork_view
+| SORT salary DESC
+| LIMIT 3
+| KEEP emp_no, salary, _fork

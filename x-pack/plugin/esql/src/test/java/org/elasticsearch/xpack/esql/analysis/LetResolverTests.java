@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InS
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -415,5 +417,59 @@ public class LetResolverTests extends ESTestCase {
     public void testCurrentBehaviorExclusionPatternDoesNotMatchBinding() {
         LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM sample_data, -x");
         assertUnresolvedRelation(result, "sample_data,-x");
+    }
+
+    // -----------------------------------------------------------------------
+    // FORK-containing binding: one-child UnionAll at the single-substitution site
+    // -----------------------------------------------------------------------
+
+    public void testForkBindingWrappedInUnionAllWhenUsedAlone() {
+        LogicalPlan result = parseAndResolveLet("""
+            LET a = (FROM idx | FORK (WHERE x > 0) (WHERE x <= 0));
+            FROM a
+            """);
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(1));
+        assertThat(children.get(0), instanceOf(Fork.class));
+    }
+
+    public void testForkThenLimitBindingWrappedInUnionAll() {
+        LogicalPlan result = parseAndResolveLet("""
+            LET a = (FROM idx | FORK (WHERE x > 0) (WHERE x <= 0) | LIMIT 10);
+            FROM a
+            """);
+        UnionAll unionAll = as(result, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(1, children.size());
+        Limit limit = as(children.get(0), Limit.class);
+        Fork fork = as(limit.child(), Fork.class);
+        assertEquals(2, fork.children().size());
+    }
+
+    public void testForkBindingInMixedFromIsNotDoubleWrapped() {
+        LogicalPlan result = parseAndResolveLet("""
+            LET a = (FROM idx | FORK (WHERE x > 0) (WHERE x <= 0));
+            FROM a, employees
+            """);
+        UnionAll unionAll = as(result, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(2, children.size());
+        Fork fork = as(children.get(0), Fork.class);
+        assertEquals(2, fork.children().size());
+        assertUnresolvedRelation(children.get(1), "employees");
+    }
+
+    public void testChainedForkBindingKeepsSingleWrapper() {
+        LogicalPlan result = parseAndResolveLet("""
+            LET a = (FROM idx | FORK (WHERE x > 0) (WHERE x <= 0));
+            LET b = (FROM a);
+            FROM b
+            """);
+        UnionAll unionAll = as(result, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(1, children.size());
+        Fork fork = as(children.get(0), Fork.class);
+        assertEquals(2, fork.children().size());
     }
 }

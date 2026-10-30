@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -194,15 +193,21 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * altogether, so no work is scheduled for it. The rewriter binds the missing field to {@code NULL}, the translated leaf is then
      * a constant, and the standard pipeline takes over: {@code ConstantFolding} folds it to {@code false}, {@code PruneFilters}
      * collapses the filtered branch to an empty {@code LocalRelation}, and {@code PruneEmptyMergeBranches} drops that branch — or
-     * the whole union, when every branch is a view. Pinned here so the rewriter never needs its own dead-branch detection.
+     * the whole union, when every branch is a view. The surviving child is the bare index, so {@code FlattenMergePlanWithOneBranch}
+     * unwraps the merge onto that index scan.
      */
     public void testFilterOnFieldMissingFromViewPrunesTheViewBranch() {
         assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
-        // View branch alongside a bare index: only the bare-index branch survives.
+        // View branch alongside a bare index: the view branch is dropped and the one-child merge is flattened onto the index.
         String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);
-        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("BranchPlan[[main=INDEX]]"));
+        assertThat(
+            "the view branch is pruned and the one-child merge is flattened onto the index",
+            mixed,
+            not(containsString("BranchPlan"))
+        );
         assertThat(mixed, not(containsString(PREFILTERED_VIEW)));
+        assertThat(mixed, containsString("EsRelation[" + INDEX + "]"));
         // Every branch is a view: the union collapses to an empty local relation.
         String allViews = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + STATS_VIEW, fake);
         assertThat("no branch survives", allViews, startsWith("LocalRelation["));
@@ -793,31 +798,43 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testForkAfterForkViewWithAndWithoutRequestFilter() {
+        assumeTrue(
+            "FORK after a single FORK view must not be rejected as consecutive FORKs",
+            EsqlCapabilities.Cap.FORK_AFTER_SINGLE_FORK_SUBQUERY_OR_VIEW.isEnabled()
+        );
         String view = "vrf_fork_then_fork";
         createView(view, "FROM " + INDEX + " | FORK (WHERE id > 0) (WHERE id < 2)");
         String query = "FROM " + view + " | FORK (WHERE id > 0) (WHERE id < 5) | KEEP _fork, id | SORT _fork, id";
 
-        VerificationException withoutFilter = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query)).close());
-        assertThat(withoutFilter.getMessage(), containsString("Only a single FORK command is supported"));
+        List<List<Object>> withoutFilter;
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query))) {
+            withoutFilter = getValuesList(resp);
+        }
+        assertForkAfterForkViewRows(withoutFilter);
 
-        List<List<Object>> rows = rows(query, QueryBuilders.rangeQuery("id").gte(0));
-        assertThat(rows, hasSize(12));
-        assertForkId(rows.get(0), "fork1", 1);
-        assertForkId(rows.get(1), "fork1", 1);
-        assertForkId(rows.get(2), "fork1", 2);
-        assertForkId(rows.get(3), "fork1", 3);
-        assertForkId(rows.get(4), "fork1", 4);
-        assertForkId(rows.get(5), "fork1", 5);
-        assertForkId(rows.get(6), "fork2", 0);
-        assertForkId(rows.get(7), "fork2", 1);
-        assertForkId(rows.get(8), "fork2", 1);
-        assertForkId(rows.get(9), "fork2", 2);
-        assertForkId(rows.get(10), "fork2", 3);
-        assertForkId(rows.get(11), "fork2", 4);
+        List<List<Object>> withFilter = rows(query, QueryBuilders.rangeQuery("id").gte(0));
+        assertForkAfterForkViewRows(withFilter);
     }
 
-    private static void assertForkId(List<Object> row, String fork, int id) {
-        assertThat(row.get(0).toString(), equalTo(fork));
-        assertThat(row.get(1), equalTo(id));
+    private static void assertForkAfterForkViewRows(List<List<Object>> rows) {
+        assertThat(
+            rows,
+            equalTo(
+                List.of(
+                    List.of("fork1", 1),
+                    List.of("fork1", 1),
+                    List.of("fork1", 2),
+                    List.of("fork1", 3),
+                    List.of("fork1", 4),
+                    List.of("fork1", 5),
+                    List.of("fork2", 0),
+                    List.of("fork2", 1),
+                    List.of("fork2", 1),
+                    List.of("fork2", 2),
+                    List.of("fork2", 3),
+                    List.of("fork2", 4)
+                )
+            )
+        );
     }
 }

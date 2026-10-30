@@ -161,9 +161,35 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} is a real merge boundary, whether it
-     * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
-     * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
+     * Whether this pipeline segment contains a {@link Fork} that is not already under a {@link MergePlan}. FORKs inside a {@link UnionAll},
+     * {@link BranchPlan} are a different merge segment and do not count. The right side of an {@link AbstractSubqueryJoin} is an
+     * independently executed query and is also skipped. Used to keep a one-child {@link UnionAll} or {@link BranchPlan} around a single
+     * {@code FROM (...)}, inlined view, or named/let subquery so {@link #checkForUnseparatedFork} can treat that scope as a boundary
+     * rather than consecutive FORKs on one pipeline.
+     */
+    public static boolean containsFork(LogicalPlan plan) {
+        if (plan instanceof Fork) {
+            return true;
+        }
+        if (plan instanceof MergePlan) {
+            return false;
+        }
+        if (plan instanceof AbstractSubqueryJoin join) {
+            return containsFork(join.left());
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (containsFork(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} (including {@link BranchPlan}) is a
+     * real merge boundary, whether it came from user subqueries, a view, an external dataset, or federation, so each of its branches
+     * starts a new FORK segment. The right side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is
+     * verified by its own FORK node.
      */
     private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
         if (plan instanceof UnionAll unionAll) {

@@ -1,0 +1,2 @@
+FROM fork_view
+| FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)

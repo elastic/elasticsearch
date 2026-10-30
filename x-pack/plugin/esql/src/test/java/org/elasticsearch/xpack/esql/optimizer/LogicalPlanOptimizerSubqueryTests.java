@@ -582,7 +582,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         var configuration = configuration(new QueryPragmas(pragmaSettings), query);
         var context = flags == null
             ? logicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion())
-            : new LogicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion(), flags);
+            : logicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion(), flags);
         return new LogicalPlanOptimizer(context).optimize(analyzed);
     }
 

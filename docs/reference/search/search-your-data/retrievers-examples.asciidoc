@@ -98,7 +98,7 @@ POST /retrievers_example/_refresh
 
 ----
 // TESTSETUP
-
+// TEST[s/"type": "semantic_text"/"type": "text"/]
 Now that we have our documents in place, let's try to run some queries using retrievers.
 
 [discrete]
@@ -470,7 +470,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[continued]
+// TEST[skip:uses ELSER]
 
 This returns the following response based on the final rrf score for each result.
 
@@ -549,7 +549,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[continued]
+// TEST[skip:uses ELSER]
 
 [NOTE]
 ====
@@ -643,7 +643,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[continued]
+// TEST[skip:uses ELSER]
 
 This returns the following response based on the normalized score for each result:
 
@@ -761,7 +761,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[continued]
+// TEST
 
 This returns the following response with collapsed results.
 
@@ -1623,7 +1623,7 @@ GET /retrievers_example/_search
     "explain": true
 }
 ----
-// TEST[continued]
+// TEST[skip:explanation depends on the semantic_text mapping]
 
 The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking.
 

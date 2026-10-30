@@ -340,6 +340,26 @@ public final class ExternalFailures {
     }
 
     /**
+     * Why a resolve-time failure happened, for the message that replaces its dropped cause chain: the message of the first I/O
+     * failure in the chain when it names no storage location (the policy {@link #classify} applies at read time, e.g.
+     * {@code read denied: credential mismatch}), else a validator's {@link #validationReason}. Returns
+     * {@code null} when neither is available.
+     */
+    public static String failureReason(Throwable failure) {
+        Throwable t = failure;
+        for (int depth = 0; t != null && depth < 12; depth++, t = t.getCause() == t ? null : t.getCause()) {
+            if ((t instanceof IOException || t instanceof UncheckedIOException) && t.getMessage() != null) {
+                String detail = safeDetail(t);
+                if (detail.equals(t.getClass().getSimpleName()) == false) {
+                    return detail;
+                }
+                break;
+            }
+        }
+        return validationReason(failure);
+    }
+
+    /**
      * Network failures name the endpoint host ({@code Unable to resolve host minio.internal}, {@code Connect to
      * minio.internal:9000 failed}) without a scheme or a cloud domain, so {@link #safeForUserMessage} cannot recognise
      * them; the endpoint of a custom object store, or a Flight server, is part of the dataset location.

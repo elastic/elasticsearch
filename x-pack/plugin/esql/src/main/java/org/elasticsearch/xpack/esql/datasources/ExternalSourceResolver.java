@@ -521,7 +521,8 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception e) {
+    private RuntimeException mapResolveFailure(String path, Exception failure) {
+        Exception e = peelWrappers(failure);
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return tce;
@@ -577,8 +578,8 @@ public class ExternalSourceResolver {
             String message = e.getMessage() != null && ExternalFailures.safeForUserMessage(e.getMessage())
                 ? e.getMessage()
                 : "Failed to resolve external source [" + StoragePath.objectName(path) + "]";
-            // A validator's reason (e.g. an endpoint that must use https) lives in the dropped cause chain; keep it, with any URI redacted.
-            String reason = ExternalFailures.validationReason(e);
+            // The reason (a validator's, or a storage failure's when it names no location) lives in the dropped cause chain.
+            String reason = ExternalFailures.failureReason(e);
             if (reason != null && message.contains(reason) == false) {
                 message = message + ": " + reason;
             }
@@ -588,14 +589,35 @@ public class ExternalSourceResolver {
         }
         recordDiscoveryFailure();
         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+        String reason = ExternalFailures.failureReason(e);
         return new ElasticsearchException(
             String.format(
                 Locale.ROOT,
                 "Failed to resolve external source [%s]: %s",
                 StoragePath.objectName(path),
-                ExternalFailures.safeDetail(e)
+                reason != null ? reason : ExternalFailures.safeDetail(e)
             )
         );
+    }
+
+    /**
+     * Strips the plain wrappers a failure picks up on its way here (a bare {@code RuntimeException} around a cause, a
+     * {@code CompletionException} or {@code ExecutionException} from the schema cache) so the branches of
+     * {@link #mapResolveFailure} see the failure's own type instead of the wrapper's.
+     */
+    private static Exception peelWrappers(Exception e) {
+        Exception current = e;
+        for (int depth = 0; depth < 12; depth++) {
+            boolean wrapper = current.getClass() == RuntimeException.class
+                || current instanceof java.util.concurrent.ExecutionException
+                || current instanceof java.util.concurrent.CompletionException;
+            if (wrapper && current.getCause() instanceof Exception cause && cause != current) {
+                current = cause;
+            } else {
+                break;
+            }
+        }
+        return current;
     }
 
     private void resolveSource(

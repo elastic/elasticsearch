@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -631,6 +632,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final boolean isSourceSynthetic;
     private final TimeSeriesParams.MetricType metricType;
     private final String offsetsFieldName;
+    private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> offsetsFallback;
 
     private final IndexSettings indexSettings;
 
@@ -656,6 +658,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.indexSettings = builder.indexSettings;
         this.metricType = builder.metric.getValue();
         this.offsetsFieldName = offsetsFieldName;
+        // The recorded value is the scaled long (doc values) representation; decode it like the offsets-aware loader does.
+        this.offsetsFallback = (b, v) -> b.value(decodeForSyntheticSource((Long) v, scalingFactor));
         // in parseCreateField(), we call IndexType.points(), which defaults skippers to false
         this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexSettings.getIndexVersionCreated());
     }
@@ -720,7 +724,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        IgnoreMalformedStoredValues.captureMalformed(
+                            context,
+                            fullPath(),
+                            offsetsFieldName,
+                            docValuesParameters.multiValue()
+                        );
                     }
                     return;
                 } else {
@@ -738,7 +747,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (value == null) {
             if (shouldStoreOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
             }
             return;
         }
@@ -753,7 +762,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSourceSynthetic) {
                     // Save a copy of the field so synthetic source can load it
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    IgnoreMalformedStoredValues.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                 }
                 return;
             } else {
@@ -773,7 +782,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         );
 
         if (shouldStoreOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, scaledValue);
+            context.getOffSetContext().recordOffset(offsetsFieldName, scaledValue, offsetsFallback);
         }
 
         if (docValuesParameters.enabled() == false && (indexed || stored)) {

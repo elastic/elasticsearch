@@ -358,10 +358,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      */
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", USER_TOKEN)
-            .put(CLIENT_SOCKET_TIMEOUT, "120s")
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", USER_TOKEN).put(CLIENT_SOCKET_TIMEOUT, "120s").build();
     }
 
     /**

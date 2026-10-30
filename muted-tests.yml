@@ -534,11 +534,6 @@ tests:
   tasks:
   - :server:test
   issue: https://github.com/elastic/elasticsearch/issues/163327
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionHealthIT
-  tasks:
-  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
-  method: testEligibleUnmarkedIndexTurnsIndicatorYellowThenGreenAfterTransition
-  issue: https://github.com/elastic/elasticsearch/issues/163332
 - class: org.elasticsearch.xpack.esql.CsvColumnarIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

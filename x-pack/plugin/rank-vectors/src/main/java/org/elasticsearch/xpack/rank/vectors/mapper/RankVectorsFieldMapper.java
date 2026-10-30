@@ -496,7 +496,7 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        Query maxSimQuery(float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
+        public Query maxSimQuery(float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }

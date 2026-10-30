@@ -15,9 +15,12 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
+import org.elasticsearch.xpack.rank.vectors.query.RankVectorsQueryBuilder;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
@@ -25,7 +28,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE
 import static org.elasticsearch.index.mapper.FieldMapper.notInMultiFields;
 import static org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.CONTENT_TYPE;
 
-public class RankVectorsPlugin extends Plugin implements MapperPlugin {
+public class RankVectorsPlugin extends Plugin implements MapperPlugin, SearchPlugin {
     public static final LicensedFeature.Momentary RANK_VECTORS_FEATURE = LicensedFeature.momentary(
         null,
         "rank-vectors",
@@ -48,6 +51,11 @@ public class RankVectorsPlugin extends Plugin implements MapperPlugin {
                 c.getVectorsFormatProviders()
             );
         }, notInMultiFields(CONTENT_TYPE)));
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return List.of(new QuerySpec<>(RankVectorsQueryBuilder.NAME, RankVectorsQueryBuilder::new, RankVectorsQueryBuilder::fromXContent));
     }
 
     protected XPackLicenseState getLicenseState() {

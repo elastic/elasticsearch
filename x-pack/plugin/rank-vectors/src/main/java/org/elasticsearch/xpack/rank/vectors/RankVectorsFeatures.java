@@ -19,10 +19,11 @@ public class RankVectorsFeatures implements FeatureSpecification {
     );
     static final NodeFeature RANK_VECTORS_EMPTY_ARRAY_REJECTED = new NodeFeature("mapper.rank_vectors.empty_array_rejected");
     public static final NodeFeature RANK_VECTORS_MUVERA_INDEXING = new NodeFeature("mapper.rank_vectors.muvera_indexing");
+    public static final NodeFeature RANK_VECTORS_QUERY = new NodeFeature("rank_vectors.query");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(RANK_VECTORS_MUVERA_INDEXING);
+        return Set.of(RANK_VECTORS_MUVERA_INDEXING, RANK_VECTORS_QUERY);
     }
 
     @Override

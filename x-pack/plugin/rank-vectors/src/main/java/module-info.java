@@ -15,6 +15,7 @@ module org.elasticsearch.rank.vectors {
 
     exports org.elasticsearch.xpack.rank.vectors;
     exports org.elasticsearch.xpack.rank.vectors.mapper;
+    exports org.elasticsearch.xpack.rank.vectors.query;
     exports org.elasticsearch.xpack.rank.vectors.script;
 
     // whitelist resource access

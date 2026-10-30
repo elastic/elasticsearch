@@ -12,8 +12,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
+import java.util.List;
 import java.util.Map;
 
 public class LocalStateRankVectors extends LocalStateCompositeXPackPlugin {
@@ -38,5 +40,10 @@ public class LocalStateRankVectors extends LocalStateCompositeXPackPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return rankVectorsPlugin.getMappers();
+    }
+
+    @Override
+    public List<SearchPlugin.QuerySpec<?>> getQueries() {
+        return rankVectorsPlugin.getQueries();
     }
 }

@@ -16,6 +16,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -35,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
 import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
+import org.elasticsearch.xpack.rank.vectors.query.RankVectorsQueryBuilder;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -146,9 +148,8 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                RankVectorsFieldMapper.RankVectorsFieldType fieldType = (RankVectorsFieldMapper.RankVectorsFieldType) mapperService
-                    .fieldType("field");
-                TopDocs topDocs = searcher.search(fieldType.maxSimQuery(queryVectors, 2, 2, null), 2);
+                RankVectorsQueryBuilder queryBuilder = new RankVectorsQueryBuilder("field", queryVectors, 2, 2);
+                TopDocs topDocs = searcher.search(queryBuilder.toQuery(createSearchExecutionContext(mapperService, searcher)), 2);
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals("exact-two", searcher.storedFields().document(topDocs.scoreDocs[0].doc).get("test_id"));
                 assertEquals(3f, topDocs.scoreDocs[0].score, 0f);
@@ -174,6 +175,35 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
                 assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("must have unit magnitude"));
             }
         }
+    }
+
+    public void testPublicQueryReturnsNoDocsForUnmappedField() throws Exception {
+        MapperService mapperService = createMapperService(indexedMuveraMapping());
+        RankVectorsQueryBuilder queryBuilder = new RankVectorsQueryBuilder("unmapped", unitTokens(0, 1), 1, 1);
+        assertSame(Queries.NO_DOCS_INSTANCE, queryBuilder.toQuery(createSearchExecutionContext(mapperService)));
+    }
+
+    public void testPublicQueryRequiresIndexedRankVectorsField() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", RankVectorsFieldMapper.MUVERA_TOKEN_DIMS);
+        }));
+        RankVectorsQueryBuilder queryBuilder = new RankVectorsQueryBuilder("field", unitTokens(0, 1), 1, 1);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> queryBuilder.toQuery(createSearchExecutionContext(mapperService))
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("not indexed for approximate MaxSim search"));
+    }
+
+    public void testPublicQueryRejectsOtherFieldTypes() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        RankVectorsQueryBuilder queryBuilder = new RankVectorsQueryBuilder("field", unitTokens(0, 1), 1, 1);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> queryBuilder.toQuery(createSearchExecutionContext(mapperService))
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("only supported on [rank_vectors] fields"));
     }
 
     public void testExactMaxSimScoreTransformIsMonotonicAcrossZero() {

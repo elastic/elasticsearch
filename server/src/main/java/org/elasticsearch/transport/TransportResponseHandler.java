@@ -33,20 +33,22 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleException(TransportException exp);
 
     /**
-     * Reserves memory for a response of {@code bytes} that waits, serialized, for {@link #executor()} to read it. Called once the response
-     * is fully received, and not for a handler that reads on the transport worker. The reservation is closed once the response is read,
-     * before {@link #handleResponse}, so the handler can then charge what it keeps. Nothing is reserved by default.
+     * Reserves memory for the next {@code bytes} of a response to this handler. Called on the transport worker for each piece of the
+     * response as it arrives, whatever {@link #executor()} is, and not for an error response. The reservations are closed when the response
+     * is dropped or, if it is read, before {@link #handleResponse}, so the handler can then charge what it keeps. They may be closed on a
+     * different thread from the one that reserved them.
      *
-     * @throws org.elasticsearch.common.breaker.CircuitBreakingException to reject the response, which {@link #handleException} then gets
-     *         wrapped in a {@link RemoteTransportException}
+     * @return the reservation, or {@link #NO_RESERVATION} to reserve nothing for the rest of the response
+     * @throws org.elasticsearch.common.breaker.CircuitBreakingException to reject the response: the rest is dropped unread, and
+     *         {@link #handleException} gets the exception on {@link #executor()}, wrapped in a {@link RemoteTransportException} like a trip
+     *         on the remote node. A handler that needs to tell them apart records its own.
      */
     default Releasable reserveResponseBytes(int bytes) {
         return NO_RESERVATION;
     }
 
     /**
-     * Returned by {@link #reserveResponseBytes} when it reserves nothing. Closing it does nothing, so the transport can close it more than
-     * once without a wrapper.
+     * Returned by {@link #reserveResponseBytes} to reserve nothing.
      */
     Releasable NO_RESERVATION = () -> {};
 

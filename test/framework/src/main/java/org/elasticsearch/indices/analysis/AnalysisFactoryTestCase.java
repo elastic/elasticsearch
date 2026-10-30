@@ -37,6 +37,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -429,6 +431,13 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             variants.add(variant);
             return this;
         }
+
+        List<FactorySettings> withVariants() {
+            List<FactorySettings> all = new ArrayList<>(variants.size() + 1);
+            all.add(this);
+            all.addAll(variants);
+            return all;
+        }
     }
 
     /** One setting to probe, and whether changing it should produce a distinct instance. */
@@ -569,10 +578,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     continue;
                 }
                 assertSame(kind + " [" + type + "] two identical configurations must produce the same shared instance", reference, again);
-                List<FactorySettings> probes = new ArrayList<>();
-                probes.add(decl);
-                probes.addAll(decl.variants);
-                for (FactorySettings probe : probes) {
+                for (FactorySettings probe : decl.withVariants()) {
                     Analyzer probeReference = probe == decl
                         ? reference
                         : build(registry, chainSettings(kind, type, probe.base), tracked).get("a").analyzer();
@@ -595,9 +601,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                                     other
                                 );
                                 // Misclassification guard: must tokenize like an unshared build of the varied config.
-                                // Close the fresh build before the next variation: every ignored variation shares the
-                                // same key by construction, so a live entry in the isolated registry would turn later
-                                // "fresh" builds into cache hits on the first variation's analyzer.
+                                // Ignored variations share a key by construction, so close the fresh build before the
+                                // next variation or it becomes a cache hit on this one.
                                 List<IndexAnalyzers> freshTracked = new ArrayList<>();
                                 try {
                                     Analyzer fresh = build(isolated, chainSettings(kind, type, varied), freshTracked).get("a").analyzer();
@@ -620,8 +625,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         } finally {
             IOUtils.close(tracked);
             registry.assertNoCachedEntries();
-            // The ignored-output guard closes each fresh build inline; a lingering entry here means a
-            // later guard compared against a cache hit instead of a from-scratch build.
+            // A lingering entry means an ignored-output guard compared against a cache hit, not a fresh build.
             isolated.assertNoCachedEntries();
             IOUtils.close(registry, isolated);
         }
@@ -659,26 +663,34 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             if (decl.neverShares) {
                 continue; // identity-keyed: cannot over-share
             }
-            Settings.Builder component = Settings.builder();
-            applyComponentSettings(component, "", decl.base);
-            SettingsReadRecorder.Recorded recorded = SettingsReadRecorder.record(component.build());
-            Object built = provider.get(indexSettings, env, type, recorded.settings());
+            // Settings only a variant base reads are invisible when probing the primary base alone.
+            for (FactorySettings probe : decl.withVariants()) {
+                Settings.Builder component = Settings.builder();
+                applyComponentSettings(component, "", probe.base);
+                SettingsReadRecorder.Recorded recorded = SettingsReadRecorder.record(component.build());
+                Object built = provider.get(indexSettings, env, type, recorded.settings());
 
-            Set<String> declared = new TreeSet<>(decl.base.keySet());
-            decl.settings.forEach(c -> declared.add(c.name()));
-            declared.addAll(decl.covered.keySet());
-            List<String> uncovered = new ArrayList<>();
-            for (String read : recorded.reads()) {
-                boolean isCovered = declared.contains(read)
-                    || (read.endsWith("_path") && declared.contains(read.substring(0, read.length() - "_path".length())));
-                if (isCovered == false) {
-                    uncovered.add(read);
+                // A variant inherits the shared declarations and adds its own.
+                Set<String> declared = new TreeSet<>();
+                for (FactorySettings d : List.of(decl, probe)) {
+                    declared.addAll(d.base.keySet());
+                    d.settings.forEach(c -> declared.add(c.name()));
+                    declared.addAll(d.covered.keySet());
                 }
+                List<String> uncovered = new ArrayList<>();
+                for (String read : recorded.reads()) {
+                    boolean isCovered = declared.contains(read)
+                        || (read.endsWith("_path") && declared.contains(read.substring(0, read.length() - "_path".length())));
+                    if (isCovered == false) {
+                        uncovered.add(read);
+                    }
+                }
+                String where = probe == decl ? type : type + " base " + probe.base;
+                if (uncovered.isEmpty() == false) {
+                    uncoveredByType.put(where, uncovered);
+                }
+                assertKeyHygiene(kind + " [" + where + "]", sharingKeyOf(built));
             }
-            if (uncovered.isEmpty() == false) {
-                uncoveredByType.put(type, uncovered);
-            }
-            assertKeyHygiene(kind + " [" + type + "]", sharingKeyOf(built));
         }
         assertTrue(
             kind
@@ -690,31 +702,35 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     private static Object sharingKeyOf(Object built) {
-        if (built instanceof org.elasticsearch.index.analysis.TokenFilterFactory f) {
-            return f.sharingKey();
-        } else if (built instanceof org.elasticsearch.index.analysis.TokenizerFactory t) {
-            return t.sharingKey();
-        } else if (built instanceof org.elasticsearch.index.analysis.CharFilterFactory c) {
-            return c.sharingKey();
-        } else if (built instanceof AnalyzerProvider<?> a) {
-            return a.sharingKey();
-        }
-        throw new AssertionError("not an analysis factory: " + built.getClass());
+        return switch (built) {
+            case org.elasticsearch.index.analysis.TokenFilterFactory f -> f.sharingKey();
+            case org.elasticsearch.index.analysis.TokenizerFactory t -> t.sharingKey();
+            case org.elasticsearch.index.analysis.CharFilterFactory c -> c.sharingKey();
+            case AnalyzerProvider<?> a -> a.sharingKey();
+            default -> throw new AssertionError("not an analysis factory: " + built.getClass());
+        };
     }
 
     /**
      * Keys are compared across indices in a node-wide cache, so every component needs stable value
-     * equality: scalars, enums, {@code Class}, {@link Analysis.StableCharArraySet}, and collections
-     * or records of the same. Anything else (arrays, raw {@code CharArraySet}, ...) is rejected.
+     * equality: scalars, enums, {@code Class}, {@link Analysis.StableCharArraySet}, and lists, sets,
+     * maps or records of the same. Anything else (arrays, raw {@code CharArraySet}, other collection
+     * types, ...) is rejected.
      */
     @SuppressForbidden(reason = "test-only reflection: Key records are private nested classes, so their accessors need setAccessible")
     private static void assertKeyHygiene(String where, Object value) {
+        // Concrete numeric types only: Number itself admits identity-equality subclasses (AtomicInteger, ...).
         if (value == null
             || value instanceof String
             || value instanceof Class<?>
             || value instanceof Boolean
             || value instanceof Character
-            || value instanceof Number
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Short
+            || value instanceof Byte
+            || value instanceof Double
+            || value instanceof Float
             || value instanceof Enum<?>
             || value instanceof Analysis.StableCharArraySet) {
             return;
@@ -722,17 +738,19 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         assertFalse(where + " sharingKey() holds an array, which has identity equality: " + value.getClass(), value.getClass().isArray());
         switch (value) {
             case Record r -> {
-                for (java.lang.reflect.RecordComponent component : r.getClass().getRecordComponents()) {
+                for (RecordComponent component : r.getClass().getRecordComponents()) {
                     try {
-                        java.lang.reflect.Method accessor = component.getAccessor();
-                        accessor.setAccessible(true); // Key records are private nested classes
+                        Method accessor = component.getAccessor();
+                        accessor.setAccessible(true);
                         assertKeyHygiene(where, accessor.invoke(r));
                     } catch (ReflectiveOperationException ex) {
                         throw new AssertionError(where + " cannot read key component [" + component.getName() + "]", ex);
                     }
                 }
             }
-            case Collection<?> c -> {
+            // Only List and Set define value equality; other Collections (ArrayDeque, ...) compare by
+            // identity no matter what they hold, so they fall through to the failure below.
+            case Collection<?> c when c instanceof List<?> || c instanceof Set<?> -> {
                 for (Object element : c) {
                     assertKeyHygiene(where, element);
                 }

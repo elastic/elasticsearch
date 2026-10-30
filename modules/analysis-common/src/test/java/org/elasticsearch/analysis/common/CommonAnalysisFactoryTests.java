@@ -28,6 +28,8 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    private static final String READ_ONLY_TO_REJECT = "read only to reject it; construction throws if set";
+
     public CommonAnalysisFactoryTests() {
         super(new CommonAnalysisPlugin());
     }
@@ -351,7 +353,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         )) {
             filters.put(stateless, alwaysShares());
         }
-        filters.put("trim", alwaysShares().covered("update_offsets", "read only to reject it; construction throws if set"));
+        filters.put("trim", alwaysShares().covered("update_offsets", READ_ONLY_TO_REJECT));
         for (String stemmer : List.of("brazilian_stem", "dutch_stem", "french_stem", "german_stem")) {
             filters.put(stemmer, settings().affects("stem_exclusion", List.of("foo")));
         }
@@ -393,7 +395,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "keep",
             settings(Map.of("keep_words", List.of("foo"))).affects("keep_words", List.of("bar"))
                 .affects("keep_words_case", "true")
-                .covered("enable_position_increments", "read only to reject it; construction throws if set")
+                .covered("enable_position_increments", READ_ONLY_TO_REJECT)
         );
         // keywords_pattern excludes keywords, and updateable file-based keywords never share; SharingKeyTests covers both.
         filters.put(
@@ -410,9 +412,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         );
         filters.put(
             "length",
-            settings().affects("min", "2")
-                .affects("max", "10")
-                .covered("enable_position_increments", "read only to reject it; construction throws if set")
+            settings().affects("min", "2").affects("max", "10").covered("enable_position_increments", READ_ONLY_TO_REJECT)
         );
         filters.put("limit", settings().affects("max_token_count", "5").affects("consume_all_tokens", "true"));
         filters.put("lowercase", settings().affects("language", "greek", "irish", "turkish"));

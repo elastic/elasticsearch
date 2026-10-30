@@ -196,7 +196,7 @@ public class ClusterInfoSimulator {
             }
             final var roles = routingNode.node().getRoles();
             final long nodeNonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
-            assert roles.contains(DiscoveryNodeRole.INDEX_ROLE) && nodeNonShardHeapUsage != nonShardHeapUsage
+            assert roles.contains(DiscoveryNodeRole.INDEX_ROLE) && nodeNonShardHeapUsage == nonShardHeapUsage
                 : "indexing node ["
                     + metrics.nodeId()
                     + "] has nonShardHeapUsage ["

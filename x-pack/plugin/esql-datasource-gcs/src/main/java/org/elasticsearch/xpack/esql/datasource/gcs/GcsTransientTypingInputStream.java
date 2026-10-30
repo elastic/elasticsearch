@@ -68,6 +68,6 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path.objectName());
     }
 }

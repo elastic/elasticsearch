@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -32,11 +33,13 @@ import java.util.concurrent.Executor;
  * Supports full and range reads, and metadata retrieval with caching.
  */
 public final class AzureStorageObject extends AbstractMeteredStorageObject {
+
     private final BlobClient blobClient;
     private final BlobAsyncClient blobAsyncClient;
     private final String container;
     private final String blobName;
     private final StoragePath path;
+    private final StorageIdentity storageIdentity;
 
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
@@ -46,7 +49,25 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         this(blobClient, null, container, blobName, path);
     }
 
+    /**
+     * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
+     * Providers must use the {@link StorageIdentity}-taking constructors so same-credential objects share.
+     */
     public AzureStorageObject(BlobClient blobClient, BlobAsyncClient blobAsyncClient, String container, String blobName, StoragePath path) {
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (blobClient == null) {
             throw new IllegalArgumentException("blobClient cannot be null");
         }
@@ -64,6 +85,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         this.container = container;
         this.blobName = blobName;
         this.path = path;
+        this.storageIdentity = storageIdentity;
     }
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path, long length) {
@@ -78,7 +100,19 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         StoragePath path,
         long length
     ) {
-        this(blobClient, blobAsyncClient, container, blobName, path);
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path, length);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path,
+        long length
+    ) {
+        this(storageIdentity, blobClient, blobAsyncClient, container, blobName, path);
         this.cachedLength = length;
     }
 
@@ -102,7 +136,20 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long length,
         Instant lastModified
     ) {
-        this(blobClient, blobAsyncClient, container, blobName, path, length);
+        this(StorageIdentity.unique(), blobClient, blobAsyncClient, container, blobName, path, length, lastModified);
+    }
+
+    AzureStorageObject(
+        StorageIdentity storageIdentity,
+        BlobClient blobClient,
+        BlobAsyncClient blobAsyncClient,
+        String container,
+        String blobName,
+        StoragePath path,
+        long length,
+        Instant lastModified
+    ) {
+        this(storageIdentity, blobClient, blobAsyncClient, container, blobName, path, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -142,11 +189,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 retryAfterMs,
                 cause,
                 "Azure store unavailable reading [{}] (HTTP {})",
-                path,
+                path.objectName(),
                 bse.getStatusCode()
             );
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path.objectName(), cause);
     }
 
     /**
@@ -194,7 +241,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -220,6 +267,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         return path;
     }
 
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
+    }
+
     private void fetchMetadata() throws IOException {
         try {
             var properties = blobClient.getProperties();
@@ -232,7 +284,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for " + path.objectName(), e);
             }
         }
     }
@@ -246,7 +298,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {
                 throw new IOException(
-                    "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                    "Failed to determine object size for " + path.objectName() + ": Content-Range header missing from range GET response"
                 );
             }
             cachedLength = total;
@@ -257,7 +309,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
+                throw new IOException("Failed to get metadata for " + path.objectName() + " (properties denied, range GET also failed)", e);
             }
         }
     }
@@ -345,6 +397,6 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "AzureStorageObject{container=" + container + ", blobName=" + blobName + ", path=" + path + "}";
+        return "AzureStorageObject{name=" + path.objectName() + "}";
     }
 }

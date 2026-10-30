@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -111,6 +113,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -901,6 +904,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger asyncReadCount = new AtomicInteger();
         try {
             StorageObject asyncObject = new StorageObject() {
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() {
                     return new ByteArrayInputStream(parquetData);
@@ -3301,7 +3309,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(69, stats.get("_stats.columns.age.max"));
     }
 
-    public void testInvalidParquetOpenGarbageIncludesUriInMessage() throws Exception {
+    public void testInvalidParquetOpenGarbageDoesNotIncludeUriInMessage() throws Exception {
         byte[] garbage = new byte[64];
         Arrays.fill(garbage, (byte) 0x5a);
         StorageObject storageObject = createStorageObject(garbage, "s3://bucket/path/file.parquet");
@@ -3310,8 +3318,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             allOf(
-                containsString("Could not read [s3://bucket/path/file.parquet] as a Parquet file"),
-                containsString("is not a Parquet file. Expected magic number at tail, but found [")
+                containsString("Could not read the Parquet file: "),
+                containsString("is not a Parquet file. Expected magic number at tail, but found ["),
+                not(containsString("s3://")),
+                not(containsString("bucket")),
+                not(containsString("path/"))
             )
         );
     }
@@ -3323,8 +3334,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             allOf(
-                containsString("Could not read [memory://empty.parquet] as a Parquet file:"),
-                containsString("is not a Parquet file (length is too low: 0)")
+                containsString("Could not read the Parquet file: "),
+                containsString("is not a Parquet file (length is too low: 0)"),
+                not(containsString("memory://"))
             )
         );
     }
@@ -3340,7 +3352,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
-        assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+        assertThat(ex.getMessage(), allOf(containsString("Could not read the Parquet file: "), not(containsString("https://host"))));
     }
 
     public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
@@ -3406,9 +3418,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetFormatReader.validateFooterIntegrity("https://example.com/bad.parquet", schema, List.of(block))
+            () -> ParquetFormatReader.validateFooterIntegrity(schema, List.of(block))
         );
-        assertThat(ex.getMessage(), containsString("https://example.com/bad.parquet"));
+        assertThat(ex.getMessage(), not(containsString("example.com")));
         assertThat(ex.getMessage(), containsString("column [id] is declared required but row group reports 5 null(s)"));
     }
 
@@ -3436,7 +3448,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         block.setRowCount(100);
         block.addColumn(ccm);
 
-        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+        ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
     public void testValidateFooterIntegrityPassesForRequiredColumnWithZeroNulls() {
@@ -3463,7 +3475,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         block.setRowCount(100);
         block.addColumn(ccm);
 
-        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+        ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
     public void testValidParquetZeroRowsMetadata() throws Exception {
@@ -4430,7 +4442,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("s3://bucket/warn.parquet"));
+        assertThat(
+            "Summary should mention the object name only",
+            warnings.get(0),
+            allOf(containsString("warn.parquet"), not(containsString("s3://")), not(containsString("bucket/")))
+        );
         assertTrue("Detail should mention column [x], got: " + warnings.get(1), warnings.get(1).contains("Column [x]"));
         assertTrue("Detail should mention the planner type, got: " + warnings.get(1), warnings.get(1).contains("IP"));
         assertTrue(
@@ -4479,7 +4495,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + sunk, 2, sunk.size());
-        assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("s3://bucket/warn.parquet"));
+        assertThat(
+            "Summary should mention the object name only",
+            sunk.get(0),
+            allOf(containsString("warn.parquet"), not(containsString("s3://")), not(containsString("bucket/")))
+        );
         assertTrue("Detail should mention column [x], got: " + sunk.get(1), sunk.get(1).contains("Column [x]"));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
@@ -4987,6 +5007,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -5061,6 +5086,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger readIndex = new AtomicInteger();
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -5128,6 +5158,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

@@ -559,7 +559,7 @@ public final class DataSourceModule implements Closeable {
         private static String extractScheme(String location) {
             int colonIdx = location.indexOf("://");
             if (colonIdx <= 0) {
-                throw new IllegalArgumentException("No scheme in location: " + location);
+                throw new IllegalArgumentException("No scheme in location");
             }
             return location.substring(0, colonIdx).toLowerCase(Locale.ROOT);
         }

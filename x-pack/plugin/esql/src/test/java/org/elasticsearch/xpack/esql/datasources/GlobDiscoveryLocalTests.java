@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -382,7 +383,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         }
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         TestStorageObject(StoragePath path) {

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -2167,7 +2168,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
             assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
-            assertThat(e.getMessage(), containsString(path));
+            assertThat(e.getMessage(), containsString("Failed to resolve external source [file" + format[1] + "]"));
+            assertThat(e.getMessage(), not(containsString("bucket")));
+            assertNull(e.getCause());
         }
     }
 
@@ -2197,7 +2200,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
-                assertThat(e.getMessage(), containsString(path));
+                assertThat(e.getMessage(), containsString("Failed to resolve external source [file" + format[1] + "]"));
+                assertThat(e.getMessage(), not(containsString("bucket")));
+                assertNull(e.getCause());
             }
         }
     }
@@ -2225,7 +2230,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
             assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
-            assertThat(e.getMessage(), containsString(path));
+            assertThat(e.getMessage(), containsString("Failed to resolve external source [file" + format[1] + "]"));
+            assertThat(e.getMessage(), not(containsString("bucket")));
+            assertNull(e.getCause());
         }
     }
 
@@ -2252,7 +2259,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
-                assertThat(e.getMessage(), containsString(path));
+                assertThat(e.getMessage(), containsString("Failed to resolve external source [file" + format[1] + "]"));
+                assertThat(e.getMessage(), not(containsString("bucket")));
+                assertNull(e.getCause());
             }
         }
     }
@@ -4192,7 +4201,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubStorageObject implements StorageObject {
+    private static class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long length;
         @Nullable

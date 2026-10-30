@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -996,7 +997,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                    "the header of ["
+                        + object.path().objectName()
+                        + "] has duplicate column name ["
+                        + name
+                        + "]; declared columns cannot bind by name"
                 );
             }
         }
@@ -1112,7 +1117,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
-        String sourceLocation = object.path().toString();
+        String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -1751,7 +1756,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (headerColumns == null) {
                     throw new IllegalStateException(
                         "headered path-bound read of ["
-                            + object.path()
+                            + object.path().objectName()
                             + "] reached a non-first split without the file's header columns; cannot bind the declared "
                             + "schema by name"
                     );
@@ -1968,7 +1973,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 "declared schema has "
                     + readSchema.size()
                     + " columns but the header of ["
-                    + object.path()
+                    + object.path().objectName()
                     + "] has "
                     + fields.length
                     + "; a declared schema binds text columns in order (for a headerless file set header_row=false)"
@@ -2781,7 +2786,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, "Failed to read CSV record");
+                throw e instanceof CsvRecordTooLargeException
+                    ? ExternalFailures.rowError(e, "Failed to read CSV record: " + e.getMessage())
+                    : ExternalFailures.surface(e, "Failed to read CSV record");
             }
         }
 
@@ -2943,6 +2950,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
+        /** The object name only; {@link #sourceLocation} keys stats and must not reach user-facing messages. */
+        private final String messageLocation;
         private final SkipWarnings skipWarnings;
         private List<Attribute> schema;
         /**
@@ -3224,6 +3233,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.messageLocation = StoragePath.objectName(sourceLocation);
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
@@ -3240,7 +3250,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
-                    + sourceLocation
+                    + messageLocation
                     + "] encountered parse errors handled per policy (policy: "
                     + errorPolicy.modeName()
                     + "); affected rows/fields are listed below",
@@ -3267,7 +3277,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return true;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, "Failed to read CSV batch");
+                throw e instanceof CsvRecordTooLargeException
+                    ? ExternalFailures.rowError(e, "Failed to read CSV batch: " + e.getMessage())
+                    : ExternalFailures.surface(e, "Failed to read CSV batch");
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
@@ -3924,7 +3936,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.recordCapDropped()) {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+            maybeHintUndecodedNullMarker(sample.rows(), messageLocation);
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
         }
 
@@ -3950,7 +3962,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.recordCapDropped()) {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+            maybeHintUndecodedNullMarker(sample.rows(), messageLocation);
             return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
         }
 

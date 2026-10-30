@@ -129,8 +129,9 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(10, ExternalSourceSettings.settings().size());
+        assertEquals(11, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
     }

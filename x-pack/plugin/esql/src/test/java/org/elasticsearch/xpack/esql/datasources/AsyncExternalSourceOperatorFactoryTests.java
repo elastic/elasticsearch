@@ -28,8 +28,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -201,7 +204,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
-        assertTrue(description.contains("file:///data/test.csv"));
+        assertTrue(description.contains("path=test.csv"));
+        assertFalse(description.contains("/data/"));
         assertTrue(description.contains("500"));
         assertTrue(description.contains("maxBufferBytes="));
     }
@@ -237,7 +241,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
-        assertTrue(description.contains("s3://bucket/data.parquet"));
+        assertTrue(description.contains("path=data.parquet"));
+        assertFalse(description.contains("bucket"));
     }
 
     public void testAccessors() {
@@ -796,8 +801,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
             }
         });
-        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
-        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
+        // The failure is classified (and so detached) at the buffer: the IOException cause is logged, not chained, and its
+        // message, which names the full storage path, is replaced by the exception class name.
+        assertThat(readFailure, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertNull(readFailure.getCause());
+        assertEquals("Failed to read external source: IOException", readFailure.getMessage());
+        assertThat(readFailure.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("bucket")));
 
         assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
@@ -3039,6 +3048,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static StorageObject bytesStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -3430,7 +3444,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubMultiFileStorageObject implements StorageObject {
+    private static class StubMultiFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubMultiFileStorageObject(StoragePath path) {
@@ -3706,7 +3720,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class LargeStorageObject implements StorageObject {
+    private static class LargeStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long size;
 

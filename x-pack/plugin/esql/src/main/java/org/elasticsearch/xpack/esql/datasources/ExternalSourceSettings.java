@@ -229,6 +229,54 @@ public final class ExternalSourceSettings {
         Setting.Property.Dynamic
     );
 
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 sits well above any
+     * legitimate schema while staying far below the widths that exhaust a small heap. Long names are still bounded
+     * only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
+     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        MAX_SCHEMA_MAX_FIELDS,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+        } catch (NumberFormatException e) {
+            // Setting.parseInt rethrows the JDK's message, which does not name the key, when the value is not a number.
+            throw new IllegalArgumentException(
+                "[" + key + "] must be an integer between 1 and " + MAX_SCHEMA_MAX_FIELDS + ", got [" + value + "]",
+                e
+            );
+        }
+    }
+
     /**
      * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
      * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
@@ -356,6 +404,7 @@ public final class ExternalSourceSettings {
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             MANAGED_IDENTITY_ENABLED,
             FEDERATED_IDENTITY_ENABLED,

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -63,6 +64,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final RetryStrategy asyncRetryStrategy;
+    private final StorageIdentity storageIdentity;
     private final String bucket;
     private final String key;
     private final StoragePath path;
@@ -78,11 +80,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     // attempts. The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
     // cross-provider retry/resume on top.
 
-    public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
+    S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, null, bucket, key, path);
     }
 
-    public S3StorageObject(
+    /**
+     * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
+     * Package-private so callers outside this package cannot build an object that never shares a cache
+     * scope. {@link S3StorageProvider} uses the {@link StorageIdentity}-taking constructors.
+     */
+    S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
@@ -90,6 +97,21 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String key,
         StoragePath path
     ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, StorageIdentity.unique(), bucket, key, path);
+    }
+
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        StorageIdentity storageIdentity,
+        String bucket,
+        String key,
+        StoragePath path
+    ) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (s3Client == null) {
             throw new IllegalArgumentException("s3Client cannot be null");
         }
@@ -108,17 +130,18 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.asyncRetryStrategy = asyncRetryStrategy;
+        this.storageIdentity = storageIdentity;
         this.bucket = bucket;
         this.key = key;
         this.path = path;
     }
 
-    public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length) {
+    S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length) {
         this(s3Client, bucket, key, path);
         this.cachedLength = length;
     }
 
-    public S3StorageObject(
+    S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
@@ -131,12 +154,26 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.cachedLength = length;
     }
 
-    public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length, Instant lastModified) {
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        StorageIdentity storageIdentity,
+        String bucket,
+        String key,
+        StoragePath path,
+        long length
+    ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, storageIdentity, bucket, key, path);
+        this.cachedLength = length;
+    }
+
+    S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length, Instant lastModified) {
         this(s3Client, bucket, key, path, length);
         this.cachedLastModified = lastModified;
     }
 
-    public S3StorageObject(
+    S3StorageObject(
         S3Client s3Client,
         S3AsyncClient s3AsyncClient,
         RetryStrategy asyncRetryStrategy,
@@ -147,6 +184,21 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Instant lastModified
     ) {
         this(s3Client, s3AsyncClient, asyncRetryStrategy, bucket, key, path, length);
+        this.cachedLastModified = lastModified;
+    }
+
+    public S3StorageObject(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        RetryStrategy asyncRetryStrategy,
+        StorageIdentity storageIdentity,
+        String bucket,
+        String key,
+        StoragePath path,
+        long length,
+        Instant lastModified
+    ) {
+        this(s3Client, s3AsyncClient, asyncRetryStrategy, storageIdentity, bucket, key, path, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -197,7 +249,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 retryAfterMs,
                 cause,
                 "S3 store unavailable reading [{}] (HTTP {})",
-                path,
+                path.objectName(),
                 s3.statusCode()
             );
         }
@@ -206,15 +258,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
             return new IOException(
                 "S3 request rejected due to clock skew reading ["
-                    + path
+                    + path.objectName()
                     + "]: the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
                 cause
             );
         }
         if (cause instanceof NoSuchKeyException) {
-            return new IOException("Object not found: " + path, cause);
+            return new IOException("Object not found: " + path.objectName(), cause);
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path.objectName(), cause);
     }
 
     /**
@@ -280,7 +332,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -374,7 +426,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("HeadObject request failed for " + path, e);
+                throw new IOException("HeadObject request failed for " + path.objectName(), e);
             }
         }
     }
@@ -389,7 +441,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
                 if (total == null) {
                     throw new IOException(
-                        "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                        "Failed to determine object size for "
+                            + path.objectName()
+                            + ": Content-Range header missing from range GET response"
                     );
                 }
                 cachedLength = total;
@@ -400,7 +454,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+                throw new IOException("Failed to get metadata for " + path.objectName() + " (HEAD denied, range GET also failed)", e);
             }
         }
     }
@@ -409,6 +463,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         cachedExists = false;
         cachedLength = 0L;
         cachedLastModified = null;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
     }
 
     public String bucket() {
@@ -713,6 +772,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "S3StorageObject{bucket=" + bucket + ", key=" + key + ", path=" + path + "}";
+        return "S3StorageObject{name=" + path.objectName() + "}";
     }
 }

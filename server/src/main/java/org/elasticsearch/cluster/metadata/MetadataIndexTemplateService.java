@@ -41,6 +41,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -834,6 +835,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate, additionalSettings);
         maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
+        validateSliceEnabledUnchangedForDataStreams(projectMetadata, name, templateToValidate);
         validateLifecycle(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(false));
         validateDataStreamOptions(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(true));
 
@@ -956,6 +958,58 @@ public class MetadataIndexTemplateService {
                         .addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
                 }
             }
+        }
+    }
+
+    /**
+     * Rejects a data stream template whose {@code index.slice.enabled} differs from the one an existing data stream it governs already
+     * uses. The setting is final per index, so a change would only reach later backing indices and leave the stream mixing indices with
+     * and without slices: slice writes would start failing at an arbitrary rollover and slice searches would silently skip the older
+     * generations. Changing it requires a new data stream.
+     */
+    private static void validateSliceEnabledUnchangedForDataStreams(
+        ProjectMetadata project,
+        String templateName,
+        ComposableIndexTemplate newTemplate
+    ) {
+        if (newTemplate.getDataStreamTemplate() == null) {
+            return;
+        }
+        final boolean newSliceEnabled = Optional.ofNullable(newTemplate.template())
+            .map(Template::settings)
+            .map(settings -> settings.getAsBoolean(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .orElse(false);
+        final var updatedTemplates = new HashMap<>(project.templatesV2());
+        updatedTemplates.put(templateName, newTemplate);
+        final List<String> changed = new ArrayList<>();
+        for (DataStream dataStream : project.dataStreams().values()) {
+            if (dataStream.isSystem() || dataStream.getIndices().isEmpty()) {
+                continue;
+            }
+            if (templateName.equals(findV2Template(project, updatedTemplates.entrySet(), dataStream.getName(), false, false)) == false) {
+                continue;
+            }
+            final IndexMetadata writeIndex = project.index(dataStream.getWriteIndex());
+            if (writeIndex == null) {
+                // a data stream can reference a backing index that is not in the metadata, for example mid-restore; nothing to compare
+                continue;
+            }
+            if (IndexSettings.SLICE_ENABLED.get(writeIndex.getSettings()) != newSliceEnabled) {
+                changed.add(dataStream.getName());
+            }
+        }
+        if (changed.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "composable template ["
+                    + templateName
+                    + "] would change ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] to ["
+                    + newSliceEnabled
+                    + "] for data streams "
+                    + changed
+                    + ", which would mix indices with and without slices in one data stream. Create a new data stream instead"
+            );
         }
     }
 

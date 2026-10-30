@@ -14,18 +14,23 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -103,6 +108,22 @@ public class DataStreamSliceIT extends ESIntegTestCase {
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
     }
 
+    private static void putComponentTemplate(String name, boolean sliceEnabled) {
+        PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(name);
+        request.componentTemplate(
+            new ComponentTemplate(
+                new Template(
+                    Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), sliceEnabled).put("index.number_of_shards", 1).build(),
+                    null,
+                    null
+                ),
+                null,
+                null
+            )
+        );
+        assertAcked(client().execute(PutComponentTemplateAction.INSTANCE, request).actionGet());
+    }
+
     private static void createDataStream(String name) {
         assertAcked(
             client().execute(
@@ -125,6 +146,12 @@ public class DataStreamSliceIT extends ESIntegTestCase {
 
     private SearchRequestBuilder searchSlice(String target, String slice) {
         SearchRequestBuilder search = prepareSearch(target);
+        search.request().searchSlice(slice);
+        return search;
+    }
+
+    private SearchRequestBuilder searchSliceOn(String slice, String... targets) {
+        SearchRequestBuilder search = prepareSearch(targets);
         search.request().searchSlice(slice);
         return search;
     }
@@ -243,32 +270,110 @@ public class DataStreamSliceIT extends ESIntegTestCase {
     }
 
     /**
-     * A data stream whose older backing index is slice-enabled and newer one is not (the template changed in between) is
-     * searchable by slice: the backing index without slices holds no slice documents and is skipped, not an error. Its
-     * documents stay visible to an {@code _all} search. {@code allow_custom_routing} makes {@code _routing} required there, so
-     * its writes carry a plain routing value.
+     * {@code index.slice.enabled} is final per index, so a template change would only reach later backing indices and leave the
+     * stream mixing indices with and without slices. The change is rejected while a data stream uses the template.
      */
-    public void testSliceSearchSkipsBackingIndexWithoutSlices() throws Exception {
+    public void testTemplateCannotChangeSliceForExistingDataStream() throws Exception {
         putTemplate("slice-ds*", true, true);
         createDataStream("slice-ds");
-        client().index(createRequest("slice-ds", "a", null, "gen1-a")).actionGet();
+
+        Exception e = expectThrows(Exception.class, () -> putTemplate("slice-ds*", false, true));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("would change [index.slice.enabled] to [false] for data streams"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("slice-ds"));
+
+        // an unrelated change to the same template is still accepted
+        putTemplate("slice-ds*", true, true, Settings.builder().put("index.refresh_interval", "5s").build());
+    }
+
+    /**
+     * The same holds when the setting comes from a component template and not from the composable template itself.
+     */
+    public void testComponentTemplateCannotChangeSliceForExistingDataStream() throws Exception {
+        putComponentTemplate("slice-component", true);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(TEMPLATE);
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("slice-ds*"))
+                .componentTemplates(List.of("slice-component"))
+                .template(Template.builder().settings(Settings.builder().put("index.number_of_replicas", 0)))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, true))
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
+        createDataStream("slice-ds");
+
+        Exception e = expectThrows(Exception.class, () -> putComponentTemplate("slice-component", false));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("would change [index.slice.enabled] to [false] for data streams"));
+    }
+
+    /**
+     * Changing the template is fine when no data stream uses it yet: a new data stream follows the new setting while the
+     * previous one keeps its own.
+     */
+    public void testNewDataStreamFollowsChangedTemplateAfterOldOneIsDeleted() throws Exception {
+        putTemplate("slice-ds*", true, true);
+        createDataStream("slice-ds");
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "slice-ds"))
+                .actionGet()
+        );
 
         putTemplate("slice-ds*", false, true);
-        rollover("slice-ds");
-        IndexRequest plain = new IndexRequest("slice-ds").opType(DocWriteRequest.OpType.CREATE)
-            .source("{\"@timestamp\": \"2020-12-12\", \"value\": \"gen2-plain\"}", XContentType.JSON)
-            .routing("plain");
-        DocWriteResponse gen2 = client().index(plain).actionGet();
-        assertThat(gen2.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("slice-ds", 2)));
-        refresh("slice-ds");
+        createDataStream("slice-ds-2");
+        assertThat(
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "slice-ds-2")
+                .get()
+                .getIndexToSettings()
+                .values()
+                .iterator()
+                .next()
+                .getAsBoolean("index.slice.enabled", false),
+            equalTo(false)
+        );
+    }
 
-        assertResponse(searchSlice("slice-ds", "a"), r -> {
+    /**
+     * The data stream settings API only accepts a fixed set of settings, which does not include {@code index.slice.enabled}.
+     */
+    public void testDataStreamSettingsApiRejectsSliceEnabled() throws Exception {
+        putTemplate("slice-ds*", false, true);
+        createDataStream("slice-ds");
+
+        var response = client().execute(
+            UpdateDataStreamSettingsAction.INSTANCE,
+            new UpdateDataStreamSettingsAction.Request(
+                Settings.builder().put("index.slice.enabled", true).build(),
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS
+            ).indices("slice-ds")
+        ).actionGet();
+        var result = response.getDataStreamSettingsResponses().get(0);
+        assertThat(result.dataStreamSucceeded(), equalTo(false));
+        assertThat(
+            result.dataStreamErrorMessage(),
+            containsString("Cannot set the following settings on a data stream: [index.slice.enabled]")
+        );
+    }
+
+    /**
+     * A slice search over a slice data stream and a plain index skips the plain index, which holds no slice documents; an
+     * {@code _all} search still sees both.
+     */
+    public void testSliceSearchSkipsPlainIndexAlongsideDataStream() throws Exception {
+        putTemplate("slice-ds*", true, true);
+        createDataStream("slice-ds");
+        client().index(createRequest("slice-ds", "a", null, "ds-a")).actionGet();
+        assertAcked(prepareCreate("plain-idx").setMapping("value", "type=keyword"));
+        client().prepareIndex("plain-idx").setSource("value", "plain").get();
+        refresh("slice-ds", "plain-idx");
+
+        assertResponse(searchSliceOn("a", "slice-ds", "plain-idx"), r -> {
             assertNoFailures(r);
-            assertThat(values(r), equalTo(Set.of("gen1-a")));
+            assertThat(values(r), equalTo(Set.of("ds-a")));
         });
-        assertResponse(searchSlice("slice-ds", SliceIndexing.SLICE_ALL), r -> {
+        assertResponse(searchSliceOn(SliceIndexing.SLICE_ALL, "slice-ds", "plain-idx"), r -> {
             assertNoFailures(r);
-            assertThat(values(r), equalTo(Set.of("gen1-a", "gen2-plain")));
+            assertThat(values(r), equalTo(Set.of("ds-a", "plain")));
         });
     }
 

@@ -905,6 +905,60 @@ public class GrokTests extends ESTestCase {
         assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
     }
 
+    public void testCiscoAsaBurstRateLimitEcsV1Pattern() {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(true), "%{CISCOFW733100}", logger::warn);
+        Map<String, Object> captures = grok.captures(
+            "[ Scanning] drop rate-1 exceeded. Current burst rate is 19 per second, max configured rate is 10;"
+                + " Current average rate is 9 per second, max configured rate is 5; Cumulative total count is 5538"
+        );
+        assertThat(captures, equalTo(Map.ofEntries(
+            Map.entry("cisco.asa.burst.object", "Scanning"),
+            Map.entry("cisco.asa.burst.id", "rate-1"),
+            Map.entry("cisco.asa.burst.current_rate", 19),
+            Map.entry("cisco.asa.burst.configured_rate", 10),
+            Map.entry("cisco.asa.burst.avg_rate", 9),
+            Map.entry("cisco.asa.burst.configured_avg_rate", 5),
+            Map.entry("cisco.asa.burst.cumulative_count", 5538)
+        )));
+    }
+
+    public void testCiscoAsaBurstRateLimitEcsV1PatternNoLeadingSpace() {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(true), "%{CISCOFW733100}", logger::warn);
+        Map<String, Object> captures = grok.captures(
+            "[Scanning] drop rate-1 exceeded. Current burst rate is 19 per second, max configured rate is 10;"
+                + " Current average rate is 9 per second, max configured rate is 5; Cumulative total count is 5538"
+        );
+        assertThat(captures.get("cisco.asa.burst.object"), equalTo("Scanning"));
+    }
+
+    public void testCiscoAsaBurstRateLimitEcsV1PatternDoesNotMatchWithoutBrackets() {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(true), "%{CISCOFW733100}", logger::warn);
+        assertThat(
+            grok.captures(
+                "Scanning drop rate-1 exceeded. Current burst rate is 19 per second, max configured rate is 10;"
+                    + " Current average rate is 9 per second, max configured rate is 5; Cumulative total count is 5538"
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCiscoAsaBurstRateLimitLegacyPattern() {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(false), "%{CISCOFW733100}", logger::warn);
+        Map<String, Object> captures = grok.captures(
+            "[ Scanning] drop rate-1 exceeded. Current burst rate is 19 per second, max configured rate is 10;"
+                + " Current average rate is 9 per second, max configured rate is 5; Cumulative total count is 5538"
+        );
+        assertThat(captures, equalTo(Map.ofEntries(
+            Map.entry("drop_type", "Scanning"),
+            Map.entry("drop_rate_id", "rate-1"),
+            Map.entry("drop_rate_current_burst", "19"),
+            Map.entry("drop_rate_max_burst", "10"),
+            Map.entry("drop_rate_current_avg", "9"),
+            Map.entry("drop_rate_max_avg", "5"),
+            Map.entry("drop_total_count", "5538")
+        )));
+    }
+
     private void assertGrokedField(String fieldName) {
         String line = "foo";
         // test both with and without ECS compatibility

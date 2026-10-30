@@ -10,10 +10,15 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for GcsDataSourcePlugin.
@@ -33,7 +38,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     public void testStorageProvidersRegistersGsScheme() {
         assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
 
         assertTrue("Should register gs scheme", providers.containsKey("gs"));
         assertEquals("Should register exactly 1 scheme", 1, providers.size());
@@ -54,7 +61,7 @@ public class GcsDataSourcePluginTests extends ESTestCase {
         assertTrue("no schemes when disabled", plugin.supportedSchemes().isEmpty());
         assertTrue(
             "no storage providers when disabled",
-            plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE).isEmpty()
+            plugin.storageProviders(new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)).isEmpty()
         );
         assertTrue("no datasource validators when disabled", plugin.datasourceValidators(Settings.EMPTY).isEmpty());
     }
@@ -62,7 +69,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     public void testStorageProviderFactoryCreateWithNullConfigDelegatesToDefault() {
         assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
 
         StorageProviderFactory factory = providers.get("gs");
         assertNotNull("gs factory should not be null", factory);
@@ -76,7 +85,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     public void testStorageProviderFactoryCreateWithEmptyConfigDelegatesToDefault() {
         assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
 
         StorageProviderFactory factory = providers.get("gs");
         assertNotNull("gs factory should not be null", factory);
@@ -90,7 +101,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     public void testStorageProviderFactoryCreateWithConfigParsesFields() {
         assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
 
         StorageProviderFactory factory = providers.get("gs");
         assertNotNull("gs factory should not be null", factory);
@@ -120,10 +133,46 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     public void testGsSchemeSameFactory() {
         assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
 
         // Only gs:// is supported (unlike S3 which has s3, s3a, s3n)
         assertNotNull(providers.get("gs"));
         assertNull(providers.get("gcs"));
+    }
+
+    /**
+     * The credential policy the node threads through {@link StorageProviderServices} is what refuses a federated
+     * configuration at provider build; the plugin has to hand it to the factory for that to happen. With federated
+     * identity off, a config naming an STS audience is refused with the validator's message and no GCS client is
+     * built.
+     */
+    public void testFederatedIdentityRefusedByThePolicyTheServicesCarry() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
+        GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
+        StorageProviderFactory factory = plugin.storageProviders(
+            new StorageProviderServices(
+                Settings.EMPTY,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                null,
+                null,
+                CredentialPolicy.of(() -> true, () -> false)
+            )
+        ).get("gs");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(
+                Settings.EMPTY,
+                Map.of(
+                    "auth",
+                    "federated_identity",
+                    "sts_audience",
+                    "//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/pool/providers/provider"
+                )
+            )
+        );
+        assertThat(e.getMessage(), equalTo(FileDataSourceValidator.FEDERATED_IDENTITY_DISABLED_MESSAGE));
     }
 }

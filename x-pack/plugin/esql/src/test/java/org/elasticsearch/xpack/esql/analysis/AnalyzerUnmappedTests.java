@@ -62,7 +62,8 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunkWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.MAX_LISTED_NON_LOADABLE_PUNKS;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunksWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -918,7 +919,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             ua -> ua.output()
                 .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))))
         );
-        assertWarnings(nonLoadablePunkWarning("foo", "text"));
+        assertWarnings(nonLoadablePunksWarning(List.of("foo")));
     }
 
     public void testLoadModeCrossBranchSmallNumericPunkResolvesToWidenedNotUnsupported() {
@@ -1217,12 +1218,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
-        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn.
-        assertWarnings(
-            noConverterTypes.stream()
-                .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
-                .toArray(String[]::new)
-        );
+        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn. The warning does not name the type, so
+        // the identical warnings from each query collapse into one.
+        assertWarnings(nonLoadablePunksWarning(List.of("test_field")));
     }
 
     private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
@@ -1459,6 +1457,72 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    public void testNonLoadablePunksWarningText() {
+        assertThat(
+            nonLoadablePunksWarning(List.of("a")),
+            equalTo("Field [a] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices")
+        );
+        assertThat(
+            nonLoadablePunksWarning(List.of("a", "b")),
+            equalTo(
+                "Fields [a], [b] are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices"
+            )
+        );
+    }
+
+    /**
+     * The warning names at most 20 fields. Any further fields, however long their names, only increment the {@code [M] more} count.
+     */
+    public void testNonLoadablePunksWarningListsAtMost20Fields() {
+        assertThat(MAX_LISTED_NON_LOADABLE_PUNKS, equalTo(20));
+        List<String> listed = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            listed.add("f" + i);
+        }
+        String atLimit = nonLoadablePunksWarning(listed);
+        assertThat(atLimit, containsString("[f19] are unmapped"));
+        assertThat(atLimit, not(containsString("more")));
+
+        int extra = randomIntBetween(1, 1000);
+        List<String> names = new ArrayList<>(listed);
+        for (int i = 0; i < extra; i++) {
+            names.add(randomAlphaOfLength(between(1, 100)));
+        }
+        String overLimit = nonLoadablePunksWarning(names);
+        assertThat(overLimit, equalTo(atLimit.replace("[f19] are unmapped", "[f19] and [" + extra + "] more are unmapped")));
+    }
+
+    /**
+     * Wide index patterns can have hundreds of partially unmapped fields without a KEYWORD conversion. They must all be reported in a
+     * single warning that lists a bounded number of names, or the {@code Warning} headers become too large for some clients.
+     * See https://github.com/elastic/elasticsearch/issues/161968.
+     */
+    public void testManyNonLoadablePunksEmitOneBoundedWarning() {
+        int count = randomIntBetween(1, 60);
+        List<String> names = new ArrayList<>(count);
+        Map<String, EsField> mapping = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            String name = String.format(Locale.ROOT, "field_%03d", i);
+            names.add(name);
+            mapping.put(name, textField(name));
+        }
+        Collections.shuffle(names, random());
+
+        var plan = analyzer().addIndex(partialIndex(mapping, mapping.keySet()))
+            .statement(setUnmappedLoad("FROM idx* | KEEP " + String.join(", ", names)));
+        assertThat(Expressions.names(plan.output()), equalTo(names));
+
+        // The fields are named in KEEP order, up to 20 of them.
+        String listed = String.join(", ", names.subList(0, Math.min(count, 20)).stream().map(n -> "[" + n + "]").toList());
+        String expected = count == 1
+            ? "Field " + listed + " is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
+            : "Fields "
+                + listed
+                + (count > 20 ? " and [" + (count - 20) + "] more" : "")
+                + " are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices";
+        assertWarnings(expected);
+    }
+
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
     public void testUnmappedFieldNullifyWithPromQl() {
         TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
@@ -1625,7 +1689,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_amd, common"));
         var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_amd")).toList());
         assertThat(keptAttr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("kept_amd", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("kept_amd")));
     }
 
     public void testNonLoadablePunkWarnsUnderBareFrom() {
@@ -1637,7 +1701,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx*"));
         var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
         assertThat(attr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("partial_amd", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("partial_amd")));
     }
 
     public void testNonLoadablePunkWarnsUnderKeepWildcard() {
@@ -1649,7 +1713,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | KEEP *"));
         var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
         assertThat(attr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("partial_amd", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("partial_amd")));
     }
 
     public void testNonLoadablePunkNoWarnWhenExcludedByKeepWildcard() {
@@ -1698,7 +1762,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             "Expected x to load unmapped rows from _source via a KEYWORD union",
             unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
         );
-        assertWarnings(nonLoadablePunkWarning(field, "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of(field)));
     }
 
     public void testNonLoadablePunkEvalSameNameOverrideDoesNotWarn() {
@@ -1993,7 +2057,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
         assertThat(unionFields(plan), Matchers.empty());
         // The cast targets the renamed alias, not the field itself, so the unmapped leg is not loaded and partial_text falls back to null.
-        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
+        assertWarnings(nonLoadablePunksWarning(List.of("partial_text")));
     }
 
     /**

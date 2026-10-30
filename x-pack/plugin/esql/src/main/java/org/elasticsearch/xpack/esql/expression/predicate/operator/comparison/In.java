@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -509,7 +509,13 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableAttribute(value)) {
-            return Translatable.YES;
+            // When null is in the list, any non-matching row evaluates to null (not false) under
+            // three-valued logic. translate() drops null list entries before building the terms query,
+            // which is still correct for the positive IN direction: matching rows are included (true)
+            // and non-matching rows are excluded (null acts like false in a filter).
+            // However, negating the terms query for NOT IN would incorrectly include non-matching
+            // rows that three-valued logic says should be null (and therefore excluded).
+            return list().stream().anyMatch(Expressions::isGuaranteedNull) ? Translatable.YES_BUT_RECHECK_NEGATED : Translatable.YES;
         }
         if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
             // Candidate terms query against the keyed sub-field; RECHECK keeps the predicate in the
@@ -540,10 +546,12 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         for (Expression rhs : list()) {
             if (Expressions.isGuaranteedNull(rhs) == false) {
                 if (needsTypeSpecificValueHandling(attribute.dataType())) {
-                    // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
-                    // TODO:
-                    // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(pushdownPredicates, new Equals(source(), value(), rhs));
+                    // Delegate to Equals to ensure consistent handling of date, ip, version and unsigned_long
+                    // values. Call asQuery() directly (bypassing the handler) so the per-value comparison
+                    // isn't itself wrapped in a SingleValueQuery: In is single-value aware, so the handler
+                    // already wraps the whole IN translation once; wrapping here too would turn what should
+                    // be one combined terms query into N redundant, individually-wrapped term clauses.
+                    Query query = new Equals(source(), value(), rhs).asQuery(pushdownPredicates, handler);
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());
@@ -561,7 +569,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             queries.add(new TermsQuery(source(), fieldName, terms));
         }
 
-        return queries.stream().reduce((q1, q2) -> or(source(), q1, q2)).get();
+        if (queries.size() == 1) {
+            return queries.get(0);
+        }
+        return new BoolQuery(source(), false, queries);
     }
 
     /**
@@ -590,9 +601,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
         if (terms.isEmpty()) {
             // All RHS values were guaranteed-null, so no doc can match. translate() above has the
-            // same edge case (its reduce throws NoSuchElementException), but we should not
-            // claim the predicate is translatable in that case. The folder normally rewrites such
-            // an IN to a constant false beforehand, so this branch is defensive.
+            // same edge case (it would end up with an empty query list), but we should not claim the
+            // predicate is translatable in that case. The folder normally rewrites such an IN to a
+            // constant false beforehand, so this branch is defensive.
             throw new EsqlIllegalArgumentException("field_extract IN with all-null list cannot be translated to a query");
         }
         return new TermsQuery(source(), keyedName, terms);
@@ -600,10 +611,6 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
         return fieldType == DATETIME || fieldType == DATE_NANOS || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
-    }
-
-    private static Query or(Source source, Query left, Query right) {
-        return BinaryLogic.boolQuery(source, left, right, false);
     }
 
     @Override

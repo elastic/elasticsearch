@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
  *   <li>(date_range, date_range): first range contains second (second fully contained by first)</li>
  * </ul>
  */
-public class RangeContains extends EsqlScalarFunction implements OnlySurrogateExpression {
+public class RangeContains extends EsqlScalarFunction implements OnlySurrogateExpression, AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeContains.class)
         .binary(RangeContains::new)
         .name("range_contains");

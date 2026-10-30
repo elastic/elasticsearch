@@ -349,6 +349,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
 
+    /** Names of credential (secret) settings across all registered data source providers, for audit-log filtering. */
+    private volatile Set<String> dataSourceSecretSettingNames = Set.of();
+
     @Override
     public void close() throws IOException {
         IOUtils.close(dataSourceModule);
@@ -448,6 +451,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
             managedIdentityEnabled::get,
+            federatedIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
@@ -546,6 +550,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 }
             });
         }
+        Set<String> secretNames = new HashSet<>();
+        allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
+        this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
         return List.of(
             new PlanExecutor(
@@ -689,10 +696,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
         if (Federation.isAvailable(restHandlersServices.settings())) {
-            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }

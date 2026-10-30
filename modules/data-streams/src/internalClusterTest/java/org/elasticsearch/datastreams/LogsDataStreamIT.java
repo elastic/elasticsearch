@@ -208,10 +208,16 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
         final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
+        final Map<String, String> standardSettings = Map.of("index.mode", "standard");
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
         createDataStream(client(), dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+
+        // Migrating directly from a logs index mode to time series is not supported, we need to go through standard first.
+        updateComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, standardSettings, indexPatterns);
+        rolloverDataStream(dataStreamName);
         indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
 
         updateComposableIndexTemplate(client(), "custom-composable-template", TIME_SERIES_MAPPING, timeSeriesSettings, indexPatterns);
@@ -222,7 +228,10 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         rolloverDataStream(dataStreamName);
         indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
 
-        assertDataStreamBackingIndicesModes(dataStreamName, List.of(IndexMode.LOGSDB, IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        assertDataStreamBackingIndicesModes(
+            dataStreamName,
+            List.of(IndexMode.LOGSDB, IndexMode.STANDARD, IndexMode.TIME_SERIES, IndexMode.LOGSDB)
+        );
     }
 
     public void testInvalidIndexModeTimeSeriesSwitchWithoutRoutingPath() throws IOException, ExecutionException, InterruptedException {

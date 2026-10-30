@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -160,6 +161,6 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     private static FooterByteCache.Key key(String path, long length) {
-        return new FooterByteCache.Key(path, length);
+        return new FooterByteCache.Key(AbstractTestStorageObject.NOOP, path, length);
     }
 }

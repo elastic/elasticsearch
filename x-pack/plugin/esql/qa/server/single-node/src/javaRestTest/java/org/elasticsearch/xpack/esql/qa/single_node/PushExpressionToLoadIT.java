@@ -918,6 +918,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("EvalOperator")
                     .item("ValuesSourceReaderOperator")
                     .item(lookupOperatorName())
+                    .item("FilterOperator")
                     .item("EvalOperator")
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")

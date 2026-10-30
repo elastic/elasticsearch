@@ -229,6 +229,54 @@ public final class ExternalSourceSettings {
         Setting.Property.Dynamic
     );
 
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 sits well above any
+     * legitimate schema while staying far below the widths that exhaust a small heap. Long names are still bounded
+     * only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
+     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        MAX_SCHEMA_MAX_FIELDS,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+        } catch (NumberFormatException e) {
+            // Setting.parseInt rethrows the JDK's message, which does not name the key, when the value is not a number.
+            throw new IllegalArgumentException(
+                "[" + key + "] must be an integer between 1 and " + MAX_SCHEMA_MAX_FIELDS + ", got [" + value + "]",
+                e
+            );
+        }
+    }
+
     /**
      * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
      * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
@@ -293,6 +341,62 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * {@code host:port} glob patterns an external data source's endpoint may name beyond the AWS endpoints, as
+     * {@code reindex.remote.whitelist} does for remote clusters. Empty by default. A listed host may be reached
+     * over plain {@code http} for {@code endpoint}; {@code sts_endpoint} always requires {@code https}, because
+     * that host receives the node's OIDC token.
+     */
+    public static final String ALLOWED_ENDPOINT_HOSTS_KEY = "esql.external.allowed_endpoint_hosts";
+
+    public static final Setting<List<String>> ALLOWED_ENDPOINT_HOSTS = Setting.stringListSetting(
+        ALLOWED_ENDPOINT_HOSTS_KEY,
+        (Setting.Validator<List<String>>) entries -> entries.forEach(ExternalSourceSettings::validateEndpointHostEntry),
+        Setting.Property.NodeScope
+    );
+
+    /** Refuses an entry that cannot match anything: a bare host, a bare port, or a whole URL. */
+    private static void validateEndpointHostEntry(String entry) {
+        if (entry.contains("://")) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] is a URL. Entries are matched against host:port, so drop the scheme and any path."
+            );
+        }
+        // The port separator is the last colon, after the closing bracket of an IPv6 literal.
+        int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
+        int portSeparator = afterHost < 0 ? -1 : entry.lastIndexOf(':');
+        if (portSeparator < afterHost) {
+            portSeparator = -1;
+        }
+        if (portSeparator < 0 || portSeparator == entry.length() - 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no port. Entries are matched against host:port, so write for example ["
+                    + (entry.isEmpty() ? "minio.internal" : entry)
+                    + ":443]."
+            );
+        }
+        if (portSeparator == 0) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no host. Entries are matched against host:port, so write for example "
+                    + "[minio.internal"
+                    + entry
+                    + "]; an entry without a host matches nothing."
+            );
+        }
+    }
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -300,10 +404,12 @@ public final class ExternalSourceSettings {
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             MANAGED_IDENTITY_ENABLED,
             FEDERATED_IDENTITY_ENABLED,
-            LOCAL_ALLOWED_PATHS
+            LOCAL_ALLOWED_PATHS,
+            ALLOWED_ENDPOINT_HOSTS
         );
     }
 }

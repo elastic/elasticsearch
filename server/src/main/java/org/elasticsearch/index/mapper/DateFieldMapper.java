@@ -753,7 +753,7 @@ public final class DateFieldMapper extends FieldMapper {
                     } else {
                         query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     }
-                    if (hasDocValues() && context.indexSortedOnField(name())) {
+                    if (hasDocValues() && context.canUseIndexSortRangeQuery(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
                     return query;
@@ -870,7 +870,7 @@ public final class DateFieldMapper extends FieldMapper {
             } else {
                 query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
             }
-            if (hasDocValues() && context.indexSortedOnField(name())) {
+            if (hasDocValues() && context.canUseIndexSortRangeQuery(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;

@@ -95,6 +95,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-distribution-bwc-setup'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin'
     }
+    internalDistributionPackageCheck {
+      id = 'elasticsearch.internal-distribution-package-check'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.InternalDistributionPackageCheckPlugin'
+    }
     internalDistributionDownload {
       id = 'elasticsearch.internal-distribution-download'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin'
@@ -461,7 +465,9 @@ def resolveMainWrapperVersion() {
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {
   void execute(ComponentMetadataContext ctx) {
     ctx.details.with {d ->
-      if (d.id.group.startsWith("com.fasterxml.jackson")) {
+      // jackson-annotations is released without a patch version (e.g. 2.21), so aligning it would
+      // put it on a different jackson-bom version than the other modules and conflict with the enforced platform
+      if (d.id.group.startsWith("com.fasterxml.jackson") && d.id.name != "jackson-annotations") {
         // declare that Jackson modules all belong to the Jackson virtual platform
         belongsTo("com.fasterxml.jackson:jackson-bom:${d.id.version}")
       }

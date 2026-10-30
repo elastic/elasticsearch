@@ -234,6 +234,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardSearchStats,
             circuitBreaker
         );
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(
@@ -598,6 +599,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public boolean indexSortedOnField(String field) {
         IndexSortConfig indexSortConfig = indexSettings.getIndexSortConfig();
         return indexSortConfig.hasPrimarySortOnField(field);
+    }
+
+    /**
+     * Whether a range query on the field can use Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery}.
+     */
+    public boolean canUseIndexSortRangeQuery(String field) {
+        // NOTE: Workaround for a Lucene bug, see https://github.com/elastic/elasticsearch/issues/162656.
+        // That query binary searches the values of all documents in a segment and needs them sorted.
+        // The index sort only applies to the root document of a block, so the values of the nested
+        // documents are not in sort order.
+        // Remove this check once Lucene handles segments with document blocks.
+        return nestedLookup() == NestedLookup.EMPTY && indexSortedOnField(field);
     }
 
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {

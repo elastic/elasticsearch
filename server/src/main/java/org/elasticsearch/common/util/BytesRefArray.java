@@ -271,7 +271,10 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
     @Override
     protected void closeInternal() {
+        fixedLength = -1;
         Releasables.close(bytes, intOffsets, longOffsets);
+        intOffsets = null;
+        longOffsets = null;
     }
 
     @Override
@@ -426,10 +429,13 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
         @Override
         public void close() {
+            final long bytesUsed = ramBytesUsed();
+            pages = null;
+            currentPage = null;
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            bigArrays.adjustBreaker(-bytesUsed, true);
         }
 
         @Override
@@ -545,10 +551,13 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
         @Override
         public void close() {
+            final long bytesUsed = ramBytesUsed();
+            pages = null;
+            currentPage = null;
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            bigArrays.adjustBreaker(-bytesUsed, true);
         }
     }
 
@@ -573,7 +582,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             this.bigArrays = bigArrays;
             PageCacheRecycler r = bigArrays.recycler();
             this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
-            int numPages = Math.max(1, (int) ((initialSize + PAGE_SIZE - 1) >> PAGE_SHIFT));
+            int numPages = Math.max(1, Math.toIntExact(((initialSize + PAGE_SIZE - 1) >> PAGE_SHIFT)));
             bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V<?>[numPages];
@@ -818,20 +827,27 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
         @Override
         public long ramBytesUsed() {
-            long used = SHALLOW_SIZE + estimateUseByPagesArray(pages.length);
-            if (pageCount > 0) {
-                used += pages[0].length;
-                used += (long) (pageCount - 1) * PAGE_SIZE;
+            long used = SHALLOW_SIZE;
+            if (pages != null) {
+                used += estimateUseByPagesArray(pages.length);
+                if (pageCount > 0) {
+                    used += pages[0].length;
+                    used += (long) (pageCount - 1) * PAGE_SIZE;
+                }
             }
             return used;
         }
 
         @Override
         public void close() {
+            final long bytesUsed = ramBytesUsed();
+            pages = null;
+            currentPage = null;
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            pageCount = 0;
+            bigArrays.adjustBreaker(-bytesUsed, true);
         }
     }
 

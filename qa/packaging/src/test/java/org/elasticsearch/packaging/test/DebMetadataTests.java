@@ -28,6 +28,10 @@ import static org.junit.Assume.assumeTrue;
 
 public class DebMetadataTests extends PackagingTestCase {
 
+    private static final String ALIEN_TAG = "alien-tag";
+    // Newer lintian versions removed this check and report our (still needed for older lintian) override for it as alien-tag.
+    private static final String REMOVED_LINTIAN_TAG = "library-not-linked-against-libc";
+
     private final LintianResultParser lintianParser = new LintianResultParser();
     private static final List<String> IGNORED_TAGS = List.of(
         // Override syntax changes between lintian versions in a non-backwards compatible way, so we have to tolerate these.
@@ -60,6 +64,7 @@ public class DebMetadataTests extends PackagingTestCase {
             List<Issue> importantIssues = lintianResult.issues()
                 .stream()
                 .filter(issue -> IGNORED_TAGS.contains(issue.tag()) == false)
+                .filter(issue -> (ALIEN_TAG.equals(issue.tag()) && issue.message().startsWith(REMOVED_LINTIAN_TAG)) == false)
                 .toList();
             if (importantIssues.isEmpty() == false) {
                 fail(

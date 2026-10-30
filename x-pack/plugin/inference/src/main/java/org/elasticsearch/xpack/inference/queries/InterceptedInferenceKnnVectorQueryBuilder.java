@@ -369,7 +369,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             originalQuery.rescoreVectorBuilder(),
             originalQuery.getVectorSimilarity()
         );
-        innerKnnQuery.addFilterQueries(originalQuery.filterQueries());
+
+        // The filters are guaranteed to target root documents, so they must not be built in the chunks nested scope.
+        // We know this because inference fields cannot be declared under a nested field. Therefore, the nested scope for knn filter queries
+        // is the root scope.
+        for (QueryBuilder filter : originalQuery.filterQueries()) {
+            innerKnnQuery.addFilterQuery(new RootScopedQueryBuilder(filter));
+        }
 
         return QueryBuilders.nestedQuery(SemanticTextField.getChunksFieldName(getField()), innerKnnQuery, ScoreMode.Max)
             .boost(originalQuery.boost())

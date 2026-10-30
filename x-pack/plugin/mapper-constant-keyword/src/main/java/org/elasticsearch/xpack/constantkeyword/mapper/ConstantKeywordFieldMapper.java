@@ -351,6 +351,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
         }
 
+        @Override
+        public ConstantFieldType applyFieldVisibility(boolean visible) {
+            if (visible || value == null) {
+                return this;
+            } else {
+                return new ConstantKeywordFieldType(name(), null, meta());
+            }
+        }
     }
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
@@ -390,9 +398,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
                     + fullPath()
-                    + "] only accepts values that are equal to the value defined in the mappings ["
-                    + fieldType().value()
-                    + "], but got ["
+                    + "] only accepts values that are equal to the value defined in the mappings, but got ["
                     + value
                     + "]"
             );

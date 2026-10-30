@@ -55,11 +55,12 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
     ) {
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));
-        parser.declareObject(
+        parser.declareObjectOrNull(
             Builder::setRateLimitSettings,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
+            // An explicitly empty rate_limit object ({}) or an explicit null resolves to the default rate limit rather than null, so the
+            // setter is never invoked with null.
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
+            DEFAULT_RATE_LIMIT_SETTINGS,
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.

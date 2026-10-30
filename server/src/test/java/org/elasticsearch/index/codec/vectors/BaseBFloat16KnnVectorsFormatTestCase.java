@@ -308,7 +308,7 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
                     // assert that searchNearestVectors returns the expected number of documents,
                     // in descending score order
                     int size = ctx.reader().getFloatVectorValues(fieldName).size();
-                    int k = random().nextInt(size / 10 + 1) + 1;
+                    int k = random().nextInt(size / 50 + 1) + 1;
                     if (k > numLiveDocsWithVectors) {
                         k = numLiveDocsWithVectors;
                     }

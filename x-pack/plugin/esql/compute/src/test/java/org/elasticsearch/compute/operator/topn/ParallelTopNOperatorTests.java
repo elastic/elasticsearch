@@ -560,11 +560,33 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         // Exception. Releasables#closeExpectNoException raises an AssertionError (an Error) on a
         // failed decRef, so it escapes uncaught to the thread pool. Capture it here directly
         // instead of relying on the test runner's global uncaught-exception handling.
-        Executor observingExecutor = command -> racePool.executor("race_worker").execute(() -> {
-            try {
-                command.run();
-            } catch (Throwable t) {
-                escaped.add(t);
+        //
+        // The wrapper must be an AbstractRunnable so that EsThreadPoolExecutor calls onRejection()
+        // instead of rethrowing when the pool's queue is momentarily full. Wrapping command in a
+        // plain lambda causes TimedRunnable.onRejection to rethrow (because the plain lambda is not
+        // an AbstractRunnable), propagating the EsRejectedExecutionException out of scheduleWorker
+        // and crashing the ParallelTopNOperator constructor rather than taking the expected no-op
+        // onRejection path.
+        Executor observingExecutor = command -> racePool.executor("race_worker").execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                try {
+                    command.run();
+                } catch (Throwable t) {
+                    escaped.add(t);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                escaped.add(e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (command instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onRejection(e);
+                }
             }
         });
         try {

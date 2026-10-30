@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
@@ -286,6 +287,25 @@ public class StatelessPersistedStateTests extends ESTestCase {
                     .getMessage(),
                 anyOf(startsWith("Failed reading commit file"), startsWith("Failed reading segments file"))
             );
+        }
+    }
+
+    public void testReadFailsWhenObjectStoreIsClosed() throws Exception {
+        try (var ctx = createTestContext()) {
+            final var persistedState = ctx.persistedState();
+            ctx.statelessNode.objectStoreService.close();
+
+            // loop checks that task throttle permits are released on failure
+            for (int i = 0; i < StatelessPersistedState.MAX_FILE_DOWNLOAD_CONCURRENCY + 1; i++) {
+                // when object store is closed, ObjectStoreService.getClusterObjectStore throws IllegalStateException
+                assertThat(
+                    asInstanceOf(
+                        IllegalStateException.class,
+                        safeAwaitFailure(ClusterState.class, l -> persistedState.getLatestStoredState(1, l))
+                    ).getMessage(),
+                    startsWith("Blob store")
+                );
+            }
         }
     }
 
@@ -545,10 +565,12 @@ public class StatelessPersistedStateTests extends ESTestCase {
             } catch (NoSuchFileException e) {
                 // ignore
             }
-            assertThat(
-                statelessNode.objectStoreService.getClusterStateBlobContainer().listBlobs(randomFrom(OperationPurpose.values())),
-                is(emptyMap())
-            );
+            if (statelessNode.objectStoreService.lifecycleState() == Lifecycle.State.STARTED) {
+                assertThat(
+                    statelessNode.objectStoreService.getClusterStateBlobContainer().listBlobs(randomFrom(OperationPurpose.values())),
+                    is(emptyMap())
+                );
+            }
             IOUtils.close(persistedState, statelessNode);
         }
 

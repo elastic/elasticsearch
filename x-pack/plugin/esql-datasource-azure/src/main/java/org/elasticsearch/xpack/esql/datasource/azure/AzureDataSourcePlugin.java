@@ -74,7 +74,8 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
             () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,
-            cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections)
+            cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections),
+            services.credentialPolicy()
         );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }
@@ -86,5 +87,10 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         }
         DataSourceValidator v = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return AzureConfiguration.secretFieldNames();
     }
 }

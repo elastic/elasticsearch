@@ -62,7 +62,10 @@ public abstract class DenseVectorQuery extends Query {
 
     @Override
     public void visit(QueryVisitor queryVisitor) {
-        queryVisitor.visitLeaf(this);
+        if (queryVisitor.acceptField(field)) {
+            // The sub-visitor's parent lets visitors check if the query is filtered
+            queryVisitor.getSubVisitor(BooleanClause.Occur.MUST, this).visitLeaf(this);
+        }
     }
 
     @Override
@@ -77,13 +80,26 @@ public abstract class DenseVectorQuery extends Query {
         }
     }
 
+    public Query getFilter() {
+        return filter;
+    }
+
+    /**
+     * Indicates if weight is cacheable given the query. Doc values require a careful override due to them being updatable.
+     */
+    boolean isCacheable(LeafReaderContext leafReaderContext) {
+        return true;
+    }
+
     abstract static class DenseVectorWeight extends Weight {
+        private final DenseVectorQuery query;
         private final String field;
         private final float boost;
         private final Weight filterWeight;
 
         protected DenseVectorWeight(DenseVectorQuery query, float boost, Weight filterWeight) {
             super(query);
+            this.query = query;
             this.field = query.field;
             this.boost = boost;
             this.filterWeight = filterWeight;
@@ -151,7 +167,7 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext leafReaderContext) {
-            return true;
+            return query.isCacheable(leafReaderContext) && (filterWeight == null || filterWeight.isCacheable(leafReaderContext));
         }
     }
 
@@ -353,8 +369,13 @@ public abstract class DenseVectorQuery extends Query {
         public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
             collector.setScorer(scorable);
 
-            if (scorer.docID() < min) {
-                scorer.iterator().advance(min);
+            int currentDoc = scorer.docID();
+            if (currentDoc < min) {
+                currentDoc = scorer.iterator().advance(min);
+            }
+
+            if (currentDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                return DocIdSetIterator.NO_MORE_DOCS;
             }
 
             for (scorer.nextDocsAndScores(max, acceptDocs, buffer); buffer.size > 0; scorer.nextDocsAndScores(max, acceptDocs, buffer)) {

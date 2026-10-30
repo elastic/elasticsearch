@@ -113,7 +113,7 @@ required_capability: metadata_score
 required_capability: routing_function_update
 
 from books metadata _score
-| where match(author, "Keith Faulkner") and qstr("author:Rory or author:Beverlie")
+| where match(author, "Keith Faulkner") and qstr("author:Rory OR author:Beverlie")
 | keep book_no, title, author, _score;
 ignoreOrder:true
 

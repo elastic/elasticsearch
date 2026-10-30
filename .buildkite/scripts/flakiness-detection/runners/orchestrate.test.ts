@@ -9,7 +9,6 @@ const SCRIPT = resolve(`${import.meta.dirname}/orchestrate.sh`);
 const ENV = {
   FLAKINESS_REFS_ARTIFACT: "flakiness-refs.json",
   FLAKINESS_PLAN_ARTIFACT: "flakiness-plan.json",
-  FLAKINESS_PRECOMPILE_ARTIFACT: "flakiness-precompile.json",
   FLAKINESS_TARGETS_DIR: "build/flakiness/project-targets",
   FLAKINESS_TARGETS_ARCHIVE: "flakiness-project-targets.tgz",
   FLAKINESS_COMPILE_TASKS: "compileTestJava compileInternalClusterTestJava",
@@ -70,7 +69,6 @@ exit 0
       status,
       gradle: read("gradle.log") ?? "",
       plan: read(ENV.FLAKINESS_PLAN_ARTIFACT),
-      precompile: read(ENV.FLAKINESS_PRECOMPILE_ARTIFACT),
       archived: existsSync(join(dir, ENV.FLAKINESS_TARGETS_ARCHIVE)),
     };
   }
@@ -88,29 +86,26 @@ exit 0
   });
 
   /** Only compile means "the PR did not build". The other two are our own defects. */
-  test("compile failure is the only build_failed: it writes both markers, then exits rc", () => {
+  test("compile failure is the only build_failed: it writes the buildFailed plan, then exits rc", () => {
     const r = run({ failPhase: "compile" });
     expect(r.status).toBe(4);
     expect(JSON.parse(r.plan!)).toEqual({ buildFailed: true, reason: "precompile", entries: [] });
-    expect(JSON.parse(r.precompile!)).toEqual({ outcome: "build_failed", reason: "precompile" });
-    // Markers first, red exit second, or generate has nothing to record.
+    // Plan first, red exit second, or generate has nothing to record.
     expect(r.gradle).not.toContain("flakinessScan");
   });
 
-  test("resolve failure is not build_failed: no markers, exits rc, never reaches compile", () => {
+  test("resolve failure is not build_failed: no buildFailed plan, exits rc, never reaches compile", () => {
     const r = run({ failPhase: "resolve" });
     expect(r.status).toBe(3);
     expect(r.plan).toBeUndefined();
-    expect(r.precompile).toBeUndefined();
     expect(r.gradle).not.toContain("compileTestJava");
     expect(r.gradle).not.toContain("flakinessScan");
   });
 
-  test("scan failure is not build_failed: no markers, exits rc", () => {
+  test("scan failure is not build_failed: no buildFailed plan, exits rc", () => {
     const r = run({ failPhase: "scan" });
     expect(r.status).toBe(5);
     expect(r.plan).toBeUndefined();
-    expect(r.precompile).toBeUndefined();
   });
 
   /**

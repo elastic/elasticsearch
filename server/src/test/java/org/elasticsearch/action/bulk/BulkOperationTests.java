@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -86,9 +86,9 @@ import java.util.function.Supplier;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -506,10 +506,11 @@ public class BulkOperationTests extends ESTestCase {
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
 
         final Exception expectedException = randomFrom(
-            new VersionConflictException("test"),
+            new VersionConflictEngineException(new ShardId(ds2BackingIndex1.getIndex(), 0), "3", "test"),
             new EsRejectedExecutionException("test"),
             new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
-            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
             new BulkOperation429Exception("test")
         );
 
@@ -517,26 +518,47 @@ public class BulkOperationTests extends ESTestCase {
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> expectedException))
         );
 
-        BulkResponse bulkItemResponses = safeAwait(
-            l -> newBulkOperation(
-                clusterState,
-                client,
-                bulkRequest,
-                new AtomicArray<>(bulkRequest.numberOfActions()),
-                mockObserver(clusterState),
-                l,
-                new FailureStoreDocumentConverter(),
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                false
-            ).run()
-        );
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
             .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+            .orElseThrow(() -> new AssertionError("Could not find failed item"));
         assertThat(failedItem.getFailure().getCause(), is(equalTo(expectedException)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+    }
+
+    /**
+     * Non-retryable cluster blocks such as an index write block are a permanent condition of the target index and not backpressure, so
+     * the affected documents must be redirected to the failure store. This also holds when the exception mixes a permanent block with a
+     * backpressure block, because retrying cannot succeed while the permanent block remains.
+     */
+    public void testFailingDocumentRedirectsToFailureStoreOnNonRetryableClusterBlock() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        final ClusterBlockException blockException = randomFrom(
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.INDEX_CLOSED_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
+        );
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> blockException))
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {
@@ -621,10 +643,43 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo("failure store test failure")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    /**
+     * When a whole shard bulk fails, every item shares the same cause. Each item's failure store failure must be recorded on that item
+     * alone rather than on the shared cause, otherwise the response grows quadratically with the number of items.
+     */
+    public void testFailureStoreFailuresAreNotAddedToSharedShardFailure() throws Exception {
+        int itemCount = between(2, 20);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < itemCount; i++) {
+            bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        }
+        NodeClient client = getNodeClient(
+            shardSpecificResponse(
+                Map.of(
+                    new ShardId(ds2BackingIndex1.getIndex(), 0),
+                    failWithException(() -> new MapperException("root cause")),
+                    new ShardId(ds2FailureStore1.getIndex(), 0),
+                    failWithException(() -> new MapperException("failure store test failure"))
+                )
+            )
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        BulkItemResponse[] items = bulkItemResponses.getItems();
+        assertThat(items.length, equalTo(itemCount));
+        Exception sharedCause = items[0].getFailure().getCause();
+        for (BulkItemResponse item : items) {
+            assertThat(item.getFailure().getCause(), is(sameInstance(sharedCause)));
+            assertThat(item.getFailure().getFailureStoreCause().getMessage(), is(equalTo("failure store test failure")));
+            assertThat(item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+        }
+        assertThat(sharedCause.getSuppressed(), emptyArray());
     }
 
     /**
@@ -690,15 +745,15 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(sameInstance(dispatchFailure)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(sameInstance(dispatchFailure)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
      * A document that fails at the shard level will be converted into a failure document if an applicable failure store is present.
      * In the unlikely case that the failure document cannot be created, the document will not be redirected to the failure store and
-     * instead will simply report its original failure in the response, with the conversion failure present as a suppressed exception.
+     * instead will simply report its original failure in the response, with the conversion failure present as its failure store cause.
      */
     public void testFailedDocumentCanNotBeConvertedFails() throws Exception {
         // Requests that go to two separate shards
@@ -728,9 +783,9 @@ public class BulkOperationTests extends ESTestCase {
                 .orElseThrow(() -> new AssertionError("Could not find redirected item"));
             assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
             assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-            assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-            assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(transformFailure.getClass())));
-            assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo(transformFailure.getMessage())));
+            assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+            assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(transformFailure.getClass())));
+            assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo(transformFailure.getMessage())));
             assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
         }
     }
@@ -866,10 +921,10 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(ClusterBlockException.class)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(ClusterBlockException.class)));
         assertThat(
-            failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
+            failedItem.getFailure().getFailureStoreCause().getMessage(),
             is(equalTo("blocked by: [FORBIDDEN/5/index read-only (api)];"))
         );
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
@@ -925,10 +980,10 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(ClusterBlockException.class)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(ClusterBlockException.class)));
         assertThat(
-            failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
+            failedItem.getFailure().getFailureStoreCause().getMessage(),
             is(equalTo("blocked by: [SERVICE_UNAVAILABLE/2/no master];"))
         );
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
@@ -1080,9 +1135,9 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(Exception.class)));
+        assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo("rollover failed")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 

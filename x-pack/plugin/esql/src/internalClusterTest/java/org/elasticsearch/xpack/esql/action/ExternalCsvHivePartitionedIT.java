@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -245,10 +246,11 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         List<String> shadowWarnings = new CopyOnWriteArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
-        // ActionListener.running mirrors WarningsIT: the transport client owns the response ref-count
-        // (closing it here would double-decRef), so we only read the coordinator's accumulated
-        // response headers from the thread handling completion.
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        // ActionListener.wrap (not running): a failed query would otherwise look like a missing
+        // Warning header. The transport client owns the response ref-count (closing it here would
+        // double-decRef), so we only read the coordinator's accumulated response headers.
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
             try {
                 ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
                     .getThreadPool()
@@ -261,8 +263,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
             } finally {
                 latch.countDown();
             }
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
         }));
         assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError("query must succeed so the shadow warning can reach the client", failure.get());
+        }
         assertThat(
             "the shadow warning must reach the client via the response Warning header",
             shadowWarnings.size(),

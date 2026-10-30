@@ -23,4 +23,13 @@ public class StringsTests extends ESTestCase {
         );
     }
 
+    public void testTruncateForError() {
+        assertNull(Strings.truncateForError(null));
+        String exact = "x".repeat(Strings.MAX_INPUT_LENGTH_IN_ERROR);
+        assertSame(exact, Strings.truncateForError(exact));
+        assertEquals(exact + "...", Strings.truncateForError(exact + "y"));
+        // A surrogate pair across the cut is dropped whole
+        String emoji = "x".repeat(Strings.MAX_INPUT_LENGTH_IN_ERROR - 1) + "\uD83D\uDE00";
+        assertEquals(emoji.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR - 1) + "...", Strings.truncateForError(emoji));
+    }
 }

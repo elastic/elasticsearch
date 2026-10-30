@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CohereApiVersion;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
 
     protected static final String TEST_MODEL_ID = "test-model-id";
     private static final String TEST_LEGACY_MODEL_ID = "test-legacy-model-id";
+    private static final int TEST_REQUESTS_PER_MINUTE = 123;
 
     /**
      * We always use the {@link ConfigurationParseContext#PERSISTENT} context for tests because api_version gets
@@ -61,6 +63,26 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
 
         assertThat(serviceSettings.commonSettings().modelId(), is("my-model"));
         assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereApiVersion.V2));
+    }
+
+    public void testFromMap_NullRateLimit_UsesDefaultRateLimit() {
+        var settingsMap = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID));
+        settingsMap.put(RateLimitSettings.FIELD_NAME, null);
+
+        var serviceSettings = createGivenCommonSettings(settingsMap, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings.commonSettings().rateLimitSettings(), is(CohereCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
+    }
+
+    public void testFromMap_NullRequestsPerMinute_UsesDefaultRateLimit() {
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        var settingsMap = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID));
+        settingsMap.put(RateLimitSettings.FIELD_NAME, rateLimitMap);
+
+        var serviceSettings = createGivenCommonSettings(settingsMap, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings.commonSettings().rateLimitSettings(), is(CohereCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
     }
 
     public void testFromMap_Request_V2_RequiresModelId() {
@@ -303,6 +325,59 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         );
 
         assertThat(updatedServiceSettings, is(serviceSettings));
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullRateLimit_RevertsToDefault() {
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(RateLimitSettings.FIELD_NAME, null);
+
+        assertUpdateRevertsRateLimitToDefault(updateMap);
+    }
+
+    public void testUpdateServiceSettings_EmptyRateLimitObject_RevertsToDefault() {
+        assertUpdateRevertsRateLimitToDefault(new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>())));
+    }
+
+    public void testUpdateServiceSettings_NullRequestsPerMinute_RevertsToDefault() {
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+
+        assertUpdateRevertsRateLimitToDefault(new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap)));
+    }
+
+    public void testUpdateServiceSettings_RateLimitAbsent_KeepsCurrentRateLimit() {
+        var serviceSettings = createServiceSettingsWithNonDefaultRateLimit();
+
+        var updatedServiceSettings = serviceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(serviceSettings));
+    }
+
+    private void assertUpdateRevertsRateLimitToDefault(Map<String, Object> updateSettings) {
+        var serviceSettings = createServiceSettingsWithNonDefaultRateLimit();
+
+        var updatedServiceSettings = (CohereServiceSettings) serviceSettings.updateServiceSettings(updateSettings);
+
+        assertThat(
+            updatedServiceSettings.commonSettings().rateLimitSettings(),
+            is(CohereCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS)
+        );
+    }
+
+    /**
+     * Creates settings whose rate limit differs from the default, so an update that resets the rate limit can be told apart from one
+     * that keeps the current value.
+     */
+    private T createServiceSettingsWithNonDefaultRateLimit() {
+        var serviceSettings = createGivenCommonSettings(
+            RateLimitSettingsTests.addRateLimitSettingsToMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
+                TEST_REQUESTS_PER_MINUTE
+            ),
+            PARSE_CONTEXT
+        );
+        assertThat(serviceSettings.commonSettings().rateLimitSettings(), is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
+        return serviceSettings;
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {

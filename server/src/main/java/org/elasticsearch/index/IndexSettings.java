@@ -1264,7 +1264,7 @@ public final class IndexSettings {
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
-    private final int numberOfShards;
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1483,7 +1483,6 @@ public final class IndexSettings {
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
-        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
         if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
             && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
@@ -1815,7 +1814,7 @@ public final class IndexSettings {
      * Returns the number of shards this index has.
      */
     public int getNumberOfShards() {
-        return numberOfShards;
+        return indexMetadata.getNumberOfShards();
     }
 
     /**

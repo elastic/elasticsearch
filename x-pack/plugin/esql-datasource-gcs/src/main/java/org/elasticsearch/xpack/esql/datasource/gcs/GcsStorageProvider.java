@@ -26,6 +26,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -70,10 +71,12 @@ import java.util.NoSuchElementException;
 public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
+    private final StorageIdentity storageIdentity;
 
     @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
+        this.storageIdentity = identityOf(config);
         // With a configuration present, build the client eagerly so misconfigurations are caught early (every
         // validated config resolves to a mode). When there is no configuration (config is null), defer client
         // creation to first use so the plugin can load; the missing-config error then surfaces only when a gs://
@@ -89,7 +92,12 @@ public class GcsStorageProvider implements StorageProvider {
      */
     public GcsStorageProvider(Storage storage) {
         this.config = null;
+        this.storageIdentity = identityOf(null);
         this.storage = storage;
+    }
+
+    private static StorageIdentity identityOf(GcsConfiguration config) {
+        return config == null ? StorageIdentity.unique() : GcsCredentialIdentity.of(config);
     }
 
     /**
@@ -216,7 +224,7 @@ public class GcsStorageProvider implements StorageProvider {
         validateGcsScheme(path);
         String bucket = path.host();
         String objectName = extractObjectName(path);
-        return new GcsStorageObject(storage(), bucket, objectName, path);
+        return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path);
     }
 
     @Override
@@ -224,7 +232,7 @@ public class GcsStorageProvider implements StorageProvider {
         validateGcsScheme(path);
         String bucket = path.host();
         String objectName = extractObjectName(path);
-        return new GcsStorageObject(storage(), bucket, objectName, path, length);
+        return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length);
     }
 
     @Override
@@ -232,7 +240,7 @@ public class GcsStorageProvider implements StorageProvider {
         validateGcsScheme(path);
         String bucket = path.host();
         String objectName = extractObjectName(path);
-        return new GcsStorageObject(storage(), bucket, objectName, path, length, lastModified);
+        return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length, lastModified);
     }
 
     @Override

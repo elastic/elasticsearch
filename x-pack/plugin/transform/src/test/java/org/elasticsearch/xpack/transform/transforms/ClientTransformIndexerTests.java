@@ -317,7 +317,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                cloudCredentialManager
+                cloudCredentialManager,
+                Clock.systemUTC()
             );
 
             var indexer = createIndexer(services, client, config);
@@ -353,7 +354,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                cloudCredentialManager
+                cloudCredentialManager,
+                Clock.systemUTC()
             );
 
             var context = mock(TransformContext.class);
@@ -422,7 +424,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                cloudCredentialManager
+                cloudCredentialManager,
+                Clock.systemUTC()
             );
 
             var indexer = createIndexer(services, client, prior);
@@ -494,7 +497,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                mock(TransformCloudCredentialManager.class)
+                mock(TransformCloudCredentialManager.class),
+                Clock.systemUTC()
             ),
             client,
             config
@@ -566,7 +570,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     crossProjectModeDecider,
                     projectId -> true,
                     mock(ProjectResolver.class),
-                    mock(TransformCloudCredentialManager.class)
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
                 ),
                 client,
                 config
@@ -594,7 +599,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     crossProjectModeDecider,
                     projectId -> false,
                     mock(ProjectResolver.class),
-                    mock(TransformCloudCredentialManager.class)
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
                 ),
                 client,
                 config
@@ -807,7 +813,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
                     multiProjectResolver,
-                    mock(TransformCloudCredentialManager.class)
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -904,7 +911,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                mock(TransformCloudCredentialManager.class)
+                mock(TransformCloudCredentialManager.class),
+                Clock.systemUTC()
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -1127,7 +1135,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                mock(TransformCloudCredentialManager.class)
+                mock(TransformCloudCredentialManager.class),
+                Clock.systemUTC()
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

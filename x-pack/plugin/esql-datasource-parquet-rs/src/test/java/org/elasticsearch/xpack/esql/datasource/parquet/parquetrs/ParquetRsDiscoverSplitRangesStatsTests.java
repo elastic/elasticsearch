@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -188,6 +189,11 @@ public class ParquetRsDiscoverSplitRangesStatsTests extends ESTestCase {
     private static StorageObject localFileStorageObject(Path path) {
         String uriString = path.toUri().toString();
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return StorageIdentity.unique();
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return Files.newInputStream(path);

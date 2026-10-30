@@ -194,9 +194,30 @@ public interface ESVectorUtilSupport {
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 
-    void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor);
+    void matrixMultiply(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int m,
+        int k,
+        int n,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    );
 
-    void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor);
+    void matrixMultiplySymmetric(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int n,
+        int k,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    );
 
     void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor);
 

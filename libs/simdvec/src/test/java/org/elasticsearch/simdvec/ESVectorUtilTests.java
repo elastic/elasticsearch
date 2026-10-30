@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -1514,10 +1515,10 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             float[] expected = basicMatrixMultiply(a, b, m, k, n);
 
             float[] scalar = new float[m * n];
-            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar, tasks);
+            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, 0, b, 0, m, k, n, scalar, 0, tasks);
             assertArrayEquals(expected, scalar, 1e-3f);
             float[] panama = new float[m * n];
-            panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama, tasks);
+            panamaProvider.getVectorUtilSupport().matrixMultiply(a, 0, b, 0, m, k, n, panama, 0, tasks);
             assertArrayEquals(expected, panama, 1e-3f);
         }
     }
@@ -1537,10 +1538,62 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             for (var provider : new ESVectorizationProvider[] { defaultedProvider, panamaProvider }) {
                 float[] actual = new float[n * n];
                 Arrays.fill(actual, 12345f); // whatever the result held must not matter
-                provider.getVectorUtilSupport().matrixMultiplySymmetric(xT, x, n, k, actual, tasks);
+                provider.getVectorUtilSupport().matrixMultiplySymmetric(xT, 0, x, 0, n, k, actual, 0, tasks);
                 assertArrayEquals("n=" + n + " k=" + k, expected, actual, 1e-3f);
             }
         }
+    }
+
+    public void testMatrixMultiplyWithOffsets() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            int m = randomIntBetween(0, 256);
+            int k = randomIntBetween(1, 256);
+            int n = randomIntBetween(1, 256);
+            int aOffset = randomIntBetween(0, 33);
+            int bOffset = randomIntBetween(0, 33);
+            int resultOffset = randomIntBetween(0, 33);
+            int aTrailing = randomIntBetween(0, 33);
+            int bTrailing = randomIntBetween(0, 33);
+            int resultTrailing = randomIntBetween(0, 33);
+
+            float[] aExact = VectorTestUtils.randomFloatVector(m * k);
+            float[] bExact = VectorTestUtils.randomFloatVector(k * n);
+            float[] a = padded(aExact, aOffset, aTrailing);
+            float[] b = padded(bExact, bOffset, bTrailing);
+            float[] expected = basicMatrixMultiply(aExact, bExact, m, k, n);
+            float[] expectedPadded = padded(expected, resultOffset, resultTrailing);
+
+            for (var provider : List.of(defaultedProvider, panamaProvider)) {
+                // the padding is a sentinel for writes outside the result range, so it must survive
+                float[] result = padded(new float[m * n], resultOffset, resultTrailing);
+                provider.getVectorUtilSupport().matrixMultiply(a, aOffset, b, bOffset, m, k, n, result, resultOffset, tasks);
+                assertArrayEquals(expectedPadded, result, 1e-3f);
+            }
+
+            float[] result = padded(new float[m * n], resultOffset, resultTrailing);
+            ESVectorUtil.matrixMultiply(a, aOffset, b, bOffset, m, k, n, result, resultOffset, tasks);
+            assertArrayEquals(expectedPadded, result, 1e-3f);
+        }
+    }
+
+    public void testMatrixMultiplyOffsetsOutOfBounds() {
+        float[] a = new float[6];
+        float[] b = new float[6];
+        float[] result = new float[4];
+        // a is (2 x 3), b is (3 x 2), result is (2 x 2)
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, 1, b, 0, 2, 3, 2, result, 0, null));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, 0, b, 1, 2, 3, 2, result, 0, null));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, 0, b, 0, 2, 3, 2, result, 1, null));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, -1, b, 0, 2, 3, 2, result, 0, null));
+    }
+
+    /** {@code values} between leading and trailing padding of a sentinel value, so out-of-range writes show up. */
+    private static float[] padded(float[] values, int leading, int trailing) {
+        float[] padded = new float[leading + values.length + trailing];
+        Arrays.fill(padded, 7f);
+        System.arraycopy(values, 0, padded, leading, values.length);
+        return padded;
     }
 
     private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {

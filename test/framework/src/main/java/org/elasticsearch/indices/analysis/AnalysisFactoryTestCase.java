@@ -386,6 +386,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         final Map<String, Object> base;
         final List<SettingCase> settings = new ArrayList<>();
         final Map<String, String> covered = new LinkedHashMap<>();
+        final Map<String, Object> rejected = new LinkedHashMap<>();
         final List<FactorySettings> variants = new ArrayList<>();
         String probeText;
 
@@ -418,6 +419,12 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         /** Text for the {@link #ignored} output check; defaults to a mixed-script corpus. */
         public FactorySettings probe(String text) {
             this.probeText = Objects.requireNonNull(text);
+            return this;
+        }
+
+        /** Construction MUST throw when this setting is set; probed by building the base plus {@code name=value}. */
+        public FactorySettings rejects(String name, Object value) {
+            rejected.put(name, Objects.requireNonNull(value));
             return this;
         }
 
@@ -638,8 +645,14 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     /**
      * Constructs each declared factory against read-recording settings: every read must be declared
-     * (base, {@code affects}, {@code ignored}, {@code covered}; declaring {@code X} covers an
-     * {@code X_path} read), and the key must pass {@link #assertKeyHygiene}.
+     * (base, {@code affects}, {@code ignored}, {@code covered}, {@code rejects}; declaring {@code X}
+     * covers an {@code X_path} read), the key must pass {@link #assertKeyHygiene}, and every
+     * {@code rejects} declaration must actually throw.
+     *
+     * <p>Limits: reads are recorded while constructing each base (primary and {@code alsoWith}
+     * variants) only, not for every {@code affects}/{@code ignored} value, so a read reachable only
+     * under a non-base value goes unseen; and reads through {@code indexSettings} (as opposed to the
+     * component's own settings) are not tracked.
      */
     private void assertReadsCoveredAndKeysHygienic(
         ComponentKind kind,
@@ -676,6 +689,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     declared.addAll(d.base.keySet());
                     d.settings.forEach(c -> declared.add(c.name()));
                     declared.addAll(d.covered.keySet());
+                    declared.addAll(d.rejected.keySet());
                 }
                 List<String> uncovered = new ArrayList<>();
                 for (String read : recorded.reads()) {
@@ -690,6 +704,19 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     uncoveredByType.put(where, uncovered);
                 }
                 assertKeyHygiene(kind + " [" + where + "]", sharingKeyOf(built));
+
+                for (Map.Entry<String, Object> reject : probe.rejected.entrySet()) {
+                    Map<String, Object> bad = new LinkedHashMap<>(probe.base);
+                    bad.put(reject.getKey(), reject.getValue());
+                    Settings.Builder badComponent = Settings.builder();
+                    applyComponentSettings(badComponent, "", bad);
+                    Settings badSettings = badComponent.build();
+                    expectThrows(
+                        IllegalArgumentException.class,
+                        kind + " [" + where + "] is declared to reject [" + reject.getKey() + "] but construction succeeded",
+                        () -> provider.get(indexSettings, env, type, badSettings)
+                    );
+                }
             }
         }
         assertTrue(

@@ -108,6 +108,25 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         return new Settings(settings, secureSettings);
     }
 
+    /**
+     * Wraps {@code settings} as-is — no copy, no interning — so an instrumented map observes every
+     * read. Test support for {@code SettingsReadRecorder}; production construction goes through
+     * {@link Builder}, which normalizes and interns.
+     */
+    static Settings wrapping(NavigableMap<String, Object> settings) {
+        return new Settings(settings);
+    }
+
+    /** The raw backing map. Test support for {@code SettingsReadRecorder}. */
+    NavigableMap<String, Object> rawSettings() {
+        return settings;
+    }
+
+    private Settings(NavigableMap<String, Object> settings) {
+        this.settings = settings;
+        this.secureSettings = null;
+    }
+
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         final TreeMap<String, Object> tree = new TreeMap<>();

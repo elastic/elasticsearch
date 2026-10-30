@@ -9,9 +9,6 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.core.SuppressForbidden;
-
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
@@ -19,16 +16,16 @@ import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
 /**
- * Builds a {@link Settings} that records the name of every setting read from it, by reflectively
- * swapping the instance's internal map with a recording delegate. All typed reads funnel through the
- * map's {@code get}/{@code containsKey}, including absent and defaulted reads. Whole-map access
- * ({@code keySet()}, {@code getByPrefix}, ...) records {@link #ITERATED} instead. The delegate must
- * be a full forwarding wrapper: {@code TreeMap.subMap} views bypass subclass overrides.
+ * Builds a {@link Settings} that records the name of every setting read from it, by wrapping the
+ * source's backing map in a recording delegate (via the package-private {@link Settings#wrapping}
+ * hook). All typed reads funnel through the map's {@code get}/{@code containsKey}, including absent
+ * and defaulted reads. Whole-map access ({@code keySet()}, {@code getByPrefix}, ...) records
+ * {@link #ITERATED} instead. The delegate must be a full forwarding wrapper: {@code TreeMap.subMap}
+ * views bypass subclass overrides.
  *
  * <p>Test-only; see {@code AnalysisFactoryTestCase}'s sharing contract.
  */
@@ -42,21 +39,9 @@ public final class SettingsReadRecorder {
 
     private SettingsReadRecorder() {}
 
-    @SuppressForbidden(reason = "test-only reflection: the read-recording map can only be installed by swapping Settings' private map")
     public static Recorded record(Settings source) {
         SortedSet<String> reads = new TreeSet<>();
-        // sentinel keeps the instance non-empty; never swap the field on the Settings.EMPTY singleton
-        Settings target = Settings.builder().put("__settings_read_recorder__", "").build();
-        try {
-            Field field = Settings.class.getDeclaredField("settings");
-            field.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            NavigableMap<String, Object> content = (NavigableMap<String, Object>) field.get(source);
-            field.set(target, new RecordingMap(new TreeMap<>(content), reads));
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError("cannot instrument Settings; did its internal [settings] field change?", e);
-        }
-        return new Recorded(target, reads);
+        return new Recorded(Settings.wrapping(new RecordingMap(source.rawSettings(), reads)), reads);
     }
 
     private static final class RecordingMap implements NavigableMap<String, Object> {

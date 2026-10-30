@@ -521,11 +521,11 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception failure) {
+    RuntimeException mapResolveFailure(String path, Exception failure) {
         Exception e = peelWrappers(failure);
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
-            return tce;
+            return ExternalFailures.detach(tce);
         }
         if (isCancelled()) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
@@ -566,7 +566,8 @@ public class ExternalSourceResolver {
                     "Failed to resolve external source [%s]: %s",
                     StoragePath.objectName(path),
                     ExternalFailures.safeDetail(rejected)
-                )
+                ),
+                rejected.isExecutorShutdown()
             );
             return wrapped;
         }
@@ -575,9 +576,8 @@ public class ExternalSourceResolver {
             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             // Rebuilt without the cause chain (which can name the bucket and key); the message is kept only if it names
             // no location. The type, and so the HTTP status, is unchanged.
-            String message = e.getMessage() != null && ExternalFailures.safeForUserMessage(e.getMessage())
-                ? e.getMessage()
-                : "Failed to resolve external source [" + StoragePath.objectName(path) + "]";
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            String message = forwardable != null ? forwardable : "Failed to resolve external source [" + StoragePath.objectName(path) + "]";
             // The reason (a validator's, or a storage failure's when it names no location) lives in the dropped cause chain.
             String reason = ExternalFailures.failureReason(e);
             if (reason != null && message.contains(reason) == false) {

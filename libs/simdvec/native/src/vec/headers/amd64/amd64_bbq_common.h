@@ -133,7 +133,7 @@ static inline void dotd2q_inner_bulk(
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int64_t (*dotd2q_op)(const int8_t* a, const int8_t* q, const int32_t length),
+    int64_t(*dotd2q_op)(const int8_t* a, const int8_t* q, const int32_t length),
     int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void dotd2q4_inner_bulk(

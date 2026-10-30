@@ -103,6 +103,7 @@ static inline int64_t dotd1qN_inner(const int8_t* a, const int8_t* q, const int3
 // horizontal reduction per vector.
 static inline int64_t dotd2q4_inner_avx2(const int8_t* a, const int8_t* q, const int32_t length) {
     constexpr int query_bits = 4;
+    constexpr int m128_bytes = sizeof(__m128i);
     const int32_t bit_length = length / 2;
     const int8_t* a_hi = a + bit_length;
     const int8_t* q0 = q;
@@ -132,7 +133,7 @@ static inline int64_t dotd2q4_inner_avx2(const int8_t* a, const int8_t* q, const
         acc23 = _mm256_add_epi64(acc23, _mm256_sad_epu8(_mm256_add_epi8(p2, _mm256_add_epi8(p3, p3)), _mm256_setzero_si256()));
     }
 
-    if (bit_length - r >= (int)sizeof(__m128i)) {
+    if (bit_length - r >= m128_bytes) {
         const __m128i doc_lo = _mm_loadu_si128((const __m128i_u*)(a + r));
         const __m128i doc_hi = _mm_loadu_si128((const __m128i_u*)(a_hi + r));
         const auto plane = [&](const int8_t* qp) {
@@ -147,7 +148,7 @@ static inline int64_t dotd2q4_inner_avx2(const int8_t* a, const int8_t* q, const
         const __m128i p3 = plane(q3);
         acc01 = _mm256_add_epi64(acc01, _mm256_zextsi128_si256(_mm_sad_epu8(_mm_add_epi8(p0, _mm_add_epi8(p1, p1)), _mm_setzero_si128())));
         acc23 = _mm256_add_epi64(acc23, _mm256_zextsi128_si256(_mm_sad_epu8(_mm_add_epi8(p2, _mm_add_epi8(p3, p3)), _mm_setzero_si128())));
-        r += sizeof(__m128i);
+        r += m128_bytes;
     }
 
     int64_t sum = mm256_reduce_epi64<_mm_add_epi64>(_mm256_add_epi64(acc01, _mm256_slli_epi64(acc23, 2)));

@@ -339,6 +339,7 @@ static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* q, const int3
     if (bit_length >= chunk_size) {
         uint32x4_t acc_lo = vdupq_n_u32(0);
         uint32x4_t acc_hi = vdupq_n_u32(0);
+        // 2^(query bit + doc bit): the low doc plane uses weight[0..3], the high plane weight[1..4]
         uint8x16_t weight[query_bits + 1];
         apply_indexed<query_bits + 1>([&](auto I) {
             weight[I] = vdupq_n_u8(1 << I);
@@ -369,11 +370,11 @@ static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* q, const int3
 
     // then single bytes
     for (; r < bit_length; r++) {
-        const int8_t value_lo = *(a + r);
-        const int8_t value_hi = *(a_hi + r);
+        const uint8_t value_lo = a[r];
+        const uint8_t value_hi = a_hi[r];
         apply_indexed<query_bits>([&](auto I) {
-            const int32_t bits = query[I][r];
-            sum += (int64_t)(__builtin_popcount(bits & value_lo & 0xFF) + (__builtin_popcount(bits & value_hi & 0xFF) << 1)) << I;
+            const uint8_t bits = query[I][r];
+            sum += (int64_t)(__builtin_popcount(bits & value_lo) + (__builtin_popcount(bits & value_hi) << 1)) << I;
         });
     }
     return sum;
@@ -406,12 +407,14 @@ static inline void dotd2q4_inner_bulk(
     constexpr int batches = 4;
     constexpr int query_bits = 4;
     constexpr int chunk_size = sizeof(uint8x16_t);
+    constexpr int word_size = sizeof(uint64_t);
     const int32_t bit_length = length / 2;
 
     const uint8_t* query[query_bits];
     apply_indexed<query_bits>([&](auto I) {
         query[I] = (const uint8_t*)q + I * bit_length;
     });
+    // 2^(query bit + doc bit): the low doc plane uses weight[0..3], the high plane weight[1..4]
     uint8x16_t weight[query_bits + 1];
     apply_indexed<query_bits + 1>([&](auto I) {
         weight[I] = vdupq_n_u8(1 << I);
@@ -455,9 +458,26 @@ static inline void dotd2q4_inner_bulk(
             res[B] = vaddvq_u32(acc_lo[B]) + (int64_t)vaddvq_u32(acc_hi[B]);
         });
 
-        // Byte tail. Single-byte loads only: with sparse addresses a vector can
-        // end right before an unmapped page, so wider loads could fault.
-        for (int r = blk; r < bit_length; r++) {
+        // Tail of fewer than 16 bytes: at most one 8-byte step, then single bytes. Every load stays within
+        // its plane, so none reads past the end of a vector (with sparse addresses, a vector can end right
+        // before an unmapped page).
+        int r = blk;
+        if (bit_length - r >= word_size) {
+            uint64_t qs[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                qs[I] = *((const uint64_t*)(query[I] + r));
+            });
+
+            apply_indexed<batches>([&](auto B) {
+                const uint64_t lo = *((const uint64_t*)(as[B] + r));
+                const uint64_t hi = *((const uint64_t*)(as[B] + bit_length + r));
+                apply_indexed<query_bits>([&](auto Q) {
+                    res[B] += (int64_t)(__builtin_popcountll(qs[Q] & lo) + (__builtin_popcountll(qs[Q] & hi) << 1)) << Q;
+                });
+            });
+            r += word_size;
+        }
+        for (; r < bit_length; r++) {
             uint8_t qs[query_bits];
             apply_indexed<query_bits>([&](auto I) {
                 qs[I] = query[I][r];

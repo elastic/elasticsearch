@@ -450,3 +450,7 @@ tests:
   - :x-pack:plugin:esql:test
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/163941
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/158224

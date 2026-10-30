@@ -507,22 +507,30 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         for (final var entry : pendingAllocationStates.entrySet()) {
             final ShardAllocationKey key = entry.getKey();
+            final ShardRouting currentRouting = localRoutingNode.getByShardId(key.shardId());
             switch (entry.getValue()) {
-                case PendingAllocationState.InFlight ticket -> evictIfAttemptStale(key, ticket, state);
-                case PendingAllocationState.AwaitingRecoveryRetry ticket -> evictIfAttemptStale(key, ticket, state);
-                case PendingAllocationState.FailureReported ticket -> evictOrResendFailure(key, ticket, state, masterNode);
+                case PendingAllocationState.InFlight ticket -> evictIfAttemptStale(key, ticket, currentRouting, state);
+                case PendingAllocationState.AwaitingRecoveryRetry ticket -> evictIfAttemptStale(key, ticket, currentRouting, state);
+                case PendingAllocationState.FailureReported ticket -> evictOrResendFailure(key, ticket, currentRouting, state, masterNode);
             }
         }
     }
 
-    private void evictIfAttemptStale(ShardAllocationKey key, PendingAllocationState ticket, ClusterState state) {
-        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
-        Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
-        if (shardAllocationTicketIsOutOfDate(key, state)) {
+    private void evictIfAttemptStale(
+        ShardAllocationKey key,
+        PendingAllocationState ticket,
+        @Nullable ShardRouting currentRouting,
+        ClusterState state
+    ) {
+        if (currentRouting == null
+            || currentRouting.allocationId().getId().equals(key.allocationId()) == false
+            || currentRouting.initializing() == false) {
             logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
             pendingAllocationStates.remove(key);
             return;
         }
+        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
+        Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
         if (currentPrimaryTerm.isPresent() && currentPrimaryTerm.get() > ticket.primaryTerm()) {
             // Primary term advanced, treated as a new allocation
             logger.debug(
@@ -539,16 +547,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void evictOrResendFailure(
         ShardAllocationKey key,
         PendingAllocationState.FailureReported ticket,
+        @Nullable ShardRouting currentRouting,
         ClusterState state,
         DiscoveryNode masterNode
     ) {
-        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
-        Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
-        if (shardAllocationGone(key, state)) {
+        if (currentRouting == null || currentRouting.allocationId().getId().equals(key.allocationId()) == false) {
             logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
             pendingAllocationStates.remove(key);
             return;
         }
+        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
+        Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
         if (indexMetadata.isEmpty() || currentPrimaryTerm.get() > ticket.primaryTerm()) {
             // Index was deleted, or the master already processed the failure and bumped the primary term.
             // Either way, the entry is stale and can be discarded.
@@ -567,25 +576,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 : null;
             shardStateAction.localShardFailed(ticket.routing(), message, resendFailure, ActionListener.noop(), state);
         }
-    }
-
-    /// Returns `true` if `key` is no longer "the current allocation" in `state` -- i.e. the shard isn't routed to this node anymore, is
-    /// routed under a different allocation id, or is no longer initializing. Only valid for
-    /// [PendingAllocationState.InFlight]/[PendingAllocationState.AwaitingRecoveryRetry] tickets: their lifecycle only spans the
-    /// shard-creation/recovery attempt, which is necessarily still initializing. Use [shardAllocationGone] for
-    /// [PendingAllocationState.FailureReported], which can legitimately persist while the shard shows as started.
-    private static boolean shardAllocationTicketIsOutOfDate(ShardAllocationKey key, ClusterState state) {
-        final ShardRouting currentRouting = getCurrentRouting(key, state);
-        return (currentRouting == null
-            || currentRouting.allocationId().getId().equals(key.allocationId()) == false
-            || currentRouting.initializing() == false);
-    }
-
-    /// Returns `true` if `key` is no longer routed to this node at all, or is now routed under a
-    /// different allocation id.
-    private static boolean shardAllocationGone(ShardAllocationKey key, ClusterState state) {
-        final ShardRouting currentRouting = getCurrentRouting(key, state);
-        return currentRouting == null || currentRouting.allocationId().getId().equals(key.allocationId()) == false;
     }
 
     private static ShardRouting getCurrentRouting(ShardAllocationKey key, ClusterState state) {

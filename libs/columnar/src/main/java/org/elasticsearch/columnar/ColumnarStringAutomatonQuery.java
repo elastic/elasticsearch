@@ -57,7 +57,7 @@ import java.util.Objects;
  * one: an updated field is read as an overlay of its layers, which is no column, and then the values are
  * read a document at a time like any binary doc values.
  */
-public final class ColumnarStringAutomatonQuery extends Query implements Accountable {
+public final class ColumnarStringAutomatonQuery extends Query implements Accountable, ColumnarScanQuery {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ColumnarStringAutomatonQuery.class);
 
     private final String field;

@@ -15,7 +15,6 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -383,12 +381,8 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
 
     /** A sub-field configuration its own mapper cannot do columnar (no doc values) disqualifies the leaf. */
     public void testSubFieldWithoutDocValuesFallsBack() throws IOException {
-        // doc_values: false is ignored in strict-columnar indices created on or after DOC_VALUES_NO_OP_IN_COLUMNAR, so pin an older one.
         MapperService ms = createMapperService(
-            IndexVersionUtils.randomVersionBetween(
-                IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
-            ),
+            randomVersionBeforeDocValuesNoOp(),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
             mapping(b -> {
                 b.startObject("host");

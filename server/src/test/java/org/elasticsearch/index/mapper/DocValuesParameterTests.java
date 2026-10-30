@@ -78,7 +78,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createMapperService(
-                preNoOpGateVersion(),
+                randomVersionBeforeDocValuesNoOp(),
                 settings,
                 fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
             )
@@ -94,9 +94,9 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testColumnarAllowsDocValuesFalseOnMultiFieldBeforeNoOpGate() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        // A search-only multi-field may opt out of doc values: it never appears in _source, so it needs no columnar
-        // representation (the user accepts they can't aggregate on it).
-        MapperService mapperService = createMapperService(preNoOpGateVersion(), settings, mapping(b -> {
+        // Before the no-op gate, a search-only multi-field could opt out of doc values: it never appears in _source, so it needs
+        // no columnar representation.
+        MapperService mapperService = createMapperService(randomVersionBeforeDocValuesNoOp(), settings, mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "keyword");
@@ -1288,13 +1288,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
-    private static IndexVersion preNoOpGateVersion() {
-        return IndexVersionUtils.randomVersionBetween(
-            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
-        );
-    }
-
     // -----------------------------------------------------------------------
     // doc_values attribute is a no-op in strict-columnar modes
     // -----------------------------------------------------------------------
@@ -1363,16 +1356,17 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         assertTrue(mapperService.fieldType("tmpl_a").hasDocValues());
-        // The template body is stored verbatim; only the mapped field is trimmed.
+        // The field mapped from the template does not persist doc_values.
         assertThat(Strings.toString(mapperService.documentMapper().mappers().getMapper("tmpl_a")), not(containsString("doc_values")));
     }
 
     public void testColumnarDocValuesNonBooleanStillRejected() {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        expectThrows(
-            Exception.class,
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
             () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", "not-a-boolean")))
         );
+        assertThat(e.getMessage(), containsString("Could not convert [doc_values] to boolean"));
     }
 
     public void testNonColumnarDocValuesFalseStillHonoured() throws Exception {

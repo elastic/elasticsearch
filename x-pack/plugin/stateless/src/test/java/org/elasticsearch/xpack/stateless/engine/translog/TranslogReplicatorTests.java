@@ -1664,7 +1664,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(uploads.get(), equalTo(1));
     }
 
-    // test that when one of the two uploads (normal or hedge) has completed the upload the translog file is not be deleted while the other
+    // test that when one of the two uploads (normal or hedge) has completed the upload the translog file is not yet deleted while the other
     // upload is still ongoing, but is deleted once both have finished
     public void testTranslogFileIsDeletedOnlyAfterBothUploadsComplete() throws Exception {
         CountDownLatch firstUploadHangs = new CountDownLatch(1);

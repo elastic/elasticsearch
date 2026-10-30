@@ -49,14 +49,14 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     // Just under the default index.max_terms_count of 65536.
     private static final int TERMS = 62_000;
     private static final int SEARCHES_PER_MULTI_SEARCH = 5;
-    private static final int THREADS = 8;
+    private static final int THREADS = 16;
     // About 1.4 MB of JSON per sub-search, so about 86 MB of body, under the default http.max_content_length of 100 MB, while the parsed
     // sub-searches are several times that and more than the heap.
     private static final int OVERSIZED_MULTI_SEARCH_SIZE = 60;
     // Each sub-search parses its own TermsQueryBuilder. A parsed JSON string becomes a BytesRef whose byte[] is exactly the UTF-8 length,
     // so a 20-char ASCII id takes about 68 bytes (BytesRef, byte[] and the reference to it) and TERMS ids about 4.2 MB, on top of about
     // 1.4 MB of request JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
-    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 220 MB, most of the heap.
+    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 450 MB, more than the heap.
 
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m")
@@ -67,18 +67,6 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     @Override
     protected ElasticsearchCluster cluster() {
         return cluster;
-    }
-
-    /** A request that a node with no other load handles, so that the cases below cannot pass on a node that rejects every such request. */
-    public void testSingleTermsFilterSucceeds() throws IOException {
-        createIndex();
-        assertSucceeds(search(INDEX, termsSearch()));
-    }
-
-    /** As {@link #testSingleTermsFilterSucceeds}, with the filter under a kNN query. */
-    public void testSingleKnnWithTermsFilterSucceeds() throws IOException {
-        createIndex();
-        assertSucceeds(search(INDEX, knnSearch()));
     }
 
     /**
@@ -119,6 +107,8 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     }
 
     private void assertOverlappingMultiSearchesSurvive(String searchBody) throws Exception {
+        // A request that a node with no other load handles, so that the test cannot pass on a node that rejects every such request.
+        assertSucceeds(search(INDEX, searchBody));
         // A request's entity is not safe to share between threads, so each builds its own.
         List<Future<List<Object>>> futures = submit(THREADS, () -> nonBreakerFailures(multiSearch(searchBody)));
         for (Future<List<Object>> future : futures) {

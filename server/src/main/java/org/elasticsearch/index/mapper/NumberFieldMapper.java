@@ -2958,6 +2958,9 @@ public class NumberFieldMapper extends FieldMapper {
             builder.indexSettings.getIndexVersionCreated(),
             fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR_BINARY
         );
+        // indexValue's one-field-per-key check doesn't see ColumNAR doc values, which collect every value in one field.
+        assert allowMultipleValues || fieldType.diskFormat != DocValuesDiskFormat.COLUMNAR_BINARY
+            : "a field that allows only one value must disallow the ColumNAR codec";
     }
 
     /**
@@ -3262,12 +3265,6 @@ public class NumberFieldMapper extends FieldMapper {
             context.getRoutingFields().addLong(name, numericValue.longValue());
         }
 
-        final boolean columnarDocValues = dvFactory.isColumnarNumeric();
-        if (false == allowMultipleValues && columnarDocValues && doc.getByKey(name) != null) {
-            // The ColumNAR doc values field already holds the key, and would take a second value without complaint.
-            throw new IllegalStateException("Only one field can be stored per key");
-        }
-
         // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
         switch (type) {
             case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
@@ -3275,7 +3272,7 @@ public class NumberFieldMapper extends FieldMapper {
             default -> type.addFields(doc, name, numericValue, fieldType.indexType, stored, dvFactory);
         }
 
-        if (false == allowMultipleValues && columnarDocValues == false && (indexed || docValuesParameters.enabled() || stored)) {
+        if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = doc.getFields();
             final IndexableField last = fields.getLast();

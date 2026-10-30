@@ -319,9 +319,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/162488
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
-  method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162491
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517

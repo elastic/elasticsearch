@@ -594,16 +594,24 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                                     probeReference,
                                     other
                                 );
-                                // misclassification guard: must tokenize like an unshared build of the varied config
-                                Analyzer fresh = build(isolated, chainSettings(kind, type, varied), tracked).get("a").analyzer();
-                                String probeText = probe.probeText != null ? probe.probeText : DEFAULT_PROBE_TEXT;
-                                assertEquals(
-                                    where
-                                        + " is declared ignored, but a from-scratch build of that configuration tokenizes differently"
-                                        + " — fold the setting into sharingKey()",
-                                    SharedAnalyzerTestCase.terms(probeReference, probeText),
-                                    SharedAnalyzerTestCase.terms(fresh, probeText)
-                                );
+                                // Misclassification guard: must tokenize like an unshared build of the varied config.
+                                // Close the fresh build before the next variation: every ignored variation shares the
+                                // same key by construction, so a live entry in the isolated registry would turn later
+                                // "fresh" builds into cache hits on the first variation's analyzer.
+                                List<IndexAnalyzers> freshTracked = new ArrayList<>();
+                                try {
+                                    Analyzer fresh = build(isolated, chainSettings(kind, type, varied), freshTracked).get("a").analyzer();
+                                    String probeText = probe.probeText != null ? probe.probeText : DEFAULT_PROBE_TEXT;
+                                    assertEquals(
+                                        where
+                                            + " is declared ignored, but a from-scratch build of that configuration tokenizes differently"
+                                            + " — fold the setting into sharingKey()",
+                                        SharedAnalyzerTestCase.terms(probeReference, probeText),
+                                        SharedAnalyzerTestCase.terms(fresh, probeText)
+                                    );
+                                } finally {
+                                    IOUtils.close(freshTracked);
+                                }
                             }
                         }
                     }
@@ -612,6 +620,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         } finally {
             IOUtils.close(tracked);
             registry.assertNoCachedEntries();
+            // The ignored-output guard closes each fresh build inline; a lingering entry here means a
+            // later guard compared against a cache hit instead of a from-scratch build.
+            isolated.assertNoCachedEntries();
             IOUtils.close(registry, isolated);
         }
     }

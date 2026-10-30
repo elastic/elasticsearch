@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
@@ -20,7 +21,9 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 
+import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -87,13 +90,15 @@ class ApiKeyAuthenticator implements Authenticator {
                     listener.onFailure(e);
                 } else {
                     if (authResult.getMessage() != null) {
+                        final InetSocketAddress remoteAddress = RemoteHostHeader.restRemoteAddress(context.getThreadContext());
+                        final String origin = remoteAddress != null ? NetworkAddress.format(remoteAddress) : "n/a";
                         if (authResult.getException() != null) {
                             logger.warn(
-                                () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
+                                () -> format("Authentication using apikey failed - %s, origin [%s]", authResult.getMessage(), origin),
                                 authResult.getException()
                             );
                         } else {
-                            logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                            logger.warn("Authentication using apikey failed - {}, origin [{}]", authResult.getMessage(), origin);
                         }
                     }
                     listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));

@@ -354,7 +354,16 @@ final class PageColumnReader implements Releasable {
             Block result = readBatch(survivorCount, blockFactory);
             int trailing = sourceRows - survivorPositions[survivorCount - 1] - 1;
             if (trailing > 0) {
-                skipRows(trailing);
+                try {
+                    skipRows(trailing);
+                } catch (Throwable skipEx) {
+                    try {
+                        Releasables.close(result);
+                    } catch (Throwable closeEx) {
+                        skipEx.addSuppressed(closeEx);
+                    }
+                    throw skipEx;
+                }
             }
             return result;
         }

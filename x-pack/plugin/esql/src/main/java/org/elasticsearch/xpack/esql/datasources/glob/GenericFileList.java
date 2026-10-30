@@ -130,6 +130,6 @@ final class GenericFileList implements FileList {
 
     @Override
     public String toString() {
-        return "GenericFileList[" + files.size() + " files, pattern=" + originalPattern + "]";
+        return "GenericFileList[" + files.size() + " files, pattern=" + StoragePath.objectName(originalPattern) + "]";
     }
 }

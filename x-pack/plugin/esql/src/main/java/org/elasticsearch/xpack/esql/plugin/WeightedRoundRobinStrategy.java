@@ -17,10 +17,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Distributes external splits across data nodes using a Longest Processing Time (LPT)
+ * Distributes external splits across eligible remote workers using a Longest Processing Time (LPT)
  * algorithm that considers {@link ExternalSplit#estimatedSizeInBytes()} for load balancing.
  * When all splits report size information, larger splits are assigned first to the node
  * with the least accumulated load. Falls back to plain round-robin when size info is absent.
+ * An empty eligible-worker set returns {@code LOCAL} so the coordinator runs the scan itself.
  */
 public final class WeightedRoundRobinStrategy implements ExternalDistributionStrategy {
 
@@ -34,7 +35,7 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
     }
 
     public WeightedRoundRobinStrategy() {
-        this(NodeEligibilityStrategy.DATA_NODES_ONLY);
+        this(NodeEligibilityStrategy.EXTERNAL_WORKER_NODES);
     }
 
     @Override

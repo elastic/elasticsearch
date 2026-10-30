@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -31,6 +32,11 @@ import java.time.Instant;
  * - File metadata (size, last modified)
  */
 public final class LocalStorageObject extends AbstractMeteredStorageObject {
+
+    private record LocalFileIdentity() implements StorageIdentity {}
+
+    private static final LocalFileIdentity LOCAL_FILE_IDENTITY = new LocalFileIdentity();
+
     private final Path filePath;
     private final StoragePath storagePath;
 
@@ -69,7 +75,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
     public InputStream newStream() throws IOException {
         checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
         long bytes = 0L;
@@ -97,7 +103,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         }
         checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
         try {
@@ -138,7 +144,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists == Boolean.FALSE) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLength;
     }
@@ -149,7 +155,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists == Boolean.FALSE) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLastModified;
     }
@@ -167,9 +173,14 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         return storagePath;
     }
 
+    @Override
+    public StorageIdentity storageIdentity() {
+        return LOCAL_FILE_IDENTITY;
+    }
+
     private void checkFileExists() throws NoSuchFileException {
         if (Files.exists(filePath) == false) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
     }
 

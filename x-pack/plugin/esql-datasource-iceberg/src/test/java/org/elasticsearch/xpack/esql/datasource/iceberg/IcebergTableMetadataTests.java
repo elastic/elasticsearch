@@ -331,7 +331,9 @@ public class IcebergTableMetadataTests extends ESTestCase {
         IcebergTableMetadata metadata = new IcebergTableMetadata("s3://bucket/table", schema, null, "iceberg");
 
         String toString = metadata.toString();
-        assertTrue(toString.contains("s3://bucket/table"));
+        assertTrue(toString.contains("table='table'"));
+        assertFalse(toString.contains("s3://"));
+        assertFalse(toString.contains("bucket"));
         assertTrue(toString.contains("iceberg"));
         assertTrue(toString.contains("2")); // fields count
     }

@@ -2842,14 +2842,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        // PushFiltersToSource runs at fixed-point; on the second pass the initial range query is wrapped in a bool filter.
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("within")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("within")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -2872,12 +2869,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -2900,13 +2895,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -2929,13 +2922,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -2958,13 +2949,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
-                    .to("1965-06-01T00:00:00.000Z", true)
-                    .format("strict_date_optional_time")
-                    .relation("contains")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
+                .to("1965-06-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
+                .relation("contains")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }

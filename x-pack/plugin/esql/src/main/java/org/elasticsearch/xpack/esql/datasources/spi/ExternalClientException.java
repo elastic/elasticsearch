@@ -33,6 +33,11 @@ public final class ExternalClientException extends ExternalException {
     }
 
     @Override
+    public ExternalClientException withoutCause() {
+        return new ExternalClientException(getMessage(), (Throwable) null);
+    }
+
+    @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }

@@ -386,9 +386,6 @@ tests:
 - class: org.elasticsearch.search.fieldcaps.FieldCapsHasValueTests
   method: testUnmappedFieldsWithValueAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/162114
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
-  issue: https://github.com/elastic/elasticsearch/issues/162242
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357
@@ -401,9 +398,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testEvaluate {TestCase=<dense_vector>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/162950
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
@@ -421,13 +415,38 @@ tests:
   - :x-pack:plugin:ccr:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/163486
-- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
-  issue: https://github.com/elastic/elasticsearch/issues/163491
 - class: org.elasticsearch.xpack.spatial.index.fielddata.LatLonGeometryRelationVisitorTests
   tasks:
   - :x-pack:plugin:spatial:test
   method: testPoint
   issue: https://github.com/elastic/elasticsearch/issues/163502
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  tasks:
+  - :x-pack:plugin:yamlRestCompatTest
+  method: test {yaml=data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API}
+  issue: https://github.com/elastic/elasticsearch/issues/163653
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  tasks:
+  - :x-pack:plugin:yamlRestCompatTest
+  method: test {yaml=deprecation/10_basic/Test Deprecations}
+  issue: https://github.com/elastic/elasticsearch/issues/163655
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testUsingRCS1GeneratesDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/163658
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  tasks:
+  - :server:internalClusterTest
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/163874
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testColumnarGeoShapeRespectsFieldLevelSecurity
+  issue: https://github.com/elastic/elasticsearch/issues/163935
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testBinaryWithDifferentSelectors
+  issue: https://github.com/elastic/elasticsearch/issues/163941

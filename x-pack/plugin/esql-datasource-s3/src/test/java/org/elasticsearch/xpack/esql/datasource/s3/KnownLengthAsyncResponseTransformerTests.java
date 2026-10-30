@@ -200,38 +200,54 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertSame(error, ex.getCause());
     }
 
-    public void testRetryAllocatesFreshDestination() throws Exception {
-        // The SDK invokes prepare() for every retry attempt; the result of the first attempt must
-        // not contaminate the second.
+    /**
+     * A transformer instance serves exactly one request attempt: a second {@code prepare()} is how
+     * the SDK signals an internal retry with the same transformer, which would resurrect the
+     * cross-attempt stale-{@code exceptionOccurred} race the single-use contract exists to prevent
+     * (see the class javadoc). It must fail loudly rather than silently share state across attempts.
+     */
+    public void testPrepareIsSingleUse() {
         KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(8, FACTORY);
+        transformer.prepare();
+        IllegalStateException ex = expectThrows(IllegalStateException.class, transformer::prepare);
+        assertThat(ex.getMessage(), containsString("single-use"));
+    }
 
-        CompletableFuture<DirectReadBuffer> firstAttempt = transformer.prepare();
-        transformer.onResponse(response(8));
-        transformer.onStream(new SdkPublisher<>() {
-            @Override
-            public void subscribe(Subscriber<? super ByteBuffer> s) {
-                s.onSubscribe(new TestSubscription());
-                s.onError(new RuntimeException("first attempt failed"));
-            }
-        });
-        expectThrows(ExecutionException.class, firstAttempt::get);
+    /**
+     * Verifies that {@code exceptionOccurred} is a no-op once the subscriber has already handled
+     * its own terminal signal (the future is done). This turns netty's late duplicate
+     * notifications — the response-handler {@code onError} that follows the subscriber's
+     * {@code onError} with the same throwable, and the channel-inactive teardown that follows with
+     * a fresh {@code IOException} — into no-ops instead of double-frees or spurious future
+     * completions.
+     */
+    public void testExceptionOccurredIsNoOpAfterSubscriberHandledError() throws Exception {
+        try (BufferAllocator child = ALLOCATOR.newChildAllocator("late-exception-occurred", 0, Long.MAX_VALUE)) {
+            DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16, factory);
+            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+            transformer.onResponse(response(16));
 
-        // Second attempt — must produce the new payload, untainted by the first attempt's state.
-        byte[] payload = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        CompletableFuture<DirectReadBuffer> secondAttempt = transformer.prepare();
-        transformer.onResponse(response(8));
-        transformer.onStream(new SdkPublisher<>() {
-            @Override
-            public void subscribe(Subscriber<? super ByteBuffer> s) {
-                s.onSubscribe(new TestSubscription());
-                s.onNext(ByteBuffer.wrap(payload));
-                s.onComplete();
-            }
-        });
+            RuntimeException subscriberError = new RuntimeException("subscriber onError");
+            transformer.onStream(new SdkPublisher<>() {
+                @Override
+                public void subscribe(Subscriber<? super ByteBuffer> s) {
+                    s.onSubscribe(new TestSubscription());
+                    s.onError(subscriberError);
+                }
+            });
+            expectThrows(ExecutionException.class, future::get);
+            assertEquals("subscriber should have released its buffer", 0L, child.getAllocatedMemory());
 
-        try (DirectReadBuffer result = secondAttempt.get()) {
-            assertTrue(result.buffer().isDirect());
-            assertArrayEquals(payload, toByteArray(result.buffer()));
+            // Late duplicate #1: netty notifies the response handler with the throwable the subscriber
+            // already handled. Late duplicate #2: channel-inactive teardown delivers a fresh IOException.
+            transformer.exceptionOccurred(subscriberError);
+            transformer.exceptionOccurred(new IOException("channel closed"));
+
+            assertEquals("exceptionOccurred must not double-free", 0L, child.getAllocatedMemory());
+            // The future should still hold the original subscriber error, not a stale one.
+            ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+            assertSame(subscriberError, ex.getCause());
         }
     }
 

@@ -94,6 +94,13 @@ public class FoldNullTests extends ESTestCase {
         return new FoldNull().rule(e, unboundLogicalOptimizerContext());
     }
 
+    /**
+     * Applies the rule bottom-up, like the optimizer does, so folded children are visible to their parents.
+     */
+    private Expression foldNullUp(Expression e) {
+        return e.transformUp(this::foldNull);
+    }
+
     public void testBasicNullFolding() {
         assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));

@@ -371,8 +371,8 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
      * point to the branch's attributes rather than the UnionAll's output attributes.
      */
     private static AggregateFunction resolveAggFn(AggregateFunction aggFn, Map<NameId, Attribute> unionToBranch) {
-        Expression resolvedField = resolveExpr(aggFn.field(), unionToBranch);
-        AggregateFunction resolved = aggFn.withField(resolvedField);
+        List<Expression> resolvedFields = aggFn.fields().stream().map(f -> resolveExpr(f, unionToBranch)).toList();
+        AggregateFunction resolved = aggFn.withFields(resolvedFields);
         if (aggFn.hasFilter()) {
             Expression resolvedFilter = resolveExpr(aggFn.filter(), unionToBranch);
             resolved = resolved.withFilter(resolvedFilter);

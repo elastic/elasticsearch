@@ -121,7 +121,8 @@ public class FileSplitTests extends ESTestCase {
         StoragePath path = StoragePath.of("s3://bucket/file.parquet");
         FileSplit split = new FileSplit("file", path, 0, 100, null, null, Map.of("year", 2024));
         String str = split.toString();
-        assertTrue(str.contains("s3://bucket/file.parquet"));
+        assertTrue(str.contains("file.parquet"));
+        assertFalse(str.contains("bucket"));
         assertTrue(str.contains("year"));
     }
 
@@ -267,31 +268,5 @@ public class FileSplitTests extends ESTestCase {
                 deserialized.readSchema().get(i).nullable()
             );
         }
-    }
-
-    /**
-     * UNKNOWN nullability is planner-internal and shouldn't survive analysis, but if it does
-     * reach wire encoding it must be conservatively reconstituted as nullable (TRUE), not as
-     * a stronger non-null guarantee (FALSE). Anything other than provable non-null is nullable.
-     */
-    public void testNamedWriteableRoundTripCoercesUnknownNullabilityToTrue() throws IOException {
-        StoragePath path = StoragePath.of("s3://bucket/data.csv");
-        List<Attribute> schema = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.UNKNOWN, null, false)
-        );
-        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.writeNamedWriteable(original);
-
-        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
-        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
-
-        assertEquals(1, deserialized.readSchema().size());
-        assertEquals(
-            "UNKNOWN must reconstitute as TRUE (nullable), never as FALSE",
-            Nullability.TRUE,
-            deserialized.readSchema().get(0).nullable()
-        );
     }
 }

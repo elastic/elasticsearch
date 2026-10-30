@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
@@ -216,6 +217,11 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
     }
 
     @Override
@@ -444,7 +450,7 @@ class RetryableStorageObject implements StorageObject {
                 StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
+                throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
             }
             retryCounters.addRetry();
             failuresSinceProgress++;

@@ -266,7 +266,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(eMax.getMessage(), containsString("6gb"));
     }
 
-    public void testExpectedConcurrency() {
+    public void testObjectStoreAccessConcurrency() {
         final int value = 100;
 
         String s3Key = "s3.client.c.max_connections";

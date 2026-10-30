@@ -26,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.store.NoHardLinksDirectory;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
@@ -45,10 +47,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class StoreRecoveryTests extends ESTestCase {
 
@@ -121,6 +125,37 @@ public class StoreRecoveryTests extends ESTestCase {
         reader.close();
         target.close();
         IOUtils.close(dirs);
+    }
+
+    public void testAddIndicesCopiesIntoNoHardLinksDirectory() throws IOException {
+        assumeTrue("hard links are not supported", hardLinksSupported(createTempDir()));
+        final Directory source = newFSDirectory(createTempDir());
+        try (
+            IndexWriter writer = new IndexWriter(
+                source,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+            )
+        ) {
+            final int numDocs = randomIntBetween(1, 50);
+            for (int i = 0; i < numDocs; i++) {
+                writer.addDocument(List.of(new StringField("id", Integer.toString(i), Field.Store.YES)));
+            }
+            writer.commit();
+        }
+        final Directory target = new FilterDirectory(new NoHardLinksFilterDirectory(newFSDirectory(createTempDir()))) {};
+        final RecoveryState.Index indexStats = new RecoveryState.Index();
+        StoreRecovery.addIndices(indexStats, target, null, new Directory[] { source }, 0L, 0L, null, 0, false, false);
+
+        assertThat(indexStats.totalFileCount(), greaterThan(0));
+        assertEquals(0, indexStats.reusedFileCount());
+        assertEquals(indexStats.totalFileCount(), indexStats.recoveredFileCount());
+        IOUtils.close(target, source);
+    }
+
+    private static class NoHardLinksFilterDirectory extends FilterDirectory implements NoHardLinksDirectory {
+        NoHardLinksFilterDirectory(Directory in) {
+            super(in);
+        }
     }
 
     public void testSplitShard() throws IOException {

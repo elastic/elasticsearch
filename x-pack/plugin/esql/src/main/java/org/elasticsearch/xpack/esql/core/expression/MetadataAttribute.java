@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -112,7 +114,7 @@ public final class MetadataAttribute extends TypedAttribute {
             out.writeString(name());
             dataType().writeTo(out);
             out.writeOptionalString(null); // qualifier, no longer used
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeBoolean(searchable);
@@ -125,7 +127,7 @@ public final class MetadataAttribute extends TypedAttribute {
             String name = stream.readString();
             DataType dataType = DataType.readFrom(stream);
             String qualifier = stream.readOptionalString(); // qualifier, no longer used
-            Nullability nullability = stream.readEnum(Nullability.class);
+            Nullability nullability = Nullability.readFrom(stream);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             boolean searchable = stream.readBoolean();
@@ -170,6 +172,11 @@ public final class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
+    public boolean isInternal() {
+        return true;
+    }
+
+    @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), nullable(), id(), synthetic(), searchable);
     }
@@ -205,6 +212,41 @@ public final class MetadataAttribute extends TypedAttribute {
 
     public static boolean isSupported(String name) {
         return ATTRIBUTES_MAP.containsKey(name);
+    }
+
+    /** Whether {@code name} is {@link #RELATION_CLASS} or {@link #RELATION_NAME}: a column the relation itself answers. */
+    public static boolean isRelationColumn(String name) {
+        return RELATION_CLASS.equals(name) || RELATION_NAME.equals(name);
+    }
+
+    /**
+     * The value a relation answers for one of its {@link #isRelationColumn relation columns}; {@code name} is what
+     * {@code _name} becomes, a literal or an attribute reference.
+     */
+    public static Expression relationColumnValue(String column, Source source, RelationClass relationClass, Expression name) {
+        return switch (column) {
+            case RELATION_CLASS -> Literal.keyword(source, relationClass.value());
+            case RELATION_NAME -> name;
+            default -> throw new IllegalStateException("unhandled relation column: " + column);
+        };
+    }
+
+    /** A keyword literal of {@code value}, or a keyword-typed null when there is none. */
+    public static Literal keywordOrNull(Source source, @Nullable String value) {
+        return value == null ? new Literal(source, null, DataType.KEYWORD) : Literal.keyword(source, value);
+    }
+
+    /**
+     * Whether a {@code METADATA} clause asks for a relation column, either by name or through a wildcard that covers one.
+     */
+    public static boolean requestsRelationColumn(List<? extends NamedExpression> requested) {
+        for (NamedExpression field : requested) {
+            String nameOrPattern = metadataName(field);
+            if (Regex.simpleMatch(nameOrPattern, RELATION_CLASS) || Regex.simpleMatch(nameOrPattern, RELATION_NAME)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean isScoreAttribute(Expression a) {

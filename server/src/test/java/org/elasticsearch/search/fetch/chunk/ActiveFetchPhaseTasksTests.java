@@ -22,7 +22,7 @@ public class ActiveFetchPhaseTasksTests extends ESTestCase {
 
     public void testAcquireRegisteredStream() {
         ActiveFetchPhaseTasks tasks = new ActiveFetchPhaseTasks();
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 10, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 10, NoopCircuitBreaker.INSTANCE);
         Releasable registration = tasks.registerResponseBuilder(123L, TEST_SHARD_ID, stream);
 
         try {
@@ -40,8 +40,8 @@ public class ActiveFetchPhaseTasksTests extends ESTestCase {
 
     public void testDuplicateRegisterThrows() {
         ActiveFetchPhaseTasks tasks = new ActiveFetchPhaseTasks();
-        FetchPhaseResponseStream first = new FetchPhaseResponseStream(0, 10, new NoopCircuitBreaker("test"));
-        FetchPhaseResponseStream second = new FetchPhaseResponseStream(0, 10, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream first = new FetchPhaseResponseStream(0, 10, NoopCircuitBreaker.INSTANCE);
+        FetchPhaseResponseStream second = new FetchPhaseResponseStream(0, 10, NoopCircuitBreaker.INSTANCE);
         Releasable registration = tasks.registerResponseBuilder(123L, TEST_SHARD_ID, first);
 
         try {
@@ -56,14 +56,14 @@ public class ActiveFetchPhaseTasksTests extends ESTestCase {
 
     public void testCloseRegistrationRemovesTaskAndAllowsReregister() {
         ActiveFetchPhaseTasks tasks = new ActiveFetchPhaseTasks();
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 10, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 10, NoopCircuitBreaker.INSTANCE);
         Releasable registration = tasks.registerResponseBuilder(123L, TEST_SHARD_ID, stream);
 
         try {
             registration.close();
             expectThrows(ResourceNotFoundException.class, () -> tasks.acquireResponseStream(123L, TEST_SHARD_ID));
 
-            FetchPhaseResponseStream replacement = new FetchPhaseResponseStream(0, 10, new NoopCircuitBreaker("test"));
+            FetchPhaseResponseStream replacement = new FetchPhaseResponseStream(0, 10, NoopCircuitBreaker.INSTANCE);
             Releasable secondRegistration = tasks.registerResponseBuilder(123L, TEST_SHARD_ID, replacement);
             try {
                 FetchPhaseResponseStream acquired = tasks.acquireResponseStream(123L, TEST_SHARD_ID);
@@ -85,7 +85,7 @@ public class ActiveFetchPhaseTasksTests extends ESTestCase {
 
     public void testAcquireFailsWhenStreamAlreadyClosed() {
         ActiveFetchPhaseTasks tasks = new ActiveFetchPhaseTasks();
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 10, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 10, NoopCircuitBreaker.INSTANCE);
         Releasable registration = tasks.registerResponseBuilder(123L, TEST_SHARD_ID, stream);
         registration.close();
 

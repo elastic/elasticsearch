@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -27,13 +32,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +57,39 @@ import static org.mockito.Mockito.when;
  */
 public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
+
+    /**
+     * Covers the forwarding step in isolation: this decorator over a metered leaf. The full production stack is covered by
+     * {@code StorageProviderRegistryTests#testAttachMetricsReachesMeteredLeafThroughProductionChain}.
+     */
+    public void testAttachMetricsReachesMeteredLeaf() throws Exception {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(
+            TestStorageObjects.meteredLeaf(StoragePath.of("s3://bucket/key"), data),
+            budget
+        );
+
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+        try (InputStream stream = obj.newStream(0, data.length)) {
+            assertArrayEquals(data, stream.readAllBytes());
+        }
+
+        Measurement requests = TestStorageObjects.singleMeasurement(
+            registry,
+            InstrumentType.LONG_COUNTER,
+            ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL
+        );
+        assertEquals(1L, requests.getLong());
+        assertEquals("s3", requests.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE));
+        assertEquals(
+            5L,
+            TestStorageObjects.singleMeasurement(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+                .getLong()
+        );
+    }
 
     public void testStreamCloseReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
@@ -136,7 +178,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -160,7 +202,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
@@ -282,7 +324,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             held.set(inv.getArgument(4));
             firstStarted.countDown();
             return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(farther, true)) {
@@ -344,5 +386,92 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
             closeThread.join();
             assertEquals("abort+close must not over-grant the budget", 0, budget.inFlight());
         }
+    }
+
+    public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
+        budget.pauseGrantDelivery();
+        StorageObject delegate = mock(StorageObject.class);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = obj.startReadBytesAsync(
+            0,
+            4,
+            FACTORY,
+            Runnable::run,
+            ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
+                error.set(e);
+                failed.countDown();
+            })
+        );
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        budget.release();
+        assertEquals(0, budget.waiterCount());
+        cancel.close();
+        budget.resumeGrantDelivery();
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals(0, budget.inFlight());
+        verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(), anyBoolean());
+    }
+
+    public void testStackedGrantsProgressWhenIoPoolBlocked() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(2, false), 5_000L);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 5_000L, null);
+        limiter.acquire();
+        limiter.acquire();
+        budget.acquire();
+        budget.acquire();
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(
+            new ConcurrencyLimitedStorageObject(TestStorageObjects.nativeAsync("data".getBytes(StandardCharsets.UTF_8)), limiter),
+            budget
+        );
+        ExecutorService pool = Executors.newFixedThreadPool(2, r -> new Thread(r, "io-pool"));
+        try {
+            CountDownLatch gets = new CountDownLatch(2);
+            AtomicReference<Exception> getError = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                obj.startReadBytesAsync(0, 4, FACTORY, pool, ActionListener.wrap(buf -> {
+                    buf.close();
+                    gets.countDown();
+                }, e -> {
+                    getError.set(e);
+                    gets.countDown();
+                }));
+            }
+            assertBusy(() -> assertEquals(2, budget.waiterCount()));
+
+            CountDownLatch entered = new CountDownLatch(2);
+            CountDownLatch syncDone = new CountDownLatch(2);
+            for (int i = 0; i < 2; i++) {
+                pool.execute(() -> {
+                    entered.countDown();
+                    try {
+                        limiter.acquire();
+                        limiter.release();
+                    } catch (Exception e) {
+                        getError.compareAndSet(null, e);
+                    } finally {
+                        syncDone.countDown();
+                    }
+                });
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+            budget.release();
+            budget.release();
+            limiter.release();
+            limiter.release();
+            assertTrue("GETs must finish without the pool", gets.await(1, TimeUnit.SECONDS));
+            assertNull(getError.get());
+            assertTrue(syncDone.await(5, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
+        }
+        assertEquals(2, limiter.availablePermits());
+        assertEquals(0, budget.inFlight());
     }
 }

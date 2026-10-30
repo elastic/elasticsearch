@@ -121,12 +121,32 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     public void testSchemaKeysDifferAcrossDefinitionVersions() {
         Map<String, Object> settings = Map.of("auth", "anonymous");
         assertNotEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v1", settings)),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v2", settings))
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v1", settings)),
+                false
+            ),
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v2", settings)),
+                false
+            )
         );
         assertEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v1", settings)),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", config("v1", settings))
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v1", settings)),
+                false
+            ),
+            SchemaCacheKey.build(
+                "s3://warehouse/data/a.parquet",
+                1000L,
+                TestDatasetIdentities.identity("parquet", "", config("v1", settings)),
+                false
+            )
         );
     }
 
@@ -139,8 +159,8 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         Map<String, Object> noVersion = new HashMap<>();
         noVersion.put("format", "csv");
         assertEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", noVersion),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", noVersion)
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, TestDatasetIdentities.identity("parquet", "", noVersion), false),
+            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, TestDatasetIdentities.identity("parquet", "", noVersion), false)
         );
     }
 
@@ -160,7 +180,7 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
 
         Map<String, Object> inline = new HashMap<>();
         inline.put("format", "csv");
-        assertEquals("an inline query carries no definition version", "", SchemaCacheKey.definitionVersionOf(inline));
+        assertEquals("an inline query carries no definition version", "", DatasetIdentity.definitionVersionOf(inline));
 
         assertNotEquals(
             "two inline identities over one prefix must not address one listing",
@@ -186,18 +206,28 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The other half of the same rule: what a file <i>contains</i> does not depend on who read it, so a credential
-     * must not fragment the schema key. Two inline identities over one file share its schema entry and each pays
-     * one cold read between them rather than one each.
+     * Identity is a function of content, not of the instances it was built from: two independently assembled
+     * configs that agree address one record, so two inline datasets over one file share its schema. The second
+     * arm is what makes this discriminating - a config that differs in something the identity does fold must NOT
+     * share, or the first arm would hold for any pair at all.
      */
-    public void testTwoInlineIdentitiesOverOneFileShareItsSchema() {
+    public void testIdentityIsAFunctionOfContentNotOfInstances() {
         Map<String, Object> reader = new HashMap<>();
         reader.put("format", "csv");
         Map<String, Object> auditor = new HashMap<>();
         auditor.put("format", "csv");
+        String path = "s3://warehouse/data/a.parquet";
         assertEquals(
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", reader),
-            SchemaCacheKey.build("s3://warehouse/data/a.parquet", 1000L, "parquet", "", auditor)
+            SchemaCacheKey.build(path, 1000L, TestDatasetIdentities.identity("parquet", "", reader), false),
+            SchemaCacheKey.build(path, 1000L, TestDatasetIdentities.identity("parquet", "", auditor), false)
+        );
+        Map<String, Object> elsewhere = new HashMap<>();
+        elsewhere.put("format", "csv");
+        elsewhere.put(DefinitionVersion.CONFIG_KEY, "v2");
+        assertNotEquals(
+            "a config differing in a component the identity folds must not share the address",
+            SchemaCacheKey.build(path, 1000L, TestDatasetIdentities.identity("parquet", "", reader), false),
+            SchemaCacheKey.build(path, 1000L, TestDatasetIdentities.identity("parquet", "", elsewhere), false)
         );
     }
 

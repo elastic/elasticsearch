@@ -26,6 +26,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -78,14 +79,16 @@ public class SnapshotShardContextHelper {
 
             // The check below is needed to handle shard snapshots during resharding.
             // Resharding changes the number of shards in the index and moves data between shards.
-            // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data movements)
-            // or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
-            // We want to detect if a resharding operation has happened after this snapshot was started
-            // and if so we'll fail the shard snapshot to avoid such inconsistency.
-            // We perform this check here on the data node and not on the master node
-            // to correctly propagate this failure to SnapshotsService using existing listener
-            // in case resharding starts in the middle of the snapshot.
-            // Marking shard as failed directly in the cluster state would bypass parts of SnapshotsService logic.
+            // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data
+            // movements) or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
+            // We want to detect if a resharding operation has happened after this snapshot was started and if so we'll
+            // fail the shard snapshot to avoid such inconsistency.
+            // Note that the master already fails a shard snapshot whose index is being resharded at the time it assigns
+            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus) or when it would have moved a WAITING or
+            // PAUSED_FOR_NODE_REMOVAL shard to INIT (see SnapshotsServiceUtils#processWaitingShardsAndRemovedNodes) absent
+            // the resharding process. The data node check is still needed for both a resharding operation that starts after
+            // the master started the shard snapshot, and for a resharding operation that already completed but did so
+            // after the snapshot was created (so the snapshot only contains the pre-split shards).
 
             // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
             // The information that we are interested in (the shards map keys) doesn't change so this is fine.
@@ -100,7 +103,7 @@ public class SnapshotShardContextHelper {
                 indexShard.indexSettings().getIndexMetadata(),
                 maximumShardIdForIndexInTheSnapshot
             )) {
-                throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
+                throw new IndexShardSnapshotFailedException(shardId, SnapshotsService.SHARD_BEING_RESHARDED_REASON);
             }
 
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok

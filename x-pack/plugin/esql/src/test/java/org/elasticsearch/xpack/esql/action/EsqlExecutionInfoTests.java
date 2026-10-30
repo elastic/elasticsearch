@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Predicates;
@@ -70,7 +69,7 @@ public class EsqlExecutionInfoTests extends ESTestCase {
 
     public void testPlanningBytesAreNotSerialized() throws IOException {
         EsqlExecutionInfo info = createEsqlExecutionInfo(false);
-        info.externalPlanning(new ExternalPlanningReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST)));
+        info.externalPlanning(new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             info.writeTo(out);
             EsqlExecutionInfo copy = new EsqlExecutionInfo(out.bytes().streamInput());

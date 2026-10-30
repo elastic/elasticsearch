@@ -71,7 +71,9 @@ public interface MeterRegistry {
      * @param observer callback to use. This is called once during reporting period.
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
+     * @deprecated Use {@link #registerDoubleAsyncGauge(String, String, String, Consumer)} instead.
      */
+    @Deprecated
     default DoubleAsyncGauge registerDoublesAsyncGauge(
         String name,
         String description,
@@ -153,7 +155,9 @@ public interface MeterRegistry {
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric values upon observation (metric interval)
+     * @deprecated Use {@link #registerLongAsyncCounter(String, String, String, Consumer)} instead.
      */
+    @Deprecated
     default LongAsyncCounter registerLongsAsyncCounter(
         String name,
         String description,
@@ -205,7 +209,9 @@ public interface MeterRegistry {
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric values upon observation (metric interval)
+     * @deprecated Use {@link #registerDoubleAsyncCounter(String, String, String, Consumer)} instead.
      */
+    @Deprecated
     default DoubleAsyncCounter registerDoublesAsyncCounter(
         String name,
         String description,
@@ -279,7 +285,9 @@ public interface MeterRegistry {
      * @param observer callback to use. This is called once during reporting period.
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
+     * @deprecated Use {@link #registerLongAsyncGauge(String, String, String, Consumer)} instead.
      */
+    @Deprecated
     default LongAsyncGauge registerLongsAsyncGauge(
         String name,
         String description,

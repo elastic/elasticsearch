@@ -645,7 +645,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                 knnQuery.visitPercentage(),
                 knnQuery.rescoreVectorBuilder(),
                 knnQuery.getVectorSimilarity()
-            ).addFilterQueries(rewrittenFilterQueries);
+            ).addFilterQueries(rewrittenFilterQueries.stream().<QueryBuilder>map(RootScopedQueryBuilder::new).toList());
         }
 
         return QueryBuilders.nestedQuery(SemanticTextField.getChunksFieldName(knnQuery.getFieldName()), expectedInnerQuery, ScoreMode.Max)

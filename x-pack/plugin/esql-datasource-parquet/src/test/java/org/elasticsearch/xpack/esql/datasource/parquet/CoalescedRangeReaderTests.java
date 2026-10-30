@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -18,10 +19,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -36,6 +40,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,6 +103,119 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<ByteRange> ranges = List.of(new ByteRange(0, 100), new ByteRange(200, 100));
         List<MergedRange> merged = CoalescedRangeReader.mergeRanges(ranges, 50);
         assertEquals(2, merged.size());
+    }
+
+    /**
+     * Pre-warm coalescing: gap must be at most the remaining waste budget (useful minus holes
+     * already merged, and at most {@link CoalescedRangeReader#DEFAULT_MAX_COALESCE_GAP}).
+     * Adjacent small ranges merge; a gap larger than remaining waste does not, even under 1 MiB.
+     */
+    public void testPreWarmMergeBoundsWasteToUsefulBytes() {
+        List<ByteRange> adjacent = List.of(new ByteRange(0, 100), new ByteRange(150, 100));
+        List<MergedRange> mergedAdjacent = CoalescedRangeReader.mergeRanges(adjacent, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        assertEquals(1, mergedAdjacent.size());
+        assertEquals(0, mergedAdjacent.get(0).offset());
+        assertEquals(250, mergedAdjacent.get(0).length());
+
+        List<ByteRange> largeGap = List.of(new ByteRange(0, 100), new ByteRange(100 + 200_000, 100));
+        List<MergedRange> mergedLargeGap = CoalescedRangeReader.mergeRanges(largeGap, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        assertEquals(2, mergedLargeGap.size());
+        List<MergedRange> defaultMerge = CoalescedRangeReader.mergeRanges(largeGap, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP);
+        assertEquals("1 MiB gap rule still merges these index-sized ranges", 1, defaultMerge.size());
+
+        List<ByteRange> gapEqualsUseful = List.of(new ByteRange(0, 100), new ByteRange(200, 100));
+        assertEquals(1, CoalescedRangeReader.mergeRanges(gapEqualsUseful, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true).size());
+        List<ByteRange> gapJustOverUseful = List.of(new ByteRange(0, 100), new ByteRange(201, 100));
+        assertEquals(2, CoalescedRangeReader.mergeRanges(gapJustOverUseful, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true).size());
+
+        // Overlapping constituents cover 150 unique bytes, not 200. A following 151-byte gap
+        // must refuse; a summed-length usefulBytes of 200 would incorrectly admit it.
+        List<ByteRange> overlapThenGap = List.of(new ByteRange(0, 100), new ByteRange(50, 100), new ByteRange(301, 50));
+        List<MergedRange> mergedOverlap = CoalescedRangeReader.mergeRanges(
+            overlapThenGap,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            true
+        );
+        assertEquals(2, mergedOverlap.size());
+        assertEquals(150, mergedOverlap.get(0).length());
+        assertEquals(301, mergedOverlap.get(1).offset());
+
+        // Equal gaps of 100 stay at most 2× (remaining waste budget stays 100). A growing
+        // 100, 200, 300 chain must split: capping at cumulative usefulBytes would admit it.
+        List<ByteRange> equalGaps = List.of(
+            new ByteRange(0, 100),
+            new ByteRange(200, 100),
+            new ByteRange(400, 100),
+            new ByteRange(600, 100)
+        );
+        List<MergedRange> mergedEqual = CoalescedRangeReader.mergeRanges(equalGaps, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        assertEquals(1, mergedEqual.size());
+        assertEquals(700, mergedEqual.get(0).length());
+
+        List<ByteRange> growingGaps = List.of(
+            new ByteRange(0, 100),
+            new ByteRange(200, 100),
+            new ByteRange(500, 100),
+            new ByteRange(900, 100)
+        );
+        List<MergedRange> mergedGrowing = CoalescedRangeReader.mergeRanges(
+            growingGaps,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            true
+        );
+        assertEquals(3, mergedGrowing.size());
+        assertEquals(300, mergedGrowing.get(0).length());
+        assertEquals(500, mergedGrowing.get(1).offset());
+        assertEquals(900, mergedGrowing.get(2).offset());
+    }
+
+    /**
+     * Seeded random ranges: holes in each merged group stay at most unique useful bytes,
+     * the 8 MiB cap holds unless a group is one constituent, and every input is in exactly
+     * one group.
+     */
+    public void testPreWarmMergePropertyHolesAtMostUseful() {
+        int n = randomIntBetween(2, 24);
+        List<ByteRange> ranges = new ArrayList<>(n + 4);
+        for (int i = 0; i < n; i++) {
+            ranges.add(new ByteRange(randomLongBetween(0, 2_000_000), randomLongBetween(1, 80_000)));
+        }
+        ByteRange base = ranges.get(0);
+        ranges.add(new ByteRange(base.offset(), base.length()));
+        ranges.add(new ByteRange(base.offset() + base.length() / 2, Math.max(1L, base.length())));
+        ranges.add(new ByteRange(base.offset() - Math.min(base.offset(), 10), base.length() + 20));
+        ranges.add(new ByteRange(base.offset() + Math.min(1L, base.length() - 1), Math.max(1L, base.length() / 4)));
+
+        List<MergedRange> merged = CoalescedRangeReader.mergeRanges(ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        int covered = 0;
+        for (MergedRange group : merged) {
+            long useful = uniqueCoveredBytes(group.constituents());
+            long holes = group.length() - useful;
+            assertTrue("holes " + holes + " exceed useful " + useful + " in " + group, holes <= useful);
+            if (group.constituents().size() > 1) {
+                assertTrue(group.length() <= CoalescedRangeReader.MAX_MERGED_RANGE_BYTES);
+            }
+            covered += group.constituents().size();
+        }
+        assertEquals(ranges.size(), covered);
+        for (ByteRange range : ranges) {
+            assertEquals(1L, merged.stream().filter(group -> group.constituents().contains(range)).count());
+        }
+    }
+
+    private static long uniqueCoveredBytes(List<ByteRange> constituents) {
+        List<ByteRange> sorted = new ArrayList<>(constituents);
+        sorted.sort(Comparator.comparingLong(ByteRange::offset));
+        long covered = 0L;
+        long cursor = Long.MIN_VALUE;
+        for (ByteRange range : sorted) {
+            long start = Math.max(range.offset(), cursor);
+            if (range.end() > start) {
+                covered += range.end() - start;
+                cursor = range.end();
+            }
+        }
+        return covered;
     }
 
     public void testMergeSingleRange() {
@@ -199,6 +317,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         StorageObject storage = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -283,6 +409,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         AtomicInteger asyncCallCount = new AtomicInteger();
         StorageObject storageObject = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -394,6 +528,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<Long> requestLengths = new ArrayList<>();
         StorageObject storageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -498,6 +640,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     public void testReadCoalescedFailure() throws Exception {
         StorageObject failingObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -596,6 +746,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10));
 
         StorageObject shortReadObject = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -707,6 +865,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10), new ByteRange(5000, 10));
 
                 StorageObject injecting = new StorageObject() {
+                    @Override
+                    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                    @Override
+                    public String version() {
+                        return "v1";
+                    }
+
                     @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
@@ -879,7 +1045,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
             cache.put(
-                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256),
+                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256, "v1"),
                 sequentialBytes(256)
             );
         }
@@ -1109,7 +1275,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             );
         }
         try {
-            assertEquals("admitWait plus alloc must swap, not stack, the charge", 64, watermark.used());
+            assertEquals("unit ticket plus alloc must swap, not stack, the charge", HeapFootprint.byteArrayBytes(64), watermark.used());
         } finally {
             result.release().close();
         }
@@ -1120,14 +1286,9 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         byte[] data = sequentialBytes(32);
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(80, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 80, owner);
         AtomicInteger starts = new AtomicInteger();
         CountingStorage storage = new CountingStorage(data) {
-            @Override
-            public long admissionWaitTimeoutMs() {
-                return 1_000L;
-            }
-
             @Override
             public Releasable startReadBytesAsync(
                 long position,
@@ -1144,31 +1305,47 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         CountDownLatch done = new CountDownLatch(1);
         AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
         AtomicReference<Exception> error = new AtomicReference<>();
-        Thread thread = new Thread(() -> {
-            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(waiter, true)) {
-                resultRef.set(awaitCoalesced(storage, List.of(new ByteRange(0, 16)), null, watermark, ParquetIoWatermark.ByteGate.PER_GET));
-            } catch (Exception e) {
-                error.set(e);
-            } finally {
-                done.countDown();
-            }
-        });
-        thread.start();
-        assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, thread.getState()));
-        assertEquals("startReadBytesAsync must not run until byte admission succeeds", 0, starts.get());
-        watermark.release(80);
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(waiter, true)) {
+            CoalescedRangeReader.readCoalesced(
+                storage,
+                List.of(new ByteRange(0, 16)),
+                0,
+                breaker,
+                watermark,
+                null,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET,
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(CoalescedRangeResult result) {
+                        resultRef.set(result);
+                        done.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        error.set(e);
+                        done.countDown();
+                    }
+                }
+            );
+        }
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertEquals("startReadBytesAsync must not run until the unit ticket grants", 0, starts.get());
+        blocker.drop();
         watermark.clearOwner(owner);
         assertTrue(done.await(5, TimeUnit.SECONDS));
-        thread.join();
         assertNull(error.get());
         assertEquals(1, starts.get());
         resultRef.get().release().close();
     }
 
-    public void testAdmitWaitFailureCompletesBatch() throws Exception {
+    public void testPerGetCancelBeforeGrantCompletesBatch() throws Exception {
         byte[] data = sequentialBytes(64);
-        ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
-        RowGroupIo lease = new RowGroupIo();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 80, owner);
         AtomicInteger starts = new AtomicInteger();
         CountingStorage storage = new CountingStorage(data) {
             @Override
@@ -1180,16 +1357,16 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 ActionListener<DirectReadBuffer> listener
             ) {
                 starts.incrementAndGet();
-                Releasable handle = super.startReadBytesAsync(position, length, factory, executor, listener);
-                lease.cancel();
-                return handle;
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
             }
         };
         CountDownLatch listenerDone = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
         AtomicReference<CoalescedRangeResult> success = new AtomicReference<>();
-        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, false)) {
-            CoalescedRangeReader.readCoalesced(
+        RowGroupIo waiter = new RowGroupIo();
+        Releasable cancel;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(waiter, false)) {
+            cancel = CoalescedRangeReader.readCoalesced(
                 storage,
                 List.of(new ByteRange(0, 8), new ByteRange(40, 8)),
                 0,
@@ -1214,13 +1391,19 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 }
             );
         }
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        cancel.close();
         assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
         assertNull(success.get());
-        assertEquals(1, starts.get());
-        assertEquals(0, lease.outstanding());
-        assertEquals("circuit breaker still holds bytes after admitWait failure", 0L, breaker.getUsed());
+        assertEquals(0, starts.get());
+        assertEquals(0, waiter.outstanding());
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(80, watermark.used());
+        blocker.drop();
+        watermark.clearOwner(owner);
         assertEquals(0, watermark.used());
+        assertEquals(0, watermark.waiterCount());
     }
 
     public void testUngatedNullHoldStillForceAdds() throws Exception {
@@ -1235,12 +1418,163 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             ParquetIoWatermark.ByteGate.UNGATED
         );
         try {
-            assertEquals(96, watermark.used());
+            assertEquals(80 + HeapFootprint.byteArrayBytes(16), watermark.used());
         } finally {
             result.release().close();
         }
         assertEquals(80, watermark.used());
         watermark.release(80);
+    }
+
+    /**
+     * Sync: one unit ticket for three GETs. Cap fits two ranges; the third does not create a
+     * partial holder. Charge-on-expiry is gone. This path waits on {@code actionGet};
+     * {@link #testAsyncPerGetUnitTicketNoPartialHolders} is the async proof.
+     */
+    public void testPerGetUnitTicketNoPartialHolders() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(20);
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 25, owner);
+        CountingStorage storage = new CountingStorage(data);
+        List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10));
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread thread = new Thread(() -> {
+            started.countDown();
+            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+                resultRef.set(
+                    CoalescedRangeReader.readCoalescedSync(
+                        storage,
+                        ranges,
+                        0,
+                        breaker,
+                        watermark,
+                        null,
+                        ParquetIoWatermark.ByteGate.PER_GET
+                    )
+                );
+            } catch (Exception e) {
+                error.set(e);
+            } finally {
+                done.countDown();
+            }
+        });
+        thread.start();
+        assertTrue(started.await(5, TimeUnit.SECONDS));
+        assertFalse("sync unit ticket must wait, not force-charge", done.await(50, TimeUnit.MILLISECONDS));
+        assertEquals(0, storage.syncGets.get());
+        blocker.drop();
+        watermark.clearOwner(owner);
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        thread.join();
+        assertNull(error.get());
+        try {
+            assertEquals(3, storage.syncGets.get());
+            assertEquals(3 * HeapFootprint.byteArrayBytes(10), watermark.used());
+        } finally {
+            if (resultRef.get() != null) {
+                resultRef.get().release().close();
+            }
+        }
+        assertEquals(0, watermark.used());
+    }
+
+    public void testTicketGrantStillTripsRequestBreaker() throws Exception {
+        byte[] data = sequentialBytes(64);
+        CircuitBreaker smallBreaker = new LimitedBreaker("small", ByteSizeValue.ofBytes(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
+        CircuitBreakingException e;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            e = expectThrows(
+                CircuitBreakingException.class,
+                () -> CoalescedRangeReader.readCoalescedSync(
+                    new CountingStorage(data),
+                    List.of(new ByteRange(0, 64)),
+                    0,
+                    smallBreaker,
+                    watermark,
+                    null,
+                    ParquetIoWatermark.ByteGate.PER_GET
+                )
+            );
+        }
+        assertThat(e.getMessage(), containsString("over test limit"));
+        assertEquals(0L, smallBreaker.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    /**
+     * Async: same three-range unit as {@link #testPerGetUnitTicketNoPartialHolders}, without
+     * parking the caller. This is the async-ticket proof, not the sync {@code actionGet} path.
+     */
+    public void testAsyncPerGetUnitTicketNoPartialHolders() throws Exception {
+        byte[] data = sequentialBytes(64);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(20);
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 25, owner);
+        AtomicInteger starts = new AtomicInteger();
+        CountingStorage storage = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                starts.incrementAndGet();
+                StorageRetryCancellation.isCancelled();
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CountDownLatch listenerDone = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<CoalescedRangeResult> success = new AtomicReference<>();
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(new RowGroupIo(), false)) {
+            CoalescedRangeReader.readCoalesced(
+                storage,
+                List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10)),
+                0,
+                breaker,
+                watermark,
+                null,
+                null,
+                ParquetIoWatermark.ByteGate.PER_GET,
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(CoalescedRangeResult result) {
+                        success.set(result);
+                        listenerDone.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        error.set(e);
+                        listenerDone.countDown();
+                    }
+                }
+            );
+        }
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertEquals(0, starts.get());
+        blocker.drop();
+        watermark.clearOwner(owner);
+        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        try {
+            assertNull(error.get());
+            assertNotNull(success.get());
+            assertEquals(3, starts.get());
+            assertEquals(3 * HeapFootprint.byteArrayBytes(10), watermark.used());
+        } finally {
+            if (success.get() != null) {
+                success.get().release().close();
+            }
+        }
+        assertEquals(0, watermark.used());
     }
 
     private static FooterByteCache footerCache() {
@@ -1319,6 +1653,14 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
     private static class CountingStorage implements StorageObject {
         @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
+        public String version() {
+            return "v1";
+        }
+
+        @Override
         public StorageIdentity storageIdentity() {
             return AbstractTestStorageObject.NOOP;
         }
@@ -1394,5 +1736,26 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         public StoragePath path() {
             return StoragePath.of("memory://footer-cache.parquet");
         }
+    }
+
+    private static ParquetIoWatermark.AdmitHold occupyOvershoot(ParquetIoWatermark watermark, long bytes, RowGroupIo lease)
+        throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        watermark.admitAsync(bytes, lease, () -> false, Runnable::run).addListener(ActionListener.wrap(granted -> {
+            hold.set(granted);
+            done.countDown();
+        }, e -> {
+            error.set(e);
+            done.countDown();
+        }));
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        if (error.get() != null) {
+            throw error.get();
+        }
+        assertNotNull(hold.get());
+        assertEquals(bytes, watermark.used());
+        return hold.get();
     }
 }

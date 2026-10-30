@@ -7,16 +7,24 @@
 
 package org.elasticsearch.xpack.stateless.engine;
 
+import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 
 /**
  * Integration coverage for the reader-heap budget: no reservation leaks across the engine lifecycle, refresh
@@ -492,6 +500,102 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
         }
 
         assertThat("reservation drains to zero after engine close even on the deferral path", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    // Regression coverage for the interplay between a deferred refresh and closing a reader that triggers a
+    // call to retainOpenReaderFiles.
+    //
+    // A commit notification first calls SearchDirectory#updateCommit — adding the new commit's files to the
+    // directory metadata and then refreshes the reader that references them. When that refresh is deferred
+    // by the reader-heap breaker, the deferred commit's files already sit in the metadata but no open
+    // reader references them yet. If a reader closes in that window, the retain pass triggered by its close
+    // listener must NOT prune the deferred commit's files, which a later retry will advance onto.
+    public void testDeferredCommitFilesSurviveConcurrentReaderClose() throws IOException {
+        final Map<Long, Set<String>> updatedMetadata = new HashMap<>(); // Contains the metadata of the search directory
+        final AtomicReference<SearchDirectory> searchDirectoryRef = new AtomicReference<>();
+
+        final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, () -> 1L, NoMergePolicy.INSTANCE);
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, (searchDirectory, commit) -> {
+                searchDirectoryRef.compareAndSet(null, searchDirectory);
+                updatedMetadata.put(commit.generation(), Set.copyOf(commit.commitFiles().keySet()));
+            }, (cacheBlobReaderService, blobFile) -> {})
+        ) {
+            // Create segment _0
+            indexEngine.index(randomDoc("doc0"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            // Open a reader that retain _0
+            Engine.Searcher pinned = searchEngine.acquireSearcher("test");
+            try {
+                // Create a second segment _1
+                indexEngine.index(randomDoc("doc1"));
+                indexEngine.flush();
+                // Refresh advances to the new commit, opened readers now retain _0 and _1
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+                long g2 = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+
+                // Sets a low limit to defer the next refresh
+                trackingBreaker.setLimit(1L);
+                // Create a third segment _2
+                indexEngine.index(randomDoc("doc2"));
+                indexEngine.flush();
+                long deferredGen = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+                // Processing the new commit updates the metadata, but does not refresh the reader so segment _2 is known but not retained
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+
+                assertThat("Refresh is deferred", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+                assertThat("Reader must stay pinned at G2", searchEngine.getCurrentPrimaryTermAndGeneration().generation(), equalTo(g2));
+
+                final Set<String> deferredCommitFiles = updatedMetadata.get(deferredGen);
+                assertNotNull("Deferred commit files must have been updated", deferredCommitFiles);
+                assertThat(
+                    "updateCommit must have merged the deferred commit's files into the metadata",
+                    searchDirectoryRef.get().getKnownFileNames(),
+                    hasItems(deferredCommitFiles.toArray(new String[0]))
+                );
+
+                // Now close the reader that retain _0. Its segment is shared with the latest refreshed reader, so no bytes are freed and
+                // the budget-released immediate retry must not fire. The call to retainOpenReaderFiles by the close listener is the only
+                // effect.
+                pinned.close();
+                pinned = null;
+                searchTaskQueue.runAllRunnableTasks();
+
+                assertThat(
+                    "Closing a reader whose segment is shared must not free budget nor fire the immediate retry",
+                    searchEngine.getRefreshImmediateRetryCount(),
+                    equalTo(0L)
+                );
+                assertThat(
+                    "Reader must still be deferred after the close",
+                    searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                    equalTo(g2)
+                );
+                assertThat(
+                    "Closing the reader executes retainOpenReaderFiles which must not evict the deferred commit's files from the metadata",
+                    searchDirectoryRef.get().getKnownFileNames(),
+                    hasItems(deferredCommitFiles.toArray(new String[0]))
+                );
+            } finally {
+                if (pinned != null) {
+                    pinned.close();
+                }
+            }
+        }
+
+        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."

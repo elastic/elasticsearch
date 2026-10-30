@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 162228
+summary: Fix count drift in multi-valued binary index sort at flush
+type: bug

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
@@ -100,7 +101,7 @@ public class VectorSimilarityQuery extends Query implements QueryProfilerProvide
 
     @Override
     public void visit(QueryVisitor visitor) {
-        visitor.visitLeaf(this);
+        innerKnnQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
     }
 
     @Override

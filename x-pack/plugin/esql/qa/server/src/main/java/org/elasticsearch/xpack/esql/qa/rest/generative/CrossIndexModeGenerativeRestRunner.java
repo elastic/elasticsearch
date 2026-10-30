@@ -612,6 +612,17 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             if (refThrew && isStrictAllFieldsNarrowingDifference(ref.query(), refMsg)) {
                 return;
             }
+            // Once the determinism gate has closed, the two modes process different row sets: a
+            // row-truncating or non-deterministic command (e.g. LIMIT ... BY, SORT on a non-unique
+            // key, SAMPLE) appeared earlier in the pipeline, or a FROM saturated the implicit
+            // LIMIT 1000. A per-row value-parse failure in an evaluator — an invalid IP/CIDR,
+            // number, date, or boolean reaching e.g. cidr_match()/to_ip()/to_long() — can then
+            // legitimately occur on one side only, because the offending row survives the
+            // truncation on just that side. While the gate is open the row sets are identical, so
+            // the same divergence would signal real value corruption and is still reported.
+            if (deterministic == false && isFieldParseFailure(refThrew ? refMsg : candMsg)) {
+                return;
+            }
             fail(
                 "Cross-mode failure parity divergence at ["
                     + current.commandName()
@@ -766,7 +777,10 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     private static final List<String> FIELD_PARSE_FAILURES = List.of(
         "For input string:",
         "failed to parse date field",
-        "is not an IP string literal"
+        "is not an IP string literal",
+        // A boolean field without index:true is searched on the reference side only; a non-boolean
+        // term such as "search" then fails to parse against it. Raised by BooleanFieldMapper.
+        "Can't parse boolean value"
     );
 
     /** A {@code qstr} with {@code "lenient": false}. Group 1 is the query string. */
@@ -777,10 +791,10 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     /**
      * A field-less {@code qstr} searches every field in standard mode, but only densely indexed
      * fields in strict columnar mode (see {@code SearchExecutionContext#defaultFields}). Numeric,
-     * date and ip fields without {@code index: true} are therefore searched on the reference side
-     * only. With {@code "lenient": false}, a value such as {@code "quick"} fails to parse against
-     * them, so only the reference side throws. This is a consequence of that narrowing, not of the
-     * leniency handling.
+     * date, ip and boolean fields without {@code index: true} are therefore searched on the
+     * reference side only. With {@code "lenient": false}, a value such as {@code "quick"} fails to
+     * parse against them, so only the reference side throws. This is a consequence of that
+     * narrowing, not of the leniency handling.
      *
      * <p>Only this direction is accepted. Columnar searches a subset of the reference fields, so it
      * can never fail on more of them. Columnar throwing where standard does not is the lost
@@ -791,7 +805,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         if (referenceQuery == null || referenceError == null) {
             return false;
         }
-        if (FIELD_PARSE_FAILURES.stream().noneMatch(referenceError::contains)) {
+        if (isFieldParseFailure(referenceError) == false) {
             return false;
         }
         Matcher strictQstr = STRICT_QSTR.matcher(referenceQuery);
@@ -801,6 +815,19 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             }
         }
         return false;
+    }
+
+    /**
+     * Returns {@code true} if {@code errorMessage} is a per-row value-parse failure — the error an
+     * evaluator raises when a field or literal value cannot be parsed into the type a function
+     * expects (an invalid IP/CIDR, number, date, or boolean). These are inherently row-dependent,
+     * so they are tolerated as one-sided divergences only once the determinism gate has closed.
+     */
+    private static boolean isFieldParseFailure(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        return FIELD_PARSE_FAILURES.stream().anyMatch(errorMessage::contains);
     }
 
     private static boolean isAllowedModeDifference(String errorMessage) {

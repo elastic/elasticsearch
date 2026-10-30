@@ -58,27 +58,29 @@ public final class ColumnarStringTermQuery extends Query {
     private final String field;
     private final BytesRef term;
     private final Where where;
+    private final boolean singleValued;
     private final ScanBudget budget;
 
     /** Documents whose value is exactly {@code term}. */
-    public static ColumnarStringTermQuery term(String field, BytesRef term, ScanBudget budget) {
-        return new ColumnarStringTermQuery(field, term, Where.WHOLE, budget);
+    public static ColumnarStringTermQuery term(String field, BytesRef term, boolean singleValued, ScanBudget budget) {
+        return new ColumnarStringTermQuery(field, term, Where.WHOLE, singleValued, budget);
     }
 
     /** Documents holding a value that starts with {@code prefix}. */
-    public static ColumnarStringTermQuery prefix(String field, BytesRef prefix, ScanBudget budget) {
-        return new ColumnarStringTermQuery(field, prefix, Where.START, budget);
+    public static ColumnarStringTermQuery prefix(String field, BytesRef prefix, boolean singleValued, ScanBudget budget) {
+        return new ColumnarStringTermQuery(field, prefix, Where.START, singleValued, budget);
     }
 
     /** Documents holding a value that has {@code term} somewhere inside it. */
-    public static ColumnarStringTermQuery contains(String field, BytesRef term, ScanBudget budget) {
-        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE, budget);
+    public static ColumnarStringTermQuery contains(String field, BytesRef term, boolean singleValued, ScanBudget budget) {
+        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE, singleValued, budget);
     }
 
-    private ColumnarStringTermQuery(String field, BytesRef term, Where where, ScanBudget budget) {
+    private ColumnarStringTermQuery(String field, BytesRef term, Where where, boolean singleValued, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
         this.term = BytesRef.deepCopyOf(Objects.requireNonNull(term));
         this.where = where;
+        this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);
     }
 
@@ -109,6 +111,7 @@ public final class ColumnarStringTermQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             final StringColumnReader column = columnar.reader();
                             return switch (where) {
                                 case WHOLE -> column.matchTerm(term);
@@ -120,7 +123,7 @@ public final class ColumnarStringTermQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and compared. For a plain (single-valued) field the blob is the
                         // raw value bytes; for a payload field the blob carries slot count + framed values.
-                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                        if (singleValued) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 private final BytesRef prefix = new BytesRef();
 
@@ -232,13 +235,13 @@ public final class ColumnarStringTermQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringTermQuery q) {
-            return where == q.where && field.equals(q.field) && term.bytesEquals(q.term);
+            return where == q.where && singleValued == q.singleValued && field.equals(q.field) && term.bytesEquals(q.term);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, term, where);
+        return Objects.hash(field, term, where, singleValued);
     }
 }

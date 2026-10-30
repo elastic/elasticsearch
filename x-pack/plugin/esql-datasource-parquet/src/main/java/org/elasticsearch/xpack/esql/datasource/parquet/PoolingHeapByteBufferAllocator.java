@@ -11,6 +11,7 @@ import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -37,13 +38,18 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * {@code heap / 32} is 128 MB). In-use buffers are charged by
  * {@link CircuitBreakerByteBufferAllocator} wrapping this allocator.
  *
- * <p>Arrays are pooled in power-of-two size classes up to {@link #MAX_POOLED}, which is sized to
+ * <p>Arrays are pooled in size classes up to {@link #MAX_POOLED}, which is sized to
  * cover everything parquet-mr routes through the read-options allocator: chunk reads come in
- * {@code maxAllocationSize} slabs (8 MiB, see {@code PlainParquetReadOptions}) and footer parses
+ * {@code maxAllocationSize} slabs (just under 8 MiB, see {@code PlainParquetReadOptions}) and footer parses
  * allocate the exact serialized footer length, which the footer fetch window bounds at
- * {@code ParquetFormatReader#MAX_FOOTER_READ_BYTES} (10 MiB). Each size class additionally keeps
+ * {@code ParquetFormatReader#MAX_FOOTER_READ_BYTES} (just under 8 MiB). Each size class additionally keeps
  * at most a quarter of the cap idle, so a burst of footer-sized arrays cannot evict every smaller
  * class.
+ *
+ * <p>Each size class holds arrays of {@link HeapFootprint#regionFriendlyLength(int)} of a power of
+ * two, not the power of two itself: the array header then fits inside the power of two, so a
+ * class array never spills into an extra, mostly empty G1 humongous region. An exact 8 MiB array
+ * occupies 12 MiB of heap at 4 MiB regions; the 8 MiB class array occupies 8 MiB.
  *
  * <p>Each {@link #allocate} wraps a fresh {@link ByteBuffer} around a pooled (or new) {@code byte[]}.
  * Reused arrays are <em>not</em> zeroed: every parquet-mr consumer of this allocator fully
@@ -70,13 +76,14 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
      */
     static final int HEAP_DIVISOR = 32;
 
-    /** Smallest power-of-two size class. Below this, allocate this size and still pool. */
+    /** Heap footprint of the smallest size class. Smaller requests use this class and still pool. */
     static final int MIN_POOLED = 1 << 8;
 
     /**
-     * Largest array that may enter the free list. Sized above the two large allocation classes
-     * parquet-mr sends through the read-options allocator — 8 MiB {@code maxAllocationSize} chunk
-     * slabs and footer buffers of up to the 10 MiB fetch window — so the very allocations that
+     * Heap footprint of the largest size class, the largest array that may enter the free list.
+     * Sized above the two large allocation classes parquet-mr sends through the read-options
+     * allocator — just-under-8 MiB {@code maxAllocationSize} chunk
+     * slabs and footer buffers of up to the just-under-8 MiB footer cap — so the very allocations that
      * scale with file count do not bypass the pool. Anything larger (rare) is exact-sized and
      * dropped on release.
      */
@@ -85,6 +92,8 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
     private static final int MIN_SHIFT = Integer.numberOfTrailingZeros(MIN_POOLED);
     private static final int MAX_SHIFT = Integer.numberOfTrailingZeros(MAX_POOLED);
     private static final int SIZE_CLASSES = MAX_SHIFT - MIN_SHIFT + 1;
+    /** Array length of each size class, indexed by {@code shift - MIN_SHIFT}. Strictly increasing. */
+    private static final int[] CLASS_SIZES = classSizes();
 
     private final long cap;
     private final AtomicLong pooledBytes = new AtomicLong();
@@ -127,7 +136,7 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
         List<ConcurrentLinkedQueue<byte[]>> queues = new ArrayList<>(SIZE_CLASSES);
         for (int i = 0; i < SIZE_CLASSES; i++) {
             queues.add(new ConcurrentLinkedQueue<>());
-            long classSize = 1L << (MIN_SHIFT + i);
+            long classSize = CLASS_SIZES[i];
             classEntryLimit[i] = (int) Math.max(1L, Math.min(Integer.MAX_VALUE, (cap / 4) / classSize));
         }
         this.free = List.copyOf(queues);
@@ -153,7 +162,7 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
                 backing = pooled;
             } else {
                 poolMisses.incrementAndGet();
-                backing = new byte[1 << shift];
+                backing = new byte[classSize(shift)];
             }
         } else {
             bypassedAllocations.incrementAndGet();
@@ -303,7 +312,7 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
         for (int i = 0; i < SIZE_CLASSES; i++) {
             long count = allocationsByClass.get(i);
             if (count > 0) {
-                histogram.add((1 << (MIN_SHIFT + i)) + "=" + count);
+                histogram.add(CLASS_SIZES[i] + "=" + count);
             }
         }
         long bypassed = bypassedAllocations.get();
@@ -313,9 +322,23 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
         return histogram;
     }
 
+    /** Array length of the size class with footprint {@code 1 << shift}. */
+    static int classSize(int shift) {
+        return CLASS_SIZES[shift - MIN_SHIFT];
+    }
+
+    private static int[] classSizes() {
+        int[] sizes = new int[SIZE_CLASSES];
+        for (int i = 0; i < SIZE_CLASSES; i++) {
+            sizes[i] = HeapFootprint.regionFriendlyLength(1 << (MIN_SHIFT + i));
+        }
+        return sizes;
+    }
+
     /**
-     * Power-of-two shift for a requested size, or {@code -1} when the allocation is too large to
-     * pool (caller should allocate the exact size and drop it on release).
+     * Shift of the smallest size class whose array length fits a requested size, or {@code -1}
+     * when the allocation is too large to pool (caller should allocate the exact size and drop it
+     * on release).
      */
     static int targetShift(int requested) {
         if (requested < 0) {
@@ -324,24 +347,22 @@ final class PoolingHeapByteBufferAllocator implements ByteBufferAllocator {
         if (requested == 0) {
             return -1;
         }
-        int shift = 32 - Integer.numberOfLeadingZeros(requested - 1);
-        if (shift < MIN_SHIFT) {
-            return MIN_SHIFT;
+        for (int i = 0; i < SIZE_CLASSES; i++) {
+            if (CLASS_SIZES[i] >= requested) {
+                return MIN_SHIFT + i;
+            }
         }
-        if (shift > MAX_SHIFT) {
-            return -1;
-        }
-        return shift;
+        return -1;
     }
 
-    private static int pooledShift(int capacity) {
-        if (capacity < MIN_POOLED || capacity > MAX_POOLED) {
-            return -1;
+    /** Shift of the size class whose array length is exactly {@code capacity}, or {@code -1} if none. */
+    static int pooledShift(int capacity) {
+        for (int i = 0; i < SIZE_CLASSES; i++) {
+            if (CLASS_SIZES[i] == capacity) {
+                return MIN_SHIFT + i;
+            }
         }
-        if (Integer.bitCount(capacity) != 1) {
-            return -1;
-        }
-        return Integer.numberOfTrailingZeros(capacity);
+        return -1;
     }
 
     private static ByteBuffer wrap(byte[] backing, int requested) {

@@ -173,12 +173,18 @@ public class QueryTranslatorTests extends ESTestCase {
             FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""", matchesRegex("""
             \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gte":2147483648,"lte":2147483650.*"""));
 
-        // mixed ANDs and NotEquals
         assertQueryTranslation("""
-            FROM test | WHERE 10 < integer AND integer < 12 AND integer > 0 AND integer != 5""", matchesRegex("""
+            FROM test | WHERE integer != 0""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"integer","next":\\{"bool":\\{"should":\\[""" + """
+            \\{"range":\\{"integer":\\{"lt":0,.*""" + """
+            \\{"range":\\{"integer":\\{"gt":0,.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 10 < integer AND integer < 12 AND integer > 0 AND integer != 11""", matchesRegex("""
             .*bool.*must.*""" + """
-            esql_single_value":\\{"field":"integer","next":\\{"bool":""" + """
-            .*must_not.*\\[\\{"term":\\{"integer":\\{"value":5.*""" + """
+            esql_single_value":\\{"field":"integer","next":\\{"bool":\\{"should":\\[""" + """
+            \\{"range":\\{"integer":\\{"lt":11,.*""" + """
+            \\{"range":\\{"integer":\\{"gt":11,.*""" + """
             esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gt":10,"lt":12.*"""));
 
         // multiple Ranges
@@ -376,14 +382,12 @@ public class QueryTranslatorTests extends ESTestCase {
             esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
             "2025-01-01T00:00:00.000Z","boost":0.0.*"""));
 
-        // == or ==
+        // == or == --> combined into a single IN, which pushes down as one terms query under one
+        // esql_single_value wrapper, rather than a bool/should of two individually-wrapped term queries.
         assertQueryTranslationDateDateNanosUnionTypes("""
-            FROM index* | WHERE date_and_date_nanos == "2020-01-01" or date_and_date_nanos == "2025-01-01\"""", stats, matchesRegex("""
-            .*bool.*should.*""" + """
-            esql_single_value":\\{"field":"date_and_date_nanos".*"term":\\{"date_and_date_nanos":\\{"value":"2020-01-01T00:00:00.000Z",\
-            "boost":0.0.*""" + """
-            esql_single_value":\\{"field":"date_and_date_nanos".*"term":\\{"date_and_date_nanos":\\{"value":"2025-01-01T00:00:00.000Z",\
-            "boost":0.0.*"""));
+            FROM index* | WHERE date_and_date_nanos == "2020-01-01" or date_and_date_nanos == "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"terms":{"date_and_date_nanos":["2020-01-01T00:00:00.000Z","2025-01-01T00:00:00.000Z"],"boost":0.0}}"""));
 
         // != or !=
         assertQueryTranslationDateDateNanosUnionTypes("""

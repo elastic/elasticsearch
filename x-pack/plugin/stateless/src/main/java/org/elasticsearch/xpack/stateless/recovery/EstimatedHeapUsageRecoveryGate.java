@@ -79,6 +79,8 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
                 0L,
                 // TODO: add merge memory estimate, only exists in serverless, may need a new SPI
                 0L,
+                // TODO: add ingest-model heap, published only on the master via IngestModelMemoryProvider
+                0L,
                 // collect shard heap usage estimate from local node
                 shardsMappingSizeCollector.collectShardMappingSizes()
             ).totalHeapUsage(),

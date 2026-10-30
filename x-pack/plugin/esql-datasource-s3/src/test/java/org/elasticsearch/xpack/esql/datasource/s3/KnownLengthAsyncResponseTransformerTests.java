@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -52,7 +53,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
     private static final StoragePath PATH = StoragePath.of("s3://test-bucket/data/file.parquet");
 
     /** Arbitrary non-zero slack, so a factory buffer that is larger than requested is not a rounding coincidence. */
@@ -280,7 +281,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         DirectReadBuffer result = future.get();
         transformer.exceptionOccurred(new IOException("late transport failure"));
         assertArrayEquals(payload, toByteArray(result.buffer()));
-        assertEquals(payload.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(payload.length), breaker.getUsed());
         result.close();
         assertEquals(0L, breaker.getUsed());
     }
@@ -346,7 +347,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
         assertTrue(future.isDone());
         assertFalse(future.isCompletedExceptionally());
-        assertEquals(payload.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(payload.length), breaker.getUsed());
         transformer.discard();
         assertEquals(0L, breaker.getUsed());
     }

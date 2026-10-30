@@ -22,10 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -34,6 +31,7 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,83 +56,17 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
-/// released when the recovery's [RecoveryListener] completes.
-/// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-/// dynamic setting. [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] then controls the max proportion
-/// of those concurrent recovery slots that may be used for relocation recoveries.
+/// released when the recovery's [RecoveryListener] completes. The max number of concurrent recovery slots is controlled
+/// by the [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
+/// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
+/// controls the max proportion of those concurrent recovery slots that may be used for non-critical recoveries (see
+/// [ShardRouting.RecoveryPriority#isCritical()]). Slots above this limit are kept free for critical recoveries.
 ///
 /// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
 public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
-
-    /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
-    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
-    /// Includes both recoveries of unassigned shards and relocations.
-    ///
-    /// Note that the effective max concurrent recoveries limit also takes into account the below heap setting throttle
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The effective max concurrent recoveries
-    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
-    /// See [RecoveriesThrottle].
-    ///
-    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
-    /// throttle on relocations only.
-    ///
-    /// Currently only registered by the stateless plugin, elsewhere disabled.
-    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
-    ///
-    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING = Setting.intSetting(
-        "indices.recovery.max_concurrent_incoming_recoveries",
-        // Throttling handled by master allocation for now.
-        Integer.MAX_VALUE,
-        1,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /// Controls the heap-based limit on concurrent incoming recoveries. Excludes peer recoveries for which this
-    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
-    /// Includes both recoveries of unassigned shards and relocations. Must be strictly positive: 0 is disallowed
-    /// (consistent with the minimum of the other recovery throttle settings in [ThrottlingRecoveryService]).
-    ///
-    /// Note that the effective max concurrent recoveries limit also takes into account the above static throttle
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. The effective max concurrent recoveries
-    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
-    /// See [RecoveriesThrottle].
-    ///
-    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
-    /// throttle on relocations only.
-    ///
-    /// Currently only registered by the stateless plugin, elsewhere disabled.
-    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once data node recovery throttling is ready for stateful (elasticsearch-team#2805).
-    ///
-    public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
-        "indices.recovery.max_concurrent_incoming_recoveries_per_heap_gb",
-        Double.MAX_VALUE,
-        Double.MIN_NORMAL,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for relocation recoveries.
-    /// The max allowed concurrent recovery count is derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-    /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. See [RecoveriesThrottle].
-    ///
-    /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of
-    /// the other recovery throttle settings in [ThrottlingRecoveryService]).
-    ///
-    /// Currently only registered by the stateless plugin, elsewhere disabled.
-    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once data node recovery throttling is ready for stateful (elasticsearch-team#2805).
-    ///
-    public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
-        "indices.recovery.incoming_recoveries_max_relocation_proportion",
-        RatioValue.ONE_HUNDRED_PERCENT,
-        RatioValue.ofPercent(Double.MIN_NORMAL),
-        RatioValue.ONE_HUNDRED_PERCENT,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     private final Executor executor;
     private final ThreadContext threadContext;
@@ -143,6 +75,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final ClusterService clusterService;
     private final RecoverySchedulingListener schedulingListener;
     private final RecoveryGateMonitor recoveryGateMonitor;
+    private final ByteSizeValue maxHeap;
     private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
 
     private final RecoveriesThrottle recoveriesThrottle;
@@ -181,39 +114,19 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
         this.recoveryGateMonitor = recoveryGateMonitor;
-        this.recoveriesThrottle = new RecoveriesThrottle(maxHeap);
+        this.maxHeap = maxHeap;
+        this.recoveriesThrottle = new RecoveriesThrottle();
     }
 
     @Override
     protected void doStart() {
         clusterService.addListener(this);
-        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        // These settings jointly determine the effective recovery slot limits. Watch them as a group so a
-        // single cluster-settings update that changes more than one is applied atomically before fillSlots runs.
-        final List<Setting<?>> incomingThrottleSettings = List.of(
-            INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-            INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
-            INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings(),
+            maxHeap,
+            this::applyIncomingRecoveryLimits
         );
-        // These settings are currently only registered by the stateless plugin. Elsewhere, fall back to the disabled defaults.
-        // TODO: remove this branch once they are also registered in stateful.
-        if (incomingThrottleSettings.stream().allMatch(s -> clusterSettings.isDynamicSetting(s.getKey()))) {
-            applyIncomingThrottleSettings(
-                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
-                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING),
-                clusterSettings.get(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING)
-            );
-            clusterSettings.addSettingsUpdateConsumer(
-                settings -> applyIncomingThrottleSettings(
-                    INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings),
-                    INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings),
-                    INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(settings)
-                ),
-                incomingThrottleSettings
-            );
-        } else {
-            applyIncomingThrottleSettings(Integer.MAX_VALUE, Double.MAX_VALUE, RatioValue.ONE_HUNDRED_PERCENT);
-        }
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
@@ -514,12 +427,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return;
             }
-            // Pull pending recoveries from the priority queue up for as long as the RecoveriesThrottle will allow us to. Note that we just
-            // peek at the item at the head of the queue here. This relies on the connection of these two facts:
-            // 1. Recoveries from unassigned shards will always appear in the queue ahead of relocations;
-            // 2. We will never throttle unassigned recoveries more tightly than relocations.
-            // This means that the recoveriesThrottle.shouldStartNextPendingRecovery() will never return false for the item at the head of
-            // the queue when it might have returned true for an item lower down the queue.
+            // Pull pending recoveries from the priority queue up for as long as the RecoveriesThrottle will allow us to.
+            // Note that we just peek at the item at the head of the queue here. This relies on these two facts:
+            // 1. Critical recoveries will always appear in the queue ahead of non-critical ones
+            // 2. We will never throttle critical recoveries more tightly than non-critical ones.
+            // This means that the recoveriesThrottle.shouldStartNextPendingRecovery() will never return false for the
+            // item at the head of the queue when it might have returned true for an item lower down the queue.
             while (pendingRecoveries.isEmpty() == false && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
                 final PendingRecovery recovery = pendingRecoveries.poll();
                 assert recovery != null;
@@ -621,9 +534,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         fillSlots();
     }
 
-    private void applyIncomingThrottleSettings(int maxConcurrent, double perHeapGb, RatioValue relocationProportion) {
+    private void applyIncomingRecoveryLimits(IncomingRecoveryLimits limits) {
         synchronized (this) {
-            recoveriesThrottle.applyIncomingThrottleSettings(maxConcurrent, perHeapGb, relocationProportion);
+            recoveriesThrottle.limits = limits;
         }
         if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
@@ -667,22 +580,16 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return routingAllocation.getId();
         }
 
-        boolean isUnassigned() {
+        /// Returns whether this is a critical recovery, see [ShardRouting.RecoveryPriority#isCritical()].
+        boolean isCritical() {
             RecoveryState state = recoveryState();
-            return switch (state.getRecoveryPriority()) {
-                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
-                case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> false;
-                case UNKNOWN -> {
-                    assert false : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
-                    yield false; // fall back to false, as we treat this as the lowest priority, so it is ordered more like a relocation
-                }
-            };
+            assert state.getRecoveryPriority() != ShardRouting.RecoveryPriority.UNKNOWN
+                : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
+            return state.getRecoveryPriority().isCritical();
         }
 
         RecoverySchedulingListener.PriorityGroup priorityGroup() {
-            return isUnassigned()
-                ? RecoverySchedulingListener.PriorityGroup.UNASSIGNED
-                : RecoverySchedulingListener.PriorityGroup.RELOCATION;
+            return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
     }
 
@@ -690,66 +597,36 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Not thread-safe. All access must be performed while holding the enclosing [ThrottlingRecoveryService] instance lock.
     private static class RecoveriesThrottle {
 
-        /// The node's max heap, used to compute the heap-based throttling limit.
-        private final ByteSizeValue maxHeap;
+        /// The effective limits on running recoveries.
+        private IncomingRecoveryLimits limits;
 
-        /// Effective max concurrent recoveries, derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-        /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING].
-        private int effectiveMaxConcurrentRecoveries;
-
-        /// Effective max concurrent relocation recoveries, derived from [#effectiveMaxConcurrentRecoveries] and
-        /// [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
-        private int effectiveMaxConcurrentRelocationRecoveries;
-
-        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
-        /// not exceed [#effectiveMaxConcurrentRecoveries].
+        /// The number of concurrent recoveries currently running, including critical and non-critical recoveries.
         private int runningRecoveries = 0;
 
-        /// The number of concurrent relocation recoveries currently running.
-        private int runningRelocationRecoveries = 0;
-
-        RecoveriesThrottle(ByteSizeValue maxHeap) {
-            this.maxHeap = maxHeap;
-        }
-
-        /// Updates the effective max concurrent recoveries and relocations limits based on the latest values of incoming
-        /// throttle settings.
-        private void applyIncomingThrottleSettings(int maxConcurrent, double perHeapGb, RatioValue relocationProportion) {
-            effectiveMaxConcurrentRecoveries = computeEffectiveMaxConcurrentRecoveries(maxConcurrent, perHeapGb);
-            effectiveMaxConcurrentRelocationRecoveries = (int) Math.ceil(
-                effectiveMaxConcurrentRecoveries * relocationProportion.getAsRatio()
-            );
-        }
-
-        /// Computes the effective max concurrent recoveries from the static and heap-based limits.
-        private int computeEffectiveMaxConcurrentRecoveries(int maxConcurrent, double perHeapGb) {
-            final double heapInGb = maxHeap.getGbFrac();
-            assert heapInGb >= 0;
-            if (heapInGb == 0) { // Heap size is unknown (JvmInfo may report 0)
-                return maxConcurrent;
-            }
-            return Math.min(maxConcurrent, (int) Math.ceil(heapInGb * perHeapGb));
-        }
+        /// The number of concurrent non-critical recoveries currently running.
+        private int runningNonCriticalRecoveries = 0;
 
         private void incrementRunning(PendingRecovery recoveryNowRunning) {
             runningRecoveries++;
-            if (!recoveryNowRunning.isUnassigned()) {
-                runningRelocationRecoveries++;
+            if (recoveryNowRunning.isCritical() == false) {
+                runningNonCriticalRecoveries++;
             }
         }
 
         private void decrementRunning(PendingRecovery recoveryNowFinished) {
             runningRecoveries--;
-            assert runningRecoveries >= 0 : "negative number of running unassigned recoveries " + runningRecoveries;
-            if (!recoveryNowFinished.isUnassigned()) {
-                runningRelocationRecoveries--;
-                assert runningRelocationRecoveries >= 0 : "negative number of running relocation recoveries " + runningRelocationRecoveries;
+            assert runningRecoveries >= 0 : "negative number of running recoveries " + runningRecoveries;
+            if (recoveryNowFinished.isCritical() == false) {
+                runningNonCriticalRecoveries--;
+                assert runningNonCriticalRecoveries >= 0
+                    : "negative number of running non-critical recoveries " + runningNonCriticalRecoveries;
             }
         }
 
         private boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
-            return runningRecoveries < effectiveMaxConcurrentRecoveries
-                && (nextPendingRecovery.isUnassigned() || (runningRelocationRecoveries < effectiveMaxConcurrentRelocationRecoveries));
+            assert limits != null : "recovery limits are set when the service starts";
+            return runningRecoveries < limits.maxConcurrentRecoveries()
+                && (nextPendingRecovery.isCritical() || (runningNonCriticalRecoveries < limits.maxConcurrentNonCriticalRecoveries()));
         }
     }
 

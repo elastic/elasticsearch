@@ -83,6 +83,14 @@ In places where the {{security-features}} accept wildcard patterns (e.g. index p
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The length of time to retain in an item in the automata cache (based on most recent usage). Defaults to `48h` (48 hours).
 
 
+### Index privilege settings [index-privilege-settings]
+
+You can set the following index privilege settings in `elasticsearch.yml`. For more information, see [Indices privileges](/reference/elasticsearch/security-privileges.md#privileges-list-indices).
+
+`xpack.security.authz.index_privileges.cache.size` {applies_to}`stack: ga 9.7`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum memory usage of the cache of resolved index privileges. Each distinct set of index privileges granted by a role (or by the role descriptors of an API key) is compiled into an automaton, which can be CPU intensive, and the result is cached. Accepts either a percentage of the node’s JVM heap memory or a [byte size value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units). When the configured value is exceeded, the least recently used entries are evicted. Defaults to `5%`.
+
+
 ### Document and field level security settings [field-document-security-settings]
 
 You can set the following document and field level security settings in `elasticsearch.yml`. For more information, see [Setting up field and document level security](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md).
@@ -786,6 +794,8 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `certificate_authorities`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to the PEM certificate files that should be used to authenticate a user’s certificate as trusted. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `truststore.path`.
 
+    {applies_to}`stack: ga 9.6` {{es}} automatically polls these certificate files and reloads the trust configuration when changes are detected. Files are polled at a frequency determined by the global {{es}} `resource.reload.interval.high` setting, which defaults to 5 seconds.
+
 `truststore.algorithm`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Algorithm for the truststore. Defaults to `SunX509`.
 
@@ -806,6 +816,8 @@ If `truststore.path` is set, this setting is required.
 
 `truststore.path`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path of a truststore to use. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `certificate_authorities`.
+
+    {applies_to}`stack: ga 9.6` {{es}} automatically polls this truststore file and reloads the trust configuration when changes are detected. The file is polled at a frequency determined by the global {{es}} `resource.reload.interval.high` setting, which defaults to 5 seconds.
 
 `files.role_mapping`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the [location](docs-content://deploy-manage/security.md) of the [YAML role mapping configuration file](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md). Defaults to `ES_PATH_CONF/role_mapping.yml`.

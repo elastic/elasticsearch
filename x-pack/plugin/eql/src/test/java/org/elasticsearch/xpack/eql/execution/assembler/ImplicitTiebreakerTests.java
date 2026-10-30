@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class ImplicitTiebreakerTests extends ESTestCase {
 
-    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("ImplicitTiebreakerTests");
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = NoopCircuitBreaker.INSTANCE;
 
     private final List<HitExtractor> keyExtractors = emptyList();
     private final HitExtractor tsExtractor = TimestampExtractor.INSTANCE;

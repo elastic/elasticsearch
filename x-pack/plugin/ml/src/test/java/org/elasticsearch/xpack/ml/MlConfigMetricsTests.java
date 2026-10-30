@@ -20,9 +20,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -59,10 +60,10 @@ public class MlConfigMetricsTests extends ESTestCase {
     private ClusterService clusterService;
     private DatafeedConfigProvider datafeedConfigProvider;
     private MeterRegistry meterRegistry;
-    private Supplier<LongWithAttributes> internalCredentialsObserver;
-    private Supplier<Collection<LongWithAttributes>> authTypeObserver;
-    private Supplier<Collection<LongWithAttributes>> projectRoutingObserver;
-    private Supplier<Collection<LongWithAttributes>> extractorTypeObserver;
+    private Supplier<Measurement> internalCredentialsObserver;
+    private Supplier<Collection<Measurement>> authTypeObserver;
+    private Supplier<Collection<Measurement>> projectRoutingObserver;
+    private Supplier<Collection<Measurement>> extractorTypeObserver;
 
     @Before
     public void initMlConfigMetricsTestDeps() throws Exception {
@@ -146,7 +147,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         );
         metrics.pollIfMaster();
 
-        assertThat(internalCredentialsObserver.get().value(), equalTo(1L));
+        assertThat(internalCredentialsObserver.get().getLong(), equalTo(1L));
         assertThat(findObservation(authTypeObserver.get(), "es_auth_type", "uiam"), equalTo(1L));
         assertThat(findObservation(authTypeObserver.get(), "es_auth_type", "legacy"), equalTo(1L));
         assertThat(findObservation(projectRoutingObserver.get(), "es_routing_bucket", "local_only"), equalTo(1L));
@@ -157,7 +158,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         metrics.clusterChanged(masterClusterChangedEvent());
         metrics.pollIfMaster();
 
-        assertThat(internalCredentialsObserver.get().value(), equalTo(1L));
+        assertThat(internalCredentialsObserver.get().getLong(), equalTo(1L));
         assertThat(internalCredentialsObserver.get().attributes().get("es.ml.is_master"), equalTo(Boolean.TRUE));
     }
 
@@ -178,7 +179,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         metrics.pollIfMaster();
 
         verify(datafeedConfigProvider, never()).expandDatafeedConfigs(anyString(), eq(true), isNull(), any());
-        assertThat(internalCredentialsObserver.get().value(), equalTo(0L));
+        assertThat(internalCredentialsObserver.get().getLong(), equalTo(0L));
     }
 
     public void testPollIfMasterOnNonMasterShouldClearCachedCounts() {
@@ -200,12 +201,12 @@ public class MlConfigMetricsTests extends ESTestCase {
         );
         metrics.clusterChanged(masterClusterChangedEvent());
         metrics.pollIfMaster();
-        assertThat(internalCredentialsObserver.get().value(), equalTo(1L));
+        assertThat(internalCredentialsObserver.get().getLong(), equalTo(1L));
 
         when(clusterService.state()).thenReturn(nonMasterClusterState());
         metrics.pollIfMaster();
 
-        assertThat(internalCredentialsObserver.get().value(), equalTo(0L));
+        assertThat(internalCredentialsObserver.get().getLong(), equalTo(0L));
     }
 
     public void testPollIfMasterShouldClearCountsWhenDemotedWhileScanInFlight() {
@@ -238,7 +239,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         );
         metrics.pollIfMaster();
 
-        assertThat(internalCredentialsObserver.get().value(), equalTo(0L));
+        assertThat(internalCredentialsObserver.get().getLong(), equalTo(0L));
     }
 
     private static Settings cpsMasterSettings() {
@@ -331,35 +332,39 @@ public class MlConfigMetricsTests extends ESTestCase {
         return builder;
     }
 
-    private static long findObservation(Collection<LongWithAttributes> observations, String attributeKey, String attributeValue) {
+    private static long findObservation(Collection<Measurement> observations, String attributeKey, String attributeValue) {
         return observations.stream()
             .filter(observation -> attributeValue.equals(observation.attributes().get(attributeKey)))
-            .mapToLong(LongWithAttributes::value)
+            .mapToLong(Measurement::getLong)
             .findFirst()
             .orElseThrow();
     }
 
     @SuppressWarnings("unchecked")
-    private static Supplier<LongWithAttributes> captureLongGauge(MeterRegistry meterRegistry, String metricName) {
+    private static Supplier<Measurement> captureLongGauge(MeterRegistry meterRegistry, String metricName) {
         AtomicReference<Consumer<LongAsyncMeasurement>> observer = new AtomicReference<>();
         when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any(Consumer.class))).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
             return mock(LongAsyncGauge.class);
         });
         return () -> {
-            AtomicReference<LongWithAttributes> result = new AtomicReference<>();
-            observer.get().accept((value, attributes) -> result.set(new LongWithAttributes(value, attributes)));
+            AtomicReference<Measurement> result = new AtomicReference<>();
+            observer.get().accept((value, attributes) -> result.set(new Measurement(value, attributes, false)));
             return result.get();
         };
     }
 
     @SuppressWarnings("unchecked")
-    private static Supplier<Collection<LongWithAttributes>> captureLongsGauge(MeterRegistry meterRegistry, String metricName) {
-        AtomicReference<Supplier<Collection<LongWithAttributes>>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongsAsyncGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
+    private static Supplier<Collection<Measurement>> captureLongsGauge(MeterRegistry meterRegistry, String metricName) {
+        AtomicReference<Consumer<LongAsyncMeasurement>> observer = new AtomicReference<>();
+        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any(Consumer.class))).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
             return mock(LongAsyncGauge.class);
         });
-        return () -> observer.get().get();
+        return () -> {
+            List<Measurement> result = new ArrayList<>();
+            observer.get().accept((value, attributes) -> result.add(new Measurement(value, attributes, false)));
+            return result;
+        };
     }
 }

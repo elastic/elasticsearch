@@ -478,7 +478,11 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
 
                 @Override
                 public IOBooleanSupplier prepareSeekExact(BytesRef text) throws IOException {
-                    return getDelegate().prepareSeekExact(text);
+                    if (mayContainTerm(text)) {
+                        return getDelegate().prepareSeekExact(text);
+                    } else {
+                        return () -> false;
+                    }
                 }
             };
         }

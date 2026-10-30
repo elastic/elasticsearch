@@ -124,10 +124,14 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     final var response = new Response(new HashMap<>(), new CountDownLatch(1));
-                    final var maxSize = between(1, ByteSizeUnit.MB.toIntBytes(1));
-                    final var entryCount = between(0, ByteSizeUnit.MB.toIntBytes(10) / maxSize); // limit total size to 10MiB
+
+                    // To avoid exhausting the heap, we cap the total size of the response as well as the max number of entries
+                    final int maxResponseBytes = ByteSizeUnit.MB.toIntBytes(10);
+                    final int maxEntries = 1_000;
+                    final var maxSizeOfEachEntry = between(1, ByteSizeUnit.MB.toIntBytes(1));
+                    final var entryCount = between(0, Math.min(maxEntries, maxResponseBytes / maxSizeOfEachEntry));
                     for (int i = 0; i < entryCount; i++) {
-                        response.entries().put(randomIdentifier(), randomContent(between(1, 10), maxSize));
+                        response.entries().put(randomIdentifier(), randomContent(between(1, 10), maxSizeOfEachEntry));
                     }
                     assertTrue(responseRef.compareAndSet(null, response));
                     handleZipRestRequest(

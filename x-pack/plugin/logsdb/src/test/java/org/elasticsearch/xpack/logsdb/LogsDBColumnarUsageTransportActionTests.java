@@ -27,7 +27,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
 
     public void testEmptyProject() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.enabled(), equalTo(true));
         assertThat(counts.numIndices(), equalTo(0));
         assertThat(counts.numIndicesWithSyntheticSources(), equalTo(0));
@@ -39,14 +44,16 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
     public void testEnabledFlagResolvedFromClusterSettings() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(
-            LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR).enabled(),
+            LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR, randomBoolean())
+                .enabled(),
             equalTo(true)
         );
         assertThat(
             LogsDBColumnarUsageTransportAction.computeIndexModeStats(
                 project,
                 clusterSettings(Settings.builder().put(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED.getKey(), false).build()),
-                IndexMode.LOGSDB_COLUMNAR
+                IndexMode.LOGSDB_COLUMNAR,
+                randomBoolean()
             ).enabled(),
             equalTo(false)
         );
@@ -66,7 +73,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()))
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, false).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.numIndices(), equalTo(1));
         assertThat(counts.numIndicesWithSyntheticSources(), equalTo(1));
     }
@@ -80,7 +92,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             )
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, false).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.numIndices(), equalTo(1));
         assertThat(counts.numIndicesWithSyntheticSources(), equalTo(0));
     }
@@ -88,7 +105,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
     public void testStandardIndexNotCounted() {
         IndexMetadata standardIndex = IndexMetadata.builder("standard-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(standardIndex, false).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.numIndices(), equalTo(0));
         assertThat(counts.numIndicesWithSyntheticSources(), equalTo(0));
     }
@@ -98,7 +120,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()))
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(logsdbIndex, false).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.numIndices(), equalTo(0));
         assertThat(counts.numIndicesWithSyntheticSources(), equalTo(0));
     }
@@ -123,7 +150,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .put(logsdbIndex, false)
             .put(standardIndex, false)
             .build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.numIndices(), equalTo(2));
         assertThat(counts.numIndicesWithSyntheticSources(), equalTo(1));
     }
@@ -135,7 +167,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build())
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(writeIndex, false).put(dataStream).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.dataStreamsCount(), equalTo(1));
         assertThat(counts.dataStreamsManagedByDlm(), equalTo(1));
         assertThat(counts.dataStreamsManagedByIlm(), equalTo(0));
@@ -151,7 +188,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .build();
         DataStream dataStream = DataStream.builder(streamName, List.of(writeIndex.getIndex())).build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(writeIndex, false).put(dataStream).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.dataStreamsCount(), equalTo(1));
         assertThat(counts.dataStreamsManagedByIlm(), equalTo(1));
         assertThat(counts.dataStreamsManagedByDlm(), equalTo(0));
@@ -162,7 +204,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
         IndexMetadata writeIndex = buildColumnarWriteIndex(streamName, 1);
         DataStream dataStream = DataStream.builder(streamName, List.of(writeIndex.getIndex())).build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(writeIndex, false).put(dataStream).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.dataStreamsCount(), equalTo(1));
         assertThat(counts.dataStreamsManagedByIlm(), equalTo(0));
         assertThat(counts.dataStreamsManagedByDlm(), equalTo(0));
@@ -175,7 +222,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .build();
         DataStream dataStream = DataStream.builder(streamName, List.of(writeIndex.getIndex())).build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(writeIndex, false).put(dataStream).build();
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.dataStreamsCount(), equalTo(0));
         assertThat(counts.dataStreamsManagedByIlm(), equalTo(0));
         assertThat(counts.dataStreamsManagedByDlm(), equalTo(0));
@@ -216,7 +268,12 @@ public class LogsDBColumnarUsageTransportActionTests extends ESTestCase {
             .put(DataStream.builder(logsdbStream, List.of(logsdbWriteIndex.getIndex())).build())
             .build();
 
-        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(project, clusterSettings(), IndexMode.LOGSDB_COLUMNAR);
+        var counts = LogsDBColumnarUsageTransportAction.computeIndexModeStats(
+            project,
+            clusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR,
+            randomBoolean()
+        );
         assertThat(counts.dataStreamsCount(), equalTo(3));
         assertThat(counts.dataStreamsManagedByDlm(), equalTo(1));
         assertThat(counts.dataStreamsManagedByIlm(), equalTo(1));

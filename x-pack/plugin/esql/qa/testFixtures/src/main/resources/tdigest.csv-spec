@@ -471,11 +471,13 @@ cnt:long
 
 Count t-digest with null bucket
 required_capability: fn_count_histogram_bucket
+required_capability: warn_null_misuse
 
 FROM tdigest_standard_index
  | WHERE instance == "hand-rolled"
  | STATS cnt = COUNT(responseTime, TO_RANGE(null, 1.0))
 ;
+warning:Line 3:35: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 cnt:long
 null

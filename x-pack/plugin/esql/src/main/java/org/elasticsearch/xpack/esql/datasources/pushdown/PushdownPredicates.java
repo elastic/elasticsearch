@@ -49,9 +49,12 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * Comparison, {@code IN}, and {@code Range} also require a foldable literal whose
  * {@link DataType} agrees with the column for date and numeric pairs
  * ({@link #isAgreeingPushdownLiteral}): dataset readers treat the literal's raw number
- * as already in the column's domain, and ES|QL allows mixed {@code date}/{@code date_nanos}
+ * as already in the column's domain. ES|QL allows mixed {@code date}/{@code date_nanos}
  * and mixed {@code integer}/{@code long}/{@code double} comparisons that the evaluator
- * reconciles. A mixed leaf stays in {@code FilterExec}.
+ * reconciles. Parquet, ORC, and {@code SplitFilterClassifier} run
+ * {@link PushdownLiteralConversion#rewrite} at their entry points so convertible mixed
+ * leaves become agreeing before this check; a leaf that still disagrees stays in
+ * {@code FilterExec}.
  * <p>
  * Boolean connective <em>polarity</em> (AND partial vs full pushdown, OR, NOT) stays
  * format-specific: ORC and Parquet allow partial AND, Iceberg requires both sides.
@@ -92,7 +95,10 @@ public final class PushdownPredicates {
      * column's domain. ES|QL allows mixed date / date_nanos and mixed integer / long / double
      * comparisons and reconciles them in the evaluator, so a bound built from the column type alone
      * is wrong when the literal is the other date type (unit) or another numeric type (truncation).
-     * Those predicates stay in FilterExec (and the classifier stays AMBIGUOUS).
+     * After {@link PushdownLiteralConversion#rewrite}, convertible mixed leaves agree; a leaf
+     * that still disagrees here stays in {@code FilterExec} (and the classifier stays
+     * {@code AMBIGUOUS}). Formats that do not rewrite (Iceberg today) keep the #1932 decline.
+     * Mixed {@code mv_*} leaves are intentionally not converted and stay declined.
      */
     public static boolean isAgreeingPushdownLiteral(DataType columnType, Expression literal) {
         DataType literalType = literal.dataType();

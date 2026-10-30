@@ -1,0 +1,32 @@
+{
+  "context_engine.remember": {
+    "documentation": {
+      "url": null,
+      "description": "Stores a session memory in the Context Engine session memory data stream"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/session_memory/_remember",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The session memory to store",
+      "required": true
+    }
+  }
+}

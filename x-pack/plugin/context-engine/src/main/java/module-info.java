@@ -13,4 +13,6 @@ module org.elasticsearch.xpack.contextengine {
     requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.contextengine;
+    exports org.elasticsearch.xpack.contextengine.memory;
+    exports org.elasticsearch.xpack.contextengine.memory.action;
 }

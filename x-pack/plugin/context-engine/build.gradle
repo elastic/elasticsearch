@@ -31,6 +31,6 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'features', 'nodes'
+    include '_common', 'cluster', 'context_engine', 'features', 'nodes'
   }
 }

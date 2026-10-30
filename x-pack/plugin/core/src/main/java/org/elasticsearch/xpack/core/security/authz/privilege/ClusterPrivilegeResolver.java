@@ -217,6 +217,7 @@ public class ClusterPrivilegeResolver {
         WRITE_CONNECTOR_SECRETS_PATTERN.stream()
     ).collect(Collectors.toSet());
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
+    private static final Set<String> MANAGE_CONTEXT_ENGINE_PATTERN = Set.of("cluster:admin/xpack/context_engine/*");
     private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
         "cluster:admin/synonyms/*",
         "cluster:admin/synonyms_sets/*",
@@ -425,6 +426,10 @@ public class ClusterPrivilegeResolver {
         "manage_search_query_rules",
         MANAGE_SEARCH_QUERY_RULES_PATTERN
     );
+    public static final NamedClusterPrivilege MANAGE_CONTEXT_ENGINE = new ActionClusterPrivilege(
+        "manage_context_engine",
+        MANAGE_CONTEXT_ENGINE_PATTERN
+    );
     public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
         "cross_cluster_search",
         CROSS_CLUSTER_SEARCH_PATTERN
@@ -523,6 +528,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
             MANAGE_SEARCH_QUERY_RULES,
+            MANAGE_CONTEXT_ENGINE,
             CROSS_CLUSTER_SEARCH,
             CROSS_CLUSTER_REPLICATION,
             READ_CONNECTOR_SECRETS,

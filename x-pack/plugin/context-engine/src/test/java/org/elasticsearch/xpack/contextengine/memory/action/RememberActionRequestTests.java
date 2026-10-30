@@ -1,0 +1,58 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.contextengine.memory.action;
+
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.contextengine.memory.SessionMemory;
+import org.elasticsearch.xpack.contextengine.memory.SessionMemoryTestUtils;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+public class RememberActionRequestTests extends AbstractWireSerializingTestCase<RememberAction.Request> {
+
+    @Override
+    protected Writeable.Reader<RememberAction.Request> instanceReader() {
+        return RememberAction.Request::new;
+    }
+
+    @Override
+    protected RememberAction.Request createTestInstance() {
+        return new RememberAction.Request(SessionMemoryTestUtils.randomSessionMemory());
+    }
+
+    @Override
+    protected RememberAction.Request mutateInstance(RememberAction.Request instance) {
+        return new RememberAction.Request(randomValueOtherThan(instance.memory(), SessionMemoryTestUtils::randomSessionMemory));
+    }
+
+    public void testValidateValidRequest() {
+        SessionMemory memory = SessionMemoryTestUtils.randomSessionMemory().withIdAndTimestamp(null, null);
+        assertThat(new RememberAction.Request(memory).validate(), nullValue());
+    }
+
+    public void testValidateMissingRequiredFields() {
+        SessionMemory memory = new SessionMemory(null, null, null, null, "", null, "agent", null, "", null);
+        ActionRequestValidationException e = new RememberAction.Request(memory).validate();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));
+        assertThat(e.getMessage(), containsString("[user_id] cannot be null or empty"));
+        assertThat(e.getMessage(), containsString("[content] cannot be null or empty"));
+    }
+
+    public void testValidateRejectsTimestamp() {
+        SessionMemory memory = SessionMemoryTestUtils.randomSessionMemory()
+            .withIdAndTimestamp(null, SessionMemoryTestUtils.randomTimestamp());
+        ActionRequestValidationException e = new RememberAction.Request(memory).validate();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), containsString("[@timestamp] is set at write time"));
+    }
+}

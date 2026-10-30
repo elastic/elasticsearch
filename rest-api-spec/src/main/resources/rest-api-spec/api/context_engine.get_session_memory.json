@@ -1,0 +1,46 @@
+{
+  "context_engine.get_session_memory": {
+    "documentation": {
+      "url": null,
+      "description": "Returns the session memories stored for a session, newest first"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/session_memory/{session_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "session_id": {
+              "type": "string",
+              "description": "The session the memories belong to"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "space": {
+        "type": "string",
+        "description": "Only return memories written for this Kibana space"
+      },
+      "ai_index_id": {
+        "type": "string",
+        "description": "Only return memories targeting this AI index"
+      },
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "The maximum number of memories to return"
+      }
+    }
+  }
+}

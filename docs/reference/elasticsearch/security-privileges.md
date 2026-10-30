@@ -99,6 +99,9 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 :   All {{ccr}} operations related to managing follower indices and auto-follow patterns. It also includes the authority to grant the privileges necessary to manage follower indices and auto-follow patterns. This privilege is necessary only on clusters that contain follower indices.
 
 
+`manage_context_engine`
+:   All operations on Context Engine session memory.
+
 `manage_data_frame_transforms` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 7.5`
 :   Use `manage_transform` instead. {{es}} version 7.5 and older used `manage_data_frame_transforms` in operations related to managing {{transforms}}.
 

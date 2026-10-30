@@ -28,6 +28,12 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.contextengine.memory.action.GetSessionMemoryAction;
+import org.elasticsearch.xpack.contextengine.memory.action.RememberAction;
+import org.elasticsearch.xpack.contextengine.memory.action.RestGetSessionMemoryAction;
+import org.elasticsearch.xpack.contextengine.memory.action.RestRememberAction;
+import org.elasticsearch.xpack.contextengine.memory.action.TransportGetSessionMemoryAction;
+import org.elasticsearch.xpack.contextengine.memory.action.TransportRememberAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.io.IOException;
@@ -57,7 +63,10 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of();
+        return List.of(
+            new ActionHandler(RememberAction.INSTANCE, TransportRememberAction.class),
+            new ActionHandler(GetSessionMemoryAction.INSTANCE, TransportGetSessionMemoryAction.class)
+        );
     }
 
     @Override
@@ -66,7 +75,7 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of();
+        return List.of(new RestRememberAction(), new RestGetSessionMemoryAction());
     }
 
     @Override

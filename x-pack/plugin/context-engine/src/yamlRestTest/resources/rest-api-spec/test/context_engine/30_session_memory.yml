@@ -1,0 +1,34 @@
+"Remember rejects a memory without required fields":
+  - do:
+      catch: bad_request
+      context_engine.remember:
+        body:
+          session_id: "session-1"
+          content: "the user prefers dark mode"
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "/.*\\[user_id\\].*\\[agent_id\\].*/" }
+
+---
+"Remember rejects a caller-supplied timestamp":
+  - do:
+      catch: bad_request
+      context_engine.remember:
+        body:
+          "@timestamp": "2026-10-30T00:00:00Z"
+          session_id: "session-1"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          content: "the user prefers dark mode"
+
+  - match: { error.reason: "/.*\\[@timestamp\\].*/" }
+
+---
+"Get session memory returns nothing for an unknown session":
+  - do:
+      context_engine.get_session_memory:
+        session_id: "no-such-session"
+
+  - match: { count: 0 }
+  - length: { results: 0 }

@@ -172,6 +172,8 @@ public class Constants {
         "cluster:admin/xpack/connector/sync_job/post",
         "cluster:admin/xpack/connector/sync_job/update_error",
         "cluster:admin/xpack/connector/sync_job/update_stats",
+        "cluster:admin/xpack/context_engine/session_memory/get",
+        "cluster:admin/xpack/context_engine/session_memory/remember",
         "cluster:admin/xpack/deprecation/info",
         "cluster:admin/xpack/deprecation/nodes/info",
         "cluster:admin/xpack/enrich/delete",

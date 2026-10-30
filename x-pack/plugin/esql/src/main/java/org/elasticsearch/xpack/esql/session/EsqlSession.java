@@ -694,7 +694,19 @@ public class EsqlSession {
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
                         // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
                         // pushed into the view's source indices as a Lucene query.
-                        plan = ViewRequestFilterRewriter.rewrite(afterDatasetFilter, request.filter(), finalConfiguration, minimumVersion);
+                        LogicalPlan afterViewFilter = ViewRequestFilterRewriter.rewrite(
+                            afterDatasetFilter,
+                            request.filter(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
+                        // Cap how far back METRICS_INFO and TS_INFO read
+                        plan = MetricsInfoTimeRangeRewriter.capTimeRange(
+                            afterViewFilter,
+                            flags.metricsInfoMaxTimeRange(),
+                            request.filter(),
+                            finalConfiguration.now()
+                        );
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;

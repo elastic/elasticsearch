@@ -31,6 +31,13 @@ public final class ScoringQuery {
         return bytes;
     }
 
+    /**
+     * This class provides a utility to copy heap-based query vector bytes (from {@link ScoringQuery}) to an off-heap (native) segment,
+     * in the lazies way possible:
+     * the segment is taken from a scratch (by default, a {@link SegmentBufferScratch}), so it is reused and allocated/re-allocated
+     * only when needed; the copy is performed only when the query content changes. As new query contents create a new {@link ScoringQuery},
+     * we use object identity to detect a change.
+     */
     public static final class OffHeapCopy {
         private final IntFunction<MemorySegment> scratch;
         private ScoringQuery query;
@@ -45,13 +52,13 @@ public final class ScoringQuery {
         }
 
         public MemorySegment segmentFor(ScoringQuery q) {
-            byte[] bytes = q.bytes();
             if (q != query) {
+                byte[] bytes = q.bytes();
                 segment = scratch.apply(bytes.length);
                 MemorySegment.copy(bytes, 0, segment, ValueLayout.JAVA_BYTE, 0, bytes.length);
                 query = q;
             }
-            assert MemorySegment.mismatch(segment, 0, bytes.length, MemorySegment.ofArray(bytes), 0, bytes.length) == -1
+            assert MemorySegment.mismatch(segment, 0, q.bytes().length, MemorySegment.ofArray(q.bytes()), 0, q.bytes().length) == -1
                 : "query bytes changed while the query was in use";
             return segment;
         }

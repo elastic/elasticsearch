@@ -187,9 +187,11 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     .newES940OSQVectorsScorer(in, queryBits, indexBits, dimensions, length, ES940OSQVectorsScorer.BULK_SIZE, bitEncoding());
                 ScoringQuery a = new ScoringQuery(queryA);
                 ScoringQuery b = new ScoringQuery(queryB);
-                assertEquals(0, nativeScorer.quantizeScore(a));
-                assertNotEquals(0, nativeScorer.quantizeScore(b));
-                assertEquals(0, nativeScorer.quantizeScore(a));
+                assertEquals("scoring against 'a' (zero vector) should return 0", 0, nativeScorer.quantizeScore(a));
+                // Passing 'b' should update the underlying cached query; we check that by asserting that the score is different
+                assertNotEquals("scoring against 'b' (non-zero vector) should not return 0", 0, nativeScorer.quantizeScore(b));
+                // Passing 'a' should update again the underlying cached query; we check that by asserting that the score is again 0
+                assertEquals("scoring against 'a' a second time should return 0 again", 0, nativeScorer.quantizeScore(a));
             }
         }
     }

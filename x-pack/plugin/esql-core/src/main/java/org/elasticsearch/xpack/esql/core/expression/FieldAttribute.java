@@ -144,7 +144,7 @@ public class FieldAttribute extends TypedAttribute {
             DataType.readFrom(in),
             EsField.readFrom(in),
             in.readOptionalString(),
-            in.readEnum(Nullability.class),
+            Nullability.readFrom(in),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean()
         );
@@ -160,7 +160,7 @@ public class FieldAttribute extends TypedAttribute {
             field.writeTo(out);
             // We used to write the qualifier here. We can still do if needed in the future.
             out.writeOptionalString(null);
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
         }

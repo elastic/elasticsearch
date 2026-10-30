@@ -39,7 +39,9 @@ public abstract class DenseVectorQuery extends Query {
 
     @Override
     public void visit(QueryVisitor queryVisitor) {
-        queryVisitor.visitLeaf(this);
+        if (queryVisitor.acceptField(field)) {
+            queryVisitor.visitLeaf(this);
+        }
     }
 
     abstract static class DenseVectorWeight extends Weight {

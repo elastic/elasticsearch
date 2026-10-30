@@ -24,7 +24,7 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
         String name = randomAlphaOfLength(5);
         DataType type = randomFrom(DataType.types());
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
-        Nullability nullability = randomFrom(Nullability.values());
+        Nullability nullability = randomFrom(Nullability.TRUE, Nullability.FALSE);
         boolean synthetic = randomBoolean();
         boolean searchable = randomBoolean();
         return new MetadataAttribute(source, name, type, nullability, new NameId(), synthetic, searchable);
@@ -41,7 +41,7 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
         switch (between(0, 4)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.TRUE, Nullability.FALSE));
             case 3 -> synthetic = false == synthetic;
             case 4 -> searchable = false == searchable;
         }

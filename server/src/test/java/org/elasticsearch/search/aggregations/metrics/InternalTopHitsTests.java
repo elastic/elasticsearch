@@ -351,6 +351,36 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     /**
+     * A shard of an index that doesn't map the sort field has docs with a null sort value and a STRING placeholder sort type
+     * (from {@code unmapped_type}), which must neither fail the reduce nor be sorted before the docs that have a value.
+     */
+    public void testReduceWithUnmappedSortFieldPlaceholder() {
+        AggregationBuilder builder = mock(AggregationBuilder.class);
+        List<SearchHits> topHitsToRelease = new ArrayList<>();
+        AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction(topHitsToRelease);
+
+        for (boolean placeholderFirst : new boolean[] { true, false }) {
+            SortField placeholderSortField = new SortField("field", SortField.Type.STRING, false, SortField.STRING_LAST);
+            InternalTopHits placeholderShard = createTopHitsWithSortField("test", placeholderSortField, null, 0);
+            InternalTopHits doubleShard = createTopHitsWithSortField("test", new SortField("field", SortField.Type.DOUBLE), 3.14, 1);
+            try {
+                List<InternalAggregation> shards = placeholderFirst
+                    ? List.of(placeholderShard, doubleShard)
+                    : List.of(doubleShard, placeholderShard);
+                InternalTopHits reduced = (InternalTopHits) InternalAggregationTestCase.reduce(shards, reduceContext);
+                assertThat(reduced.getHits().getHits().length, equalTo(1));
+                // the doc that has no value for the field is sorted last
+                assertThat(reduced.getHits().getHits()[0].getId(), equalTo("doc1"));
+                assertThat(reduced.getHits().getHits()[0].getSortValues()[0], equalTo(3.14));
+                releaseTopHits(topHitsToRelease);
+            } finally {
+                placeholderShard.getHits().decRef();
+                doubleShard.getHits().decRef();
+            }
+        }
+    }
+
+    /**
      * Round-trip serialization reads SearchHits with pooled=true so that coordinator can release them.
      * This test ensures deserialized InternalTopHits has pooled hits when they have source, and content equality is preserved.
      */
@@ -390,7 +420,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     private InternalTopHits createTopHitsWithSortType(String name, SortField.Type type, Object sortValue, int shardIndex) {
-        SortField sortField = new SortField("field", type);
+        return createTopHitsWithSortField(name, new SortField("field", type), sortValue, shardIndex);
+    }
+
+    private InternalTopHits createTopHitsWithSortField(String name, SortField sortField, Object sortValue, int shardIndex) {
         FieldDoc fieldDoc = new FieldDoc(0, 1.0f, new Object[] { sortValue });
         TopFieldDocs topFieldDocs = new TopFieldDocs(
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),

@@ -2369,4 +2369,112 @@ public class FieldSortIT extends ESIntegTestCase {
             prepareSearch("index_long", "index_int", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean")).setSize(10)
         );
     }
+
+    public void testSortOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_unmapped").setMapping("other", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("mapped").setSource("field", 3.14).get();
+        prepareIndex("index_unmapped").setId("unmapped").setSource("other", "foo").get();
+        refresh();
+
+        for (SortOrder order : SortOrder.values()) {
+            // the docs of the index that doesn't map the field are sorted last by default, whatever the sort order is
+            assertNoFailuresAndResponse(
+                prepareSearch("index_mapped", "index_unmapped").addSort(new FieldSortBuilder("field").unmappedType("keyword").order(order)),
+                response -> {
+                    assertHitCount(response, 2);
+                    assertThat(response.getHits().getAt(0).getId(), equalTo("mapped"));
+                    assertThat(response.getHits().getAt(1).getId(), equalTo("unmapped"));
+                }
+            );
+            assertNoFailuresAndResponse(
+                prepareSearch("index_mapped", "index_unmapped").addSort(
+                    new FieldSortBuilder("field").unmappedType("keyword").order(order).missing("_first")
+                ),
+                response -> {
+                    assertHitCount(response, 2);
+                    assertThat(response.getHits().getAt(0).getId(), equalTo("unmapped"));
+                    assertThat(response.getHits().getAt(1).getId(), equalTo("mapped"));
+                }
+            );
+        }
+    }
+
+    /**
+     * The sort values of the docs of the index that doesn't map the field are rewritten to the numeric missing value when the shard
+     * results are merged. Paginating with search_after from those sort values must neither return docs twice nor skip any.
+     */
+    public void testSearchAfterOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double", "seq", "type=long"),
+            prepareCreate("index_unmapped").setMapping("other", "type=keyword", "seq", "type=long")
+        );
+        // the docs of the index that doesn't map the field all tie on it, "seq" is the tiebreaker of the pagination
+        for (int i = 0; i < 3; i++) {
+            prepareIndex("index_mapped").setId("a" + i).setSource("field", i + 0.5, "seq", i).get();
+            prepareIndex("index_unmapped").setId("b" + i).setSource("other", "foo", "seq", 10 + i).get();
+        }
+        refresh();
+
+        // smaller than the number of docs of each index, so that a page boundary falls inside the docs of the unmapped index
+        int pageSize = 2;
+        for (SortOrder order : SortOrder.values()) {
+            for (String missing : new String[] { "_first", "_last" }) {
+                List<String> mapped = new ArrayList<>(List.of("a0", "a1", "a2"));
+                if (order == SortOrder.DESC) {
+                    Collections.reverse(mapped);
+                }
+                List<String> unmapped = List.of("b0", "b1", "b2");
+                List<String> expected = new ArrayList<>();
+                expected.addAll(missing.equals("_first") ? unmapped : mapped);
+                expected.addAll(missing.equals("_first") ? mapped : unmapped);
+
+                List<String> paginated = new ArrayList<>();
+                Object[] searchAfter = null;
+                // the full pages, then an empty one; the bound only keeps a pagination bug from looping forever
+                for (int page = 0; page <= expected.size() / pageSize; page++) {
+                    SearchRequestBuilder request = prepareSearch("index_mapped", "index_unmapped").addSort(
+                        new FieldSortBuilder("field").unmappedType("keyword").order(order).missing(missing)
+                    ).addSort(new FieldSortBuilder("seq").order(SortOrder.ASC)).setSize(pageSize);
+                    if (searchAfter != null) {
+                        request.searchAfter(searchAfter);
+                    }
+                    SearchResponse response = request.get();
+                    try {
+                        SearchHit[] hits = response.getHits().getHits();
+                        if (hits.length == 0) {
+                            break;
+                        }
+                        for (SearchHit hit : hits) {
+                            paginated.add(hit.getId());
+                        }
+                        searchAfter = hits[hits.length - 1].getSortValues();
+                    } finally {
+                        response.decRef();
+                    }
+                }
+                assertThat("order [" + order + "], missing [" + missing + "]", paginated, equalTo(expected));
+            }
+        }
+    }
+
+    public void testSortOnFieldWithValuesInOneIndexAndIncompatibleValuesInAnother() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_keyword").setMapping("field", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("1").setSource("field", 3.14).get();
+        prepareIndex("index_keyword").setId("2").setSource("field", "foo").get();
+        refresh();
+
+        SearchPhaseExecutionException exc = expectThrows(
+            SearchPhaseExecutionException.class,
+            prepareSearch("index_mapped", "index_keyword").addSort(new FieldSortBuilder("field").unmappedType("keyword"))
+        );
+        assertThat(exc.getCause().toString(), containsString("Can't sort on field [field]; the field has incompatible sort types"));
+    }
 }

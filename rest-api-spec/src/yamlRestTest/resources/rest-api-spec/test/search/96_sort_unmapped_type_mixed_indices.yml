@@ -1,0 +1,83 @@
+setup:
+  - requires:
+      cluster_features: [ "search.sort.unmapped_type_placeholder_merge" ]
+      reason: "older nodes fail with incompatible sort types when the unmapped_type differs from the type of the field in the other indices"
+
+  - do:
+      indices.create:
+        index: index_double
+        body:
+          mappings:
+            properties:
+              field:
+                type: double
+
+  - do:
+      indices.create:
+        index: index_other
+        body:
+          mappings:
+            properties:
+              other:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: index_keyword
+        body:
+          mappings:
+            properties:
+              field:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index": "index_double", "_id" : "double1" } }'
+          - '{ "field" : 3.14 }'
+          - '{ "index" : { "_index": "index_other", "_id" : "other1" } }'
+          - '{ "other" : "foo" }'
+          - '{ "index" : { "_index": "index_keyword", "_id" : "keyword1" } }'
+          - '{ "field" : "bar" }'
+
+---
+"Sort on a field that is mapped in one index only, with an incompatible unmapped_type":
+  - do:
+      search:
+        index: index_double,index_other
+        body:
+          sort: [ { field: { unmapped_type: keyword } } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: double1 }
+  - match: { hits.hits.1._id: other1 }
+
+  - do:
+      search:
+        index: index_double,index_other
+        body:
+          sort: [ { field: { order: desc, unmapped_type: keyword } } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: double1 }
+  - match: { hits.hits.1._id: other1 }
+
+---
+"Sort on a field that is mapped in one index only, with missing first":
+  - do:
+      search:
+        index: index_double,index_other
+        body:
+          sort: [ { field: { unmapped_type: keyword, missing: _first } } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: other1 }
+  - match: { hits.hits.1._id: double1 }
+
+---
+"Sort on a field that has incompatible values in different indices still fails":
+  - do:
+      catch: bad_request
+      search:
+        index: index_double,index_keyword
+        body:
+          sort: [ { field: { unmapped_type: keyword } } ]
+  - match: { error.caused_by.reason: /incompatible\ssort\stypes/ }

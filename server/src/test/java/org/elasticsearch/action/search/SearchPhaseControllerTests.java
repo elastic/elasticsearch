@@ -76,6 +76,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1592,6 +1593,41 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         Collections.shuffle(results, random());
         assertNull(SearchPhaseController.mergeTopDocs(results, 10, randomIntBetween(0, 10)));
+    }
+
+    /**
+     * Sorting on a field that is mapped in some indices only, with an {@code unmapped_type} that differs from the mapped type:
+     * the shards of the other indices return docs with null sort values and a STRING placeholder sort type.
+     */
+    public void testMergeTopDocsWithUnmappedSortFieldPlaceholder() {
+        SortField mappedSortField = new SortField("field", SortField.Type.DOUBLE);
+        TopFieldDocs mappedShard = new TopFieldDocs(
+            new TotalHits(2, Relation.EQUAL_TO),
+            new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { 3.14 }), new FieldDoc(1, Float.NaN, new Object[] { 5.0 }) },
+            new SortField[] { mappedSortField }
+        );
+        SortField placeholderSortField = new SortField("field", SortField.Type.STRING, false, SortField.STRING_LAST);
+
+        // the unmapped docs are sorted after the docs that have a value, wherever the shards come in the list, and with pagination
+        for (boolean placeholderFirst : new boolean[] { true, false }) {
+            TopFieldDocs placeholderShard = new TopFieldDocs(
+                new TotalHits(2, Relation.EQUAL_TO),
+                new FieldDoc[] { new FieldDoc(10, Float.NaN, new Object[] { null }), new FieldDoc(11, Float.NaN, new Object[] { null }) },
+                new SortField[] { placeholderSortField }
+            );
+            List<TopDocs> results = placeholderFirst ? List.of(placeholderShard, mappedShard) : List.of(mappedShard, placeholderShard);
+
+            TopDocs merged = SearchPhaseController.mergeTopDocs(results, 10, 0);
+            assertThat(Arrays.stream(merged.scoreDocs).map(scoreDoc -> scoreDoc.doc).toList(), equalTo(List.of(0, 1, 10, 11)));
+        }
+
+        TopFieldDocs placeholderShard = new TopFieldDocs(
+            new TotalHits(2, Relation.EQUAL_TO),
+            new FieldDoc[] { new FieldDoc(10, Float.NaN, new Object[] { null }), new FieldDoc(11, Float.NaN, new Object[] { null }) },
+            new SortField[] { placeholderSortField }
+        );
+        TopDocs page = SearchPhaseController.mergeTopDocs(List.of(placeholderShard, mappedShard), 2, 1);
+        assertThat(Arrays.stream(page.scoreDocs).map(scoreDoc -> scoreDoc.doc).toList(), equalTo(List.of(1, 10)));
     }
 
     public void testMergeOmitsCompletionOptionsWithoutFetchResults() {

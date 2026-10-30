@@ -602,7 +602,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
 
             @Override
-            public int valueCount() {
+            public int valueCount() throws IOException {
                 return current.values.valueCount();
             }
 
@@ -702,9 +702,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * buffering the whole field on-heap. The totals the pass collects are needed up front: they decide whether
      * a plain column stores lengths at all, and where its blocks of values end.
      *
-     * <p>A cursor that already knows them — a merge of our own columns, which each recorded theirs — reports
-     * them instead and the pass is skipped. The writer's own asserts still check the totals against what it
-     * is handed, so a cursor that mis-reports them does not go unnoticed.
+     * <p>Where the column may take a dictionary and nothing has settled its terms yet, the same pass surveys
+     * them: on ingest every pass copies each value out of the indexing buffer again, and the count and the
+     * survey each need every value, so the two share one walk and the writer is handed both. A sparse column
+     * then walks its documents once more for its presence, reading no value, and every column reads its
+     * values once more to write them — two reads of each value, dense or sparse.
+     *
+     * <p>A cursor that already knows the totals — a merge of our own columns, which each recorded theirs —
+     * reports them instead and the pass is skipped; such a merge mostly knows its terms from what the inputs
+     * recorded too, and where it does not the writer surveys them itself. The writer's own checks still hold
+     * the totals against what it writes, so a cursor that mis-reports them does not go unnoticed.
+     *
+     * @param known the terms a merge settled from what its inputs recorded, or null where the values decide
      */
     private void writeStringColumn(
         FieldInfo field,
@@ -715,7 +724,14 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     ) throws IOException {
         StringColumnValues counter = cursors.get();
         StringColumnValues.Totals totals = counter.totals();
-        if (totals == null) {
+        Vocabulary.Survey survey = known == null ? null : new Vocabulary.Survey(known);
+        if (totals == null && known == null && options.dictionary().enabled()) {
+            final Vocabulary.Counted counted = Vocabulary.countAndSurvey(counter, options.dictionary(), options.summary());
+            totals = counted.totals();
+            survey = counted.survey();
+        } else if (totals == null) {
+            // Nothing to survey: the column takes no dictionary, or a merge already knows its terms and only
+            // lost the totals to the deletions it drops on the way.
             int numDocsWithField = 0;
             long numValues = 0;
             long numNullSlots = 0;
@@ -747,7 +763,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals,
             cursors,
             options,
-            known,
+            survey,
             directory,
             context,
             outputs,

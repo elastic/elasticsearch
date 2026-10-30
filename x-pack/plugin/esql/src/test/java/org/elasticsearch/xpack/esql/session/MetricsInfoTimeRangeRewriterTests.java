@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class MetricsInfoTimeRangeRewriterTests extends AnalyzerTestCase {
     private static final Instant NOW = Instant.parse("2026-10-29T12:00:00Z");
     private static final TimeValue CAP = TimeValue.timeValueHours(1);
-    private static final String WARNING = "The time range of METRICS_INFO and TS_INFO was narrowed to the most recent [1h]";
+    private static final String WARNING = "METRICS_INFO and TS_INFO are limited to the most recent [1h]";
     private static final List<String> INFO_COMMANDS = List.of("METRICS_INFO", "TS_INFO");
     /**
      * A range of a day, which a cap of an hour narrows if it is on and the plan has an info command.
@@ -112,6 +113,18 @@ public class MetricsInfoTimeRangeRewriterTests extends AnalyzerTestCase {
         LogicalPlan plan = analyze(k8s(), "TS k8s | LIMIT 10");
         assertSame(plan, MetricsInfoTimeRangeRewriter.capTimeRange(plan, CAP, WIDE_RANGE, NOW));
         assertSame(plan, MetricsInfoTimeRangeRewriter.capTimeRange(plan, CAP, null, NOW));
+    }
+
+    /**
+     * Only the relations the info command reads are capped. The other FORK branch reads the same index and keeps its range.
+     */
+    public void testOnlyTheInfoCommandIsLimited() {
+        LogicalPlan plan = analyze(k8s(), "TS k8s | FORK (METRICS_INFO) (LIMIT 1)");
+        LogicalPlan limited = MetricsInfoTimeRangeRewriter.capTimeRange(plan, CAP, null, NOW);
+        assertLimitedFrom(NOW.minus(1, ChronoUnit.HOURS), limited);
+        MetricsInfo metricsInfo = limited.collect(MetricsInfo.class).getFirst();
+        assertTrue("the bound sits under the info command", metricsInfo.anyMatch(Filter.class::isInstance));
+        assertWarnings(WARNING);
     }
 
     public void testDateNanosTimestamp() {

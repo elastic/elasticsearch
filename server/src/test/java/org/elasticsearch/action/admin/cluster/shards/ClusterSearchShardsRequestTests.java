@@ -46,7 +46,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.routing(routings);
         }
         if (randomBoolean() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(3, 10);
+            String slice = randomAlphaOfLengthBetween(3, 10);
             request.searchSlice(slice);
         }
 
@@ -87,11 +87,6 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         request.searchSlice("s1,s2");
         assertEquals("s1,s2", request.searchSlice());
         assertEquals("s1,s2", request.routing());
-        assertTrue(request.isRoutingFromSlice());
-
-        request.searchSlice(SliceIndexing.SLICE_ALL);
-        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
-        assertNull(request.routing());
         assertTrue(request.isRoutingFromSlice());
     }
 

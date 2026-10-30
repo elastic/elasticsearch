@@ -195,15 +195,14 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     }
 
     /**
-     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
-     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}.
      */
     public OpenPointInTimeRequest searchSlice(String searchSlice) {
         Objects.requireNonNull(searchSlice, "[_slice] must not be null");
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("request does not support [_slice]");
         }
-        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
+        return routing(searchSlice).setRoutingFromSlice(true);
     }
 
     public String preference() {

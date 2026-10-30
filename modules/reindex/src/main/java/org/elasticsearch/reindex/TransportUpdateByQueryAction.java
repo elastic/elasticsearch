@@ -16,12 +16,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -52,6 +54,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final UpdateByQueryMetrics updateByQueryMetrics;
     @Nullable
     private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
@@ -68,6 +71,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ScriptService scriptService,
         ClusterService clusterService,
         ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         @Nullable UpdateByQueryMetrics updateByQueryMetrics,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
@@ -79,6 +83,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.updateByQueryMetrics = updateByQueryMetrics;
         this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
@@ -91,6 +96,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            SliceSourceMode.markIfSliceEnabled(
+                request.getSearchRequest(),
+                indexNameExpressionResolver,
+                projectResolver.getProjectMetadata(clusterService.state())
+            );
+        }
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,

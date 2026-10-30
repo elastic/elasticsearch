@@ -396,9 +396,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("request does not support [_slice]");
         }
-        if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
-            return new SliceIndexing.ParsedRouting(null, true);
-        }
         final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
         if (slices.length == 0) {
             throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");

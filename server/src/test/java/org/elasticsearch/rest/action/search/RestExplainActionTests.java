@@ -78,7 +78,7 @@ public class RestExplainActionTests extends RestActionTestCase {
         assertThat(e.getMessage(), containsString("request does not support [_slice]"));
     }
 
-    public void testSliceParamRejectedWhenInvalid() {
+    public void testSliceParamRejectedWhenReservedValue() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest explainRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_explain/1")
@@ -88,7 +88,7 @@ public class RestExplainActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("[_slice] must be a single value for explain requests"));
+        assertThat(e.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
 
     public void testSliceParamRejectedWhenCommaDelimited() {

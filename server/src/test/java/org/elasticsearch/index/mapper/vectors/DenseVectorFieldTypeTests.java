@@ -1035,7 +1035,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
      */
     public void testBBQIVFIgnoresSlicesWhenIndexHasNone() {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        SliceSelection slices = randomFrom(SliceSelection.UNSPECIFIED, SliceSelection.ALL, SliceSelection.of(List.of("s1")));
+        SliceSelection slices = randomFrom(SliceSelection.UNSPECIFIED, SliceSelection.of(List.of("s1")));
         Query query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, false, slices);
         assertThat(query, not(instanceOf(IVFKnnFloatSlicedVectorQuery.class)));
         assertThat(query, not(instanceOf(SLICED_NESTED_QUERY)));
@@ -1090,7 +1090,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         )) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> createSliceAwareKnnQuery(fieldType, null, null, true, randomFrom(SliceSelection.UNSPECIFIED, SliceSelection.ALL))
+                () -> createSliceAwareKnnQuery(fieldType, null, null, true, SliceSelection.UNSPECIFIED)
             );
             assertThat(
                 e.getMessage(),

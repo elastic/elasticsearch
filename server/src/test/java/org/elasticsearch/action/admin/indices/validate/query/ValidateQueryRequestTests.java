@@ -49,7 +49,7 @@ public class ValidateQueryRequestTests extends ESTestCase {
             request.routing(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            String searchSlice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(3, 10);
+            String searchSlice = randomAlphaOfLengthBetween(3, 10);
             request.searchSlice(searchSlice);
         }
 
@@ -84,11 +84,6 @@ public class ValidateQueryRequestTests extends ESTestCase {
         request.searchSlice("s1,s2");
         assertEquals("s1,s2", request.searchSlice());
         assertEquals("s1,s2", request.routing());
-        assertTrue(request.isRoutingFromSlice());
-
-        request.searchSlice(SliceIndexing.SLICE_ALL);
-        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
-        assertNull(request.routing());
         assertTrue(request.isRoutingFromSlice());
     }
 

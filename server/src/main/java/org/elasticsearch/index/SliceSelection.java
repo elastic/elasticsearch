@@ -26,14 +26,11 @@ public record SliceSelection(Kind kind, List<String> names) {
     public enum Kind {
         /** No slice was selected. Every slice is read, unless the field mapper that builds a query needs them by name. */
         UNSPECIFIED,
-        /** Every slice was selected, with {@link SliceIndexing#SLICE_ALL}. A field mapper may still need them by name. */
-        ALL,
         /** One or more slices were selected by name. */
         NAMED
     }
 
     public static final SliceSelection UNSPECIFIED = new SliceSelection(Kind.UNSPECIFIED, List.of());
-    public static final SliceSelection ALL = new SliceSelection(Kind.ALL, List.of());
 
     public SliceSelection {
         names = List.copyOf(names);
@@ -52,11 +49,6 @@ public record SliceSelection(Kind kind, List<String> names) {
             if (value.isEmpty()) {
                 throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank");
             }
-            if (SliceIndexing.SLICE_ALL.equals(value)) {
-                throw new IllegalArgumentException(
-                    "[" + SliceIndexing.FIELD_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] cannot be combined with other slices"
-                );
-            }
             unique.add(value);
         }
         if (unique.isEmpty()) {
@@ -67,14 +59,11 @@ public record SliceSelection(Kind kind, List<String> names) {
 
     /**
      * Parses the form carried by shard-level requests: {@code null} when no slice was requested,
-     * {@link SliceIndexing#SLICE_ALL} for every slice, otherwise a comma-separated list of slice names.
+     * otherwise a comma-separated list of slice names.
      */
     public static SliceSelection fromSearchSlice(@Nullable String searchSlice) {
         if (searchSlice == null) {
             return UNSPECIFIED;
-        }
-        if (SliceIndexing.SLICE_ALL.equals(searchSlice.trim())) {
-            return ALL;
         }
         return of(List.of(Strings.splitStringByCommaToArray(searchSlice)));
     }
@@ -86,7 +75,6 @@ public record SliceSelection(Kind kind, List<String> names) {
     public String toSearchSlice() {
         return switch (kind) {
             case UNSPECIFIED -> null;
-            case ALL -> SliceIndexing.SLICE_ALL;
             case NAMED -> String.join(",", names);
         };
     }
@@ -97,13 +85,6 @@ public record SliceSelection(Kind kind, List<String> names) {
     @Nullable
     public String toRouting() {
         return kind == Kind.NAMED ? String.join(",", names) : null;
-    }
-
-    /**
-     * Whether the request selected slices at all, by name or with {@link SliceIndexing#SLICE_ALL}.
-     */
-    public boolean isSpecified() {
-        return kind != Kind.UNSPECIFIED;
     }
 
     /**

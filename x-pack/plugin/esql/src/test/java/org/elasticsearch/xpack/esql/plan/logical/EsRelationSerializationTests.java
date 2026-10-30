@@ -39,11 +39,7 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
     }
 
     private static SliceSelection randomSlices() {
-        return randomFrom(
-            SliceSelection.UNSPECIFIED,
-            SliceSelection.ALL,
-            SliceSelection.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 8)))
-        );
+        return randomFrom(SliceSelection.UNSPECIFIED, SliceSelection.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 8))));
     }
 
     @Override

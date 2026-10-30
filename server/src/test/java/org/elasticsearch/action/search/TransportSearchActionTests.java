@@ -2644,7 +2644,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
             .build();
         TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(metadata.getIndex(), metadata), request.indices());
-        assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
+        assertNull("omitting _slice on a slice-enabled index should leave routing unrestricted (null routing)", request.routing());
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {
@@ -2721,10 +2721,9 @@ public class TransportSearchActionTests extends ESTestCase {
         assertEquals("s1,s2", request.routing());
     }
 
-    public void testValidateAndResolveSearchSliceRoutingNormalizesAllToNullRouting() {
+    public void testValidateAndResolveSearchSliceRoutingWithoutSliceLeavesRoutingUnrestricted() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
-        request.searchSlice(SliceIndexing.SLICE_ALL);
         IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
             .settings(
                 settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
@@ -2738,7 +2737,7 @@ public class TransportSearchActionTests extends ESTestCase {
             Map.of(enabled.getIndex(), enabled),
             request.indices()
         );
-        assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
+        assertNull(requestedSlice);
         assertNull(request.routing());
     }
 
@@ -2979,12 +2978,8 @@ public class TransportSearchActionTests extends ESTestCase {
         final SearchRequest named = new SearchRequest(indices).searchSlice(randomFrom("s1", "s1,s2"));
         assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, named, indices), arrayContaining("sliced"));
 
-        // every slice, no slice or a routing value searches every index
-        for (SearchRequest request : List.of(
-            new SearchRequest(indices).searchSlice(SliceIndexing.SLICE_ALL),
-            new SearchRequest(indices),
-            new SearchRequest(indices).routing("s1")
-        )) {
+        // no slice or a routing value searches every index
+        for (SearchRequest request : List.of(new SearchRequest(indices), new SearchRequest(indices).routing("s1"))) {
             assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, request, indices), arrayContaining(indices));
         }
     }

@@ -292,8 +292,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
 
             assertNull(context.sliceFilter());
-            context.setSliceSelection(SliceSelection.ALL);
-            assertNull(context.sliceFilter());
 
             context.setSliceSelection(SliceSelection.of(List.of("s1")));
             assertEquals(2, searcher.count(context.sliceFilter()));

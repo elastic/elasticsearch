@@ -412,7 +412,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             if (indices != null) {
                 request.getSearchRequest().indices(indices);
             }
-            // A source [_slice] is a string value selecting which slice of a slice-enabled source to read ([_all] reads every slice).
+            // A source [_slice] is a string value selecting which slice of a slice-enabled source to read (omit it to read every slice).
             // It is distinct from [slice], which Search parses as a slice-scroll object ({id, max, ...}); we intercept [_slice] here and
             // remove it so it is not forwarded to the search source parser, which does not know about it.
             final Object sourceSlice = source.get(SliceIndexing.FIELD_NAME);
@@ -421,9 +421,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
                 if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false || context.test(IndexFeatures.SLICE_INDEXING) == false) {
                     throw new IllegalArgumentException("request does not support [" + SliceIndexing.FIELD_NAME + "]");
                 }
-                if (SliceIndexing.SLICE_ALL.equals(sliceValue) == false) {
-                    SliceIndexing.validateUserSliceValue(sliceValue);
-                }
+                SliceIndexing.validateUserSliceValue(sliceValue);
                 request.getSearchRequest().searchSlice(sliceValue);
             } else if (sourceSlice != null) {
                 // A source [_slice] must be a plain string slice value; reject any other shape (object, number, array, ...) explicitly
@@ -461,11 +459,6 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             }
             if (request.routing() != null) {
                 throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
-            }
-            if (SliceIndexing.SLICE_ALL.equals(slice)) {
-                throw new IllegalArgumentException(
-                    "[" + SliceIndexing.SLICE_ALL + "] is not allowed for [" + SliceIndexing.FIELD_NAME + "] in [dest]"
-                );
             }
             // A destination [_slice] is a plain slice value that every reindexed document is routed to.
             SliceIndexing.validateUserSliceValue(slice);

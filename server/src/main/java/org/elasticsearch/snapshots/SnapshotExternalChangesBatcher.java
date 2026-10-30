@@ -20,14 +20,15 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 
 import java.util.ArrayList;
@@ -333,10 +334,12 @@ final class SnapshotExternalChangesBatcher {
         }
 
         private void clusterStateProcessed(ClusterState newState, Collection<SnapshotsInProgress.Entry> finishedSnapshots) {
-            final Set<ProjectRepo> repositoriesRunningDeletes = new HashSet<>();
+            final Map<ProjectId, Set<String>> repositoriesRunningDeletes = Maps.newMapWithExpectedSize(
+                newState.metadata().projects().size()
+            );
             for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(newState).getEntries()) {
                 if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
-                    repositoriesRunningDeletes.add(new ProjectRepo(entry.projectId(), entry.repository()));
+                    repositoriesRunningDeletes.computeIfAbsent(entry.projectId(), ignored -> new HashSet<>()).add(entry.repository());
                     deleteTaskSubmitter.submitDeleteSnapshotsRepositoryDataWriteTask(
                         entry,
                         newState.nodes().getMaxDataNodeCompatibleIndexVersion()
@@ -344,7 +347,7 @@ final class SnapshotExternalChangesBatcher {
                 }
             }
             for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
-                if (repositoriesRunningDeletes.contains(new ProjectRepo(entry.projectId(), entry.repository()))) {
+                if (repositoriesRunningDeletes.getOrDefault(entry.projectId(), Set.of()).contains(entry.repository())) {
                     // The repository has a running delete operation alongside this ready-to-finalize snapshot. The delete operation must
                     // have started when no snapshots were in progress, but then before the delete operation completed this snapshot
                     // creation was started and became ready to finalize without interacting with the repository (e.g. because all its

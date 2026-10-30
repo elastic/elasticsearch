@@ -8,14 +8,23 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.UnknownHostException;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Classifies a failure raised while reading an external data source into the exception the
@@ -62,7 +71,83 @@ import java.util.Set;
  */
 public final class ExternalFailures {
 
+    private static final Logger logger = LogManager.getLogger(ExternalFailures.class);
+
     private ExternalFailures() {}
+
+    /**
+     * Storage-URI scheme prefixes (object stores, HTTP, Arrow Flight / gRPC, local files) that must never appear in a
+     * message handed to a caller who may only read the dataset.
+     */
+    private static final String[] STORAGE_URI_SCHEMES = {
+        "s3://",
+        "s3a://",
+        "s3n://",
+        "gs://",
+        "wasb://",
+        "wasbs://",
+        "http://",
+        "https://",
+        "flight://",
+        "grpc://",
+        "grpcs://",
+        "file:/" };
+
+    /**
+     * Domains of the cloud object-store endpoints. SDK and DNS failures name the endpoint host without a scheme
+     * ({@code bucket.s3.us-east-1.amazonaws.com: Name or service not known}), and the host embeds the bucket or account.
+     */
+    private static final String[] STORAGE_HOST_DOMAINS = {
+        "amazonaws.com",
+        "googleapis.com",
+        "core.windows.net",
+        "core.usgovcloudapi.net",
+        "core.chinacloudapi.cn" };
+
+    /** A bare filesystem location: an absolute POSIX path or a Windows drive path, at the start or after a delimiter. */
+    private static final Pattern ABSOLUTE_FILESYSTEM_PATH = Pattern.compile(
+        "(?:^|[\\s\\[(<'\"=,])/[^\\s/\\[\\]()<>'\",]+|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
+    );
+
+    /**
+     * Returns {@code true} when {@code message} contains no known storage-URI scheme, cloud storage host or absolute
+     * filesystem path. Hosts of custom endpoints and relative paths are not recognised. Used to decide whether a
+     * diagnostic message from a third-party library is safe to forward to the user.
+     */
+    public static boolean safeForUserMessage(String message) {
+        if (message == null) {
+            return true;
+        }
+        for (String scheme : STORAGE_URI_SCHEMES) {
+            if (message.contains(scheme)) {
+                return false;
+            }
+        }
+        for (String domain : STORAGE_HOST_DOMAINS) {
+            if (message.contains(domain)) {
+                return false;
+            }
+        }
+        return ABSOLUTE_FILESYSTEM_PATH.matcher(message).find() == false;
+    }
+
+    /**
+     * Returns a fresh copy of {@code e} without its cause chain, after logging the chain on this node. Suppressed
+     * failures that are themselves external failures are detached and kept; any other suppressed failure is dropped,
+     * since suppressed failures are serialised into the response too.
+     */
+    public static ExternalException detach(ExternalException e) {
+        if (e.getCause() != null) {
+            logger.debug("External failure detached from its cause (cause logged, not forwarded)", e);
+        }
+        ExternalException detached = e.withoutCause();
+        for (Throwable suppressed : e.getSuppressed()) {
+            if (suppressed instanceof ExternalException external) {
+                detached.addSuppressed(detach(external));
+            }
+        }
+        return detached;
+    }
 
     /**
      * Third-party decoding exceptions that are, by contract, malformed-input signals rather than bugs —
@@ -86,8 +171,15 @@ public final class ExternalFailures {
         if (t instanceof Error error) {
             throw error;
         }
+        if (t instanceof ExternalException ee) {
+            return detach(ee);
+        }
         if (t instanceof ElasticsearchException ese) {
             return ese;
+        }
+        RuntimeException control = controlFlowFailure(t);
+        if (control != null) {
+            return control;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
             // A thread pool refusing the task (e.g. the node shutting down) is client-actionable backpressure,
@@ -96,14 +188,20 @@ public final class ExternalFailures {
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {
-            return iae;
+            // A format reader's IAE may embed a storage URI. Log it here and never chain it, so its message cannot
+            // surface in caused_by; forward the message only when it names no location.
+            logger.debug("External read failed with a client error (cause logged, not forwarded)", iae);
+            return new ExternalClientException("Malformed external data: {}", safeDetail(iae));
         }
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
+            // Storage clients embed full URIs in their messages and causes: log on this node, do not chain.
+            logger.debug("External read failed with a client error (cause logged, not forwarded)", t);
+            return new ExternalClientException("Failed to read external source: {}", safeDetail(t));
         }
-        // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
-        // its class name instead of a useless "null", while the original cause stays chained for the stack.
-        return new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
+        // Unchecked SDK failures (e.g. AWS SdkClientException) land here and may name the bucket host. The only
+        // diagnosis of a server-side failure is this node's log, so it is logged at WARN rather than chained.
+        logger.warn("Unexpected failure reading external source (cause logged, not forwarded)", t);
+        return new ExternalServerException("Unexpected failure reading external source: {}", safeDetail(t));
     }
 
     /**
@@ -146,16 +244,57 @@ public final class ExternalFailures {
         if (failure instanceof Error error) {
             throw error;
         }
+        RuntimeException control = controlFlowFailure(failure);
+        if (control != null) {
+            return control;
+        }
         // UncheckedIOException is checked before the generic RuntimeException branch so its IO origin is
         // typed as 400 with the coordinator's context prefix, instead of falling through unchanged and
         // letting classify() re-wrap it with the boundary's generic message.
         if (failure instanceof IOException || failure instanceof UncheckedIOException) {
-            return new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
+            logger.debug("External read failed (cause logged, not forwarded)", failure);
+            return new ExternalClientException("{}: {}", fallbackMessage, safeDetail(failure));
         }
         if (failure instanceof RuntimeException re) {
             return re;
         }
-        return new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
+        logger.warn("External read failed (cause logged, not forwarded)", failure);
+        return new ExternalServerException("{}: {}", fallbackMessage, safeDetail(failure));
+    }
+
+    /**
+     * A cancellation or circuit-breaker trip buried under an I/O or wrapper exception. Callers up the stack look for
+     * these two by type in the cause chain (to stop retrying, or to report 429), so they must not be flattened into a
+     * generic 400/500 when the cause is dropped. Neither names a storage location.
+     */
+    private static RuntimeException controlFlowFailure(Throwable t) {
+        Throwable control = ExceptionsHelper.unwrap(t, TaskCancelledException.class, CircuitBreakingException.class);
+        return control instanceof RuntimeException re ? re : null;
+    }
+
+    /**
+     * Wraps a row-level read failure in an {@link ExternalClientException} that keeps {@code cause} chained, so a caller
+     * further up can still recognise it by type (the CSV reader walks the chain for an over-{@code max_record_size}
+     * drop). Unlike {@link #surface}, the cause is <em>not</em> dropped: use it only for a cause whose message and chain
+     * name no storage location.
+     *
+     * @param safeMessage a caller-controlled message naming only the object (never the full path)
+     */
+    public static ExternalClientException rowError(Throwable cause, String safeMessage) {
+        return new ExternalClientException(cause, "{}", safeMessage);
+    }
+
+    /**
+     * Wraps a failure in an {@link ElasticsearchException} whose message is {@code context} plus the failure's detail
+     * when that names no storage location. The failure itself is logged on this node and not chained, since the
+     * REST layer renders the whole cause chain and storage-client causes name the bucket and key.
+     */
+    public static ElasticsearchException wrapWithoutCause(String context, Throwable failure) {
+        if (controlFlowFailure(failure) instanceof ElasticsearchException control) {
+            return control;
+        }
+        logger.warn(() -> context, failure);
+        return new ElasticsearchException("{}: {}", context, safeDetail(failure));
     }
 
     private static boolean isMalformedDataException(Throwable t) {
@@ -169,6 +308,74 @@ public final class ExternalFailures {
      */
     private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
+    }
+
+    /** Like {@link #detail} but falls back to the class name when the message names a storage location. */
+    public static String safeDetail(Throwable failure) {
+        return safeForUserMessage(failure.getMessage()) && namesNoHost(failure) ? detail(failure) : failure.getClass().getSimpleName();
+    }
+
+    /** A URI anywhere in a message: a scheme, {@code ://}, then everything up to a delimiter. */
+    private static final Pattern URI_IN_MESSAGE = Pattern.compile("[A-Za-z][A-Za-z0-9+.-]*://[^\\s\\]\\[,;)]*");
+
+    /**
+     * The reason a validator rejected a dataset or data source: the message of the deepest {@link IllegalArgumentException}
+     * in {@code failure}'s chain (the failure itself included, since a validator's exception is often the one thrown) that
+     * is safe once any URI in it is replaced by {@code <location>} (e.g. {@code endpoint [<location>] must use https}).
+     * Only an {@code IllegalArgumentException} qualifies: validators raise those, whereas storage-client failures, which
+     * name the bucket and host, never are. Returns {@code null} if the chain has none.
+     */
+    public static String validationReason(Throwable failure) {
+        String reason = null;
+        Throwable t = failure;
+        for (int depth = 0; t != null && depth < 12; depth++, t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof IllegalArgumentException && t.getMessage() != null && namesNoHost(t)) {
+                String redacted = URI_IN_MESSAGE.matcher(t.getMessage()).replaceAll("<location>");
+                if (safeForUserMessage(redacted)) {
+                    reason = redacted;
+                }
+            }
+        }
+        return reason;
+    }
+
+    /**
+     * Why a resolve-time failure happened, for the message that replaces its dropped cause chain: the message of the first I/O
+     * failure in the chain when it names no storage location (the policy {@link #classify} applies at read time, e.g.
+     * {@code read denied: credential mismatch}), else a validator's {@link #validationReason}. Returns
+     * {@code null} when neither is available.
+     */
+    public static String failureReason(Throwable failure) {
+        Throwable t = failure;
+        for (int depth = 0; t != null && depth < 12; depth++, t = t.getCause() == t ? null : t.getCause()) {
+            if ((t instanceof IOException || t instanceof UncheckedIOException) && t.getMessage() != null) {
+                String detail = safeDetail(t);
+                if (detail.equals(t.getClass().getSimpleName()) == false) {
+                    return detail;
+                }
+                break;
+            }
+        }
+        return validationReason(failure);
+    }
+
+    /**
+     * Network failures name the endpoint host ({@code Unable to resolve host minio.internal}, {@code Connect to
+     * minio.internal:9000 failed}) without a scheme or a cloud domain, so {@link #safeForUserMessage} cannot recognise
+     * them; the endpoint of a custom object store, or a Flight server, is part of the dataset location.
+     */
+    private static boolean namesNoHost(Throwable failure) {
+        if (ExceptionsHelper.unwrap(failure, UnknownHostException.class, ConnectException.class, NoRouteToHostException.class) != null) {
+            return false;
+        }
+        Throwable t = failure;
+        for (int depth = 0; t != null && depth < 12; depth++, t = t.getCause() == t ? null : t.getCause()) {
+            String name = t.getClass().getName();
+            if (name.startsWith("io.grpc.") || name.startsWith("org.apache.arrow.flight.") || name.endsWith("HttpHostConnectException")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

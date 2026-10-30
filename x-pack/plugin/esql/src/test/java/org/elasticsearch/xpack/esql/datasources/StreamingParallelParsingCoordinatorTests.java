@@ -489,11 +489,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 RestStatus.BAD_REQUEST,
                 ExceptionsHelper.status(ex)
             );
-            assertThat(
-                "the original IOException must remain reachable as the cause",
-                ex.getCause(),
-                Matchers.instanceOf(IOException.class)
-            );
+            assertNull("the IOException is logged, not chained, so storage locations in it cannot leak", ex.getCause());
             assertThat(
                 "the coordinator's context prefix must survive in the surfaced message",
                 ex.getMessage(),

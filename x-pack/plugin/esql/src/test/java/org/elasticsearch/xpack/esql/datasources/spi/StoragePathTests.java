@@ -228,4 +228,12 @@ public class StoragePathTests extends ESTestCase {
         var e = expectThrows(IllegalArgumentException.class, () -> StoragePath.of("https://[::1]:notaport/path"));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Invalid port in location"));
     }
+
+    public void testObjectNameOfHttpUrlDropsQueryAndFragment() {
+        // A pre-signed URL carries its signature and credentials in the query; a base64 signature can contain '/'.
+        StoragePath presigned = StoragePath.of("https://host/dir/file.csv?X-Amz-Signature=ab/cd/ef&X-Amz-Credential=AKIA%2Fx");
+        assertEquals("file.csv", presigned.objectName());
+        assertEquals("file.csv", StoragePath.of("http://host/dir/file.csv#frag/ment").objectName());
+        assertEquals("", StoragePath.objectName("not a location"));
+    }
 }

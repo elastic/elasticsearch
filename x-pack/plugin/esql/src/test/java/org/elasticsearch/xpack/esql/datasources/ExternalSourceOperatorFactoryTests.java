@@ -118,7 +118,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         // Verify the factory description
         String description = factory.describe();
         assertTrue(description.contains("csv"));
-        assertTrue(description.contains("file://"));
+        assertFalse(description.contains("file://"));
     }
 
     public void testFactoryValidation() {
@@ -403,7 +403,8 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         String description = factory.describe();
         assertTrue(description.contains("ExternalSourceOperator"));
         assertTrue(description.contains("csv"));
-        assertTrue(description.contains("file:///tmp/data.csv"));
+        assertTrue(description.contains("path=data.csv"));
+        assertFalse(description.contains("/tmp/"));
         assertTrue(description.contains("500"));
     }
 

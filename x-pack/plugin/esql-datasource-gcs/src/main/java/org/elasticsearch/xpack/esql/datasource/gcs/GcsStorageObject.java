@@ -169,7 +169,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -337,15 +337,15 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                     throttling,
                     cause,
                     "GCS store unavailable reading [{}] (HTTP {})",
-                    path,
+                    path.objectName(),
                     se.getCode()
                 );
             }
             if (se.getCode() == 404) {
-                return new IOException("Object not found: " + path, cause);
+                return new IOException("Object not found: " + path.objectName(), cause);
             }
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path.objectName(), cause);
     }
 
     /**
@@ -378,7 +378,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for " + path.objectName(), e);
             }
         }
     }
@@ -395,7 +395,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
                 return;
             }
-            throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
+            throw new IOException("Failed to get metadata for " + path.objectName() + " (metadata denied, range read also failed)", e);
         }
 
         if (objectExists) {
@@ -405,7 +405,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (cachedLength == null) {
                 throw new IOException(
                     "Failed to determine object size for "
-                        + path
+                        + path.objectName()
                         + ": GCS metadata access denied and object size cannot be determined from a range read. "
                         + "Use glob patterns (which include size from listing) instead of direct file paths."
                 );
@@ -431,6 +431,6 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "GcsStorageObject{bucket=" + bucket + ", objectName=" + objectName + ", path=" + path + "}";
+        return "GcsStorageObject{name=" + path.objectName() + "}";
     }
 }

@@ -450,7 +450,7 @@ class RetryableStorageObject implements StorageObject {
                 StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
+                throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
             }
             retryCounters.addRetry();
             failuresSinceProgress++;

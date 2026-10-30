@@ -549,11 +549,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetReadOptions options,
         ParquetMetadata cachedFooter
     ) throws IOException {
-        String uri = object.path().toString();
         try {
             return ParquetFileReader.open(inputFile, cachedFooter, options, inputFile.newStream());
         } catch (IOException e) {
-            throw newInvalidParquetFileException(uri, e);
+            throw newInvalidParquetFileException(e);
         } catch (RuntimeException e) {
             if (e instanceof CircuitBreakingException) {
                 throw e;
@@ -561,7 +560,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (e instanceof ElasticsearchException) {
                 throw e;
             }
-            throw newInvalidParquetFileException(uri, e);
+            throw newInvalidParquetFileException(e);
         }
     }
 
@@ -625,7 +624,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // parquet-specific wrapping that the prior in-line readFooter path used. The returned
             // throwable is never an Error (already rethrown) so the Exception cast is safe.
             // Callers see the same exception shapes regardless of who won the load race.
-            throw newInvalidParquetFileException(object.path().toString(), (Exception) ParsedFooterCache.rethrowStructural(e));
+            throw newInvalidParquetFileException((Exception) ParsedFooterCache.rethrowStructural(e));
         }
     }
 
@@ -672,12 +671,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return offsets;
     }
 
-    private static IllegalArgumentException newInvalidParquetFileException(String uri, Exception e) {
+    private static IllegalArgumentException newInvalidParquetFileException(Exception e) {
         String detail = e.getMessage();
         if (detail == null || detail.isEmpty()) {
             detail = e.getClass().getSimpleName();
         }
-        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
+        return new IllegalArgumentException("Could not read the Parquet file: " + detail, e);
     }
 
     @Override
@@ -698,7 +697,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     private SourceMetadata buildFooterMetadata(StorageObject object, ParquetMetadata footer) {
         MessageType parquetSchema = footer.getFileMetaData().getSchema();
-        validateFooterIntegrity(object.path().toString(), parquetSchema, footer.getBlocks());
+        validateFooterIntegrity(parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
         SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
@@ -852,7 +851,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             } catch (RuntimeException e) {
                 // parquet-mr signals a malformed footer with plain RuntimeExceptions; wrap them into
                 // the same shape as the synchronous read path so callers see consistent errors.
-                throw newInvalidParquetFileException(object.path().toString(), e);
+                throw newInvalidParquetFileException(e);
             }
             return buildFooterMetadata(object, footer);
         }
@@ -1023,7 +1022,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
      * garbage or exceptions during data-page decoding.
      */
-    static void validateFooterIntegrity(String uri, MessageType schema, List<BlockMetaData> rowGroups) {
+    static void validateFooterIntegrity(MessageType schema, List<BlockMetaData> rowGroups) {
         for (BlockMetaData rowGroup : rowGroups) {
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
@@ -1032,9 +1031,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     Statistics<?> stats = col.getStatistics();
                     if (stats != null && stats.getNumNulls() > 0) {
                         throw new IllegalArgumentException(
-                            "Could not read ["
-                                + uri
-                                + "] as a Parquet file: column ["
+                            "Could not read the Parquet file: column ["
                                 + col.getPath().toDotString()
                                 + "] is declared required but row group reports "
                                 + stats.getNumNulls()
@@ -1796,7 +1793,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 blockFactory,
                 rowLimit,
                 createdBy,
-                object.path().toString(),
+                object.path().objectName(),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
                 counters,
@@ -1836,7 +1833,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes, declaredDateFormats);
         validatePlannerTypesAgainstFile(
             logger,
-            storageObject.path().toString(),
+            storageObject.path().objectName(),
             reader,
             projectedAttributes,
             columnInfos,
@@ -1963,7 +1960,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 blockFactory,
                 rowLimit,
                 createdBy,
-                storageObject.path().toString(),
+                storageObject.path().objectName(),
                 columnInfos,
                 preloadedMetadata,
                 storageObject,

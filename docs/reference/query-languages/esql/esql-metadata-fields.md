@@ -107,7 +107,7 @@ A [subquery](esql-from-subquery.md#subqueries-with-metadata) or [view](esql-view
 :::{include} _snippets/generated/x-pack-esql/commands/examples/metadata-views-and-subqueries.csv-spec/scoresAcrossMixedSources.md
 :::
 
-The `WHERE` filter applies to both sources. The index rows return a score from `MATCH`. The subquery rows return `null`, because the subquery does not produce `_score`. A descending sort places `null` values first by default, so use `SORT _score DESC NULLS LAST` to keep rows without scores after scored rows, as shown in the example.
+The `WHERE` filter applies to both sources. The index rows return a score from `MATCH`. The subquery rows return `null`, because the subquery does not produce `_score`. The example only checks that each score is positive, because the score values depend on how many shards the index has. A descending sort places `null` values first by default, so use `DESC NULLS LAST` to keep rows without scores after scored rows, as shown in the example.
 
 ### Retrieving _source
 

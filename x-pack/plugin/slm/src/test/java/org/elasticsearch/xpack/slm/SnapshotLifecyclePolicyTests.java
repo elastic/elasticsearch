@@ -62,6 +62,21 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
         assertEquals(expected, request);
     }
 
+    public void testEncryptedDataRejected() {
+        final SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            "id",
+            "name",
+            "0 1 2 3 4 ? 2099",
+            "repo",
+            Map.of("encrypted_data", Map.of("type", "password", "password", "correct-horse-battery-staple")),
+            null
+        );
+        assertThat(
+            policy.validate().validationErrors(),
+            contains("invalid configuration.encrypted_data: not supported in SLM policies yet")
+        );
+    }
+
     public void testNextExecutionTimeSchedule() {
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",

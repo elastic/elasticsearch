@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskAdmissionPolicy;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -185,7 +186,7 @@ public class ClusterServiceUtils {
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, localNode.getId())
+            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, localNode.getId(), TaskAdmissionPolicy.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState.Builder builder = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))

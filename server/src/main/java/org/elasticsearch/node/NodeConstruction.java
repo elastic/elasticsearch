@@ -255,6 +255,8 @@ import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAdmissionPolicy;
+import org.elasticsearch.tasks.TaskAdmissionPolicyProvider;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
@@ -769,6 +771,10 @@ class NodeConstruction {
         modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
 
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
+        TaskAdmissionPolicy admissionPolicy = pluginsService.loadSingletonServiceProvider(
+            TaskAdmissionPolicyProvider.class,
+            () -> () -> TaskAdmissionPolicy.NOOP
+        ).create();
         TaskManager taskManager = serviceProvider.newTaskManager(
             pluginsService,
             settings,
@@ -778,7 +784,8 @@ class NodeConstruction {
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet()),
             telemetryProvider.getTracer(),
-            nodeEnvironment.nodeId()
+            nodeEnvironment.nodeId(),
+            admissionPolicy
         );
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, telemetryProvider.getMeterRegistry());

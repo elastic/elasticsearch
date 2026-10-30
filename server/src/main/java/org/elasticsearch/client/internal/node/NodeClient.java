@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
@@ -82,11 +83,12 @@ public class NodeClient extends AbstractClient {
         // Discard the task because the Client interface doesn't use it.
         try {
             executeAndReturnTask(action, request, listener);
-        } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+        } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException | EsRejectedExecutionException e) {
             // #executeAndReturnTask returns the task and throws TaskCancelledException if it fails to register the task because the parent
             // task has been cancelled, IllegalStateException if the client was not in a state to execute the request because it was not
-            // yet properly initialized or IllegalArgumentException if header validation fails we forward them to listener since this API
-            // does not concern itself with the specifics of the task handling
+            // yet properly initialized, IllegalArgumentException if header validation fails, or EsRejectedExecutionException if the
+            // coordinating query limit is reached. We forward them to the listener since this API does not concern itself with the
+            // specifics of the task handling
             listener.onFailure(e);
         }
     }
@@ -102,6 +104,7 @@ public class NodeClient extends AbstractClient {
      * exception to the listener instead.
      *
      * @throws TaskCancelledException if the request's parent task has been canceled already
+     * @throws EsRejectedExecutionException if the coordinating query limit is reached
      */
     public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
         ActionType<Response> action,

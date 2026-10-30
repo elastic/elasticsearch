@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAdmissionPolicy;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -53,10 +54,28 @@ public class MockTaskManager extends TaskManager {
         super(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
-    public static TaskManager create(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+    public MockTaskManager(
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        Tracer tracer,
+        String nodeId,
+        TaskAdmissionPolicy admissionPolicy
+    ) {
+        super(settings, threadPool, taskHeaders, tracer, nodeId, admissionPolicy);
+    }
+
+    public static TaskManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        Tracer tracer,
+        String nodeId,
+        TaskAdmissionPolicy admissionPolicy
+    ) {
         var taskManager = MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)
-            ? new MockTaskManager(settings, threadPool, taskHeaders)
-            : new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
+            ? new MockTaskManager(settings, threadPool, taskHeaders, tracer, nodeId, admissionPolicy)
+            : new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId, admissionPolicy);
         return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(taskManager) : taskManager;
     }
 

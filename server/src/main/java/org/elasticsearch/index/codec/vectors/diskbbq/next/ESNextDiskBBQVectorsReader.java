@@ -43,8 +43,10 @@ import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -518,7 +520,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
     }
 
-    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
+    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
 
     private static final int QUERY_CACHE_SIZE = 16;
 
@@ -552,7 +554,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
-                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
                         return true;
                     }
                     return false;
@@ -598,7 +600,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QueryQuantizerResult(queryCorrections, quantizedQuery);
+                result = new QueryQuantizerResult(queryCorrections, new ScoringQuery(quantizedQuery));
                 cache.put(nextCentroidOrdinal, result);
             }
         }
@@ -607,7 +609,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return result.queryCorrections();
         }
 
-        byte[] getQuantizedTarget() {
+        ScoringQuery getQuantizedTarget() {
             return result.quantizedTarget();
         }
     }
@@ -679,17 +681,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
 
         @Override
-        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
-            int docToScore = 0;
+        protected int docsToBulkScoreMask(int[] docIds, Bits acceptDocs, int bulkSize) {
+            assert bulkSize <= Integer.SIZE
+                : "bulk size "
+                    + bulkSize
+                    + " exceeds the mask width; split the block into Integer.SIZE-sized parts and call scoreBulkMasked once per part";
+            int mask = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || (acceptDocs != null && acceptDocs.get(docIds[i]) == false)) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    mask = BulkMask.select(mask, i);
                 }
             }
-            return docToScore;
+            return mask;
         }
 
         @Override
@@ -718,7 +723,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final int[] correctionsSum = new int[BULK_SIZE];
         final float[] correctionsAdd = new float[BULK_SIZE];
         final int[] docIdsScratch = new int[BULK_SIZE];
-        final int[] offsetsScratch = new int[BULK_SIZE];
         byte docEncoding;
         int docBase = 0;
 
@@ -826,30 +830,34 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return maxScore;
         }
 
-        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+        protected int docsToBulkScoreMask(int[] docIds, Bits acceptDocs, int bulkSize) {
+            assert bulkSize <= Integer.SIZE
+                : "bulk size "
+                    + bulkSize
+                    + " exceeds the mask width; split the block into Integer.SIZE-sized parts and call scoreBulkMasked once per part";
             if (acceptDocs == null) {
-                return bulkSize;
+                return BulkMask.all(bulkSize);
             }
-            int docToScore = 0;
+            int mask = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || acceptDocs.get(docIds[i]) == false) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    mask = BulkMask.select(mask, i);
                 }
             }
-            return docToScore;
+            return mask;
         }
 
-        protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize, int docsToBulkScore, float maxScore) {
+        protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize, int mask, int docsToBulkScore, float maxScore) {
             if (knnCollector instanceof BulkKnnCollector bulkCollector) {
                 if (docsToBulkScore == bulkSize) {
                     bulkCollector.bulkCollect(docIdsScratch, scores, bulkSize, maxScore);
                     return;
                 }
-                for (int i = 0; i < docsToBulkScore; i++) {
-                    int offset = offsetsScratch[i];
+                int i = 0;
+                for (int m = mask; m != 0; m = BulkMask.deselectFirst(m), i++) {
+                    int offset = BulkMask.first(m);
                     docIdsScratch[i] = docIdsScratch[offset];
                     scores[i] = scores[offset];
                 }
@@ -884,7 +892,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
+                final int mask = docsToBulkScoreMask(docIdsScratch, acceptDocs, BULK_SIZE);
+                final int docsToBulkScore = Integer.bitCount(mask);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -894,7 +903,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 if (docsToBulkScore == 1) {
                     maxScore = scoreIndividually(BULK_SIZE);
                 } else if (docsToBulkScore < BULK_SIZE) {
-                    maxScore = osqVectorsScorer.scoreBulkOffsets(
+                    maxScore = osqVectorsScorer.scoreBulkMasked(
                         queryQuantizer.getQuantizedTarget(),
                         queryQuantizer.getQueryCorrections().lowerInterval(),
                         queryQuantizer.getQueryCorrections().upperInterval(),
@@ -902,8 +911,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                         centroidDistance,
                         fieldInfo.getVectorSimilarityFunction(),
                         0f,
-                        offsetsScratch,
-                        docsToBulkScore,
+                        mask,
                         scores,
                         BULK_SIZE
                     );
@@ -920,7 +928,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                     );
                 }
                 if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                    collectBulk(knnCollector, scores, BULK_SIZE, docsToBulkScore, maxScore);
+                    collectBulk(knnCollector, scores, BULK_SIZE, mask, docsToBulkScore, maxScore);
                 }
                 scoredDocs += docsToBulkScore;
             }
@@ -928,7 +936,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             if (i < vectors) {
                 int tailSize = vectors - i;
                 readDocIds(tailSize);
-                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
+                final int mask = docsToBulkScoreMask(docIdsScratch, acceptDocs, tailSize);
+                final int docsToBulkScore = Integer.bitCount(mask);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * tailSize);
                 } else {
@@ -937,7 +946,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                     if (docsToBulkScore == 1) {
                         maxScore = scoreIndividually(tailSize);
                     } else if (docsToBulkScore < tailSize) {
-                        maxScore = osqVectorsScorer.scoreBulkOffsets(
+                        maxScore = osqVectorsScorer.scoreBulkMasked(
                             queryQuantizer.getQuantizedTarget(),
                             queryQuantizer.getQueryCorrections().lowerInterval(),
                             queryQuantizer.getQueryCorrections().upperInterval(),
@@ -945,8 +954,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                             centroidDistance,
                             fieldInfo.getVectorSimilarityFunction(),
                             0f,
-                            offsetsScratch,
-                            docsToBulkScore,
+                            mask,
                             scores,
                             tailSize
                         );
@@ -964,7 +972,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                         );
                     }
                     if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                        collectBulk(knnCollector, scores, tailSize, docsToBulkScore, maxScore);
+                        collectBulk(knnCollector, scores, tailSize, mask, docsToBulkScore, maxScore);
                     }
                     scoredDocs += docsToBulkScore;
                 }

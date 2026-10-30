@@ -11,16 +11,23 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
@@ -44,8 +51,10 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
@@ -53,6 +62,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
@@ -72,13 +84,14 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private MockClusterStateWaitStep allClusterSecondStep;
     private MockStep thirdStep;
     private Client client;
+    private DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private IndexLifecycleMetadata lifecycleMetadata;
     private String indexName;
 
     @Before
     public void prepareState() throws IOException {
         client = Mockito.mock(Client.class);
-        Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         firstStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         secondStep = new MockClusterStateWaitStep(secondStepKey, thirdStepKey);
         secondStep.setWillComplete(true);
@@ -88,6 +101,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         mixedPolicyName = randomAlphaOfLengthBetween(5, 10);
         allClusterPolicyName = randomAlphaOfLengthBetween(1, 4);
         invalidPolicyName = randomAlphaOfLength(11);
+        dataStreamLifecycleSettings = createDataStreamLifecycleSettings(randomBoolean());
         Phase mixedPhase = new Phase(
             "first_phase",
             TimeValue.ZERO,
@@ -167,7 +181,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         assertThat(task.execute(state), sameInstance(state.cluster()));
     }
@@ -184,7 +199,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -209,7 +225,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -247,7 +264,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             invalidStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         assertSame(newState, state.cluster());
@@ -265,7 +283,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -292,7 +311,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -316,7 +336,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         Exception expectedException = new RuntimeException();
         task.onFailure(expectedException);
@@ -335,7 +356,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -363,7 +385,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -375,6 +398,85 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepInfo(), containsString("""
             {"type":"runtime_exception","reason":"error\""""));
+    }
+
+    /**
+     * When a cluster state step spawns a new index, the task only runs the async action of that index if ILM manages it. A backing index of
+     * a time series data stream without a lifecycle that does not prefer ILM is managed by ILM only when the minimum lifecycle is disabled.
+     * The {@link IndexLifecycleRunner} is mocked because running the async action is a side effect we can only observe through it.
+     */
+    public void testSpawnedTimeSeriesIndexAsyncActionDependsOnMinimumLifecycleEnabled() throws Exception {
+        for (boolean minimumLifecycleEnabled : new boolean[] { true, false }) {
+            String policyName = randomAlphaOfLength(10);
+            String spawnedIndexName = DataStream.getDefaultBackingIndexName("ts_data_stream", 1);
+            MockClusterStateActionStep spawningStep = new MockClusterStateActionStep(firstStepKey, null) {
+                @Override
+                public Tuple<String, StepKey> indexForAsyncInvocation() {
+                    return Tuple.tuple(spawnedIndexName, secondStepKey);
+                }
+            };
+            Phase phase = new Phase(
+                "first_phase",
+                TimeValue.ZERO,
+                Map.of(MockAction.NAME, new MockAction(List.of(spawningStep, new MockClusterStateActionStep(secondStepKey, null))))
+            );
+            LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Map.of(phase.getName(), phase));
+            var ilmMetadata = new IndexLifecycleMetadata(
+                Map.of(policyName, new LifecyclePolicyMetadata(policy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())),
+                OperationMode.RUNNING
+            );
+            IndexMetadata sourceIndex = indexInStep(randomAlphaOfLength(5), policyName, firstStepKey, true);
+            IndexMetadata spawnedIndex = indexInStep(spawnedIndexName, policyName, secondStepKey, false);
+            DataStream dataStream = DataStream.builder("ts_data_stream", List.of(spawnedIndex.getIndex()))
+                .setGeneration(1)
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(IndexLifecycleMetadata.TYPE, ilmMetadata)
+                .put(sourceIndex, false)
+                .put(spawnedIndex, false)
+                .put(dataStream)
+                .build();
+            ProjectState projectState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(project)
+                .build()
+                .projectState(project.id());
+            PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
+            registry.update(ilmMetadata);
+
+            IndexLifecycleRunner runner = Mockito.mock(IndexLifecycleRunner.class);
+            ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(
+                project.id(),
+                policyName,
+                sourceIndex.getIndex(),
+                registry.getStep(sourceIndex, firstStepKey),
+                registry,
+                runner,
+                () -> 0L,
+                createDataStreamLifecycleSettings(minimumLifecycleEnabled)
+            );
+            ClusterState newState = task.execute(projectState);
+            task.onClusterStateProcessed(newState.projectState(project.id()));
+
+            Mockito.verify(runner, Mockito.times(minimumLifecycleEnabled ? 0 : 1))
+                .maybeRunAsyncAction(any(ProjectState.class), any(IndexMetadata.class), eq(policyName), eq(secondStepKey));
+        }
+    }
+
+    private static IndexMetadata indexInStep(String name, String policyName, StepKey stepKey, boolean preferIlm) {
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.builder()
+            .setPhase(stepKey.phase())
+            .setAction(stepKey.action())
+            .setStep(stepKey.name())
+            .build();
+        return IndexMetadata.builder(name)
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName).put(IndexSettings.PREFER_ILM, preferIlm)
+            )
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
     }
 
     private void setStateToKey(StepKey stepKey) throws IOException {
@@ -394,5 +496,15 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     private LifecycleExecutionState getLifecycleExecutionState(ClusterState newState) {
         return newState.metadata().getProject(state.projectId()).index(index).getLifecycleExecutionState();
+    }
+
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean minimumLifecycleEnabled) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        Settings settings = Settings.builder()
+            .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled)
+            .build();
+        return DataStreamLifecycleSettings.create(new ClusterSettings(settings, settingsSet));
     }
 }

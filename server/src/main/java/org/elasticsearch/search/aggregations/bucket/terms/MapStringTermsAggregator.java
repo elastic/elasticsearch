@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.ValueDeduplicator;
@@ -105,13 +106,22 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 aggCtx.getLeafReaderContext(),
                 sub,
                 this::addRequestCircuitBreakerBytes,
-                (s, doc, owningBucketOrd, bytes) -> {
-                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = -1 - bucketOrdinal;
+                new BucketCollectConsumer() {
+                    @Override
+                    public long accept(LeafBucketCollector s, int doc, long owningBucketOrd, BytesRef bytes) throws IOException {
+                        long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = -1 - bucketOrdinal;
+                            collectExistingBucket(s, doc, bucketOrdinal);
+                        } else {
+                            collectBucket(s, doc, bucketOrdinal);
+                        }
+                        return bucketOrdinal;
+                    }
+
+                    @Override
+                    public void acceptExisting(LeafBucketCollector s, int doc, long bucketOrdinal) throws IOException {
                         collectExistingBucket(s, doc, bucketOrdinal);
-                    } else {
-                        collectBucket(s, doc, bucketOrdinal);
                     }
                 }
             )
@@ -178,7 +188,23 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     @FunctionalInterface
     public interface CollectConsumer {
-        void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
+        /**
+         * Count a document for the bucket of {@code bytes}, adding the bucket if it is new.
+         *
+         * @return the ordinal of the bucket
+         */
+        long accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
+    }
+
+    /**
+     * A {@link CollectConsumer} that can also count a document for a bucket it already returned, so a collector that
+     * knows a term's bucket does not hash the term again.
+     */
+    public interface BucketCollectConsumer extends CollectConsumer {
+        /**
+         * Count a document for a bucket a previous call to {@link #accept} returned.
+         */
+        void acceptExisting(LeafBucketCollector sub, int doc, long bucketOrdinal) throws IOException;
     }
 
     /**
@@ -186,6 +212,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
      */
     public static class ValuesSourceCollectorSource implements CollectorSource {
         private final ValuesSourceConfig valuesSourceConfig;
+        private final ColumnarOrdinalTermsCollector.OrdinalBuckets ordinalBuckets = new ColumnarOrdinalTermsCollector.OrdinalBuckets();
 
         public ValuesSourceCollectorSource(ValuesSourceConfig valuesSourceConfig) {
             this.valuesSourceConfig = valuesSourceConfig;
@@ -214,9 +241,25 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         ) throws IOException {
             final SortableBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
-            return singleton != null
+            final LeafBucketCollector perDocument = singleton != null
                 ? getLeafCollector(includeExclude, singleton, sub, consumer)
                 : getLeafCollector(includeExclude, values, sub, consumer);
+            if (values instanceof ColumnarPayloadSortableBinaryDocValues columnar
+                && consumer instanceof BucketCollectConsumer bucketConsumer) {
+                final LeafBucketCollector byOrdinal = ColumnarOrdinalTermsCollector.create(
+                    columnar,
+                    includeExclude,
+                    sub,
+                    bucketConsumer,
+                    ordinalBuckets,
+                    addRequestCircuitBreakerBytes,
+                    perDocument
+                );
+                if (byOrdinal != null) {
+                    return byOrdinal;
+                }
+            }
+            return perDocument;
         }
 
         private LeafBucketCollector getLeafCollector(

@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 160492
+summary: Don't return unassigned shards in primary shard routing iterator
+type: bug

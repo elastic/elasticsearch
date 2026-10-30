@@ -20,10 +20,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
@@ -155,6 +157,28 @@ public final class BatchMappingContext implements Releasable {
         resources.add(resource);
     }
 
+    /**
+     * Returns a cursor that reassembles, one document at a time, the Lucene fields of every column attached so far — the row-oriented
+     * view of the batch, for mappers that must read back what the other mappers produced (e.g. {@code columnar_stored} rebuilding
+     * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
+     * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
+     *
+     * @param include selects the columns that the cursor reads. The fields of the columns that it rejects are left out of the
+     *                assembled rows, and these columns are not read at all, which saves the cost to build their fields.
+     */
+    public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
+        return mappedColumns().rowCursor(include);
+    }
+
+    /**
+     * Detaches every column whose Lucene field name matches {@code nameFilter}. The backing data of a detached column stays registered
+     * with this context and is released on {@link #close()}.
+     */
+    public void removeColumnsIf(Predicate<String> nameFilter) {
+        assert frozen == false;
+        columns.removeIf(column -> nameFilter.test(column.toLuceneColumn().name()));
+    }
+
     @Override
     public void close() {
         Releasables.close(resources);
@@ -214,6 +238,39 @@ public final class BatchMappingContext implements Releasable {
      */
     public BytesReference[] sources() {
         return batch.sources();
+    }
+
+    /**
+     * Returns the size in bytes of every document's source, indexed by document, for accounting rather than storage.
+     *
+     * <p>A document that arrives as a row of a pre-built {@link SourceBatch} carries no source bytes on its request, so
+     * {@link #sources()} cannot size it; its size is estimated from the batch row instead, which is what the row-major path does
+     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). The batch sizes all of its rows in one column
+     * sweep ({@link SourceBatch#rowSizesInBytes()}), which is done once and only when at least one document needs it. A document
+     * with neither has size {@code 0}.
+     */
+    public int[] sourceSizesInBytes() {
+        final int docCount = batch.docCount();
+        final BytesReference[] sources = batch.sources();
+        final int[] sizes = new int[docCount];
+        int[] batchSizes = null;
+        boolean batchSized = false;
+        for (int d = 0; d < docCount; d++) {
+            final BytesReference source = sources[d];
+            if (source != null && source.length() > 0) {
+                sizes[d] = source.length();
+                continue;
+            }
+            if (batchSized == false) {
+                final SourceBatch sourceBatch = batch.sourceBatch();
+                batchSizes = sourceBatch != null ? sourceBatch.rowSizesInBytes() : null;
+                batchSized = true;
+            }
+            if (batchSizes != null) {
+                sizes[d] = batchSizes[d];
+            }
+        }
+        return sizes;
     }
 
     /**
@@ -336,6 +393,10 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns columns() {
         frozen = true;
+        return mappedColumns();
+    }
+
+    private MappedColumns mappedColumns() {
         return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns);
     }
 }

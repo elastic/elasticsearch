@@ -15,15 +15,26 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -35,6 +46,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -67,6 +79,11 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     @Before
     public void initFormat() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
+    }
+
+    /** Adds the doc-values field a sliced document carries: the slice field holding the encoded slice key (the index sort). */
+    protected static void addSliceFields(Document doc, String sliceField, String sliceValue) {
+        doc.add(SortedDocValuesField.indexedField(sliceField, SliceIndexing.encodeSliceKey(sliceValue)));
     }
 
     /** The index sort every sliced index must use: slice field first, STRING, ascending, missing values last. */
@@ -166,7 +183,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
                 final int slice = i % numSlices;
                 final String sliceValue = Integer.toString(slice);
                 final Document document = new Document();
-                document.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef(sliceValue)));
+                addSliceFields(document, SLICE_FIELD, sliceValue);
                 document.add(new StoredField(SLICE_FIELD, new BytesRef(sliceValue)));
                 document.add(createVectorField("vector", dimensions));
                 writer.addDocument(document);
@@ -244,7 +261,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
             for (int i = 0; i < numDocs; i++) {
                 int slice = random().nextInt(numSlices);
                 Document doc = new Document();
-                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + slice)));
+                addSliceFields(doc, SLICE_FIELD, "" + slice);
                 doc.add(createVectorField("vector", dimensions));
                 doc.add(new StoredField(SLICE_FIELD, new BytesRef("" + slice)));
                 docsPerSlice[slice]++;
@@ -290,7 +307,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
             for (int i = 0; i < numDocs; i++) {
                 int slice = random().nextInt(numSlices);
                 Document doc = new Document();
-                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + slice)));
+                addSliceFields(doc, SLICE_FIELD, "" + slice);
                 doc.add(createVectorField("vector", dimensions));
                 doc.add(new StoredField(SLICE_FIELD, new BytesRef("" + slice)));
                 totalWithVector++;
@@ -314,7 +331,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             Document doc = new Document();
-            doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("0")));
+            addSliceFields(doc, SLICE_FIELD, "0");
             doc.add(createVectorField("field", 2));
             w.addDocument(doc);
             w.commit();
@@ -334,6 +351,225 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
                     queryToStringPrefix() + ":field[" + firstQueryElement() + ",...][10][" + SLICE_FIELD + "=[0]][id:text]",
                     query.toString("ignored")
                 );
+            }
+        }
+    }
+
+    /**
+     * Two distinct slice ids with the same 32-bit slice hash, found by enumerating six-letter strings. Pinned so
+     * {@link #testHashCollidingSlicesStayDistinct} always runs rather than depending on a random search finding one.
+     */
+    private static final String COLLIDING_SLICE_A = "aaanec";
+    private static final String COLLIDING_SLICE_B = "aabqdj";
+    private static final long COLLIDING_SLICE_HASH = 1276495976L;
+
+    /**
+     * Two distinct slices whose 32-bit hashes collide share a key prefix but remain separate, adjacent terms, so each is
+     * still a contiguous doc range and a query for one never returns the other.
+     */
+    public void testHashCollidingSlicesStayDistinct() throws IOException {
+        final String sliceA = COLLIDING_SLICE_A;
+        final String sliceB = COLLIDING_SLICE_B;
+        assertNotEquals(sliceA, sliceB);
+        assertEquals("pinned pair must still collide under the slice hash", COLLIDING_SLICE_HASH, SliceIndexing.sliceHash(sliceA));
+        assertEquals("pinned pair must still collide under the slice hash", COLLIDING_SLICE_HASH, SliceIndexing.sliceHash(sliceB));
+        final String[] slices = new String[] { sliceA, sliceB, "unrelated-one", "unrelated-two" };
+        final int dimensions = random().nextInt(12, 128);
+        final int docsPerSlice = random().nextInt(3, 20);
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(sliceIndexSort());
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < docsPerSlice; i++) {
+                for (String slice : slices) {
+                    final Document doc = new Document();
+                    addSliceFields(doc, SLICE_FIELD, slice);
+                    doc.add(new StoredField(SLICE_FIELD, new BytesRef(slice)));
+                    doc.add(createVectorField("vector", dimensions));
+                    w.addDocument(doc);
+                }
+            }
+            w.commit();
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals(1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final SortedDocValues keys = leaf.getSortedDocValues(SLICE_FIELD);
+                final int ordA = keys.lookupTerm(SliceIndexing.encodeSliceKey(sliceA));
+                final int ordB = keys.lookupTerm(SliceIndexing.encodeSliceKey(sliceB));
+                assertTrue(ordA >= 0);
+                assertTrue(ordB >= 0);
+                assertEquals("colliding slices must be adjacent terms", 1, Math.abs(ordA - ordB));
+                int minA = Integer.MAX_VALUE, maxA = -1, minB = Integer.MAX_VALUE, maxB = -1;
+                for (int doc = keys.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = keys.nextDoc()) {
+                    if (keys.ordValue() == ordA) {
+                        minA = Math.min(minA, doc);
+                        maxA = Math.max(maxA, doc);
+                    } else if (keys.ordValue() == ordB) {
+                        minB = Math.min(minB, doc);
+                        maxB = Math.max(maxB, doc);
+                    }
+                }
+                assertEquals("slice A must be one contiguous range", docsPerSlice, maxA - minA + 1);
+                assertEquals("slice B must be one contiguous range", docsPerSlice, maxB - minB + 1);
+                assertTrue("colliding slices must occupy disjoint, adjacent ranges", maxA + 1 == minB || maxB + 1 == minA);
+
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                for (String slice : new String[] { sliceA, sliceB }) {
+                    final int k = 2 * docsPerSlice;
+                    final Query query = createSlicedQuery("vector", dimensions, k, k, null, 1.0f, new BytesRef(slice));
+                    final TopDocs topDocs = searcher.search(query, k);
+                    assertEquals(docsPerSlice, topDocs.scoreDocs.length);
+                    for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                        final Document document = reader.storedFields().document(scoreDoc.doc);
+                        assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo(slice));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A slice absent from a leaf resolves to no ordinal in the slice field's terms, so the leaf contributes no
+     * results. This checks the one-slice-per-leaf layout and that a query for one slice returns exactly that
+     * slice's documents. The strict proof that the absent leaf never runs a vector search is a separate test.
+     */
+    public void testAbsentSliceLeavesYieldNoResults() throws IOException {
+        final String sliceA = "a-" + TestUtil.randomSimpleString(random(), 3, 8);
+        final String sliceB = "b-" + TestUtil.randomSimpleString(random(), 3, 8);
+        final int dimensions = random().nextInt(12, 128);
+        final int docsPerSlice = random().nextInt(3, 20);
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(sliceIndexSort());
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        // One leaf per slice: no merging, and no flush before each commit.
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        iwc.setRAMBufferSizeMB(256);
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (String slice : new String[] { sliceA, sliceB }) {
+                for (int i = 0; i < docsPerSlice; i++) {
+                    final Document doc = new Document();
+                    addSliceFields(doc, SLICE_FIELD, slice);
+                    doc.add(new StoredField(SLICE_FIELD, new BytesRef(slice)));
+                    doc.add(createVectorField("vector", dimensions));
+                    w.addDocument(doc);
+                }
+                w.commit();
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals(2, reader.leaves().size());
+                final BytesRef keyA = SliceIndexing.encodeSliceKey(sliceA);
+                int leavesContainingA = 0;
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    final SortedDocValues keys = ctx.reader().getSortedDocValues(SLICE_FIELD);
+                    assertNotNull(keys);
+                    assertEquals("each leaf holds a single slice", 1, keys.getValueCount());
+                    if (keys.lookupTerm(keyA) >= 0) {
+                        leavesContainingA++;
+                    }
+                }
+                assertEquals("exactly one leaf contains the queried slice", 1, leavesContainingA);
+
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final int k = 2 * docsPerSlice;
+                final Query query = createSlicedQuery("vector", dimensions, k, k, null, 1.0f, new BytesRef(sliceA));
+                final TopDocs topDocs = searcher.search(query, k);
+                assertEquals(docsPerSlice, topDocs.scoreDocs.length);
+                for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                    final Document document = reader.storedFields().document(scoreDoc.doc);
+                    assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo(sliceA));
+                }
+            }
+        }
+    }
+
+    /**
+     * Strict read-proof counterpart of {@link #testAbsentSliceLeavesYieldNoResults}: the absent-slice leaf resolves
+     * membership through the slice field's sorted doc values, but never opens the slice field's skipper and never
+     * runs a vector search.
+     */
+    public void testAbsentSliceLeafNeverSearchesVectors() throws IOException {
+        final String sliceA = "a-" + TestUtil.randomSimpleString(random(), 3, 8);
+        final String sliceB = "b-" + TestUtil.randomSimpleString(random(), 3, 8);
+        final int dimensions = random().nextInt(12, 128);
+        final int docsPerSlice = random().nextInt(3, 20);
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(sliceIndexSort());
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        iwc.setRAMBufferSizeMB(256);
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (String slice : new String[] { sliceA, sliceB }) {
+                for (int i = 0; i < docsPerSlice; i++) {
+                    final Document doc = new Document();
+                    addSliceFields(doc, SLICE_FIELD, slice);
+                    doc.add(new StoredField(SLICE_FIELD, new BytesRef(slice)));
+                    doc.add(createVectorField("vector", dimensions));
+                    w.addDocument(doc);
+                }
+                w.commit();
+            }
+            try (DirectoryReader baseReader = DirectoryReader.open(w)) {
+                assertEquals(2, baseReader.leaves().size());
+                final FilterDirectoryReader wrappedReader = new FilterDirectoryReader(
+                    baseReader,
+                    new FilterDirectoryReader.SubReaderWrapper() {
+                        @Override
+                        public LeafReader wrap(LeafReader reader) {
+                            return new RecordingLeafReader(reader);
+                        }
+                    }
+                ) {
+                    @Override
+                    protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                        return in;
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+                final IndexSearcher searcher = new IndexSearcher(wrappedReader);
+                final int k = 2 * docsPerSlice;
+                final Query query = createSlicedQuery("vector", dimensions, k, k, null, 1.0f, new BytesRef(sliceA));
+                final TopDocs topDocs = searcher.search(query, k);
+                assertEquals(docsPerSlice, topDocs.scoreDocs.length);
+                for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                    final Document document = wrappedReader.storedFields().document(scoreDoc.doc);
+                    assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo(sliceA));
+                }
+                assertEquals(2, wrappedReader.leaves().size());
+                final BytesRef keyA = SliceIndexing.encodeSliceKey(sliceA);
+                int includedLeaves = 0;
+                for (LeafReaderContext ctx : wrappedReader.leaves()) {
+                    final RecordingLeafReader rlr = (RecordingLeafReader) ctx.reader();
+                    // Resolve membership through the unwrapped inner reader to avoid polluting the recording.
+                    final SortedDocValues keys = rlr.getInner().getSortedDocValues(SLICE_FIELD);
+                    assertNotNull(keys);
+                    final boolean included = keys.lookupTerm(keyA) >= 0;
+                    final Set<String> sdvOpened = new HashSet<>(rlr.sortedDocValuesOpened);
+                    final Set<String> dvskOpened = new HashSet<>(rlr.docValuesSkipperOpened);
+                    final Set<String> vectorsSearched = new HashSet<>(rlr.vectorSearchFields);
+                    if (included) {
+                        includedLeaves++;
+                        assertTrue("included leaf must open the slice field's sorted doc values", sdvOpened.contains(SLICE_FIELD));
+                        assertTrue("included leaf must search the vector field", vectorsSearched.contains("vector"));
+                    } else {
+                        assertTrue(
+                            "absent-slice leaf must resolve membership via the slice field's sorted doc values",
+                            sdvOpened.contains(SLICE_FIELD)
+                        );
+                        assertFalse("absent-slice leaf must not open doc values skipper for slice field", dvskOpened.contains(SLICE_FIELD));
+                        assertTrue("absent-slice leaf must not run a vector search", vectorsSearched.isEmpty());
+                    }
+                }
+                assertEquals("exactly one leaf contains the queried slice", 1, includedLeaves);
             }
         }
     }
@@ -359,7 +595,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
             for (int i = 0; i < numDocs; i++) {
                 int slice = random().nextInt(numSlices);
                 Document doc = new Document();
-                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + slice)));
+                addSliceFields(doc, SLICE_FIELD, "" + slice);
                 boolean filterMatch = random().nextBoolean();
                 String filterText = filterMatch ? filterValue : filterMiss;
                 doc.add(new StringField(filterField, filterText, Field.Store.NO));
@@ -470,6 +706,54 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
                     assertEquals(0, topDocs.scoreDocs.length);
                 }
             }
+        }
+    }
+
+    private static final class RecordingLeafReader extends FilterLeafReader {
+        final Set<String> sortedDocValuesOpened = new HashSet<>();
+        final Set<String> docValuesSkipperOpened = new HashSet<>();
+        final Set<String> vectorSearchFields = new HashSet<>();
+
+        RecordingLeafReader(LeafReader in) {
+            super(in);
+        }
+
+        LeafReader getInner() {
+            return in;
+        }
+
+        @Override
+        public SortedDocValues getSortedDocValues(String field) throws IOException {
+            sortedDocValuesOpened.add(field);
+            return super.getSortedDocValues(field);
+        }
+
+        @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            docValuesSkipperOpened.add(field);
+            return super.getDocValuesSkipper(field);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            vectorSearchFields.add(field);
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            vectorSearchFields.add(field);
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public IndexReader.CacheHelper getCoreCacheHelper() {
+            return in.getCoreCacheHelper();
+        }
+
+        @Override
+        public IndexReader.CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 }

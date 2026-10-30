@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -71,25 +73,25 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     ) throws IOException;
 
     @Override
-    final long quantizeScore(byte[] q) throws IOException {
+    final long quantizeScore(ScoringQuery q) throws IOException {
         return dotProduct.dotProduct(q);
     }
 
     @Override
-    final boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+    final boolean quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
         dotProduct.dotProductBulk(q, count, scores);
         return true;
     }
 
     @Override
-    final boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        dotProduct.dotProductBulkOffsets(q, offsets, offsetsCount, scores, count);
+    final boolean quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
+        dotProduct.dotProductBulkMasked(q, mask, scores, count);
         return true;
     }
 
     @Override
     final float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -113,20 +115,19 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     }
 
     @Override
-    final float scoreBulkOffsets(
-        byte[] q,
+    final float scoreBulkMasked(
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        int mask,
         float[] scores,
         int count
     ) throws IOException {
-        dotProduct.dotProductBulkOffsets(q, offsets, offsetsCount, scores, count);
+        dotProduct.dotProductBulkMasked(q, mask, scores, count);
         // corrections are applied across the whole block; the unscored entries are discarded below
         applyCorrections(
             queryLowerInterval,
@@ -139,9 +140,8 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
             count
         );
         float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0, offsetIdx = 0; i < count; i++) {
-            if (offsetIdx < offsetsCount && offsets[offsetIdx] == i) {
-                offsetIdx++;
+        for (int i = 0; i < count; i++) {
+            if (BulkMask.isSelected(mask, i)) {
                 if (scores[i] > maxScore) {
                     maxScore = scores[i];
                 }

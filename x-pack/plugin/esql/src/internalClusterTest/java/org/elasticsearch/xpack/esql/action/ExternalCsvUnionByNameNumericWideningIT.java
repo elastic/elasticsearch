@@ -200,9 +200,10 @@ public class ExternalCsvUnionByNameNumericWideningIT extends AbstractExternalDat
     public void testPinnedReadCommitMustNotPolluteSoloNarrowReadStats() throws Exception {
         Path dir = createTempDir().resolve("ubn_pinned_commit");
         Files.createDirectories(dir);
-        // a.csv: schema_sample_size=2 -> initial sample sees (10, 20), widening window sees (30, 40);
-        // all four are in INTEGER range, so col is inferred INTEGER. Row 5 (3000000000) is beyond both
-        // windows and is not sampled, so it overflows int and is null-filled under error_mode=null_field.
+        // a.csv: schema_sample_size=2 -> the sample sees only (10, 20); rows 3-4 (30, 40) and row 5
+        // (3000000000) are all past that one window. col is inferred INTEGER from the sample, so rows
+        // 3-4 still parse as INTEGER at read time, while row 5 overflows int and is null-filled under
+        // error_mode=null_field.
         Files.writeString(dir.resolve("a.csv"), "id,col\n1,10\n2,20\n3,30\n4,40\n5,3000000000\n", StandardCharsets.UTF_8);
         // b.csv: long-range values -> col inferred LONG, so the glob's UNION_BY_NAME reconciliation
         // widens col to LONG and pins a.csv's read to LONG.
@@ -249,9 +250,10 @@ public class ExternalCsvUnionByNameNumericWideningIT extends AbstractExternalDat
     public void testPinnedReadWithNonStrictDeclaredMappingMustNotPolluteSoloNarrowReadStats() throws Exception {
         Path dir = createTempDir().resolve("ubn_pinned_commit_declared");
         Files.createDirectories(dir);
-        // a.csv: schema_sample_size=2 -> initial sample sees (10, 20), widening window sees (30, 40);
-        // all four are in INTEGER range, so col is inferred INTEGER. Row 5 (3000000000) is beyond both
-        // windows and is not sampled, so it overflows int and is null-filled under error_mode=null_field.
+        // a.csv: schema_sample_size=2 -> the sample sees only (10, 20); rows 3-4 (30, 40) and row 5
+        // (3000000000) are all past that one window. col is inferred INTEGER from the sample, so rows
+        // 3-4 still parse as INTEGER at read time, while row 5 overflows int and is null-filled under
+        // error_mode=null_field.
         Files.writeString(dir.resolve("a.csv"), "id,col\n1,10\n2,20\n3,30\n4,40\n5,3000000000\n", StandardCharsets.UTF_8);
         // b.csv: long-range values -> col inferred LONG, so the glob's UNION_BY_NAME reconciliation widens col to LONG
         // and pins a.csv's read to LONG.

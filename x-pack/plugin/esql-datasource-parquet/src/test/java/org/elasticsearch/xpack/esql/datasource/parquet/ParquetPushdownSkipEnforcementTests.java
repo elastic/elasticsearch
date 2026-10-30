@@ -89,7 +89,7 @@ public class ParquetPushdownSkipEnforcementTests extends ESTestCase {
 
     @Before
     public void writeFixture() throws Exception {
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         breaker = blockFactory.breaker();
         codecFactory = new PlainCompressionCodecFactory();
         file = writeBucketedFile();

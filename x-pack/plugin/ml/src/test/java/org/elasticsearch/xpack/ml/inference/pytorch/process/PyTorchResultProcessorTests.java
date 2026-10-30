@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResult
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -320,6 +321,20 @@ public class PyTorchResultProcessorTests extends ESTestCase {
 
         var stats = processor.getResultStats();
         assertThat(stats.peakMemoryRssBytes(), equalTo(250L));
+    }
+
+    public void testPeakMemoryRssShouldStayAtLeastAsHighAsObservedCurrentRss() {
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+
+        // Linux can report memory_rss above memory_max_rss on the same sample; peak must not ignore the larger current.
+        processor.updateProcessStats(standaloneProcessStats(200L, 150L));
+        processor.updateProcessStats(standaloneProcessStats(180L, 160L));
+
+        var stats = processor.getResultStats();
+        long roundedAverage = Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage());
+        assertThat(roundedAverage, equalTo(190L));
+        assertThat(stats.peakMemoryRssBytes(), equalTo(200L));
+        assertThat(stats.peakMemoryRssBytes(), greaterThanOrEqualTo(roundedAverage));
     }
 
     private PyTorchResult standaloneProcessStats(long memoryRss, long memoryMaxRss) {

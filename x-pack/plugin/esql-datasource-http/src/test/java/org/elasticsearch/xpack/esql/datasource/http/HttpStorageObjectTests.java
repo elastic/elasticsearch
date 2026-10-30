@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("unchecked")
 public class HttpStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testPath() {
         HttpClient mockClient = mock(HttpClient.class);
@@ -516,6 +516,47 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals(drained, obj.metrics().bytesRead());
     }
 
+    /**
+     * The HEAD that probes existence reports the ETag it saw, so an entry built from it is versioned, but the probe does not
+     * pin the reads: reads are conditional only on an ETag a GET has returned, or on one a listing seeded.
+     */
+    public void testProbeReportsItsHeadETagWithoutPinning() throws Exception {
+        HttpResponse<Void> head = mock(HttpResponse.class);
+        when(head.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(head.headers()).thenReturn(HttpHeaders.of(Map.of("Content-Length", List.of("5"), "ETag", List.of("\"abc\"")), (a, b) -> true));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(head).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.txt");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        assertTrue(object.exists());
+        assertEquals("\"abc\"", object.probedVersion());
+        assertNull(object.contentGeneration());
+        assertNull(object.version());
+    }
+
+    /**
+     * A blank ETag is not a version, from a HEAD or from a listing seed. Seeding it would pin the empty string, and every read would
+     * then send {@code If-Match: ""} and fail as changed.
+     */
+    public void testBlankEtagIsNotAVersion() throws Exception {
+        HttpResponse<Void> head = mock(HttpResponse.class);
+        when(head.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(head.headers()).thenReturn(HttpHeaders.of(Map.of("Content-Length", List.of("5"), "ETag", List.of(" ")), (a, b) -> true));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(head).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.txt");
+        HttpStorageObject probed = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        assertTrue(probed.exists());
+        assertNull(probed.probedVersion());
+
+        HttpStorageObject seeded = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        seeded.seedVersion(" ");
+        assertNull(seeded.version());
+    }
+
     public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
         HttpResponse<InputStream> first = mock(HttpResponse.class);
         when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
@@ -652,10 +693,11 @@ public class HttpStorageObjectTests extends ESTestCase {
     /**
      * A store's error body routinely names the bucket or object in plain text, with no storage-URI scheme and no
      * absolute path for {@code safeForUserMessage} to catch. It must never reach the exception message; it is
-     * logged at DEBUG for the admin instead.
+     * logged at WARN for the admin (at most once a minute per node), and at DEBUG otherwise.
      */
-    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the DEBUG body log")
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the body log")
     public void testErrorBodyIsLoggedNotForwarded() throws Exception {
+        HttpStorageObject.ERROR_BODY_WARN.reset();
         String body = "{\"error\":{\"code\":404,\"message\":\"No such object: my-bucket/tenant-a/x.csv\"}}";
 
         MockLog.assertThatLogger(() -> {
@@ -667,9 +709,18 @@ public class HttpStorageObjectTests extends ESTestCase {
             new MockLog.SeenEventExpectation(
                 "error body",
                 HttpStorageObject.class.getCanonicalName(),
-                Level.DEBUG,
+                Level.WARN,
                 "*my-bucket/tenant-a/x.csv*"
             )
+        );
+
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < 10; i++) {
+                expectThrows(IOException.class, () -> objectAnsweringWithBody(HttpStatus.SC_NOT_FOUND, body).newStream());
+            }
+        },
+            HttpStorageObject.class,
+            new MockLog.UnseenEventExpectation("throttled", HttpStorageObject.class.getCanonicalName(), Level.WARN, "*")
         );
     }
 

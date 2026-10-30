@@ -9,6 +9,10 @@ mapped_pages:
 
 The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md).
 
+::::{note}
+The `outlook_server` data source (on-premises Exchange Server) is deprecated. Use the [Exchange Server connector](/reference/search-connectors/es-connectors-exchange-server.md) instead.
+::::
+
 ## **Self-managed connector reference** [es-connectors-outlook-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-outlook-client-availability-and-prerequisites]
@@ -148,11 +152,14 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
 `active_directory_server`
 :   (required if data source is outlook_server) IP address to fetch users from Exchange Active Directory to fetch data. Example: `127.0.0.1`
 
+`auth_method` {applies_to}`stack: ga 9.7`
+:   (optional, `outlook_server` only) `ntlm` (default) or `kerberos`. Kerberos is available for self-managed connectors only and is required when the connector service runs in FIPS mode. Refer to the [Exchange Server connector](/reference/search-connectors/es-connectors-exchange-server.md#es-connectors-exchange-server-client-kerberos) for requirements.
+
 `username`
-:   (required if data source is outlook_server) Username to authenticate with Exchange server.
+:   (required if data source is outlook_server and `auth_method` is `ntlm`) Username to authenticate with Exchange server.
 
 `password`
-:   (required if data source is outlook_server) Password to authenticate with Exchange server.
+:   (required if data source is outlook_server and `auth_method` is `ntlm`) Password to authenticate with Exchange server.
 
 `domain`
 :   (required if data source is outlook_server) Domain name for Exchange server users such as `gmail.com` or `exchange.local`.
@@ -236,21 +243,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::
 
 
-::::{dropdown} Step 3: Run the Docker image
+:::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh subs=true
-docker run \
--v ~/connectors-config:/config \
---network "elastic" \
---tty \
---rm \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
-/app/bin/elastic-ingest \
--c /config/config.yml
-```
+:::{include} _snippets/connectors-docker-run.md
+:::
 
-::::
+:::::
 
 
 Refer to [`DOCKER.md`](https://github.com/elastic/connectors/tree/main/docs/DOCKER.md) in the `elastic/connectors` repo for more details.
@@ -295,6 +294,7 @@ The connector syncs the following objects and entities:
 * Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 * For Outlook Cloud (Office 365), the connector only discovers mailboxes belonging to **enabled** directory users (`accountEnabled = true`) that have an email address. **Shared mailboxes are not synced by default**, because their backing Entra ID account has sign-in disabled. To sync a shared mailbox, enable sign-in for its account in Entra ID (this may require assigning a license).
+* For Outlook Server (on-premises Exchange), mailbox discovery uses **Active Directory** (LDAP), not Microsoft Graph or `accountEnabled`. The connector considers AD `user` objects that match its LDAP search filters and have a valid **`mail`** attribute, then opens each mailbox through **Exchange Web Services (EWS)**. AD accounts without `mail`, and SMTP addresses with **no mailbox** on Exchange (including many **service accounts**), are **skipped** during sync. **Shared mailboxes** are synced only when their AD user is discovered and Exchange exposes a mailbox for that address.
 
 ::::
 

@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -64,7 +65,11 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
             try {
                 assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
                 assertFalse("readBytesAsync must return a heap buffer", result.buffer().isDirect());
-                assertEquals("breaker must hold exactly the in-flight payload", PAYLOAD_SIZE, breaker.getUsed());
+                assertEquals(
+                    "breaker must hold exactly the in-flight payload",
+                    HeapFootprint.byteArrayBytes(PAYLOAD_SIZE),
+                    breaker.getUsed()
+                );
             } finally {
                 result.close();
             }

@@ -140,6 +140,28 @@ public final class ColumnarRowDropHelper {
     }
 
     /**
+     * Drops every row of a read under {@code skip_row}, for a failure that concerns the whole file rather than a value
+     * (a declared column the file stores under a type that cannot be read as declared). Charges the read's
+     * {@code rows} as dropped against the same budget the per-batch path uses, once and without decoding them, and
+     * fails the read with {@code reason} in the message when the budget is exceeded: warnings recorded before a throw
+     * never reach the client, so the exception has to say why the rows were dropped.
+     *
+     * @param sharedBudget the read's shared budget, or {@code null} to use a private one for {@code policy}
+     */
+    public static void dropWholeRead(
+        @Nullable SharedErrorBudget sharedBudget,
+        ErrorPolicy policy,
+        String fileLocation,
+        long rows,
+        String reason
+    ) {
+        SharedErrorBudget budget = sharedBudget != null ? sharedBudget : SharedErrorBudget.forPolicy(policy, fileLocation);
+        assert budget != null : "a whole-read drop is a skip_row outcome, and skip_row always has a budget";
+        budget.addReaderBatch(rows, rows);
+        budget.checkBudget("dropped rows (" + reason + ")");
+    }
+
+    /**
      * Resets the per-batch state for a new batch of {@code positions} rows. Must be called before
      * any {@link #markFailed} calls for a new batch.
      */

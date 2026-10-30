@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -32,6 +33,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.ToLongFunction;
 
@@ -73,6 +75,14 @@ public final class AsyncExternalSourceBuffer {
     private final Object notFullLock = new Object();
     private SubscribableListener<Void> notFullFuture = null;
 
+    /**
+     * The producer's current park on a signal this buffer does not own (the iterator's
+     * {@code waitForReady()}), so {@link #finish} / {@link #onFailure} can end it. See
+     * {@link #waitForReadyOrFinished}. One slot suffices: a buffer has one producer, and a producer
+     * only parks again after it resumed from the previous park, so a replaced park is always done.
+     */
+    private final AtomicReference<SubscribableListener<Void>> parkedProducer = new AtomicReference<>();
+
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     private final AtomicBoolean noMoreInputs = new AtomicBoolean(false);
@@ -94,6 +104,8 @@ public final class AsyncExternalSourceBuffer {
      * degenerate-query case this does <em>not</em> fix: a read wedged in a genuinely uncancellable operation off
      * the scoped thread (a parallel-parse worker, a native reader) still unwinds only on its own timeout, so the
      * driver's completion and final resource release wait for it even though the task is already marked cancelled.
+     * A producer that is <em>parked</em> (not blocked) on the iterator's readiness is a different case: it is
+     * woken by {@link #waitForReadyOrFinished} on any finish, STOP included, and exits between pages.
      */
     private volatile boolean readCancelled = false;
 
@@ -282,37 +294,47 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Add a page to the buffer. Called by the background reader thread.
+     * Always consumes {@code page}: the caller must not {@link Page#releaseBlocks()} after this
+     * returns or throws. A throw after the page is queued (for example from a
+     * {@link #waitForReading()} listener) does not return ownership.
      */
     public void addPage(Page page) {
-        if (failure != null) {
-            // Reject the page without touching buffer state, so the trailing invariantsHold()
-            // call is intentionally bypassed: nothing was mutated for it to check.
-            page.releaseBlocks();
-            return;
-        }
-        long pageBytes = page.ramBytesUsedByBlocks();
-        bytesInBuffer.addAndGet(pageBytes);
-        queue.add(page);
-        queueSize.incrementAndGet();
-        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
-        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
-        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
-        notifyNotEmpty();
-        if (noMoreInputs.get()) {
-            // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
-            if (queue.removeIf(p -> p == page)) {
-                page.releaseBlocks();
-                queueSize.decrementAndGet();
-                long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
-                if (afterRemove < maxBufferBytes) {
-                    notifyNotFull();
-                }
-                if (queueSize.get() == 0) {
-                    completionFuture.onResponse(null);
+        Page owned = page;
+        try {
+            if (failure != null) {
+                // Reject the page without touching buffer state, so the trailing invariantsHold()
+                // call is intentionally bypassed: nothing was mutated for it to check.
+                return;
+            }
+            long pageBytes = page.ramBytesUsedByBlocks();
+            bytesInBuffer.addAndGet(pageBytes);
+            queue.add(page);
+            owned = null;
+            queueSize.incrementAndGet();
+            // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+            // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+            // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+            notifyNotEmpty();
+            if (noMoreInputs.get()) {
+                // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
+                if (queue.removeIf(p -> p == page)) {
+                    page.releaseBlocks();
+                    queueSize.decrementAndGet();
+                    long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
+                    if (afterRemove < maxBufferBytes) {
+                        notifyNotFull();
+                    }
+                    if (queueSize.get() == 0) {
+                        completionFuture.onResponse(null);
+                    }
                 }
             }
+            assert invariantsHold() : "buffer invariants violated after addPage";
+        } finally {
+            if (owned != null) {
+                owned.releaseBlocks();
+            }
         }
-        assert invariantsHold() : "buffer invariants violated after addPage";
     }
 
     /**
@@ -417,6 +439,58 @@ public final class AsyncExternalSourceBuffer {
         }
     }
 
+    /**
+     * Returns a listener for the producer to park on that completes when {@code signal} does
+     * <em>or</em> when this buffer is finished, whichever comes first.
+     * <p>
+     * The producer parks on two kinds of signal: {@link #waitForSpace()}, which this buffer owns
+     * and {@link #finish} already completes, and the iterator's {@code waitForReady()}, which only
+     * the iterator completes (a byte-budget ticket grant, an in-flight object-store GET settling).
+     * Without this hook a cancel ({@code finish(true)} from the operator's close) could not reach a
+     * producer parked on the latter: it stayed parked until the GET or ticket ended on its own and
+     * only then exited on {@code noMoreInputs}, so {@code removeAsyncAction()} -- and with it the
+     * driver's completion and the task's {@code is_running} -- waited on the object store rather
+     * than on the cancel. Routing every park through here makes "a finished buffer wakes its
+     * producer" hold regardless of which signal the producer is parked on.
+     * <p>
+     * Success and failure of {@code signal} are forwarded unchanged, so an iterator that fails its
+     * readiness still fails the producer; a wake by {@link #finish} / {@link #onFailure} completes
+     * the park successfully and the producer exits on {@code noMoreInputs} between pages. A late
+     * completion of {@code signal} after the wake is a no-op. When the buffer is already finished
+     * the returned listener is complete, and the caller's resume may therefore run inline on the
+     * calling thread; callers must release any run-exclusion token before registering the resume,
+     * as they already do for an already-done {@code signal}.
+     * <p>
+     * An already-done {@code signal} is returned as-is: no park is published and {@code noMoreInputs}
+     * is not re-checked here, because the caller's resume runs right away and checks the flag itself.
+     * The slot holds one park at a time (one producer per buffer) and is cleared only by a wake; a
+     * park completed through {@code signal} stays in the slot, already done, until the next park
+     * replaces it or a finish drains it.
+     */
+    public SubscribableListener<Void> waitForReadyOrFinished(SubscribableListener<Void> signal) {
+        if (signal.isDone()) {
+            return signal;
+        }
+        SubscribableListener<Void> park = new SubscribableListener<>();
+        // Publish the park before re-checking noMoreInputs. finish()/onFailure() set the flag and
+        // then drain this slot, so either this re-check sees the flag or the finisher sees the park;
+        // the same double-check waitForSpace() relies on.
+        SubscribableListener<Void> previous = parkedProducer.getAndSet(park);
+        assert previous == null || previous.isDone() : "producer parked twice";
+        signal.addListener(park);
+        if (noMoreInputs.get()) {
+            notifyParkedProducer();
+        }
+        return park;
+    }
+
+    private void notifyParkedProducer() {
+        SubscribableListener<Void> park = parkedProducer.getAndSet(null);
+        if (park != null) {
+            park.onResponse(null);
+        }
+    }
+
     // Drains and releases every queued page on teardown. Only call from finish/onFailure;
     // bytesInBuffer is reset wholesale, which is only safe when no further pollPage() is expected
     // to subtract from it.
@@ -464,6 +538,10 @@ public final class AsyncExternalSourceBuffer {
         }
         notifyNotEmpty();
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
+        // Unconditional, like notifyNotFull(): a park published concurrently with this call is woken
+        // here, one published after it self-wakes on its own re-check; do not tie it to `transitioned`
+        // (onFailure sets noMoreInputs without a CAS and wakes the same way).
+        notifyParkedProducer();
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
         return transitioned;
@@ -483,7 +561,7 @@ public final class AsyncExternalSourceBuffer {
                 // Classify the loser before suppressing so storage-URI messages in raw SDK
                 // exceptions cannot surface through the suppressed[] array on the wire.
                 if (rawFirstFailure != t) {
-                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
+                    SuppressedFailures.attach(failure, (t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
                 }
                 return;
             }
@@ -495,6 +573,7 @@ public final class AsyncExternalSourceBuffer {
         noMoreInputs.set(true);
         notifyNotEmpty();
         notifyNotFull();
+        notifyParkedProducer();
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after onFailure";
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -45,7 +46,7 @@ import java.util.function.Consumer;
 public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static Page createTestPage(int numColumns, int numRows) {
@@ -101,6 +102,96 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
         buffer.finish(true);
         assertTrue("waitForSpace should complete when buffer is finished (cancelled)", space.isDone());
+    }
+
+    /**
+     * A producer parked on a signal the buffer does not own (the iterator's {@code waitForReady()})
+     * must still be woken by a hard finish (cancel / DELETE), without that signal ever completing.
+     */
+    public void testWaitForReadyOrFinishedCompletesOnHardFinish() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertNotSame("a pending signal must be wrapped", signal, park);
+        assertFalse(park.isDone());
+
+        buffer.finish(true);
+        assertTrue("finish(true) must end a park on the iterator's readiness", park.isDone());
+        assertTrue("wake is a successful completion, the producer exits on noMoreInputs", park.isSuccess());
+        assertFalse("the upstream signal is not touched", signal.isDone());
+    }
+
+    /** STOP ({@code finish(false)}) wakes the park too: buffered pages stay, un-started work is dropped. */
+    public void testWaitForReadyOrFinishedCompletesOnStop() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page queued = createTestPage(1, 4);
+        buffer.addPage(queued);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertFalse(park.isDone());
+
+        assertTrue(buffer.finish(false));
+        assertTrue(park.isDone());
+        assertTrue(park.isSuccess());
+        assertFalse(signal.isDone());
+        assertSame("STOP keeps the queued page reachable", queued, buffer.pollPage());
+        queued.releaseBlocks();
+        buffer.finish(true);
+    }
+
+    public void testWaitForReadyOrFinishedCompletesOnFailure() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertFalse(park.isDone());
+
+        buffer.onFailure(new IOException("boom"));
+        assertTrue(park.isDone());
+        assertTrue("the park itself succeeds; the failure is reported through the buffer", park.isSuccess());
+        assertFalse(signal.isDone());
+        buffer.finish(true);
+    }
+
+    /** The iterator's own completion, success or failure, is forwarded unchanged so a failing read still fails the producer. */
+    public void testWaitForReadyOrFinishedForwardsSignal() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+
+        SubscribableListener<Void> ok = new SubscribableListener<>();
+        SubscribableListener<Void> okPark = buffer.waitForReadyOrFinished(ok);
+        ok.onResponse(null);
+        assertTrue(okPark.isDone());
+        assertTrue(okPark.isSuccess());
+
+        SubscribableListener<Void> failing = new SubscribableListener<>();
+        SubscribableListener<Void> failingPark = buffer.waitForReadyOrFinished(failing);
+        IOException failure = new IOException("read failed");
+        failing.onFailure(failure);
+        assertTrue(failingPark.isDone());
+        assertFalse(failingPark.isSuccess());
+        AtomicReference<Exception> seen = new AtomicReference<>();
+        failingPark.addListener(ActionListener.wrap(v -> fail("expected failure"), seen::set));
+        assertSame(failure, seen.get());
+
+        // A late completion of the signal after the buffer woke the park is a no-op.
+        SubscribableListener<Void> late = new SubscribableListener<>();
+        SubscribableListener<Void> latePark = buffer.waitForReadyOrFinished(late);
+        buffer.finish(true);
+        assertTrue(latePark.isSuccess());
+        late.onFailure(new IOException("too late"));
+        assertTrue("a wake already won; the late failure must not flip the park", latePark.isSuccess());
+    }
+
+    public void testWaitForReadyOrFinishedIsDoneWhenAlreadyFinished() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        buffer.finish(true);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertTrue("a park registered after finish must be complete (publish-then-recheck)", park.isDone());
+        assertTrue(park.isSuccess());
+        assertFalse(signal.isDone());
+
+        SubscribableListener<Void> done = SubscribableListener.newSucceeded(null);
+        assertSame("an already-done signal is returned as is", done, buffer.waitForReadyOrFinished(done));
     }
 
     public void testBufferConsistentAfterFullAndDrain() {
@@ -268,6 +359,35 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
     }
 
     /**
+     * {@code addPage} consumes the page on entry. A throw from {@code notifyNotEmpty} (a
+     * {@code waitForReading} listener) must not return ownership: the page stays pollable with
+     * live blocks.
+     */
+    public void testAddPageThrowAfterEnqueueLeavesPagePollable() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(2, 5);
+        IntBlock block = page.getBlock(0);
+        IsBlockedResult blocked = buffer.waitForReading();
+        assertFalse(blocked.listener().isDone());
+        blocked.listener().addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                throw new RuntimeException("notifyNotEmpty");
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+        expectThrows(AssertionError.class, () -> buffer.addPage(page));
+        Page polled = buffer.pollPage();
+        assertSame(page, polled);
+        assertFalse("blocks must stay live after addPage throws", block.isReleased());
+        assertEquals(5, polled.getPositionCount());
+        polled.releaseBlocks();
+        buffer.finish(true);
+    }
+
+    /**
      * Companion to {@link #testFinishAfterFailureStillDiscardsQueuedPages} for the non-failure case: a
      * prior {@code finish(false)} (natural producer EOF, called before the driver drained every page)
      * must not prevent a later {@code finish(true)} — e.g. from {@code AsyncExternalSourceOperator#close()}
@@ -305,6 +425,24 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
         assertSame(first, buffer.failure());
         assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
+    }
+
+    /**
+     * A later failure that already suppresses the first one (because both are shared with another split that attached
+     * them in the opposite order) must not be suppressed back onto it. The first failure is still the one surfaced, so
+     * the operator classifies it by its own type.
+     */
+    public void testSecondFailureDoesNotCreateACycle() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException a = new CircuitBreakingException("[parquet reader]", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException b = new CircuitBreakingException("[parquet sliding window]", CircuitBreaker.Durability.TRANSIENT);
+        b.addSuppressed(a);
+
+        buffer.onFailure(a);
+        buffer.onFailure(b);
+
+        assertSame(a, buffer.failure());
+        assertArrayEquals("b already reaches a, so suppressing it onto a would loop", new Throwable[0], a.getSuppressed());
     }
 
     /**

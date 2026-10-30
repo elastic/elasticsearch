@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -15,6 +17,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -26,7 +30,9 @@ import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,6 +129,17 @@ public class RuntimeSearchExecutionContextTests extends ESTestCase {
             .boost(2.0f)
             .queryName("named");
         assertNotNull(query(builder));
+    }
+
+    public void testMapCreateDoesNotOverwriteAnalyzerNamedDefault() {
+        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.GLOBAL, new StandardAnalyzer());
+        NamedAnalyzer english = new NamedAnalyzer("english", AnalyzerScope.GLOBAL, new EnglishAnalyzer());
+        Map<String, NamedAnalyzer> fieldAnalyzers = new LinkedHashMap<>();
+        fieldAnalyzers.put("b", english);
+        fieldAnalyzers.put("a", defaultAnalyzer);
+        RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldAnalyzers, Map.of(), false);
+        assertThat(context.getIndexAnalyzers().get("default").name(), equalTo("default"));
+        assertThat(context.getIndexAnalyzers().get("english").name(), equalTo("english"));
     }
 
     private static List<Term> terms(Query query) {

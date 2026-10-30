@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -779,7 +780,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         NotMasterException.class,
         FailedToCommitClusterStateException.class,
         ProcessClusterEventTimeoutException.class,
-        ConnectTransportException.class };
+        ConnectTransportException.class,
+        MasterNotDiscoveredException.class };
 
     /**
      * Decides whether a failure from starting a transform's persistent task should be retried.

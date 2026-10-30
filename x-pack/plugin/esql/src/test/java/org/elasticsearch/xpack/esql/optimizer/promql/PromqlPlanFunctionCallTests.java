@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
@@ -60,11 +63,37 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         super(versionMode);
     }
 
+    /**
+     * A selector of a field missing from the mapping is still unresolved when PROMQL translates; under
+     * {@code unmapped_fields="nullify"} it must plan like any other.
+     */
+    public void testAbsentOverTimeOfUnmappedField() {
+        planPromql("PROMQL index=k8s step=5m result=(absent_over_time(nonexistent{pod=\"one\"}[5m]))");
+        planPromql("PROMQL index=k8s step=5m result=(max by (cluster, pod) (absent_over_time(nonexistent{pod=\"one\"}[5m])))");
+    }
+
+    /** Without {@code unmapped_fields="nullify"} a missing field is a user error, not a server error. */
+    public void testAbsentOverTimeOfUnmappedFieldIsVerificationError() {
+        var analyzer = analyzerWithEnrichPolicies().addK8s();
+        expectThrows(
+            VerificationException.class,
+            () -> analyzer.statement("PROMQL index=k8s step=5m result=(absent_over_time(nonexistent{pod=\"one\"}[5m]))")
+        );
+    }
+
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
         assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is {@code 5400}, {@code 1ms} is {@code 0.001}. */
+    public void testDurationLiteralIsSeconds() {
+        assertConstantResult("1h30m", equalTo(5400.0));
+        assertConstantResult("2m + 30s", equalTo(150.0));
+        assertConstantResult("1ms", equalTo(0.001));
+        assertConstantResult("vector(1h) / 60", equalTo(60.0));
     }
 
     /**
@@ -335,10 +364,34 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertFalse(isCounter(field.dataType()));
     }
 
+    public void testChangesSupportsPlainNumericInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        Changes changes = changesFromPromql("PROMQL index=k8s step=5m changes=(changes(network.cost[5m]))");
+
+        FieldAttribute field = as(changes.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.cost"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    public void testChangesSupportsCounterInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        Changes changes = changesFromPromql("PROMQL index=k8s step=5m changes=(changes(network.total_bytes_in[5m]))");
+
+        FieldAttribute field = as(changes.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
     private Avg avgOverTimeFromPromql(String query) {
         LogicalPlan analyzed = planPromql(query, false);
         TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         return tsAggregate.aggregates().getFirst().collect(Avg.class).getFirst();
+    }
+
+    private Changes changesFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Changes.class).getFirst();
     }
 
     /**

@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.request.rerank;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelTests;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +25,6 @@ import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRe
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.QUERY_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.TEXT_FIELD_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaRerankRequestTests extends ESTestCase {
@@ -38,25 +36,24 @@ public class NvidiaRerankRequestTests extends ESTestCase {
     private static final String MODEL_VALUE = "some_model";
     private static final String API_KEY_VALUE = "test_api_key";
 
-    public void testCreateRequest_AllFieldsSet() throws IOException {
-        assertCreateHttpRequest(createRequest(URL_VALUE), URL_VALUE);
+    public void testCreateRequest_AllFieldsSet() throws IOException, URISyntaxException {
+        assertCreateHttpRequest(createRequest(URL_VALUE), URL_VALUE + "/");
     }
 
-    public void testCreateRequest_DefaultUrl() throws IOException {
+    public void testCreateRequest_DefaultUrl() throws IOException, URISyntaxException {
         assertCreateHttpRequest(createRequest(null), URL_DEFAULT_VALUE);
     }
 
-    private void assertCreateHttpRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
+    private void assertCreateHttpRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException, URISyntaxException {
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(expectedUrl));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(httpPost.getUri().toString(), is(expectedUrl));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap.get(PASSAGES_FIELD_NAME), is(List.of(Map.of(TEXT_FIELD_NAME, PASSAGE_VALUE))));
         assertThat(requestMap.get(QUERY_FIELD_NAME), is(Map.of(TEXT_FIELD_NAME, QUERY_VALUE)));

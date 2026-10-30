@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -162,6 +163,24 @@ public class SourceRowXContentParserTests extends ESTestCase {
                 assertFalse(parser.booleanValue());
 
                 assertToken(parser, Token.END_OBJECT);
+            }
+        }
+    }
+
+    /**
+     * JSON carries binary values as base64 strings, which the encoder stores in a string column, so
+     * {@link XContentParser#binaryValue()} must decode the string the way a JSON parser does.
+     */
+    public void testBase64StringBinaryValue() throws IOException {
+        byte[] value = randomByteArrayOfLength(between(1, 64));
+        BytesReference source = new BytesArray("{\"bin\": \"" + Base64.getEncoder().encodeToString(value) + "\"}");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "bin");
+                assertToken(parser, Token.VALUE_STRING);
+                assertArrayEquals(value, parser.binaryValue());
             }
         }
     }

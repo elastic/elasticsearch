@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -120,6 +121,16 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         assertTrue(flushFailed.get());
     }
 
+    // Debug logging to find out which commits the source uploads, copies to the target and names in the handoff, and whether a
+    // commit is uploaded after copying to the target has stopped.
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.reshard.SplitSourceService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.reshard.SplitTargetService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.engine.IndexEngine:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/161089"
+    )
     public void testPreFlushWaitsForOngoingFlushes() {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();

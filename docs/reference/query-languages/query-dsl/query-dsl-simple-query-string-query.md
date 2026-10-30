@@ -124,6 +124,10 @@ GET /_search
 
 This search is intended to only return documents containing `foo` or `bar` that also do **not** contain `baz`. However because of a `default_operator` of `OR`, this search actually returns documents that contain `foo` or `bar` and any documents that don’t contain `baz`. To return documents as intended, change the query string to `foo bar +-baz`.
 
+### Allow expensive queries [simple-query-string-allow-expensive-queries]
+
+The `*` operator builds a [`prefix` query](/reference/query-languages/query-dsl/query-dsl-prefix-query.md), and the `~N` operator after a word builds a [`fuzzy` query](/reference/query-languages/query-dsl/query-dsl-fuzzy-query.md). If [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries) is `false`, {{es}} returns an error for a query string that uses these operators. If `lenient` is `true`, these operators match no documents instead.
+
 
 ### Limit operators [supported-flags]
 

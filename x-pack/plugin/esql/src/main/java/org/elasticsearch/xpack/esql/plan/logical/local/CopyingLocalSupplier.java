@@ -79,6 +79,11 @@ public class CopyingLocalSupplier implements LocalSupplier {
     }
 
     @Override
+    public Page peek() {
+        return delegate.page;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         delegate.writeTo(out);
     }

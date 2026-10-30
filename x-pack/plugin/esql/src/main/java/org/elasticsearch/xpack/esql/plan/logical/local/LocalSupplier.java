@@ -29,4 +29,13 @@ public interface LocalSupplier extends Supplier<Page>, NamedWriteable {
         return new ImmediateLocalSupplier(page);
     }
 
+    /**
+     * The supplied page for callers that only read it: they must not release it, and must copy any block
+     * they keep past the lifetime of the plan. Unlike {@link #get()} this never makes a copy, so readers of
+     * large pages don't allocate a second, untracked one.
+     */
+    default Page peek() {
+        return get();
+    }
+
 }

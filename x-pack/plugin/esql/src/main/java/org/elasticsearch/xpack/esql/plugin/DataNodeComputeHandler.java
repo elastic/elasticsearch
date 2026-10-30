@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -42,6 +43,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -186,6 +188,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+        long localDataBytes = PlannerUtils.localDataBytes(dataNodePlan);
 
         new DataNodeRequestSender(
             clusterService,
@@ -216,8 +219,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
+                final Releasable serializedPlan;
                 try {
                     connection = transportService.getConnection(node);
+                    serializedPlan = reserveSerializedPlan(connection.getNode(), localDataBytes);
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
@@ -232,7 +237,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
-                    listener.delegateFailureAndWrap((l, unused) -> {
+                    ActionListener.releaseAfter(listener, serializedPlan).delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -303,6 +308,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
+    }
+
+    /**
+     * Charges the request breaker for the copy of the plan's local data that the transport layer serializes for a remote
+     * data node and holds in its outbound buffers, which no breaker tracks. Requests to the local node are not serialized.
+     * The reservation is held until the data node responds, which outlasts the buffers but is the first point the
+     * coordinator can observe.
+     */
+    private Releasable reserveSerializedPlan(DiscoveryNode node, long bytes) {
+        if (bytes == 0 || node.getId().equals(transportService.getLocalNode().getId())) {
+            return () -> {};
+        }
+        CircuitBreaker breaker = computeService.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "serialize data node request");
+        return Releasables.releaseOnce(() -> breaker.addWithoutBreaking(-bytes));
     }
 
     void startExternalComputeOnDataNodes(

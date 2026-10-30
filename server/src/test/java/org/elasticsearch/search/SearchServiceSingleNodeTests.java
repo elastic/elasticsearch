@@ -3157,6 +3157,47 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
     }
 
+    public void testWaitOnRefreshWithoutTimeoutWaitsForGlobalCheckpoint() throws Exception {
+        assertWaitOnRefreshWaitsForLaggingGlobalCheckpoint(SearchService.NO_TIMEOUT);
+    }
+
+    public void testWaitOnRefreshWithTimeoutWaitsForGlobalCheckpoint() throws Exception {
+        assertWaitOnRefreshWaitsForLaggingGlobalCheckpoint(TimeValue.timeValueSeconds(30));
+    }
+
+    private void assertWaitOnRefreshWaitsForLaggingGlobalCheckpoint(TimeValue timeout) throws Exception {
+        // with async durability the global checkpoint only advances after a translog sync, so it can lag behind a refresh
+        createIndex(
+            "index",
+            Settings.builder()
+                .put("index.refresh_interval", "60s")
+                .put("index.translog.durability", "async")
+                .put("index.translog.sync_interval", "1h")
+                .build()
+        );
+        prepareIndex("index").setSource("id", "1").get();
+        final IndexShard indexShard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("index")).getShard(0);
+
+        final PlainActionFuture<Long> future = new PlainActionFuture<>();
+        getInstanceFromNode(SearchService.class).executeQueryPhase(
+            waitForCheckpointRequest(timeout),
+            newSearchShardTask(),
+            future.map(r -> r.queryResult().getTotalHits().value())
+        );
+        assertBusy(() -> assertThat(indexShard.refreshStats().getListeners(), equalTo(1)));
+
+        // the refresh makes the doc visible while the global checkpoint is still behind it, so the request must keep waiting
+        indexShard.refresh("test");
+        assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertFalse(future.isDone());
+
+        // the primary takes its synced local checkpoint on the next replicated operation, which advances the global checkpoint
+        indexShard.sync();
+        indicesAdmin().prepareRefresh("index").get();
+        assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(0L));
+        assertEquals(1L, (long) safeGet(future));
+    }
+
     public void testWaitOnRefreshCompletesWhileTimeoutIsBeingScheduled() throws Exception {
         createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
         prepareIndex("index").setSource("id", "1").get();

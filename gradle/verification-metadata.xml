@@ -5,6 +5,12 @@
       <verify-signatures>false</verify-signatures>
       <trusted-artifacts>
          <trust group="beats" name="filebeat"/>
+         <!-- protobuf gradle plugin built on-demand by JitPack from a pinned commit; its
+              checksum is not known ahead of time, so the artifact is trusted explicitly.
+              JitPack publishes a thin aggregator under com.github.google plus the real
+              module under the nested com.github.google.protobuf-gradle-plugin group. -->
+         <trust group="com.github.google" name="protobuf-gradle-plugin"/>
+         <trust group="com.github.google.protobuf-gradle-plugin" name="protobuf-gradle-plugin"/>
          <trust group="beats" name="filebeat-fips"/>
          <trust group="beats" name="metricbeat"/>
          <trust group="beats" name="metricbeat-fips"/>

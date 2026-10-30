@@ -694,7 +694,19 @@ public class EsqlSession {
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
                         // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
                         // pushed into the view's source indices as a Lucene query.
-                        plan = ViewRequestFilterRewriter.rewrite(afterDatasetFilter, request.filter(), finalConfiguration, minimumVersion);
+                        LogicalPlan afterViewFilter = ViewRequestFilterRewriter.rewrite(
+                            afterDatasetFilter,
+                            request.filter(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
+                        // Cap how far back METRICS_INFO and TS_INFO read
+                        plan = MetricsInfoTimeRangeRewriter.capTimeRange(
+                            afterViewFilter,
+                            flags.metricsInfoMaxTimeRange(),
+                            request.filter(),
+                            finalConfiguration.now()
+                        );
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;
@@ -1522,7 +1534,7 @@ public class EsqlSession {
 
     private LocalRelation resultToPlan(Source planSource, Result result) {
         List<Page> pages = result.pages();
-        checkPagesBelowSize(
+        long size = checkPagesBelowSize(
             pages,
             plannerSettings.intermediateLocalRelationMaxSize(),
             actual -> "sub-plan execution results too large ["
@@ -1530,6 +1542,16 @@ public class EsqlSession {
                 + "] > "
                 + plannerSettings.intermediateLocalRelationMaxSize()
         );
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(
+                "Sub-plan results for [{}]: [{}] rows, [{}] of the [{}] allowed by [{}]",
+                planSource,
+                pages.stream().mapToLong(Page::getPositionCount).sum(),
+                ByteSizeValue.ofBytes(size),
+                plannerSettings.intermediateLocalRelationMaxSize(),
+                PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getKey()
+            );
+        }
         List<Attribute> schema = result.schema();
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);

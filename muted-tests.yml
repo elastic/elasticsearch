@@ -65,9 +65,6 @@ tests:
 - class: org.elasticsearch.common.blobstore.url.http.URLHttpClientTests
   method: testInvalidErrorMessageCharsetIsIgnored
   issue: https://github.com/elastic/elasticsearch/issues/159815
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_1933}
-  issue: https://github.com/elastic/elasticsearch/issues/159847
 - class: org.elasticsearch.upgrades.SecurityIndexRoleMappingCleanupIT
   method: testCleanupDuplicateMappings
   issue: https://github.com/elastic/elasticsearch/issues/159850

@@ -1,0 +1,509 @@
+Visited-set BFS admits each node once
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | c               | c                    | 2
+b                 | a               | null                 | 2
+;
+
+
+STATS collapses documents of the same stored edge
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_weighted ON node_id == source TO target
+    STATS weight = SUM(weight), edges = COUNT(*)
+    WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 5           | 2
+b                 | c               | c                    | 2           | 10          | 1
+;
+
+
+STATS BY refines the endpoint pair into multiple rows
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_labeled ON node_id == source TO target
+    STATS edges = COUNT(*) BY label
+    WITH { "max_hops": 1, "direction": "out" }
+| SORT label ASC
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | edges:long | label:keyword
+a                 | b               | b                    | 1           | 1          | owns
+a                 | b               | b                    | 1           | 1          | ships
+;
+
+
+Document WHERE filters hop documents before STATS
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_weighted ON node_id == source TO target
+    WHERE weight > 1
+    STATS weight = SUM(weight), edges = COUNT(*)
+    WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 4           | 1
+b                 | c               | c                    | 2           | 10          | 1
+;
+
+
+Aggregate WHERE filters collapsed edges after STATS
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_weighted ON node_id == source TO target
+    STATS weight = SUM(weight), edges = COUNT(*)
+    WHERE edges >= 2
+    WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 5           | 2
+;
+
+
+direction in matches TO and reaches ON
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 5, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+b                 | a               | b                    | 1
+a                 | b               | null                 | 2
+;
+
+
+direction both concatenates outbound and inbound legs
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 1, "direction": "both" }
+| SORT node_from ASC
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | a               | b                    | 1
+;
+
+
+SORT orders hop rows with node_reached tie-break
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_ranked ON node_id == source TO target
+    STATS weight = SUM(weight)
+    SORT weight DESC
+    WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long
+a                 | c               | c                    | 1           | 9
+a                 | d               | d                    | 1           | 9
+a                 | b               | b                    | 1           | 1
+;
+
+
+UNTIL early stop before the next hop
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    UNTIL node_reached == "b"
+    WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+;
+
+
+UNTIL stops mid-hop after SORT
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_ranked ON node_id == source TO target
+    STATS weight = SUM(weight)
+    SORT weight DESC
+    UNTIL node_reached == "d"
+    WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long
+a                 | c               | c                    | 1           | 9
+a                 | d               | d                    | 1           | 9
+;
+
+
+max_edges_per_node keeps closing edges free
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "max_edges_per_node": 1 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | c               | c                    | 2
+b                 | a               | null                 | 2
+;
+
+
+max_frontier keeps only the first new nodes
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_ranked ON node_id == source TO target
+    STATS weight = SUM(weight)
+    SORT weight DESC
+    WITH { "max_hops": 1, "direction": "out", "max_frontier": 1 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long
+a                 | c               | c                    | 1           | 9
+;
+
+
+max_nodes includes the seed
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 5, "direction": "out", "max_nodes": 2 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | a               | null                 | 2
+;
+
+
+hub_degree refuses a frontier node above the cap
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "hub_degree": 2 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | b                    | 1           | null
+b                 | null            | null                 | 2           | 3
+;
+
+
+hub_degree equal to degree keeps every edge
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "hub_degree": 3 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | b                    | 1           | null
+b                 | c               | c                    | 2           | null
+b                 | d               | d                    | 2           | null
+b                 | a               | null                 | 2           | null
+;
+
+
+TO list is a union within one hop
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_pointers ON node_id == id TO (manager, mentor)
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
+a                 | b               | b                    | 1           | manager
+a                 | c               | c                    | 1           | mentor
+;
+
+
+max_edges_per_node applies to the TO union
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_pointers ON node_id == id TO (manager, mentor)
+  WITH { "max_hops": 1, "direction": "out", "max_edges_per_node": 1 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
+a                 | b               | b                    | 1           | manager
+;
+
+
+inbound multi-field TO matches the pointer field
+required_capability: graph_expand
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_pointers ON node_id == id TO (manager, mentor)
+  WITH { "max_hops": 1, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
+a                 | b               | a                    | 1           | manager
+;
+
+
+UNTIL subquery WHERE filters the stop set
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    UNTIL node_reached IN (FROM graph_expand_stops | WHERE active | KEEP id)
+    WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | c               | c                    | 2
+b                 | a               | null                 | 2
+;
+
+
+UNTIL subquery resolves inactive stop id
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    UNTIL node_reached IN (FROM graph_expand_stops | WHERE id == "b" | KEEP id)
+    WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+;
+
+
+inbound walk matches one value of a multi-valued pointer
+required_capability: graph_expand
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_associates ON node_id == id TO known_associates
+  WITH { "max_hops": 1, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | a                    | 1
+;
+
+
+UNTIL ip subquery matches an IPv4-mapped stop address
+required_capability: graph_expand
+
+ROW node_id = TO_IP("10.0.0.1")
+| GRAPH EXPAND graph_expand_ip_edges ON node_id == source TO dest
+    SORT node_reached DESC
+    UNTIL node_reached IN (FROM graph_expand_ip_stops | KEEP addr)
+    WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:ip | node_to:ip     | node_reached:ip | hop:integer
+10.0.0.1     | 203.0.113.77   | 203.0.113.77    | 1
+;
+
+
+subquery edge computes the matched and reached ids
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "n:a"
+| GRAPH EXPAND (FROM graph_expand_edges | EVAL from_id = CONCAT("n:", source), to_id = CONCAT("n:", target))
+    ON node_id == from_id TO to_id
+  WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+n:a               | n:b             | n:b                  | 1
+n:b               | n:c             | n:c                  | 2
+n:b               | n:a             | null                 | 2
+;
+
+
+subquery edge unions two indices under one computed id
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND (FROM graph_expand_edges, graph_expand_pointers | EVAL from_id = COALESCE(source, id), to_id = COALESCE(target, manager))
+    ON node_id == from_id TO to_id
+    STATS edges = COUNT(*)
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | edges:long
+a                 | b               | b                    | 1           | 2
+;
+
+
+subquery edge filters documents before the walk and keeps STATS
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND (FROM graph_expand_weighted | WHERE weight > 1 | EVAL to_id = target)
+    ON node_id == source TO to_id
+    STATS weight = SUM(weight), edges = COUNT(*)
+  WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 4           | 1
+b                 | c               | c                    | 2           | 10          | 1
+;
+
+
+subquery edge walks inbound on a computed pointer
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "b"
+| GRAPH EXPAND (FROM graph_expand_pointers | EVAL boss = manager) ON node_id == id TO boss
+  WITH { "max_hops": 1, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | a                    | 1
+;
+
+
+outbound walk explodes a multi-valued pointer into one edge per value
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_associates ON node_id == id TO known_associates
+  WITH { "max_hops": 2, "direction": "out" }
+| SORT hop, node_to
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+a                 | c               | c                    | 1
+c                 | a               | null                 | 2
+;
+
+
+UNTIL matches one value of a multi-valued pointer on an outbound walk
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_associates ON node_id == id TO known_associates
+    UNTIL node_reached == "c"
+  WITH { "max_hops": 2, "direction": "out" }
+| SORT node_to
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+a                 | c               | c                    | 1
+;
+
+
+subquery edge loads an unmapped field when the query asks for it
+required_capability: graph_expand_edge_subquery
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+ROW node_id = "a"
+| GRAPH EXPAND (FROM graph_expand_edges | EVAL from_id = COALESCE(not_mapped_anywhere, source)) ON node_id == from_id TO target
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+;
+
+
+subquery edge filters on a field mapped in only some of its indices
+required_capability: graph_expand_edge_subquery
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+ROW node_id = "173.21.3.15"
+| GRAPH EXPAND (FROM apps_short, partial_mapping_sample_data | WHERE client_ip IS NULL OR CIDR_MATCH(client_ip, "173.21.0.0/16") | EVAL src = TO_STRING(client_ip), dst = message)
+    ON node_id == src TO dst
+    STATS edges = COUNT(*)
+  WITH { "max_hops": 1, "direction": "out" }
+| SORT node_to
+;
+
+node_from:keyword | node_to:keyword        | node_reached:keyword    | hop:integer | edges:long
+173.21.3.15       | Connected to 10.1.0.1! | Connected to 10.1.0.1!  | 1           | 1
+173.21.3.15       | Connection error?      | Connection error?       | 1           | 3
+;
+
+
+STATS over a field no edge index maps loads it when the query asks for it
+required_capability: graph_expand_edge_subquery
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    STATS edges = COUNT(*), extra = VALUES(not_mapped_anywhere)
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | edges:long | extra:keyword
+a                 | b               | b                    | 1           | 1          | null
+;
+
+
+exclude never admits the listed nodes and walks nothing beyond them
+required_capability: graph_expand_exclude
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 3, "direction": "out", "exclude": ["c", "d"] }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | a               | null                 | 2
+;
+
+
+exclude drops the edge to an excluded node before hub_degree counts it
+required_capability: graph_expand_exclude
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "hub_degree": 2, "exclude": "d" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | b                    | 1           | null
+b                 | c               | c                    | 2           | null
+b                 | a               | null                 | 2           | null
+;
+
+
+exclude applies to an excluded seed as well
+required_capability: graph_expand_exclude
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "exclude": ["a", "b"] }
+| STATS rows = COUNT(*)
+;
+
+rows:long
+0
+;

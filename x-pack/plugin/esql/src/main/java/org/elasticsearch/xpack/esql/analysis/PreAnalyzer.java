@@ -20,11 +20,13 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -103,6 +105,25 @@ public class PreAnalyzer {
                         "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
                     );
                 }
+            }
+        });
+        // GRAPH EXPAND's edge side (an UnresolvedRelation, or a subquery plan that reads some)
+        // is a field, not a child — collect its relations explicitly.
+        plan.forEachUp(GraphExpand.class, ge -> {
+            ge.edgeRelation().forEachUp(UnresolvedRelation.class, ur -> {
+                if (ur.indexMode() != IndexMode.LOOKUP) {
+                    indexes.putIfAbsent(ur.indexPattern(), ur.indexMode());
+                }
+            });
+            // UNTIL InSubquery plans nest UnresolvedRelation inside the expression — collect those too.
+            if (ge.until() != null) {
+                ge.until().forEachDown(InSubquery.class, inSub -> {
+                    inSub.subquery().forEachUp(UnresolvedRelation.class, sur -> {
+                        if (sur.indexMode() != IndexMode.LOOKUP) {
+                            indexes.putIfAbsent(sur.indexPattern(), sur.indexMode());
+                        }
+                    });
+                });
             }
         });
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();

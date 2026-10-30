@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -5788,6 +5789,124 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
         expectError("row a = 1 | mmr on some_field limit 2.5", "line 1:37: mismatched input '2.5' expecting {INTEGER_LITERAL, '+', '-'}");
+    }
+
+    public void testGraphExpandMinimalCommand() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(TEST_PARSER.parseQuery("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager"), GraphExpand.class);
+        assertThat(plan.indexPattern().indexPattern(), equalTo("idx"));
+        assertThat(plan.seedColumn(), equalToIgnoringIds(attribute("node_id")));
+        assertThat(plan.matchField(), equalToIgnoringIds(attribute("id")));
+        assertThat(plan.targetFields(), equalToIgnoringIds(List.of(attribute("manager"))));
+        assertNull(plan.documentFilter());
+        assertNull(plan.aggregates());
+        assertNull(plan.aggregateFilter());
+        assertNull(plan.sorts());
+        assertNull(plan.until());
+        assertNull(plan.options());
+    }
+
+    public void testGraphExpandSubqueryEdge() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery(
+                "ROW node_id = \"n:a\" | GRAPH EXPAND (FROM idx | EVAL from_id = CONCAT(\"n:\", id), to_id = CONCAT(\"n:\", manager))"
+                    + " ON node_id == from_id TO to_id WITH { \"max_hops\": 2 }"
+            ),
+            GraphExpand.class
+        );
+        assertThat(plan.indexPattern().indexPattern(), equalTo("idx"));
+        var eval = as(plan.edgeRelation(), Eval.class);
+        assertThat(eval.fields().stream().map(NamedExpression::name).toList(), equalTo(List.of("from_id", "to_id")));
+        as(eval.child(), UnresolvedRelation.class);
+        assertThat(plan.seedColumn(), equalToIgnoringIds(attribute("node_id")));
+        assertThat(plan.matchField(), equalToIgnoringIds(attribute("from_id")));
+        assertThat(plan.targetFields(), equalToIgnoringIds(List.of(attribute("to_id"))));
+        assertThat(plan.options().keyFoldedMap().get("max_hops"), equalToIgnoringIds(integer(2)));
+    }
+
+    public void testGraphExpandExcludeOption() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery(
+                "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"exclude\": [\"b\", \"c\"], \"max_hops\": 2 }"
+            ),
+            GraphExpand.class
+        );
+        var exclude = as(plan.options().keyFoldedMap().get("exclude"), Literal.class);
+        assertThat(exclude.value(), equalTo(List.of(new BytesRef("b"), new BytesRef("c"))));
+    }
+
+    public void testGraphExpandWithMapOptions() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery(
+                "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 3, \"direction\": \"out\" }"
+            ),
+            GraphExpand.class
+        );
+        assertThat(plan.options().keyFoldedMap().get("max_hops"), equalToIgnoringIds(integer(3)));
+        assertThat(plan.options().keyFoldedMap().get("direction"), equalToIgnoringIds(literalString("out")));
+    }
+
+    public void testGraphExpandRejectsPairFormWith() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectError("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH max_hops = 3", "mismatched input 'max_hops'");
+    }
+
+    public void testGraphExpandRejectsStatsBeforeDocumentWhere() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        // Document WHERE belongs before STATS. After STATS + aggregate WHERE, another WHERE
+        // has no slot (STATS-before-document-WHERE / repeated WHERE after STATS).
+        expectError(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager STATS COUNT(*) BY x WHERE a == 1 WHERE b == 2",
+            "mismatched input 'WHERE'"
+        );
+    }
+
+    public void testGraphExpandRejectsWithBeforeUntil() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectError(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 3 } UNTIL node_reached == \"x\"",
+            "mismatched input 'UNTIL'"
+        );
+    }
+
+    public void testGraphExpandParenthesizedToList() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery("ROW node_id = \"a\" | GRAPH EXPAND people ON node_id == id TO (manager, mentor)"),
+            GraphExpand.class
+        );
+        assertThat(plan.targetFields(), equalToIgnoringIds(List.of(attribute("manager"), attribute("mentor"))));
+    }
+
+    public void testGraphExpandUntilInSubqueryParses() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(TEST_PARSER.parseQuery("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
+                WITH { "max_hops": 5, "direction": "out" }
+            """), GraphExpand.class);
+        assertNotNull(plan.until());
+        assertTrue(
+            plan.until().anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery)
+        );
+        assertFalse(
+            plan.until()
+                .anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery)
+        );
+    }
+
+    public void testGraphExpandUntilMultiColumnInSubqueryRejected() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectError("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                UNTIL (node_reached, hop) IN (FROM stops | KEEP id, active)
+                WITH { "max_hops": 5, "direction": "out" }
+            """, "GRAPH EXPAND UNTIL subquery form is not supported yet");
     }
 
     public void testInvalidSample() {

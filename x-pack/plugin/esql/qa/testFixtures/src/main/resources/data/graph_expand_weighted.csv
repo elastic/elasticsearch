@@ -1,0 +1,4 @@
+source:keyword,target:keyword,weight:integer
+a,b,1
+a,b,4
+b,c,10

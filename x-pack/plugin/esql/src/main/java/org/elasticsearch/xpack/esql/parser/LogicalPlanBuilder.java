@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
@@ -2270,6 +2272,92 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
 
         return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
+    }
+
+    @Override
+    public PlanFactory visitGraphExpandCommand(EsqlBaseParser.GraphExpandCommandContext ctx) {
+        Source source = source(ctx);
+
+        LogicalPlan edgeRelation;
+        if (ctx.edge != null) {
+            // Edge side as a subquery: ON/TO resolve against its output, so a computed column
+            // (an entity id evaluated from identity fields) can be the matched or reached id.
+            edgeRelation = visitSubquery(ctx.edge);
+        } else {
+            IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(List.of(ctx.index)));
+            // Edge index as UnresolvedRelation — Analyzer resolves it to EsRelation like FROM.
+            edgeRelation = new UnresolvedRelation(source, indexPattern, false, List.of(), IndexMode.STANDARD, null);
+        }
+        Attribute seedColumn = visitQualifiedName(ctx.seedColumn);
+        Attribute matchField = visitQualifiedName(ctx.matchField);
+
+        List<Attribute> targetFields = ctx.graphExpandTargets()
+            .qualifiedName()
+            .stream()
+            .map(this::visitQualifiedName)
+            .map(Attribute.class::cast)
+            .toList();
+
+        Expression documentFilter = ctx.docFilter != null ? expression(ctx.docFilter.booleanExpression()) : null;
+
+        List<? extends NamedExpression> aggregates = null;
+        List<Expression> groupings = null;
+        if (ctx.graphExpandStats() != null) {
+            var statsCtx = ctx.graphExpandStats();
+            aggregates = statsCtx.stats != null ? visitAggFields(statsCtx.stats) : List.of();
+            groupings = statsCtx.grouping != null ? new ArrayList<Expression>(visitGrouping(statsCtx.grouping)) : List.of();
+        }
+
+        Expression aggregateFilter = ctx.aggFilter != null ? expression(ctx.aggFilter.booleanExpression()) : null;
+        // aggField grammar allows `COUNT(*) WHERE …` (per-agg filter). When the command-level
+        // aggregate WHERE slot is empty, that WHERE was the collapsed-edge filter — promote it.
+        if (aggregateFilter == null && aggregates != null && aggregates.isEmpty() == false) {
+            NamedExpression last = aggregates.get(aggregates.size() - 1);
+            if (last instanceof Alias alias && alias.child() instanceof FilteredExpression filtered) {
+                aggregateFilter = filtered.filter();
+                List<NamedExpression> unwrapped = new ArrayList<>(aggregates);
+                unwrapped.set(unwrapped.size() - 1, alias.replaceChild(filtered.delegate()));
+                aggregates = unwrapped;
+            }
+        }
+
+        List<Order> sorts = null;
+        if (ctx.graphExpandSort() != null) {
+            sorts = visitList(this, ctx.graphExpandSort().orderExpression(), Order.class);
+        }
+
+        Expression until = null;
+        if (ctx.graphExpandUntil() != null) {
+            var untilCtx = ctx.graphExpandUntil();
+            until = expression(untilCtx.booleanExpression());
+            // Single-column InSubquery is resolved once by GraphExpandDriver before hop 1.
+            // Multi-column form stays refused.
+            if (until.anyMatch(e -> e instanceof MultiColumnInSubquery)) {
+                throw new ParsingException(source(untilCtx), "GRAPH EXPAND UNTIL subquery form is not supported yet");
+            }
+        }
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+
+        List<? extends NamedExpression> finalAggregates = aggregates;
+        List<Expression> finalGroupings = groupings;
+        Expression finalAggregateFilter = aggregateFilter;
+        List<Order> finalSorts = sorts;
+        Expression finalUntil = until;
+        return input -> new GraphExpand(
+            source,
+            input,
+            edgeRelation,
+            seedColumn,
+            matchField,
+            targetFields,
+            documentFilter,
+            finalAggregates,
+            finalGroupings,
+            finalAggregateFilter,
+            finalSorts,
+            finalUntil,
+            options
+        );
     }
 
     private Expression visitMMRQueryVector(EsqlBaseParser.MmrQueryVectorParamsContext ctx) {

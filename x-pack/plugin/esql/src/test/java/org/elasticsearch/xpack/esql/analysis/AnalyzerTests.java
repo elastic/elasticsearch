@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -115,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
@@ -196,6 +199,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInfe
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -8185,5 +8189,254 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
+    }
+
+    public void testGraphExpandResolvesEdgeIndexAndSeedColumn() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 3, \"direction\": \"out\" }"
+        );
+        // Output attributes differ from the seed child, so a Project may sit above Limit.
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertThat(graphExpand.edgeRelation(), instanceOf(EsRelation.class));
+        assertThat(((EsRelation) graphExpand.edgeRelation()).indexPattern(), equalTo("idx"));
+        assertTrue(graphExpand.seedColumn().resolved());
+        assertThat(graphExpand.seedColumn().name(), equalTo("node_id"));
+        assertTrue(graphExpand.matchField().resolved());
+        assertThat(graphExpand.matchField().name(), equalTo("id"));
+        assertTrue(graphExpand.targetFields().stream().allMatch(Attribute::resolved));
+        assertThat(graphExpand.targetFields().get(0).name(), equalTo("manager"));
+        assertThat(graphExpand.resultAttributes(), notNullValue());
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop"))
+        );
+    }
+
+    public void testGraphExpandResolvesSubqueryEdgeComputedIds() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"n:a\" | GRAPH EXPAND (FROM idx | EVAL from_id = CONCAT(\"n:\", id), to_id = CONCAT(\"n:\", manager))"
+                + " ON node_id == from_id TO to_id WITH { \"max_hops\": 2, \"direction\": \"out\" }"
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        // The edge side is the analyzed subquery: EVAL over the resolved relation.
+        var eval = as(graphExpand.edgeRelation(), Eval.class);
+        assertTrue(eval.resolved());
+        as(eval.child(), EsRelation.class);
+        // ON and TO resolve to the columns the subquery computes, not to stored fields.
+        assertTrue(graphExpand.matchField().resolved());
+        assertThat(graphExpand.matchField(), instanceOf(ReferenceAttribute.class));
+        assertThat(graphExpand.matchField().name(), equalTo("from_id"));
+        assertTrue(graphExpand.targetFields().stream().allMatch(Attribute::resolved));
+        assertThat(graphExpand.targetFields().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(graphExpand.targetFields().get(0).name(), equalTo("to_id"));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop"))
+        );
+    }
+
+    public void testGraphExpandSubqueryEdgeUnknownFieldFailsCleanly() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> a.query(
+                "ROW node_id = \"n:a\" | GRAPH EXPAND (FROM idx | EVAL from_id = CONCAT(\"n:\", does_not_exist)) ON node_id == from_id TO manager"
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
+    }
+
+    public void testGraphExpandFollowedByStatsStillResolvesEdgeFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 1, \"exclude\": [\"x\"] } | STATS rows = COUNT(*)"
+        );
+        var ge = org.elasticsearch.xpack.esql.session.GraphExpandDriver.findGraphExpand(plan);
+        assertNotNull(ge);
+        assertTrue(ge.resolved());
+    }
+
+    public void testGraphExpandMultiFieldToEmitsRelationColumn() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "mentor",
+            new EsField("mentor", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("people", IndexResolution.valid(EsIndexGenerator.esIndex("people", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"a\" | GRAPH EXPAND people ON node_id == id TO (manager, mentor) WITH { \"max_hops\": 1, \"direction\": \"out\" }"
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertThat(graphExpand.targetFields().stream().map(Attribute::name).toList(), equalTo(List.of("manager", "mentor")));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop", "relation"))
+        );
+    }
+
+    public void testGraphExpandResolvesStatsAgainstEdgeIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "source",
+            new EsField("source", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "target",
+            new EsField("target", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "weight",
+            new EsField("weight", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "label",
+            new EsField("label", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", mapping)));
+        var plan = a.query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                STATS weight = SUM(weight), edges = COUNT(*) BY label
+                WITH { "max_hops": 2, "direction": "out" }
+            """);
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertNotNull(graphExpand.aggregates());
+        assertThat(graphExpand.aggregates().size(), equalTo(2));
+        assertTrue(Resolvables.resolved(graphExpand.aggregates()));
+        assertTrue(Resolvables.resolved(graphExpand.groupings()));
+        assertThat(graphExpand.groupings().size(), equalTo(1));
+        assertThat(Expressions.attribute(graphExpand.groupings().get(0)).name(), equalTo("label"));
+        // Aggregates resolve against the edge relation (weight/label), not the seed ROW.
+        Alias weightAgg = as(graphExpand.aggregates().get(0), Alias.class);
+        assertThat(weightAgg.name(), equalTo("weight"));
+        assertThat(Alias.unwrap(weightAgg), instanceOf(Sum.class));
+        Sum sum = as(Alias.unwrap(weightAgg), Sum.class);
+        assertTrue(sum.field().resolved());
+        assertThat(((Attribute) sum.field()).name(), equalTo("weight"));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop", "weight", "edges", "label"))
+        );
+    }
+
+    public void testGraphExpandResolvesDocumentAndAggregateWhereAgainstCorrectOutputs() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "source",
+            new EsField("source", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "target",
+            new EsField("target", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "weight",
+            new EsField("weight", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", mapping)));
+        var plan = a.query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                WHERE weight > 1
+                STATS weight = SUM(weight), edges = COUNT(*)
+                WHERE edges >= 2
+                WITH { "max_hops": 2, "direction": "out" }
+            """);
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertNotNull(graphExpand.documentFilter());
+        assertTrue(graphExpand.documentFilter().resolved());
+        // Document WHERE binds to the edge field, not the STATS alias of the same name.
+        assertTrue(
+            graphExpand.documentFilter().anyMatch(e -> e instanceof Attribute attr && attr.name().equals("weight") && attr.resolved())
+        );
+        assertNotNull(graphExpand.aggregateFilter());
+        assertTrue(graphExpand.aggregateFilter().resolved());
+        // Aggregate WHERE binds to the STATS alias, not a raw document field absent from the hop Aggregate.
+        assertTrue(
+            graphExpand.aggregateFilter().anyMatch(e -> e instanceof Attribute attr && attr.name().equals("edges") && attr.resolved())
+        );
+    }
+
+    public void testGraphExpandUntilInSubqueryAnalyzes() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> edges = Map.of(
+            "source",
+            new EsField("source", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "target",
+            new EsField("target", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Map<String, EsField> stops = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "active",
+            new EsField("active", BOOLEAN, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", edges)))
+            .addIndex("stops", IndexResolution.valid(EsIndexGenerator.esIndex("stops", stops)));
+        var plan = a.query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND edges ON node_id == source TO target
+                UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
+                WITH { "max_hops": 5, "direction": "out" }
+            """);
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertNotNull(graphExpand.until());
+        var holder = new org.elasticsearch.xpack.esql.core.util.Holder<
+            org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery>();
+        graphExpand.until()
+            .forEachDown(org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery.class, holder::set);
+        assertNotNull(holder.get());
+        assertTrue(holder.get().value().resolved());
+        assertThat(holder.get().value().toString(), containsString("node_reached"));
+        assertTrue(holder.get().subquery().resolved());
+        assertTrue(holder.get().subquery().anyMatch(p -> p instanceof EsRelation er && er.indexPattern().equals("stops")));
     }
 }

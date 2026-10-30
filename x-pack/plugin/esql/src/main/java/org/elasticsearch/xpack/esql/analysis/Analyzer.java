@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -152,6 +153,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -177,6 +179,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -249,6 +252,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -1519,6 +1523,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case GraphExpand ge -> resolveGraphExpand(ge, childrenOutput, context);
                 case DenseVector e -> resolveDenseVector(e, childrenOutput);
                 default -> resolveExpressions(plan, childrenOutput);
             };
@@ -3312,6 +3317,483 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return resolved;
+        }
+
+        /**
+         * Resolves {@link GraphExpand}: edge index → {@link EsRelation} (same shape as
+         * {@link ResolveTable}), seed column against the child output, match/TO fields
+         * and STATS aggregates/groupings against the edge index output. Document WHERE
+         * resolves against the edge output; aggregate WHERE against the hop Aggregate
+         * output (endpoint pair + STATS columns).
+         */
+        private LogicalPlan resolveGraphExpand(GraphExpand ge, List<Attribute> childrenOutput, AnalyzerContext context) {
+            LogicalPlan edgeRelation = ge.edgeRelation();
+            if (edgeRelation instanceof UnresolvedRelation ur) {
+                IndexResolution indexResolution = context.indexResolution().get(ur.indexPattern());
+                edgeRelation = resolveEdgeIndex(ur, indexResolution);
+            } else if (edgeRelation.resolved() == false) {
+                // Subquery edge: resolve its relations and commands bottom-up, like an UNTIL
+                // subquery, so ON/TO can name a column the subquery computes.
+                edgeRelation = analyzeUntilSubquery(edgeRelation, context);
+                if (edgeRelation.resolved()) {
+                    // The final-batch cleanup never reaches the edge plan: drop the synthetic
+                    // union-type attributes and settle leftover partially unmapped fields here.
+                    edgeRelation = new UnionTypesCleanup().apply(edgeRelation, context);
+                }
+            }
+
+            if (edgeRelation.resolved()) {
+                // The command's own references (ON/TO, STATS, document WHERE) resolve against the
+                // edge output, so the main plan's unmapped-field handling never sees them: under
+                // SET unmapped_fields a name the edge lacks is loaded (or nullified) at the edge
+                // relation, exactly as a FROM's own references would be.
+                edgeRelation = loadEdgeReferences(ge, edgeRelation, context);
+            }
+
+            List<Attribute> edgeOutput = edgeRelation.output();
+            // The edge output can widen across passes: an unmapped field loaded on a later pass
+            // resolves the subquery's EVAL and with it the columns ON/TO name. A reference marked
+            // unknown against the narrower output is never retried, so ON/TO are refreshed when
+            // the edge plan changed, the way ResolveUnmapped refreshes the references it satisfies.
+            boolean edgeChanged = edgeRelation != ge.edgeRelation();
+
+            Attribute seedColumn = ge.seedColumn();
+            if (seedColumn instanceof UnresolvedAttribute ua) {
+                seedColumn = maybeResolveAttribute(ua, childrenOutput);
+            }
+
+            Attribute matchField = edgeChanged ? freshenEdgeReference(ge.matchField()) : ge.matchField();
+            if (matchField instanceof UnresolvedAttribute ua) {
+                matchField = maybeResolveAttribute(ua, edgeOutput);
+            }
+
+            List<Attribute> targetFields = edgeChanged
+                ? ge.targetFields().stream().map(ResolveRefs::freshenEdgeReference).toList()
+                : ge.targetFields();
+            boolean targetsChanged = false;
+            if (Resolvables.resolved(targetFields) == false) {
+                List<Attribute> resolvedTargets = new ArrayList<>(targetFields.size());
+                for (Attribute target : targetFields) {
+                    if (target instanceof UnresolvedAttribute ua) {
+                        Attribute resolved = maybeResolveAttribute(ua, edgeOutput);
+                        resolvedTargets.add(resolved);
+                        targetsChanged |= resolved != target;
+                    } else {
+                        resolvedTargets.add(target);
+                    }
+                }
+                if (targetsChanged) {
+                    targetFields = resolvedTargets;
+                }
+            }
+
+            List<? extends NamedExpression> aggregates = ge.aggregates();
+            List<Expression> groupings = ge.groupings();
+            boolean statsChanged = false;
+            if (edgeRelation.resolved() && aggregates != null) {
+                List<? extends NamedExpression> resolvedAggs = resolveGraphExpandAggregates(aggregates, edgeOutput);
+                List<Expression> resolvedGroups = resolveGraphExpandGroupings(groupings, edgeOutput);
+                statsChanged = resolvedAggs != aggregates || resolvedGroups != groupings;
+                aggregates = resolvedAggs;
+                groupings = resolvedGroups;
+            }
+
+            Expression documentFilter = ge.documentFilter();
+            boolean documentFilterChanged = false;
+            if (documentFilter != null && edgeRelation.resolved()) {
+                Expression resolvedDocFilter = documentFilter.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> maybeResolveAttribute(ua, edgeOutput)
+                );
+                documentFilterChanged = resolvedDocFilter != documentFilter;
+                documentFilter = resolvedDocFilter;
+            }
+
+            Expression aggregateFilter = ge.aggregateFilter();
+            boolean aggregateFilterChanged = false;
+            if (aggregateFilter != null && aggregates == null) {
+                // Second WHERE without STATS — do not resolve against edge documents.
+                Expression stamped = aggregateFilter.transformUp(UnresolvedAttribute.class, ua -> {
+                    if (ua.customMessage()) {
+                        return ua;
+                    }
+                    return ua.withUnresolvedMessage("GRAPH EXPAND aggregate WHERE requires STATS");
+                });
+                aggregateFilterChanged = stamped != aggregateFilter;
+                aggregateFilter = stamped;
+            } else if (aggregateFilter != null
+                && aggregates != null
+                && Resolvables.resolved(aggregates)
+                && (groupings == null || Resolvables.resolved(groupings))
+                && matchField.resolved()
+                && Resolvables.resolved(targetFields)
+                && targetFields.isEmpty() == false) {
+                    List<Attribute> hopAggregateOutput = hopAggregateOutputAttributes(
+                        matchField,
+                        targetFields.get(0),
+                        aggregates,
+                        groupings
+                    );
+                    Expression resolvedAggFilter = aggregateFilter.transformUp(
+                        UnresolvedAttribute.class,
+                        ua -> maybeResolveAttribute(ua, hopAggregateOutput)
+                    );
+                    aggregateFilterChanged = resolvedAggFilter != aggregateFilter;
+                    aggregateFilter = resolvedAggFilter;
+                }
+
+            boolean includeDropped = org.elasticsearch.xpack.esql.session.GraphExpandDriver.hasHubDegree(ge.options());
+            boolean includeRelation = org.elasticsearch.xpack.esql.session.GraphExpandDriver.isMultiFieldTo(targetFields);
+            int baseWalkColumns = 4 + (includeRelation ? 1 : 0) + (includeDropped ? 1 : 0);
+            boolean needResultAttributes = ge.resultAttributes() == null
+                || statsChanged
+                || (ge.resultAttributes() != null
+                    && aggregates != null
+                    && ge.resultAttributes().size() == baseWalkColumns
+                    && (aggregates.isEmpty() == false || (groupings != null && groupings.isEmpty() == false)));
+
+            List<Attribute> resultAttributes = ge.resultAttributes();
+            if (needResultAttributes
+                || edgeRelation != ge.edgeRelation()
+                || seedColumn != ge.seedColumn()
+                || matchField != ge.matchField()
+                || targetsChanged
+                || statsChanged
+                || documentFilterChanged
+                || aggregateFilterChanged) {
+                if (Resolvables.resolved(targetFields)
+                    && targetFields.isEmpty() == false
+                    && (aggregates == null || Resolvables.resolved(aggregates))
+                    && (groupings == null || Resolvables.resolved(groupings))) {
+                    resultAttributes = org.elasticsearch.xpack.esql.session.GraphExpandDriver.buildResultAttributes(
+                        ge.source(),
+                        targetFields.get(0).dataType(),
+                        aggregates,
+                        groupings,
+                        includeDropped,
+                        includeRelation
+                    );
+                } else if (resultAttributes == null && Resolvables.resolved(targetFields) && targetFields.isEmpty() == false) {
+                    resultAttributes = org.elasticsearch.xpack.esql.session.GraphExpandDriver.buildResultAttributes(
+                        ge.source(),
+                        targetFields.get(0).dataType(),
+                        null,
+                        null,
+                        includeDropped,
+                        includeRelation
+                    );
+                }
+            }
+
+            // SORT resolves against the expand output (graph columns + STATS aliases), not edge docs.
+            List<Order> sorts = ge.sorts();
+            boolean sortsChanged = false;
+            if (sorts != null && resultAttributes != null) {
+                List<Order> resolvedSorts = resolveGraphExpandSorts(sorts, resultAttributes);
+                sortsChanged = resolvedSorts != sorts;
+                sorts = resolvedSorts;
+            }
+
+            // UNTIL resolves against the expand output (same columns SORT sees), not edge docs.
+            // Nested InSubquery plans are analyzed in isolation (uncorrelated stop set).
+            Expression until = ge.until();
+            boolean untilChanged = false;
+            if (until != null && resultAttributes != null) {
+                List<Attribute> untilScope = resultAttributes;
+                Expression resolvedUntil = until.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, untilScope));
+                Expression withAnalyzedSubqueries = resolvedUntil.transformUp(InSubquery.class, inSub -> {
+                    LogicalPlan analyzedSub = analyzeUntilSubquery(inSub.subquery(), context);
+                    if (analyzedSub != inSub.subquery()) {
+                        return new InSubquery(inSub.source(), inSub.value(), analyzedSub);
+                    }
+                    return inSub;
+                });
+                untilChanged = withAnalyzedSubqueries != until;
+                until = withAnalyzedSubqueries;
+            }
+
+            if (edgeRelation != ge.edgeRelation()
+                || seedColumn != ge.seedColumn()
+                || matchField != ge.matchField()
+                || targetsChanged
+                || statsChanged
+                || documentFilterChanged
+                || aggregateFilterChanged
+                || needResultAttributes
+                || sortsChanged
+                || untilChanged) {
+                return new GraphExpand(
+                    ge.source(),
+                    ge.child(),
+                    edgeRelation,
+                    seedColumn,
+                    matchField,
+                    targetFields,
+                    documentFilter,
+                    aggregates,
+                    groupings,
+                    aggregateFilter,
+                    sorts,
+                    until,
+                    ge.options(),
+                    resultAttributes
+                );
+            }
+            return ge;
+        }
+
+        /**
+         * Analyzes an UNTIL {@link InSubquery} plan in isolation: resolve the nested
+         * {@link UnresolvedRelation} to an {@link EsRelation}, then resolve expressions
+         * (Filter / Keep / …) against that relation's output. Outer expand columns are
+         * deliberately out of scope — a correlated reference stays unresolved and is
+         * refused in {@link GraphExpand#postAnalysisVerification}.
+         */
+        private LogicalPlan analyzeUntilSubquery(LogicalPlan subquery, AnalyzerContext context) {
+            LogicalPlan resolved = resolveNestedPlanRefs(subquery, context);
+            if (resolved.resolved()) {
+                return resolved;
+            }
+            // The plan-tree rules that follow reference resolution in the main batch never reach
+            // this nested plan, so the ones a subquery edge needs run here: implicit casts of
+            // function arguments, union-type (and partially unmapped) field conversions, and
+            // unmapped-field loading under SET unmapped_fields.
+            LogicalPlan cast = new ImplicitCasting().apply(resolved, context);
+            LogicalPlan unions = new ResolveUnionTypes().apply(cast, context);
+            return new ResolveUnmapped().apply(unions, context);
+        }
+
+        private LogicalPlan resolveNestedPlanRefs(LogicalPlan subquery, AnalyzerContext context) {
+            // Function resolution is a plan-tree rule and never reaches this nested plan, so it is
+            // applied here first: a subquery edge computes its ids with functions (CONCAT, COALESCE).
+            EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
+            return subquery.transformUp(p -> {
+                LogicalPlan current = p;
+                if (current instanceof UnresolvedRelation ur) {
+                    IndexResolution indexResolution = context.indexResolution().get(ur.indexPattern());
+                    current = resolveEdgeIndex(ur, indexResolution);
+                    if (current instanceof EsRelation) {
+                        // The per-relation rewrites the main batch applies once a table is resolved: a
+                        // field mapped in only some of the indices (ip here, loaded as keyword there)
+                        // is a type conflict until these give it one conversion.
+                        current = new DateMillisToNanosInEsRelation().apply(current, context);
+                        current = new ResolveTwoLeggedPunksInEsRelation().apply(current, context);
+                    }
+                }
+                current = current.transformExpressionsOnly(
+                    UnresolvedFunction.class,
+                    uf -> ResolveFunctions.resolveFunction(uf, context.configuration(), snapshotRegistry)
+                );
+                if (current.childrenResolved() == false) {
+                    return current;
+                }
+                List<Attribute> childrenOutput = new ArrayList<>();
+                for (LogicalPlan child : current.children()) {
+                    childrenOutput.addAll(child.output());
+                }
+                return switch (current) {
+                    case Keep k -> resolveKeep(k, context.unmappedResolution());
+                    case Drop d -> resolveDrop(d, context.unmappedResolution());
+                    case Rename r -> resolveRename(r, context.unmappedResolution());
+                    case Aggregate a -> resolveAggregate(a, childrenOutput);
+                    case Eval e -> resolveEval(e, childrenOutput);
+                    default -> resolveExpressions(current, childrenOutput);
+                };
+            });
+        }
+
+        /**
+         * Resolves in-command {@code SORT} keys against the expand result attributes
+         * ({@code node_from}/{@code node_to}/{@code node_reached}/{@code hop} and STATS
+         * output columns). A name that is neither remains unresolved and fails analysis.
+         */
+        private List<Order> resolveGraphExpandSorts(List<Order> sorts, List<Attribute> resultAttributes) {
+            if (Resolvables.resolved(sorts)) {
+                return sorts;
+            }
+            List<Order> resolved = new ArrayList<>(sorts.size());
+            boolean changed = false;
+            for (Order order : sorts) {
+                Expression nextChild = order.child()
+                    .transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, resultAttributes));
+                if (nextChild != order.child()) {
+                    changed = true;
+                    resolved.add(new Order(order.source(), nextChild, order.direction(), order.nullsPosition()));
+                } else {
+                    resolved.add(order);
+                }
+            }
+            return changed ? resolved : sorts;
+        }
+
+        /**
+         * Output attributes of the hop {@link Aggregate}: user STATS aliases, then the
+         * implicit endpoint-pair groupings, then any user {@code BY} — same shape as
+         * {@code GraphExpandDriver#buildHopAggregate}.
+         */
+        private static List<Attribute> hopAggregateOutputAttributes(
+            Attribute matchField,
+            Attribute targetField,
+            List<? extends NamedExpression> aggregates,
+            List<Expression> groupings
+        ) {
+            List<Expression> allGroupings = new ArrayList<>(2 + (groupings != null ? groupings.size() : 0));
+            allGroupings.add(matchField);
+            allGroupings.add(targetField);
+            if (groupings != null) {
+                allGroupings.addAll(groupings);
+            }
+            List<Attribute> output = new ArrayList<>(aggregates.size() + allGroupings.size());
+            for (NamedExpression aggregate : aggregates) {
+                output.add(aggregate.toAttribute());
+            }
+            for (Expression grouping : allGroupings) {
+                Attribute attr = Expressions.attribute(grouping);
+                if (attr != null) {
+                    output.add(attr);
+                }
+            }
+            return output;
+        }
+
+        /**
+         * Resolves STATS aggregate expressions against the edge index output. A bare field
+         * (resolved {@link Attribute} that is not already an aggregate) is sugar for
+         * {@code VALUES(field)} — ordinary ES|QL STATS rejects that form, so GRAPH EXPAND
+         * applies the wrap here once attributes resolve.
+         */
+        private List<? extends NamedExpression> resolveGraphExpandAggregates(
+            List<? extends NamedExpression> aggregates,
+            List<Attribute> edgeOutput
+        ) {
+            if (Resolvables.resolved(aggregates)) {
+                return wrapBareFieldsAsValues(aggregates);
+            }
+            List<NamedExpression> resolved = new ArrayList<>(aggregates.size());
+            boolean changed = false;
+            for (NamedExpression aggregate : aggregates) {
+                NamedExpression next = (NamedExpression) aggregate.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> maybeResolveAttribute(ua, edgeOutput)
+                );
+                changed |= next != aggregate;
+                resolved.add(next);
+            }
+            List<? extends NamedExpression> wrapped = wrapBareFieldsAsValues(resolved);
+            return changed || wrapped != resolved ? wrapped : aggregates;
+        }
+
+        private static List<? extends NamedExpression> wrapBareFieldsAsValues(List<? extends NamedExpression> aggregates) {
+            List<NamedExpression> wrapped = null;
+            for (int i = 0; i < aggregates.size(); i++) {
+                NamedExpression aggregate = aggregates.get(i);
+                if (aggregate instanceof Alias alias) {
+                    Expression child = alias.child();
+                    // Already VALUES(field) or any other aggregate — do not wrap again.
+                    if (child instanceof Attribute && (child instanceof AggregateFunction) == false) {
+                        if (wrapped == null) {
+                            wrapped = new ArrayList<>(aggregates);
+                        }
+                        wrapped.set(i, alias.replaceChild(new Values(child.source(), child)));
+                    }
+                }
+            }
+            return wrapped != null ? wrapped : aggregates;
+        }
+
+        private List<Expression> resolveGraphExpandGroupings(List<Expression> groupings, List<Attribute> edgeOutput) {
+            if (groupings == null || Resolvables.resolved(groupings)) {
+                return groupings;
+            }
+            List<Expression> resolved = new ArrayList<>(groupings.size());
+            boolean changed = false;
+            for (Expression grouping : groupings) {
+                Expression next = grouping.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, edgeOutput));
+                changed |= next != grouping;
+                resolved.add(next);
+            }
+            return changed ? resolved : groupings;
+        }
+
+        /**
+         * Turns an edge-index {@link UnresolvedRelation} into an {@link EsRelation},
+         * mirroring {@link ResolveTable#resolveIndex} without metadata fields.
+         */
+        /**
+         * Edge-side references of the command that name no column of the resolved edge plan,
+         * loaded from {@code _source} (or nullified) at the edge relation when the query asks for
+         * unmapped fields to be. Only names the edge plan would surface are added.
+         */
+        private static LogicalPlan loadEdgeReferences(GraphExpand ge, LogicalPlan edgeRelation, AnalyzerContext context) {
+            UnmappedResolution resolution = context.unmappedResolution();
+            if (resolution == UnmappedResolution.DEFAULT) {
+                return edgeRelation;
+            }
+            Set<String> edgeNames = new HashSet<>(Expressions.names(edgeRelation.output()));
+            LinkedHashMap<String, UnresolvedAttribute> missing = new LinkedHashMap<>();
+            Consumer<Expression> collect = e -> e.forEachUp(UnresolvedAttribute.class, ua -> {
+                if (edgeNames.contains(ua.name()) == false
+                    && ua instanceof UnresolvedPattern == false
+                    && MetadataAttribute.isSupported(ua.name()) == false
+                    && branchCanSurfaceLoadedField(edgeRelation, ua.name())) {
+                    missing.putIfAbsent(ua.name(), ua);
+                }
+            });
+            collect.accept(ge.matchField());
+            ge.targetFields().forEach(collect);
+            if (ge.aggregates() != null) {
+                ge.aggregates().forEach(collect);
+            }
+            if (ge.groupings() != null) {
+                ge.groupings().forEach(collect);
+            }
+            if (ge.documentFilter() != null) {
+                collect.accept(ge.documentFilter());
+            }
+            if (missing.isEmpty()) {
+                return edgeRelation;
+            }
+            List<FieldAttribute> loaders = missing.values()
+                .stream()
+                .map(ua -> resolution.loadsUnmappedFields() ? unmappedKeyword(ua) : nullifyField(ua))
+                .toList();
+            return edgeRelation.transformUp(EsRelation.class, esr -> withAdditionalAttributesUnlessLookup(esr, loaders, true));
+        }
+
+        /** A reference marked unknown against an earlier, narrower edge output, made resolvable again. */
+        private static Attribute freshenEdgeReference(Attribute attribute) {
+            return attribute instanceof UnresolvedAttribute ua && ua.customMessage()
+                ? new UnresolvedAttribute(ua.source(), ua.name())
+                : attribute;
+        }
+
+        private static LogicalPlan resolveEdgeIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+            if (indexResolution == null || indexResolution.isValid() == false) {
+                String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
+                return plan.unresolvedMessage().equals(indexResolutionMessage)
+                    ? plan
+                    : new UnresolvedRelation(
+                        plan.source(),
+                        plan.indexPattern(),
+                        plan.frozen(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        indexResolutionMessage,
+                        plan.telemetryLabel()
+                    );
+            }
+
+            EsIndex esIndex = indexResolution.get();
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            return new EsRelation(
+                plan.source(),
+                esIndex.name(),
+                plan.indexMode(),
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
+                esIndex.indexProperties(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
         }
 
         private static final List<DataType> GEO_TYPES = List.of(GEO_POINT, GEO_SHAPE);

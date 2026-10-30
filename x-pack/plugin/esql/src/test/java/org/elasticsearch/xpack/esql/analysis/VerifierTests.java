@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
@@ -5369,6 +5370,67 @@ public class VerifierTests extends AnalyzerTestCase {
         }
     }
 
+    public void testGraphExpandKnownOptionsVerify() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().query(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager "
+                + "WITH { \"max_hops\": 3, \"direction\": \"out\", \"max_frontier\": 100 }"
+        );
+    }
+
+    public void testGraphExpandUnknownWithKeyFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"unknown\": 1 }",
+            equalTo("1:21: Invalid option [unknown] in [GRAPH EXPAND idx ON node_id == id TO manager WITH { \"unknown\": 1 }]")
+        );
+    }
+
+    public void testGraphExpandExcludeMustBeStrings() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"exclude\": 1 }",
+            equalTo("1:21: GRAPH EXPAND exclude must be a string or a list of strings, got [1]")
+        );
+        graphExpandAnalyzer().query("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"exclude\": [\"x\"] }");
+    }
+
+    public void testGraphExpandInvalidDirectionFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"direction\": \"sideways\" }",
+            equalTo("1:21: GRAPH EXPAND direction must be one of [in, out, both], got [\"sideways\"]")
+        );
+    }
+
+    public void testGraphExpandCapOfZeroFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 0 }",
+            equalTo("1:21: GRAPH EXPAND option [max_hops] must be an integer >= 1, got [0]")
+        );
+    }
+
+    public void testGraphExpandAggregateWhereRequiresStats() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        // Second WHERE slot without STATS — not reinterpreted as a document filter.
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WHERE id IS NOT NULL WHERE id IS NOT NULL",
+            containsString("GRAPH EXPAND aggregate WHERE requires STATS")
+        );
+    }
+
+    public void testGraphExpandUntilMultiColumnInSubqueryFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        // Parser refuses multi-column UNTIL subquery before analysis.
+        expectThrows(ParsingException.class, () -> graphExpandAnalyzer().query("""
+            ROW node_id = "a"
+            | GRAPH EXPAND idx ON node_id == id TO manager
+                UNTIL (node_reached, hop) IN (FROM idx | KEEP id, manager)
+                WITH { "max_hops": 1, "direction": "out" }
+            """));
+    }
+
     public void testTopSnippetsQueryFoldableAfterOptimization() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }
@@ -5855,6 +5917,18 @@ public class VerifierTests extends AnalyzerTestCase {
 
     private TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);
+    }
+
+    private TestAnalyzer graphExpandAnalyzer() {
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "mentor",
+            new EsField("mentor", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping))).stripErrorPrefix(true);
     }
 
     private TestAnalyzer analyzerWithLanguagesLookup() {

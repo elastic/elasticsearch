@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "source": {
+      "type": "ip"
+    },
+    "dest": {
+      "type": "ip"
+    }
+  }
+}

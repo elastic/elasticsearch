@@ -65,7 +65,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             }
         }
 
-        return new EsQueryExec(
+        EsQueryExec queryExec = new EsQueryExec(
             plan.source(),
             plan.indexPattern(),
             plan.indexMode(),
@@ -75,6 +75,10 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             null,
             List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of()))
         );
+        // EsSourceExec -> EsQueryExec is the local scan translation. Keep the source exec id in origin
+        // so a data-node profile can walk back to the relation that produced the scan.
+        queryExec.withOrigin(plan.planId());
+        return queryExec;
     }
 
     private static PhysicalPlan replaceParameterizedQuery(ParameterizedQueryExec plan) {

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -104,6 +105,15 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         return fragment;
     }
 
+    /**
+     * {@link #children()} is empty because this is a {@link LeafExec}, but the fragment is the plan
+     * that actually runs on the data node. JSON renders it as the sole child instead of an ASCII blob.
+     */
+    @Override
+    public List<? extends QueryPlan<?>> jsonChildren() {
+        return List.of(fragment);
+    }
+
     public QueryBuilder esFilter() {
         return esFilter;
     }
@@ -129,27 +139,41 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     /** Returns a copy of this fragment marked as originating from a view branch (see {@link #fromViewBranch}). */
     public FragmentExec asFromViewBranch() {
-        return fromViewBranch ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true);
+        if (fromViewBranch) {
+            return this;
+        }
+        FragmentExec copy = new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true);
+        copy.copyIdentityFrom(this);
+        return copy;
     }
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
         int estimatedRowSize = state.consumeAllFields(false);
-        return Objects.equals(estimatedRowSize, this.estimatedRowSize)
-            ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+        if (Objects.equals(estimatedRowSize, this.estimatedRowSize)) {
+            return this;
+        }
+        FragmentExec copy = new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+        copy.copyIdentityFrom(this);
+        return copy;
     }
 
     public FragmentExec withFragment(LogicalPlan fragment) {
-        return Objects.equals(fragment, this.fragment)
-            ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+        if (Objects.equals(fragment, this.fragment)) {
+            return this;
+        }
+        FragmentExec copy = new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+        copy.copyIdentityFrom(this);
+        return copy;
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {
-        return Objects.equals(filter, this.esFilter)
-            ? this
-            : new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch);
+        if (Objects.equals(filter, this.esFilter)) {
+            return this;
+        }
+        FragmentExec copy = new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch);
+        copy.copyIdentityFrom(this);
+        return copy;
     }
 
     @Override

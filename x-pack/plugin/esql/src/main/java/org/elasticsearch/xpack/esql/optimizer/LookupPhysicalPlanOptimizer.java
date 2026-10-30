@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldEx
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LuceneBulkLookup;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
@@ -65,6 +66,7 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
             throw new VerificationException(failures);
         }
         log.debug("Lookup Physical plan:\n{}", optimizedPlan);
+        PlanJsonLog.debug("lookup_physical", optimizedPlan);
         return optimizedPlan;
     }
 }

@@ -117,7 +117,11 @@ public class GeometryConnectivityReader {
     }
 
     private void readCoordinates(double[] x, double[] y, int numVertices) {
-        for (int i = 0; i < numVertices; i++) {
+        readCoordinates(x, y, 0, numVertices);
+    }
+
+    private void readCoordinates(double[] x, double[] y, int from, int numVertices) {
+        for (int i = from; i < numVertices; i++) {
             int ordinal = nextOrdinal++;
             x[i] = encoder.decodeX(vertexTable.getX(ordinal));
             y[i] = encoder.decodeY(vertexTable.getY(ordinal));
@@ -166,8 +170,21 @@ public class GeometryConnectivityReader {
     private MultiLine readMultiLine() throws IOException {
         int count = input.readVInt();
         List<Line> lines = new ArrayList<>(count);
+        Line previous = null;
         for (int i = 0; i < count; i++) {
-            lines.add(readLine());
+            int header = input.readVInt();
+            int numVertices = header >>> 1;
+            boolean joined = (header & 1) == 1;
+            double[] x = new double[numVertices];
+            double[] y = new double[numVertices];
+            if (joined) {
+                // The first vertex is shared with the end of the previous line, and not stored again
+                x[0] = previous.getX(previous.length() - 1);
+                y[0] = previous.getY(previous.length() - 1);
+            }
+            readCoordinates(x, y, joined ? 1 : 0, numVertices);
+            previous = new Line(x, y);
+            lines.add(previous);
         }
         return new MultiLine(lines);
     }

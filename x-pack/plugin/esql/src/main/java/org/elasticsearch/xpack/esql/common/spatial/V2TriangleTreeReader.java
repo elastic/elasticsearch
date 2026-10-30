@@ -27,6 +27,9 @@ final class V2TriangleTreeReader {
     private static final byte RIGHT = 1 << 1;
     private static final byte POINT = 1 << 2;
     private static final byte LINE = 1 << 3;
+    // Line-only bits: the second ordinal is not stored, and is the first ordinal plus or minus one.
+    private static final byte LINE_NEXT_ORDINAL = 1 << 5;
+    private static final byte LINE_PREVIOUS_ORDINAL = 1 << 6;
 
     private V2TriangleTreeReader() {}
 
@@ -63,12 +66,19 @@ final class V2TriangleTreeReader {
             thisMinY = y;
         } else if ((metadata & LINE) == LINE) { // component in this node is a line
             int aOrd = input.readVInt();
-            int bOrd = input.readVInt();
+            int bOrd;
+            if ((metadata & LINE_NEXT_ORDINAL) != 0) {
+                bOrd = aOrd + 1;
+            } else if ((metadata & LINE_PREVIOUS_ORDINAL) != 0) {
+                bOrd = aOrd - 1;
+            } else {
+                bOrd = input.readVInt();
+            }
             int aX = vertices.getX(aOrd);
             int aY = vertices.getY(aOrd);
             int bX = vertices.getX(bOrd);
             int bY = vertices.getY(bOrd);
-            visitor.visitLine(aX, aY, bX, bY, metadata);
+            visitor.visitLine(aX, aY, bX, bY, (byte) (metadata & ~(LINE_NEXT_ORDINAL | LINE_PREVIOUS_ORDINAL)));
             if (visitor.push() == false) {
                 return false;
             }

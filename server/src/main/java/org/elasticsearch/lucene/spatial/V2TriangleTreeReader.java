@@ -17,6 +17,8 @@ import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.LEFT;
 import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.LINE;
 import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.POINT;
 import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.RIGHT;
+import static org.elasticsearch.lucene.spatial.V2TriangleTreeWriter.LINE_NEXT_ORDINAL;
+import static org.elasticsearch.lucene.spatial.V2TriangleTreeWriter.LINE_PREVIOUS_ORDINAL;
 
 /**
  * Reads a V2 triangle tree where vertex coordinates are stored as ordinals referencing a
@@ -55,12 +57,19 @@ class V2TriangleTreeReader {
             thisMinY = y;
         } else if ((metadata & LINE) == LINE) {
             int aOrd = input.readVInt();
-            int bOrd = input.readVInt();
+            int bOrd;
+            if ((metadata & LINE_NEXT_ORDINAL) != 0) {
+                bOrd = aOrd + 1;
+            } else if ((metadata & LINE_PREVIOUS_ORDINAL) != 0) {
+                bOrd = aOrd - 1;
+            } else {
+                bOrd = input.readVInt();
+            }
             int aX = vertexTable.getX(aOrd);
             int aY = vertexTable.getY(aOrd);
             int bX = vertexTable.getX(bOrd);
             int bY = vertexTable.getY(bOrd);
-            visitor.visitLine(aX, aY, bX, bY, metadata);
+            visitor.visitLine(aX, aY, bX, bY, (byte) (metadata & ~(LINE_NEXT_ORDINAL | LINE_PREVIOUS_ORDINAL)));
             if (visitor.push() == false) {
                 return false;
             }

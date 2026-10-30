@@ -42,7 +42,7 @@ import java.util.List;
  * |   Vertex Connectivity (types and counts)    |
  * -----------------------------------------------
  * |   Vertex Lookup Table (geometry order)      |
- * |   numVertices(VInt) + [x(4),y(4)]...        |
+ * |   numVertices(VInt) + layout + [x,y]...     |
  * -----------------------------------------------
  * </pre>
  *

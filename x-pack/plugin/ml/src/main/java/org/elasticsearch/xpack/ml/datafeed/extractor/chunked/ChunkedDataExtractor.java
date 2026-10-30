@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
@@ -59,20 +60,21 @@ public class ChunkedDataExtractor implements DataExtractor {
     private static final long DEFAULT_ESQL_CHUNK_DOCS = EsqlDataExtractor.INJECTED_ROW_LIMIT / CHUNK_HEADROOM_FACTOR;
 
     /**
-     * Maximum number of times one ES|QL chunk is re-queried with a smaller interval after its result was truncated at
-     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}. The counter restarts with every new chunk. Every attempt shrinks the
-     * interval by at least {@link #CHUNK_HEADROOM_FACTOR}, and never below one grouping interval.
+     * Maximum ES|QL shrink retries per chunk after a result hits {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}; the interval shrinks by
+     * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-grouping-interval floor applies.
      */
-    static final int MAX_ESQL_SHRINK_ATTEMPTS = 5;
+    private static final int MAX_ESQL_SHRINK_ATTEMPTS = 5;
 
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
     private long currentStart;
     private long currentEnd;
     private long chunkSpan;
+    private long initialChunkSpan;
     private volatile boolean isCancelled;
     private volatile DataExtractor currentExtractor;
     private List<LinkedClusterState> lastLinkedClusterStates = List.of();
+    @Nullable
     private SearchInterval incompleteSearchInterval;
     private int esqlShrinkAttempts;
 
@@ -162,6 +164,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             }
 
             chunkSpan = context.timeAligner().alignToCeil(chunkSpan);
+            initialChunkSpan = chunkSpan;
             LOGGER.debug("[{}] Chunked search configured: chunk span = {} ms", context.jobId(), chunkSpan);
         } else {
             // search is over
@@ -200,18 +203,11 @@ public class ChunkedDataExtractor implements DataExtractor {
                     result.linkedClusterStates()
                 );
             }
-            if (isTruncatedEsqlResult(result)) {
-                // A cancelled extractor must not start new queries, so a truncated result is returned as read.
-                if (isCancelled() == false && canShrinkEsqlChunk(result)) {
-                    if (result.data().isPresent()) {
-                        result.data().get().close();
-                    }
-                    shrinkCurrentEsqlChunk(result.rowCount());
-                    continue;
-                }
-                if (incompleteSearchInterval == null) {
-                    incompleteSearchInterval = result.searchInterval();
-                }
+            if (handleTruncatedEsqlResult(result)) {
+                continue;
+            }
+            if (isTruncatedEsqlResult(result) == false && context.hasEsqlQuery() && result.data().isPresent()) {
+                maybeRegrowEsqlChunkSpan(result.rowCount());
             }
             if (result.data().isPresent()) {
                 return result;
@@ -243,46 +239,90 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     /**
-     * An ES|QL result is truncated only when it reached the row limit {@link EsqlDataExtractor} injects into the query
-     * ({@link EsqlDataExtractor#INJECTED_ROW_LIMIT}); anything below it is complete, however many rows it holds. A user's own
-     * outer {@code LIMIT} is not injected, so a result of that size is complete.
+     * @return {@code true} to retry the current chunk after shrinking; {@code false} to fall through with the result as read
      */
-    private boolean isTruncatedEsqlResult(Result result) {
-        return context.hasEsqlQuery() && context.esqlRowLimitInjected() && result.rowCount() >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
-    }
-
-    private boolean canShrinkEsqlChunk(Result result) {
-        long intervalLength = result.searchInterval().endMs() - result.searchInterval().startMs();
-        return esqlShrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS && intervalLength > context.timeAligner().alignToCeil(1L);
+    private boolean handleTruncatedEsqlResult(Result result) throws IOException {
+        if (isTruncatedEsqlResult(result) == false) {
+            return false;
+        }
+        // A cancelled extractor must not start new queries, so a truncated result is returned as read.
+        if (isCancelled() == false && canShrinkEsqlChunk()) {
+            if (result.data().isPresent()) {
+                result.data().get().close();
+            }
+            shrinkCurrentEsqlChunk(result.rowCount());
+            return true;
+        }
+        recordIncompleteTruncation(result.searchInterval());
+        return false;
     }
 
     /**
-     * Re-queries the current chunk with an interval scaled by {@link #DEFAULT_ESQL_CHUNK_DOCS} / {@code rowCount}.
-     * The scaling is split into quotient and remainder so that it cannot overflow for large intervals.
+     * {@code true} when the result hit the injected row cap; a user {@code LIMIT} of the same size is treated as complete.
+     * A chunk of exactly {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} rows cannot be distinguished from a truncated one.
      */
+    private boolean isTruncatedEsqlResult(Result result) {
+        return context.injectsEsqlRowLimit() && result.rowCount() >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
+    }
+
+    private boolean canShrinkEsqlChunk() {
+        long intervalLength = currentEnd - currentStart;
+        return esqlShrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS && intervalLength > minEsqlChunkLength();
+    }
+
+    private long minEsqlChunkLength() {
+        return context.timeAligner().alignToCeil(1L);
+    }
+
+    /** Re-queries the current chunk with an interval scaled by {@link #DEFAULT_ESQL_CHUNK_DOCS} / {@code rowCount}. */
     private void shrinkCurrentEsqlChunk(long rowCount) {
+        assert rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
+        assert currentExtractor != null;
+        assert esqlShrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS;
         currentExtractor.destroy();
         long intervalLength = currentEnd - currentStart;
+        // Quotient and remainder keep the scaled length from overflowing on large intervals.
         long targetLength = Math.max(
             1L,
             intervalLength / rowCount * DEFAULT_ESQL_CHUNK_DOCS + intervalLength % rowCount * DEFAULT_ESQL_CHUNK_DOCS / rowCount
         );
         long shrunkEnd = context.timeAligner().alignToFloor(currentStart + targetLength);
         if (shrunkEnd <= currentStart) {
-            shrunkEnd = currentStart + context.timeAligner().alignToCeil(1L);
+            shrunkEnd = currentStart + minEsqlChunkLength();
         }
         currentEnd = Math.min(shrunkEnd, currentEnd);
+        assert currentStart < currentEnd;
+        if (context.hasEsqlQuery()) {
+            long shrunkLength = currentEnd - currentStart;
+            chunkSpan = context.timeAligner().alignToCeil(Math.min(chunkSpan, shrunkLength));
+        }
         installExtractor(dataExtractorFactory.newExtractor(currentStart, currentEnd));
         esqlShrinkAttempts++;
         LOGGER.debug("[{}] shrinks ES|QL chunk to [{}, {}) after receiving [{}] rows", context.jobId(), currentStart, currentEnd, rowCount);
     }
 
-    /**
-     * Installs a new delegate. {@link #cancel()} sets the flag before it cancels the installed delegate, so re-checking the flag
-     * after the install guarantees that a cancel racing with the replacement cancels the new delegate either here or there.
-     */
+    private void maybeRegrowEsqlChunkSpan(long rowCount) {
+        if (rowCount < 0 || rowCount >= DEFAULT_ESQL_CHUNK_DOCS || initialChunkSpan <= 0) {
+            return;
+        }
+        chunkSpan = context.timeAligner().alignToCeil(Math.min(initialChunkSpan, chunkSpan * CHUNK_HEADROOM_FACTOR));
+    }
+
+    private void recordIncompleteTruncation(SearchInterval interval) {
+        if (incompleteSearchInterval == null) {
+            incompleteSearchInterval = interval;
+            return;
+        }
+        incompleteSearchInterval = new SearchInterval(
+            Math.min(incompleteSearchInterval.startMs(), interval.startMs()),
+            Math.max(incompleteSearchInterval.endMs(), interval.endMs())
+        );
+    }
+
+    /** Installs a new delegate extractor for the current chunk window. */
     private void installExtractor(DataExtractor newExtractor) {
         currentExtractor = newExtractor;
+        // cancel() sets the flag before cancelling the delegate; re-check after install so a cancel during replacement still reaches it.
         if (isCancelled) {
             newExtractor.cancel();
         }
@@ -332,6 +372,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         return lastLinkedClusterStates;
     }
 
+    /** Span covering every truncated chunk; complete chunks between them may fall inside it. */
     @Override
     public Optional<SearchInterval> getIncompleteSearchInterval() {
         return Optional.ofNullable(incompleteSearchInterval);

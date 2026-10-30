@@ -135,7 +135,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
 
         assertThat(dataExtractor.getContext().hasEsqlQuery(), is(true));
-        assertThat(dataExtractor.getContext().esqlRowLimitInjected(), is(true));
+        assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(true));
     }
 
     public void testEsqlQueryWithOuterLimitShouldNotInjectRowLimit() {
@@ -144,14 +144,14 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(0L, 5_000L);
 
         assertThat(dataExtractor.getContext().hasEsqlQuery(), is(true));
-        assertThat(dataExtractor.getContext().esqlRowLimitInjected(), is(false));
+        assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(false));
     }
 
     public void testDslDatafeedShouldNotInjectRowLimit() {
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) createFactory(1000L).newExtractor(2000, 5000);
 
         assertThat(dataExtractor.getContext().hasEsqlQuery(), is(false));
-        assertThat(dataExtractor.getContext().esqlRowLimitInjected(), is(false));
+        assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(false));
     }
 
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval) {

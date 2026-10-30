@@ -18,8 +18,8 @@ final class EsqlDataExtractorQueryUtils {
     private static final String EPOCH_MILLIS = "epoch_millis";
 
     /**
-     * Injected row cap when the user query has no outer LIMIT; chunking truncation checks must use this value,
-     * not {@code esql.query.result_truncation_default_size}.
+     * Injected row cap when the user query has no outer LIMIT; truncation detection assumes the server returns up to this many rows
+     * ({@code esql.query.result_truncation_max_size} defaults to the same value).
      */
     static final long INJECTED_ROW_LIMIT = 10_000L;
 

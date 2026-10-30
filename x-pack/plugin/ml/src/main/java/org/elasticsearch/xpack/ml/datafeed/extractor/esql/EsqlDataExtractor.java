@@ -55,10 +55,7 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     public static final long INJECTED_ROW_LIMIT = EsqlDataExtractorQueryUtils.INJECTED_ROW_LIMIT;
 
-    /**
-     * Whether the extractor appends {@link #INJECTED_ROW_LIMIT} to this query, i.e. it has no outer {@code LIMIT}. Only then does
-     * a result of that many rows mean the result was truncated.
-     */
+    /** Delegates to {@link EsqlDataExtractorQueryUtils#injectsRowLimit(String)}. */
     public static boolean injectsRowLimit(String esqlQuery) {
         return EsqlDataExtractorQueryUtils.injectsRowLimit(esqlQuery);
     }

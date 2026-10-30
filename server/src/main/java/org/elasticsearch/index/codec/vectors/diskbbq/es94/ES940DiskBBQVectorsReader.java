@@ -31,7 +31,6 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QueryTarget;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
@@ -40,6 +39,7 @@ import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -686,7 +686,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QuantizedQuery> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
-                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
                         return true;
                     }
                     return false;
@@ -736,7 +736,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QuantizedQuery(queryCorrections, quantizedQuery);
+                result = new QuantizedQuery(queryCorrections, new ScoringQuery(quantizedQuery));
                 QuantizedQuery published = cache.putIfAbsent(nextCentroidOrdinal, result);
                 if (published != null) {
                     result = published; // another part of the segment quantized it first
@@ -748,7 +748,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             return result.queryCorrections();
         }
 
-        byte[] getQuantizedTarget() {
+        ScoringQuery getQuantizedTarget() {
             return result.quantizedTarget();
         }
     }

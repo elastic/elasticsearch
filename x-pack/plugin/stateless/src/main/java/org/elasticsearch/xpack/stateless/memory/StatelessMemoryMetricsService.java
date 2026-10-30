@@ -39,6 +39,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 
 import java.io.IOException;
@@ -223,6 +224,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      *      {@link org.elasticsearch.cluster.routing.RoutingNodes}</li>
      *  <li>Relocating shards are accounted for on the source and target node</li>
      *  <li>Any shard missing {@link ShardMemoryMetrics} is given a default (non-zero) estimate</li>
+     *  <li>Every indexing node is charged the cluster-wide ingest-model heap from {@link IngestModelMemoryProvider},
+     *      because each indexing node loads every referenced model</li>
      * </ul>
      * Called by {@link StatelessHeapUsageReader#collectEstimatedHeapUsage}, the node-level entry point into this service, whose results
      * reach {@link org.elasticsearch.cluster.ClusterInfo#getNodeHeapMetrics()} and are read from there by
@@ -241,8 +244,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
         final long nonShardHeapUsage = Math.addExact(
-            getNodeBaseHeapEstimateInBytes(),
-            Math.addExact(minimumRequiredHeapForAcceptingLargeIndexingOps(), mergeMemoryEstimation())
+            Math.addExact(getNodeBaseHeapEstimateInBytes(), minimumRequiredHeapForAcceptingLargeIndexingOps()),
+            Math.addExact(mergeMemoryEstimation(), ingestModelHeapBytes())
         );
         final var calculated = NodeHeapUsageCalculator.calculateForRoutingNodes(clusterState, nonShardHeapUsage, shardHeapUsageEstimates);
         lastMaxTotalPostingsInMemoryBytes = calculated.maxPostingsHeapUsage(); // Tracked for testing purposes
@@ -297,6 +300,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @param totalIndices              total indices in the cluster, per the caller's cluster-state view
      * @param largeIndexingOpsHeapBytes heap needed for recently rejected large indexing ops — not resident heap; local callers pass 0
      * @param mergeMemoryEstimateBytes  pending-merge heap estimate; a future supplier must stay at or below the master's value
+     * @param ingestModelHeapBytes      heap required to load ingest trained models
      * @param shardMappingSizes         the hosted shards' sizes
      * @return the node's estimated heap usage
      */
@@ -305,6 +309,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         int totalIndices,
         long largeIndexingOpsHeapBytes,
         long mergeMemoryEstimateBytes,
+        long ingestModelHeapBytes,
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
         assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
@@ -318,8 +323,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             )
         );
         final long nonShardHeapUsage = Math.addExact(
-            getNodeBaseHeapEstimateInBytes(totalIndices),
-            Math.addExact(largeIndexingOpsHeapBytes, mergeMemoryEstimateBytes)
+            Math.addExact(getNodeBaseHeapEstimateInBytes(totalIndices), largeIndexingOpsHeapBytes),
+            Math.addExact(mergeMemoryEstimateBytes, ingestModelHeapBytes)
         );
         return NodeHeapUsageCalculator.calculateForShardEstimates(
             nonShardHeapUsage,
@@ -330,6 +335,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // Visible for testing
     public void setWorkloadMemoryOverheadOverrideForTesting(long val) {
         workloadMemoryOverhead = val;
+    }
+
+    /**
+     * JVM heap required to load trained models referenced by ingest pipelines.
+     * The master populates {@link IngestModelMemoryProvider}, but when the ML plugin is absent, 0 bytes are reported
+     */
+    private static long ingestModelHeapBytes() {
+        return IngestModelMemoryProvider.getInstance().getRequiredHeapBytes().heapBytes();
     }
 
     public long minimumRequiredHeapForAcceptingLargeIndexingOps() {

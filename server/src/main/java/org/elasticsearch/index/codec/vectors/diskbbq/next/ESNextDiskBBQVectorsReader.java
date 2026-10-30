@@ -45,6 +45,7 @@ import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -543,7 +544,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QuantizedQuery> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
-                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
                         return true;
                     }
                     return false;
@@ -598,7 +599,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QuantizedQuery(queryCorrections, quantizedQuery);
+                result = new QuantizedQuery(queryCorrections, new ScoringQuery(quantizedQuery));
                 QuantizedQuery published = cache.putIfAbsent(nextCentroidOrdinal, result);
                 if (published != null) {
                     result = published; // another part of the segment quantized it first
@@ -610,7 +611,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return result.queryCorrections();
         }
 
-        byte[] getQuantizedTarget() {
+        ScoringQuery getQuantizedTarget() {
             return result.quantizedTarget();
         }
     }

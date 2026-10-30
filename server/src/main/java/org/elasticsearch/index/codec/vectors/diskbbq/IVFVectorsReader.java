@@ -37,6 +37,7 @@ import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -838,7 +839,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * The query quantized against one centroid: the corrections and packed bits a posting list's scorer needs. Formats that
      * quantize the query per parent centroid compute it once per centroid, and the parts of a segment's search share them.
      */
-    public record QuantizedQuery(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
+    public record QuantizedQuery(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
 
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */

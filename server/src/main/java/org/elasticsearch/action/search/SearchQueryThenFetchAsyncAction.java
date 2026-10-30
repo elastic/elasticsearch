@@ -252,7 +252,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final Object[] results;
         private final Exception reductionFailure;
         private final SearchPhaseController.TopDocsStats topDocsStats;
-        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+        private QueryPhaseResultConsumer.MergeResult mergeResult;
 
         public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
@@ -274,6 +274,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         Exception getReductionFailure() {
             return reductionFailure;
+        }
+
+        /**
+         * Hands the merge result, and responsibility for releasing its aggregations, over to the caller.
+         */
+        QueryPhaseResultConsumer.MergeResult takeMergeResult() {
+            final var taken = mergeResult;
+            mergeResult = null;
+            return taken;
         }
 
         @Override
@@ -322,6 +331,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         r.decRef();
                     }
                     results[i] = null;
+                }
+                if (mergeResult != null) {
+                    QueryPhaseResultConsumer.releaseBatchedAggs(mergeResult.reducedAggs());
+                    mergeResult = null;
                 }
                 return true;
             }
@@ -603,7 +616,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             if (reductionFailure != null) {
                                 queryPhaseResultConsumer.setFailure(reductionFailure);
                             } else {
-                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
+                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.takeMergeResult());
                             }
                         }
                         SearchPhaseResult lastResult = null;

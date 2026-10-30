@@ -49,9 +49,11 @@ public class DropGenerator implements CommandGenerator {
                 continue;
             }
             String name = rawName;
+            boolean wildcard = false;
             if (EsqlQueryGenerator.needsQuoting(name)) {
                 name = EsqlQueryGenerator.quote(name);
             } else if (name.length() > 1 && randomIntBetween(0, 100) < 10) {
+                wildcard = true;
                 if (randomBoolean()) {
                     name = name.substring(0, randomIntBetween(1, name.length() - 1)) + "*";
                 } else {
@@ -61,7 +63,12 @@ public class DropGenerator implements CommandGenerator {
                 name = EsqlQueryGenerator.quote(name);
             }
             proj.add(name);
-            droppedColumns.add(rawName);
+            // Permanent design constraint: no wildcard removes the _unmapped_fields column LOAD_ALL adds
+            boolean keepsUnmappedFields = wildcard
+                && previousOutput.stream().anyMatch(c -> c.name().equals(rawName) && EsqlQueryGenerator.isUnmappedFieldsColumn(c));
+            if (keepsUnmappedFields == false) {
+                droppedColumns.add(rawName);
+            }
         }
         if (proj.isEmpty()) {
             return CommandGenerator.EMPTY_DESCRIPTION;

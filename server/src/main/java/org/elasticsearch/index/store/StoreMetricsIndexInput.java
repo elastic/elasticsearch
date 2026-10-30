@@ -16,6 +16,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
@@ -23,6 +24,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntFunction;
 
 public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAccessInput {
     final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
@@ -45,6 +47,18 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         super(resourceDescription, in);
         this.metricHolder = metricHolder;
         assert in instanceof StoreMetricsIndexInput == false;
+        assert noSelfAccountingDelegate(in) : "would double-count bytes read by " + in;
+    }
+
+    private static boolean noSelfAccountingDelegate(IndexInput in) {
+        IndexInput current = in;
+        while (current instanceof FilterIndexInput filter) {
+            if (current instanceof SelfAccountingIndexInput) {
+                return false;
+            }
+            current = filter.getDelegate();
+        }
+        return current instanceof SelfAccountingIndexInput == false;
     }
 
     @Override
@@ -95,9 +109,29 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withMemorySegmentSlice(offset, length, action);
+            boolean read = dai.withMemorySegmentSlice(offset, length, scratch, action);
+            if (read) {
+                addBytesRead(length);
+            }
+            return read;
+        }
+        // An mmap'd input exposes its bytes as a MemorySegmentAccessInput, not a DirectAccessInput. Returning false for
+        // it here would send IndexInputUtils#withSlice, which only sees this wrapper, down its copy-to-heap fallback.
+        if (in instanceof MemorySegmentAccessInput msai) {
+            MemorySegment slice = msai.segmentSliceOrNull(offset, length);
+            if (slice != null) {
+                // The copying fallback counts these bytes through readBytes, so count them here too.
+                addBytesRead(length);
+                action.accept(slice);
+                return true;
+            }
         }
         return false;
     }
@@ -111,7 +145,14 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
+            boolean read = dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
+            if (read) {
+                addBytesRead((long) length * count);
+            }
+            return read;
+        }
+        if (in instanceof MemorySegmentAccessInput msai) {
+            return IndexInputUtils.resolveFromMmap(msai, offsets, length, count, addressesScratch, action);
         }
         return false;
     }
@@ -124,6 +165,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     @Override
     public void updateIOContext(IOContext context) throws IOException {
         in.updateIOContext(context);
+    }
+
+    @Override
+    public boolean isEfficientFor(IOContext context) {
+        return in.isEfficientFor(context);
     }
 
     void addBytesRead(long bytes) {

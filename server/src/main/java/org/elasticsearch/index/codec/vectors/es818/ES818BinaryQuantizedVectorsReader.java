@@ -124,9 +124,8 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
                 versionMeta,
                 VECTOR_DATA_EXTENSION,
                 ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                // Quantized vectors are accessed randomly from their node ID stored in the HNSW
-                // graph.
-                state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
+                // how these are read is up to whoever wraps this format
+                state.context.union(FileTypeHint.DATA, FileDataHint.KNN_VECTORS)
             );
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
@@ -231,6 +230,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
 
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return getFloatVectorValues(field, DataAccessHint.RANDOM);
+    }
+
+    @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
         FieldEntry fi = fields.get(field);
         if (fi == null) {
             return null;
@@ -253,7 +257,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
             fi.vectorDataLength,
             quantizedVectorData
         );
-        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
+        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field, access), bvv);
     }
 
     @Override

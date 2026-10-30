@@ -9,18 +9,34 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Query-time resolution of persisted merge calibration vs mapping defaults, and interaction with
@@ -51,8 +67,9 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
                 assertThat(resolved.osqEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
-                assertTrue(resolved.usePrecondition());
                 assertThat(resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
+                // preconditioning is the one field that follows the segment rather than the mapping
+                assertFalse(resolved.usePrecondition());
             }
         }
     }
@@ -76,40 +93,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
                 assertThat(resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
-            }
-        }
-    }
-
-    public void testResolveIgnoresPersistedPreconditionWhenAutoCalibrateDisabled() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
-                    dir,
-                    4,
-                    64,
-                    IvfSegmentConfig.of(
-                        CentroidIndexFormat.FLAT,
-                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
-                        true,
-                        MAPPING_OVERSAMPLE
-                    ),
-                    IvfSegmentConfig.of(
-                        CentroidIndexFormat.FLAT,
-                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
-                        true,
-                        MAPPING_OVERSAMPLE
-                    ),
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                LeafReader leaf = reader.leaves().getFirst().reader();
-                assertTrue(ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(leaf));
-
-                FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, 1, MAPPING_OVERSAMPLE, null);
-                IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
-
-                assertFalse(resolved.usePrecondition());
             }
         }
     }
@@ -138,31 +121,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
 
                 assertThat(resolver.resolve(fieldInfoA, leafA.reader()).rescoreOversample(), equalTo(oversampleA));
                 assertThat(resolver.resolve(fieldInfoB, leafB.reader()).rescoreOversample(), equalTo(oversampleB));
-            }
-        }
-    }
-
-    public void testResolveUsesPersistedPreconditionWhenAutoCalibrateEnabled() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegmentsPreconditioning(
-                    dir,
-                    4,
-                    64,
-                    true,
-                    false,
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(true, false, 1, MAPPING_OVERSAMPLE, null);
-
-                LeafReader preconditionedLeaf = reader.leaves().get(0).reader();
-                LeafReader plainLeaf = reader.leaves().get(1).reader();
-                FieldInfo preconditionedField = preconditionedLeaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                FieldInfo plainField = plainLeaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-
-                assertTrue(resolver.resolve(preconditionedField, preconditionedLeaf).usePrecondition());
-                assertFalse(resolver.resolve(plainField, plainLeaf).usePrecondition());
             }
         }
     }
@@ -213,11 +171,122 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Preconditioning is a physical property of each segment: a preconditioned segment stores transformed vectors
+     * and must be scored with a transformed query, and a plain segment must not be. So no combination of the
+     * mapping's {@code auto_calibrate} and {@code precondition} - i.e. no sequence of mapping updates - may change
+     * what a segment resolves to. One segment is preconditioned and the other is not, to catch a resolver that
+     * merely returns a constant.
+     */
+    public void testResolvePreconditionFollowsSegmentForEveryMappingCombination() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (
+                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegmentsPreconditioning(
+                    dir,
+                    4,
+                    64,
+                    true,
+                    false,
+                    IvfMergeConfigResolver.useCodecDefault()
+                )
+            ) {
+                LeafReader preconditionedLeaf = reader.leaves().get(0).reader();
+                LeafReader plainLeaf = reader.leaves().get(1).reader();
+                FieldInfo preconditionedField = preconditionedLeaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+                FieldInfo plainField = plainLeaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+
+                for (boolean autoCalibrate : new boolean[] { false, true }) {
+                    for (boolean mappingPrecondition : new boolean[] { false, true }) {
+                        IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(
+                            autoCalibrate,
+                            mappingPrecondition,
+                            MAPPING_BITS,
+                            MAPPING_OVERSAMPLE,
+                            null
+                        );
+                        String combination = "auto_calibrate=" + autoCalibrate + ", precondition=" + mappingPrecondition;
+                        assertTrue(combination, resolver.resolve(preconditionedField, preconditionedLeaf).usePrecondition());
+                        assertFalse(combination, resolver.resolve(plainField, plainLeaf).usePrecondition());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Segments written by a format that persists no calibration (here ES940, which still supports preconditioning)
+     * resolve entirely from the mapping, regardless of {@code auto_calibrate}. The mapping's {@code precondition}
+     * is the only signal for whether the query must be preconditioned on such segments.
+     */
+    public void testResolveUsesMappingDefaultsWhenSegmentIsNotCalibrationAware() throws IOException {
+        Codec codec = TestUtil.alwaysKnnVectorsFormat(
+            new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                VPC,
+                ES940DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                null,
+                1,
+                true,
+                ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+            )
+        );
+
+        IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < 64; i++) {
+                    Document doc = new Document();
+                    // IVF rejects COSINE similarity (see IVFVectorsWriter#addField)
+                    doc.add(
+                        new KnnFloatVectorField(
+                            ESNextRescoreOversampleTestFixture.FIELD_NAME,
+                            randomVector(64),
+                            VectorSimilarityFunction.EUCLIDEAN
+                        )
+                    );
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                LeafReader leaf = reader.leaves().getFirst().reader();
+                FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+
+                // guard: the segment must not report calibration, otherwise this test no longer covers the null branch
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
+                assertNotNull(segmentReader);
+                PerFieldKnnVectorsFormat.FieldsReader perField = (PerFieldKnnVectorsFormat.FieldsReader) segmentReader.getVectorReader();
+                assertThat(perField.getFieldReader(fieldInfo.name), not(instanceOf(CalibrationAwareReader.class)));
+
+                for (boolean autoCalibrate : new boolean[] { false, true }) {
+                    for (boolean mappingPrecondition : new boolean[] { false, true }) {
+                        IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(
+                            autoCalibrate,
+                            mappingPrecondition,
+                            MAPPING_BITS,
+                            MAPPING_OVERSAMPLE,
+                            null
+                        );
+                        String combination = "auto_calibrate=" + autoCalibrate + ", precondition=" + mappingPrecondition;
+                        IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
+
+                        assertThat(combination, resolved.usePrecondition(), equalTo(mappingPrecondition));
+                        assertThat(combination, resolved.osqEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                        assertThat(combination, resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
+                        assertThat(combination, resolved.centroidIndexFormat(), equalTo(CentroidIndexFormat.FLAT));
+                    }
+                }
+            }
+        }
+    }
+
     public void testResolveUsesMappingOversampleFallbackWhenPersistedNotFinite() throws IOException {
         try (Directory dir = newDirectory()) {
             try (DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsCodecDefaults(dir, 4, 64)) {
                 LeafReader leaf = reader.leaves().getFirst().reader();
-                assertFalse(Float.isFinite(ESNextRescoreOversampleTestFixture.persistedOversampleOnLeaf(leaf)));
+                assertFalse(Float.isFinite(ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf).rescoreOversample()));
 
                 FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(true, false, 1, MAPPING_OVERSAMPLE, null);

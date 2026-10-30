@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -19,14 +21,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,8 +116,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         assertEquals(1, unionAll.children().size());
 
         var project = as(unionAll.children().get(0), Project.class);
-        var subquery = as(project.child(), Subquery.class);
-        var eval = as(subquery.child(), Eval.class);
+        var eval = as(project.child(), Eval.class);
         assertThat(eval.child(), instanceOf(EsRelation.class));
     }
 
@@ -143,17 +144,17 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
     }
 
     /**
-     * Regression: a {@link ViewUnionAll} with an empty {@link LocalRelation} branch used to trip
+     * Regression: a {@link BranchPlan} with an empty {@link LocalRelation} branch used to trip
      * the {@code asSubqueryMap} assertion when this rule called {@code replaceChildren} with
-     * a shorter list — {@code ViewUnionAll}'s positional 1:1 invariant doesn't tolerate
+     * a shorter list — {@code BranchPlan}'s positional 1:1 invariant doesn't tolerate
      * count changes. The fix routes the prune through {@code MergePlan.pruneEmptyBranches},
-     * polymorphically dispatched to {@code ViewUnionAll}'s name-aware override which preserves
+     * polymorphically dispatched to {@code BranchPlan}'s name-aware override which preserves
      * the named-subqueries map for surviving children.
      * <p>
      * Built directly rather than via {@code plan(...)} since the failing scenario in serverless
-     * needs a CPS-emitted {@link ViewUnionAll} that the local test fixture doesn't construct.
+     * needs a CPS-emitted {@link BranchPlan} that the local test fixture doesn't construct.
      */
-    public void testPrunesEmptyLocalRelationFromViewUnionAll() {
+    public void testPrunesEmptyLocalRelationFromBranchPlan() {
         LocalRelation emptyBranch = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
         Row keptA = new Row(Source.EMPTY, List.of());
         Row keptB = new Row(Source.EMPTY, List.of());
@@ -162,11 +163,11 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         children.put("name_a", keptA);
         children.put("name_empty", emptyBranch);
         children.put("name_b", keptB);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+        BranchPlan vua = new BranchPlan(Source.EMPTY, children, allViewIdentities(children.keySet()), List.of());
 
         LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
-        ViewUnionAll pruned = as(result, ViewUnionAll.class);
+        BranchPlan pruned = as(result, BranchPlan.class);
         assertEquals(2, pruned.children().size());
         assertEquals(List.of("name_a", "name_b"), List.copyOf(pruned.namedSubqueries().keySet()));
         assertSame(keptA, pruned.namedSubqueries().get("name_a"));
@@ -176,49 +177,58 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
     /**
      * All branches pruned: the prune primitive produces a zero-child wrapper. The verifier's
      * {@code MergePlan.checkBranchCount} is responsible for surfacing this as a clear failure
-     * ({@code "ViewUnionAll requires at least one branch"}); rules that want to handle the
+     * ({@code "BranchPlan requires at least one branch"}); rules that want to handle the
      * all-empty case successfully (like {@link PruneEmptyMergeBranches} replacing it with a
      * {@code LocalRelation}) must short-circuit BEFORE delegating to {@code pruneEmptyBranches}.
      */
-    public void testAllEmptyProducesZeroChildViewUnionAllForVerifierToCatch() {
+    public void testAllEmptyProducesZeroChildBranchPlanForVerifierToCatch() {
         LocalRelation a = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
         LocalRelation b = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
 
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("name_a", a);
         children.put("name_b", b);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+        BranchPlan vua = new BranchPlan(Source.EMPTY, children, allViewIdentities(children.keySet()), List.of());
 
         // Bypass PruneEmptyMergeBranches's all-empty pre-check by calling pruneEmptyBranches
         // directly — this is the contract the analyzer's PruneEmptyUnionAllBranch and
         // ViewCompaction.stripViewShadowRelations rely on.
         LogicalPlan result = vua.pruneEmptyBranches(c -> c instanceof LocalRelation lr && lr.hasEmptySupplier());
 
-        ViewUnionAll empty = as(result, ViewUnionAll.class);
+        BranchPlan empty = as(result, BranchPlan.class);
         assertEquals(0, empty.children().size());
         assertEquals(0, empty.namedSubqueries().size());
     }
 
     /**
-     * Single survivor: {@link PruneEmptyMergeBranches} preserves the {@link ViewUnionAll} wrapper
+     * Single survivor: {@link PruneEmptyMergeBranches} preserves the {@link BranchPlan} wrapper
      * even when only one branch is left (the existing UnionAll-based tests in this file rely on
      * the same no-collapse semantics — single-survivor collapse lives in
      * {@code ViewCompaction.stripViewShadowRelations}, not in the prune primitive).
      */
-    public void testKeepsViewUnionAllWrapperEvenWithSingleSurvivor() {
+    public void testKeepsBranchPlanWrapperEvenWithSingleSurvivor() {
         LocalRelation emptyBranch = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
         Row kept = new Row(Source.EMPTY, List.of());
 
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("name_kept", kept);
         children.put("name_empty", emptyBranch);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+        BranchPlan vua = new BranchPlan(Source.EMPTY, children, allViewIdentities(children.keySet()), List.of());
 
         LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
-        ViewUnionAll pruned = as(result, ViewUnionAll.class);
+        BranchPlan pruned = as(result, BranchPlan.class);
         assertEquals(1, pruned.children().size());
         assertSame(kept, pruned.children().getFirst());
         assertEquals(List.of("name_kept"), List.copyOf(pruned.namedSubqueries().keySet()));
+    }
+
+    /** Every key is a view branch named after itself, matching how these tests used to pass {@code children.keySet()}. */
+    private static Map<String, BranchIdentity> allViewIdentities(Set<String> keys) {
+        Map<String, BranchIdentity> identities = new LinkedHashMap<>();
+        for (String key : keys) {
+            identities.put(key, BranchIdentity.view(key));
+        }
+        return identities;
     }
 }

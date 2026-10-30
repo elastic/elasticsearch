@@ -116,6 +116,13 @@ public class DeploymentManager {
         return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
             var stats = processContext.getResultProcessor().getResultStats();
             var recentStats = stats.recentStats();
+            // LongSummaryStatistics.getAverage() is 0.0 when empty, so only report an average once at least one native
+            // RSS sample has been observed; otherwise leave it null rather than boxing a spurious 0.
+            var rssStats = stats.inferenceProcessMemoryRssBytesStats();
+            Long avgProcessMemoryRssBytes = rssStats.getCount() > 0 ? Math.round(rssStats.getAverage()) : null;
+            // peakMemoryRssBytes is 0 until the first sample; report null in that case. On platforms where the current
+            // RSS reads as 0 (e.g. macOS), peak remains the portable signal.
+            long peakProcessMemoryRssBytes = stats.peakMemoryRssBytes();
             return new ModelStats(
                 processContext.startTime,
                 stats.timingStats().getCount(),
@@ -133,7 +140,8 @@ public class DeploymentManager {
                 recentStats.requestsProcessed(),
                 recentStats.avgInferenceTime(),
                 recentStats.cacheHitCount(),
-                Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage())
+                avgProcessMemoryRssBytes,
+                peakProcessMemoryRssBytes > 0 ? peakProcessMemoryRssBytes : null
             );
         });
     }

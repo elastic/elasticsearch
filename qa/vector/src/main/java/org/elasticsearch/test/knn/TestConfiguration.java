@@ -18,7 +18,10 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -75,18 +78,25 @@ public record TestConfiguration(
     boolean onDiskRescore,
     List<SearchParameters> searchParams,
     int numMergeWorkers,
+    int numQuantizerWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
-    boolean autoCalibrate,
+    IvfAutoCalibrationProfile autoCalibrationProfile,
     String directoryType,
     DatasetConfig datasetConfig,
     int numDeletedDocs,
     long deleteSeed,
     float projectedDimsFraction,
+    int maxProjectedDims,
     String quantizationType
 ) {
+
+    /** Whether this configuration uses the sliced IVF on-disk layout and query path. */
+    public boolean usesSlicedIvf() {
+        return indexType == KnnIndexTester.IndexType.IVF && datasetConfig.isSliced();
+    }
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
     static final ParseField DATA_DIR_FIELD = new ParseField("data_dir");
@@ -135,6 +145,7 @@ public record TestConfiguration(
     static final ParseField EXACT_FIELD = new ParseField("exact");
     static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
     private static final ParseField PROJECTED_DIMS_FRACTION_FIELD = new ParseField("projected_dims_fraction");
+    private static final ParseField MAX_PROJECTED_DIMS_FIELD = new ParseField("max_projected_dims");
     private static final ParseField QUANTIZATION_TYPE_FIELD = new ParseField("quantization_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
@@ -207,7 +218,7 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
-        PARSER.declareBoolean(Builder::setAutoCalibrate, AUTO_CALIBRATE_FIELD);
+        PARSER.declareField(Builder::setAutoCalibrate, XContentParser::text, AUTO_CALIBRATE_FIELD, ObjectParser.ValueType.BOOLEAN);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
         PARSER.declareInt(Builder::setNumDeletedDocs, NUM_DELETED_DOCS_FIELD);
         PARSER.declareLong(Builder::setDeleteSeed, DELETE_SEED_FIELD);
@@ -219,7 +230,12 @@ public record TestConfiguration(
             ObjectParser.ValueType.VALUE_ARRAY
         );
         PARSER.declareFloat(Builder::setProjectedDimsFraction, PROJECTED_DIMS_FRACTION_FIELD);
+        PARSER.declareInt(Builder::setMaxProjectedDims, MAX_PROJECTED_DIMS_FIELD);
         PARSER.declareString(Builder::setQuantizationType, QUANTIZATION_TYPE_FIELD);
+    }
+
+    public boolean autoCalibrate() {
+        return autoCalibrationProfile != IvfAutoCalibrationProfile.DISABLED;
     }
 
     public int numberOfSearchRuns() {
@@ -289,9 +305,10 @@ public record TestConfiguration(
             new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
             new ParameterHelp(
                 "auto_calibrate",
-                "boolean",
+                "boolean|string",
                 "ivf only: enable per-segment manifold calibration on merge (experimental; "
-                    + "requires sufficient vectors per segment for calibration to take effect)."
+                    + "requires sufficient vectors per segment for calibration to take effect). "
+                    + "true uses the default profile for the current index version; or one of disabled, iso_sizing, quality."
             ),
             new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),
             new ParameterHelp("k", "array[int]", "Search: top K results to return."),
@@ -468,9 +485,10 @@ public record TestConfiguration(
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int numQuantizerWorkers = Runtime.getRuntime().availableProcessors() / 2;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
-        private boolean autoCalibrate = false;
+        private IvfAutoCalibrationProfile autoCalibrationProfile = IvfAutoCalibrationProfile.DISABLED;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
         private int numDeletedDocs = 0;
@@ -478,6 +496,7 @@ public record TestConfiguration(
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
         private float projectedDimsFraction = 0.5f;
+        private int maxProjectedDims = 1024;
         private String quantizationType = "osq";
 
         /**
@@ -699,8 +718,13 @@ public record TestConfiguration(
             return this;
         }
 
-        public Builder setAutoCalibrate(boolean autoCalibrate) {
-            this.autoCalibrate = autoCalibrate;
+        public Builder setAutoCalibrate(String autoCalibrate) {
+            this.autoCalibrationProfile = DenseVectorAutoCalibrate.parse(
+                autoCalibrate,
+                IndexVersion.current(),
+                feature -> true,
+                KnnIndexer.VECTOR_FIELD
+            ).profile();
             return this;
         }
 
@@ -731,6 +755,10 @@ public record TestConfiguration(
 
         public void setProjectedDimsFraction(float projectedDimsFraction) {
             this.projectedDimsFraction = projectedDimsFraction;
+        }
+
+        public void setMaxProjectedDims(int maxProjectedDims) {
+            this.maxProjectedDims = maxProjectedDims;
         }
 
         public void setQuantizationType(String quantizationType) {
@@ -946,7 +974,7 @@ public record TestConfiguration(
             if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding == KnnIndexTester.VectorEncoding.BYTE) {
                 KnnIndexTester.logger.info("vector_space=cosine with byte vectors: using cosine directly (no normalization)");
             }
-            if (autoCalibrate && indexType != KnnIndexTester.IndexType.IVF) {
+            if (autoCalibrationProfile != IvfAutoCalibrationProfile.DISABLED && indexType != KnnIndexTester.IndexType.IVF) {
                 throw new IllegalArgumentException("auto_calibrate is only supported when index_type is ivf");
             }
             if (exactQuantized.contains(Boolean.TRUE) && quantizeBits == null && indexType != KnnIndexTester.IndexType.IVF) {
@@ -1025,16 +1053,18 @@ public record TestConfiguration(
                 onDiskRescore,
                 searchRuns,
                 numMergeWorkers,
+                numQuantizerWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
-                autoCalibrate,
+                autoCalibrationProfile,
                 directoryType,
                 datasetConfig,
                 numDeletedDocs,
                 deleteSeed,
                 projectedDimsFraction,
+                maxProjectedDims,
                 quantizationType
             );
         }
@@ -1097,7 +1127,7 @@ public record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
-            builder.field(AUTO_CALIBRATE_FIELD.getPreferredName(), autoCalibrate);
+            builder.field(AUTO_CALIBRATE_FIELD.getPreferredName(), autoCalibrationProfile.toString());
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             if (numDeletedDocs > 0) {
                 builder.field(NUM_DELETED_DOCS_FIELD.getPreferredName(), numDeletedDocs);

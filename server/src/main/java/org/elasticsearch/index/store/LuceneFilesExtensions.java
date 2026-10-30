@@ -41,9 +41,14 @@ public enum LuceneFilesExtensions {
     DVD("dvd", "DocValues", false, true),
     DVM("dvm", "DocValues Metadata", true, false),
     DVS("dvs", "DocValues Skip data", true, false),
+    // Lucene90DocValuesFormat version 3 moved sparse-field IndexedDISI out of .dvd
+    DVP("dvp", "DocValues Presence", false, true),
     // ColumNAR doc values format
     CND("cnd", "ColumNAR Data", false, true),
     CNM("cnm", "ColumNAR Metadata", true, false),
+    CNA("cna", "ColumNAR Addressing", false, true),
+    CNL("cnl", "ColumNAR Lengths", false, true),
+    CNN("cnn", "ColumNAR Navigation", true, true),
     CNS("cns", "ColumNAR Skip data", true, false),
     FDM("fdm", "Field Metadata", true, false),
     FDT("fdt", "Field Data", false, false),

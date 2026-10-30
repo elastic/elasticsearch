@@ -20,7 +20,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
@@ -94,7 +94,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     public ES950DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         QuantEncoding encoding,
         int vectorPerCluster,
@@ -107,18 +106,53 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
+        this(
+            state,
+            rawVectorFormatName,
+            rawVectorDelegate,
+            encoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
+            blockDimension,
+            doPrecondition,
+            flatVectorThreshold,
+            flushConfigSource,
+            mergeConfigResolver,
+            ES950DiskBBQVectorsFormat.VERSION_CURRENT
+        );
+    }
+
+    /** Writes segments of {@code writeVersion}, for tests reading segments of earlier versions. */
+    ES950DiskBBQVectorsWriter(
+        SegmentWriteState state,
+        String rawVectorFormatName,
+        FlatVectorsWriter rawVectorDelegate,
+        QuantEncoding encoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        TaskExecutor mergeExec,
+        int numMergeWorkers,
+        int blockDimension,
+        boolean doPrecondition,
+        int flatVectorThreshold,
+        IvfFlushConfigSource flushConfigSource,
+        IvfMergeConfigResolver mergeConfigResolver,
+        int writeVersion
+    ) throws IOException {
         super(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
-            ES950DiskBBQVectorsFormat.VERSION_CURRENT,
+            writeVersion,
             ES950DiskBBQVectorsFormat.NAME,
             ES950DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES950DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES950DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            true,
-            flatVectorThreshold
+            writeVersion < ES950DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO,
+            flatVectorThreshold,
+            writeVersion >= ES950DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE && writeVersion < ES950DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -308,7 +342,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
                 "qvec_",
-                IOContext.DEFAULT
+                mergeContext().union(DataAccessHint.SEQUENTIAL)
             )
         ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
@@ -412,7 +446,12 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             }
         }
         // now we can read the quantized vectors from the temporary file
-        try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
+        try (
+            IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(
+                quantizedVectorsTempName,
+                mergeContext().union(DataAccessHint.RANDOM)
+            )
+        ) {
             final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(

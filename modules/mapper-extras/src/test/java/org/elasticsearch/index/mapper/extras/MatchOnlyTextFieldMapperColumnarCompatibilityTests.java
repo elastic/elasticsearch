@@ -12,9 +12,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -37,15 +35,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
 
     /** Index settings with the codec on, so the field's doc values are written as its payload. */
     private static Settings columnarCodecSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
-    }
-
-    private void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     /**
@@ -53,7 +43,6 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
      * batch path cannot take straight from the source column, so these pin it against the row path.
      */
     public void testColumnarCodecSingleValue() throws IOException {
-        assumeColumnarCodecEnabled();
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarCodecSettings(),
@@ -62,7 +51,6 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
     }
 
     public void testColumnarCodecArrayOrder() throws IOException {
-        assumeColumnarCodecEnabled();
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
             columnarCodecSettings(),
@@ -78,10 +66,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -178,7 +163,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -196,7 +181,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // Present value, absent doc ({}), and explicit JSON null -> absent (no null_value).
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -214,7 +199,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // Default index:true — both a terms column and a binary DV column are emitted.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -252,7 +237,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
@@ -264,7 +249,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
@@ -275,7 +260,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // the fast path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),

@@ -84,6 +84,8 @@ dependencies {
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
+  javaRestTestImplementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+  javaRestTestImplementation sourceSets.main.output
 
   api "com.google.protobuf:protobuf-java:${protobufVersion}"
   // The protobuf plugin only adds a dependency for the variant relevant for the current platform.

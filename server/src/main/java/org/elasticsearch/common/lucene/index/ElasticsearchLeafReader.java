@@ -10,8 +10,12 @@ package org.elasticsearch.common.lucene.index;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.store.DataAccessHint;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * A {@link org.apache.lucene.index.FilterLeafReader} that exposes
@@ -37,6 +41,11 @@ public final class ElasticsearchLeafReader extends SequentialStoredFieldsLeafRea
      */
     public ShardId shardId() {
         return this.shardId;
+    }
+
+    @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        return in.getFloatVectorValues(field, access);
     }
 
     @Override

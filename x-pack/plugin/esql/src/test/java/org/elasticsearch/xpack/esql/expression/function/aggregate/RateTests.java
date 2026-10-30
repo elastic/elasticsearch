@@ -76,7 +76,7 @@ public class RateTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Rate(source, args.get(0), Literal.TRUE, Rate.NO_WINDOW, args.get(1), args.get(2));
+        return new Rate(source, args.get(0), args.get(1), Literal.TRUE, Rate.NO_WINDOW, args.get(2));
     }
 
     @Override

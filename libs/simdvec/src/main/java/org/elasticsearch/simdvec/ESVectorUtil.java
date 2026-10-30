@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -18,6 +19,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -853,6 +855,38 @@ public class ESVectorUtil {
     }
 
     /**
+     * Searches for the first occurrence of one of {@link java.util.regex.Pattern}'s 5 default
+     * {@linkplain java.util.regex.Pattern##lt line terminators} ({@code \n}, {@code \r},
+     * {@code \u0085}, {@code \u2028}, {@code \u2029}) in the specified range of the array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first byte that is a <em>candidate</em> occurrence of one
+     * of them within this slice, or {@code -1} if none is found -- not every candidate is a
+     * confirmed terminator, so callers must verify the full sequence at that index themselves.
+     *
+     * <p>Most useful for cheaply proving the <em>absence</em> of a line terminator in a range: a
+     * single {@code -1} result is a definitive negative, whereas confirming presence requires the
+     * caller to also validate the candidate's full byte sequence and keep scanning past any false
+     * positive.
+     *
+     * <p><b>Implementation note:</b> actually searches for just the 4 distinct UTF-8 lead bytes of
+     * those terminators -- {@code 0x0A}, {@code 0x0D}, {@code 0xC2} (leads {@code \u0085}), and
+     * {@code 0xE2} (leads both {@code \u2028} and {@code \u2029}, which share a UTF-8 prefix). A hit
+     * on {@code 0xC2}/{@code 0xE2} is only a candidate, not confirmed, because both bytes also occur
+     * in unrelated code points.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @return the relative index (0..length-1) of the first candidate match, or {@code -1} if none
+     *         is found
+     */
+    public static int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOfLineTerminatorLeadByte(bytes, offset, length);
+    }
+
+    /**
      * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
      * within {@code value}.
      *
@@ -874,6 +908,87 @@ public class ESVectorUtil {
             return false;
         }
         return IMPL.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
+     * Whether {@code value} may contain {@code term}, treating upper and lower case ASCII letters as equal.
+     *
+     * <p>A {@code false} is final: no ASCII casing of the term appears in the value. A {@code true} is a candidate
+     * the caller confirms by reading the bytes.
+     *
+     * <p>The comparison sets bit {@code 0x20} on every byte, which folds {@code A-Z} onto {@code a-z} and carries a
+     * few other pairs with them ({@code @} onto {@code `}, {@code [} onto <code>{</code>, a newline onto {@code *}).
+     * Bytes outside ASCII fold the same way without being case-folded at all, so ask {@link #anyNonAscii} where
+     * ignoring ASCII case has to mean ignoring case.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return false where the value cannot hold the term, true where it may
+     */
+    public static boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return true;
+        }
+        if (termLength > valueLength) {
+            return false;
+        }
+        return IMPL.mayContainIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
+     * The first index into {@code value} where {@code term} may appear, treating upper and lower case ASCII letters
+     * as equal, or -1 where it cannot appear at all. The index is a candidate in the same way
+     * {@link #mayContainIgnoringAsciiCase} answers one, so the caller confirms it by reading the bytes. Asking again
+     * over what follows an index walks every occurrence.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return an index into {@code value}, or -1 where the term cannot appear
+     */
+    public static int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return valueOffset;
+        }
+        if (termLength > valueLength) {
+            return -1;
+        }
+        return IMPL.indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
+     * Whether any byte of the range has its high bit set, which every byte of a non-ASCII UTF-8 character does. A
+     * {@code false} means the range is plain ASCII, where ignoring ASCII case is ignoring case altogether. An empty
+     * range is ASCII.
+     */
+    public static boolean anyNonAscii(byte[] value, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, value.length);
+        return IMPL.anyNonAscii(value, offset, length);
     }
 
     /**
@@ -1095,9 +1210,9 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n, TaskExecutor executor) {
         float[] result = new float[m * n];
-        matrixMultiply(a, b, m, k, n, result);
+        matrixMultiply(a, b, m, k, n, result, executor);
         return result;
     }
 
@@ -1105,7 +1220,7 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
         if (a.length != m * k) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
         }
@@ -1115,7 +1230,45 @@ public class ESVectorUtil {
         if (result.length != m * n) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result);
+        IMPL.matrixMultiply(a, b, m, k, n, result, executor);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (n x k), B is (k x n) and C is (n x n), all row-major, for a product that
+     * is known to be symmetric, such as {@code A^T A}. It computes only the entries on and above the diagonal, about half
+     * of the work of {@link #matrixMultiplyI8}, and copies them into the lower triangle. The result is undefined if the
+     * product is not symmetric. Whatever {@code result} held before is overwritten.
+     */
+    public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        if (a.length != n * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != n * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major signed bytes.
+     * Result C is (m x n), accumulated in exact int32 arithmetic.
+     */
+    public static void matrixMultiplyI8(
+        MemorySegment a,
+        MemorySegment b,
+        int m,
+        int k,
+        int n,
+        MemorySegment result,
+        TaskExecutor executor
+    ) {
+        if (!a.isNative()) throw new IllegalArgumentException("a must be a native memory segment");
+        if (!b.isNative()) throw new IllegalArgumentException("b must be a native memory segment");
+        if (!result.isNative()) throw new IllegalArgumentException("result must be a native memory segment");
+        IMPL.matrixMultiplyI8(a, b, m, k, n, result, executor);
     }
 
     /**
@@ -1143,6 +1296,29 @@ public class ESVectorUtil {
      * @param result output vector, length rows
      */
     public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix of signed bytes,
+     * accumulated in exact int32 arithmetic.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
         if (a.length != rows * cols) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
         }

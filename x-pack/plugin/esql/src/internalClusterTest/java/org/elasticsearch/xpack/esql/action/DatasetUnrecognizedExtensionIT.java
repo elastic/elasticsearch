@@ -117,7 +117,7 @@ public class DatasetUnrecognizedExtensionIT extends AbstractExternalDataSourceIT
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM vpcflow_noformat | LIMIT 1"), TIMEOUT).close());
 
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(glob)));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
 

@@ -46,16 +46,31 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.StandardIOBehaviorHint;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -285,12 +300,63 @@ public class KnnIndexer {
     }
 
     static Directory getDirectory(Path indexPath) throws IOException {
+        return getDirectory(indexPath, false);
+    }
+
+    /**
+     * @param onDiskRescore whether searches rescore the vector field from disk, as {@code on_disk_rescore} in its mapping says
+     */
+    static Directory getDirectory(Path indexPath, boolean onDiskRescore) throws IOException {
         Directory dir = FSDirectory.open(indexPath);
         if (dir instanceof MMapDirectory mmapDir) {
             mmapDir.setReadAdvice(getReadAdviceFunc()); // enable madvise
-            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64);
+            MappingLookup mapping = vectorFieldMapping(onDiskRescore);
+            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64, () -> mapping);
         }
         return dir;
+    }
+
+    /** A mapping holding only the vector field, as a disk BBQ field with the given {@code on_disk_rescore}. */
+    private static MappingLookup vectorFieldMapping(boolean onDiskRescore) {
+        Map<String, Object> indexOptions = new HashMap<>(Map.of("on_disk_rescore", onDiskRescore));
+        FieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            VECTOR_FIELD,
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            false,
+            true,
+            List.of(),
+            false
+        ).indexOptions(
+            DenseVectorFieldMapper.VectorIndexType.BBQ_DISK.parseIndexOptions(VECTOR_FIELD, indexOptions, mappingParserContext(), true)
+        ).build(MapperBuilderContext.root(false, false));
+        return MappingLookup.fromMappers(Mapping.EMPTY, List.of(mapper), List.of(), IndexMode.STANDARD);
+    }
+
+    /** The parser context index options are parsed with: only the index version created is read. */
+    private static MappingParserContext mappingParserContext() {
+        IndexMetadata metadata = IndexMetadata.builder("knn")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+        return new MappingParserContext(
+            null,
+            null,
+            null,
+            IndexVersion.current(),
+            TransportVersion::current,
+            f -> true,
+            null,
+            ScriptCompiler.NONE,
+            null,
+            new IndexSettings(metadata, Settings.EMPTY),
+            null,
+            null
+        );
     }
 
     /**
@@ -394,7 +460,7 @@ public class KnnIndexer {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE) || name.endsWith(".cfs")) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
-            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+            return FsDirectoryFactory.getReadAdviceFunc().apply(name, context);
         };
     }
 
@@ -424,10 +490,12 @@ public class KnnIndexer {
     public static class PartitionDocumentFactory implements DocumentFactory {
         private final String[] docPartitionIds;
         private final int[] docOrdinals;
+        private final boolean sliced;
 
-        public PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals) {
+        public PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals, boolean sliced) {
             this.docPartitionIds = docPartitionIds;
             this.docOrdinals = docOrdinals;
+            this.sliced = sliced;
         }
 
         @Override
@@ -435,7 +503,11 @@ public class KnnIndexer {
             Document doc = new Document();
             doc.add(vectorField);
             doc.add(new StringField(ID_FIELD, Integer.toString(docOrdinals[docOrd]), Field.Store.YES));
-            doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
+            final String partitionId = docPartitionIds[docOrd];
+            doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(partitionId)));
+            if (sliced) {
+                doc.add(SortedDocValuesField.indexedField(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(partitionId)));
+            }
             return doc;
         }
     }

@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorRe
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Set;
@@ -88,7 +91,11 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
-        action = new TransportGrantApiKeyAction(
+        action = newTransportGrantApiKeyAction(transportService, threadContext);
+    }
+
+    private TransportGrantApiKeyAction newTransportGrantApiKeyAction(TransportService transportService, ThreadContext threadContext) {
+        return new TransportGrantApiKeyAction(
             transportService,
             ActionFilters.EMPTY,
             threadContext,
@@ -443,6 +450,225 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("the provided grant credentials do not support run-as"));
         assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testGrantApiKeyWithUserManagedServiceAccountToken() throws Exception {
+        final ServiceAccountId accountId = new ServiceAccountId("apps", randomAlphaOfLengthBetween(3, 8));
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .userManagedServiceAccount(accountId.asPrincipal(), randomAlphaOfLengthBetween(4, 12))
+            .build(false);
+
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        final ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(accountId, "token-" + randomAlphaOfLength(4));
+        request.getGrant().setServiceAccountToken(serviceAccountToken.asBearerString());
+
+        final CreateApiKeyResponse response = mockResponse(request);
+
+        doAnswer(inv -> {
+            assertThat(threadPool.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER), nullValue());
+            final Object[] args = inv.getArguments();
+            assertThat(args, arrayWithSize(4));
+
+            assertThat(args[0], equalTo(GrantApiKeyAction.NAME));
+            assertThat(args[1], sameInstance(request));
+            assertThat(args[2], instanceOf(ServiceAccountToken.class));
+            // the parsed token carries the same identity and secret as the credential in the request
+            final ServiceAccountToken token = (ServiceAccountToken) args[2];
+            assertThat(token.getQualifiedName(), equalTo(serviceAccountToken.getQualifiedName()));
+            assertThat(token.getSecret(), equalTo(serviceAccountToken.getSecret()));
+
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
+            listener.onResponse(authentication);
+
+            return null;
+        }).when(authenticationService)
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(ServiceAccountToken.class), anyActionListener());
+
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        assertThat(future.actionGet(), sameInstance(response));
+        verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
+        assertServiceAccountCredentialsCleared(request);
+    }
+
+    public void testGrantApiKeyWithBuiltInServiceAccountTokenFails() throws Exception {
+        final ServiceAccountId accountId = new ServiceAccountId("elastic", randomFrom("fleet-server", "kibana"));
+        // the credential authenticates, but as a built-in account rather than a user-managed one
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .serviceAccount(new User(accountId.asPrincipal()))
+            .build(false);
+
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        try (ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(accountId, "token-" + randomAlphaOfLength(4))) {
+            request.getGrant().setServiceAccountToken(serviceAccountToken.asBearerString());
+        }
+
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> listener = (ActionListener<Authentication>) inv.getArguments()[3];
+            listener.onResponse(authentication);
+            return null;
+        }).when(authenticationService)
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(ServiceAccountToken.class), anyActionListener());
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e, throwableWithMessage("[service_account_token] must belong to a user-managed service account"));
+        assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+        assertServiceAccountCredentialsCleared(request);
+    }
+
+    public void testGrantApiKeyWithServiceAccountTokenClearsCredentialsOnAuthenticationFailure() throws Exception {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        try (ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(new ServiceAccountId("apps", "worker"), "token-1")) {
+            request.getGrant().setServiceAccountToken(serviceAccountToken.asBearerString());
+        }
+
+        final ElasticsearchSecurityException failure = new ElasticsearchSecurityException(
+            "authentication failed for testing",
+            RestStatus.UNAUTHORIZED
+        );
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> listener = (ActionListener<Authentication>) inv.getArguments()[3];
+            listener.onFailure(failure);
+            return null;
+        }).when(authenticationService)
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(ServiceAccountToken.class), anyActionListener());
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), sameInstance(failure));
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+        verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
+        assertServiceAccountCredentialsCleared(request);
+    }
+
+    public void testGrantApiKeyWithMalformedServiceAccountTokenFails() {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        request.getGrant().setServiceAccountToken(new SecureString("obviously not a service account token".toCharArray()));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e, throwableWithMessage("[service_account_token] is not a valid service account token"));
+        assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        // the credential is cleared even though it was never handed to the authentication service
+        expectThrows(IllegalStateException.class, () -> request.getGrant().getServiceAccountToken().getChars());
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    public void testServiceAccountGrantRequiresServiceAccountToken() {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        if (randomBoolean()) {
+            request.getGrant().setServiceAccountToken(new SecureString(new char[0]));
+        }
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("[service_account_token] is required for grant_type [_user_managed_service_account]"));
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    public void testServiceAccountGrantRejectsOtherCredentialsAndRunAs() throws Exception {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("_user_managed_service_account");
+        try (ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(new ServiceAccountId("apps", "worker"), "token-1")) {
+            request.getGrant().setServiceAccountToken(serviceAccountToken.asBearerString());
+        }
+        final String unsupportedField = randomFrom("username", "password", "access_token", "run_as", "client_authentication");
+        switch (unsupportedField) {
+            case "username" -> request.getGrant().setUsername(randomAlphaOfLengthBetween(4, 12));
+            case "password" -> request.getGrant().setPassword(new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray()));
+            case "access_token" -> request.getGrant().setAccessToken(new SecureString(randomAlphaOfLength(20).toCharArray()));
+            case "run_as" -> request.getGrant().setRunAsUsername(randomAlphaOfLengthBetween(4, 12));
+            case "client_authentication" -> request.getGrant()
+                .setClientAuthentication(new Grant.ClientAuthentication(new SecureString("whatever".toCharArray())));
+            default -> throw new AssertionError("unexpected field [" + unsupportedField + "]");
+        }
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("[" + unsupportedField + "] is not supported for grant_type [_user_managed_service_account]")
+        );
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    public void testServiceAccountTokenIsNotSupportedForOtherGrantTypes() throws Exception {
+        final GrantApiKeyRequest request = mockRequest();
+        if (randomBoolean()) {
+            request.getGrant().setType("password");
+            request.getGrant().setUsername(randomAlphaOfLengthBetween(4, 12));
+            request.getGrant().setPassword(new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray()));
+        } else {
+            request.getGrant().setType("access_token");
+            request.getGrant().setAccessToken(new SecureString(randomAlphaOfLength(20).toCharArray()));
+        }
+        try (ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(new ServiceAccountId("apps", "worker"), "token-1")) {
+            request.getGrant().setServiceAccountToken(serviceAccountToken.asBearerString());
+        }
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.execute(null, request, future);
+
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("[service_account_token] is not supported for grant_type [" + request.getGrant().getType() + "]")
+        );
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
+    }
+
+    /**
+     * Both copies of a service account credential must be cleared once authentication completes: the request field, and
+     * the secret of the parsed {@link ServiceAccountToken} handed to the authentication service, which is a separate buffer.
+     */
+    private void assertServiceAccountCredentialsCleared(GrantApiKeyRequest request) {
+        final ArgumentCaptor<AuthenticationToken> tokenCaptor = ArgumentCaptor.forClass(AuthenticationToken.class);
+        verify(authenticationService).authenticate(eq(GrantApiKeyAction.NAME), same(request), tokenCaptor.capture(), anyActionListener());
+        assertThat(tokenCaptor.getValue(), instanceOf(ServiceAccountToken.class));
+        final ServiceAccountToken token = (ServiceAccountToken) tokenCaptor.getValue();
+        expectThrows(IllegalStateException.class, () -> token.getSecret().getChars());
+        expectThrows(IllegalStateException.class, () -> request.getGrant().getServiceAccountToken().getChars());
     }
 
     private Authentication buildAuthentication(String username) {

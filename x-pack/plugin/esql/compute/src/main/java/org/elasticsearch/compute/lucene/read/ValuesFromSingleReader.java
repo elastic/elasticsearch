@@ -24,6 +24,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Loads values from a single shard. Much more efficient than {@link ValuesFromManyReader}.
@@ -212,14 +213,17 @@ class ValuesFromSingleReader extends ValuesReader {
     ) throws IOException {
         SourceLoader sourceLoader = null;
         ValuesSourceReaderOperator.ShardContext shardContext = operator.shardContexts.get(shard);
+        // Read before merging in the source loader's stored fields below, which resets the paths to "the whole document".
+        Set<String> sourcePaths = storedFieldsSpec.sourcePaths();
         if (storedFieldsSpec.requiresSource()) {
-            sourceLoader = shardContext.newSourceLoader().apply(storedFieldsSpec.sourcePaths());
+            sourceLoader = operator.sourceLoader(shard, sourcePaths);
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
         StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
-            sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
+            sourceLoader != null ? sourceLoader.leaf(ctx, null) : null,
+            sourcePaths
         );
         int sourceBackedFieldCount = 0;
         for (RowStrideReaderWork work : rowStrideReaders) {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,6 +38,8 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
+
 /**
  * Plugin for the project encryption key (PEK) lifecycle. Wires up the key cache, rotation coordinator, AES-GCM encryption service, and
  * health indicator. Loads {@link EncryptedDataHandlerProvider} contributions from other plugins and forwards secure-settings reloads.
@@ -47,6 +50,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
+    private final SetOnce<SnapshotEncryptedDataFilter> snapshotEncryptedDataFilter = new SetOnce<>();
 
     private volatile Settings pekSettings;
 
@@ -81,6 +85,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         EncryptionServiceRegistry.setEncryptionService(encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
+        EncryptedDataHandlerRegistry.setInstance(handlerRegistry);
+        snapshotEncryptedDataFilter.set(
+            new SnapshotEncryptedDataFilter(services.clusterService(), services.projectResolver(), handlerRegistry, pekService::state)
+        );
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),
             services.threadPool(),
@@ -142,6 +150,11 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     @Override
     public Collection<ActionHandler> getActions() {
         return List.of(new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class));
+    }
+
+    @Override
+    public Collection<MappedActionFilter> getMappedActionFilters() {
+        return singletonList(snapshotEncryptedDataFilter.get());
     }
 
     @Override

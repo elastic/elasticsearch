@@ -9,35 +9,76 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.NoReuseHint;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SleepingLockWrapper;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.StandardIOBehaviorHint;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
+import java.util.zip.CRC32;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
 
 public class FsDirectoryFactoryTests extends ESTestCase {
 
@@ -156,7 +197,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryFactory service = new FsDirectoryFactory();
-        try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE, indexSettings)) {
+        try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE, indexSettings, () -> MappingLookup.EMPTY)) {
             switch (type) {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
@@ -180,6 +221,711 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     break;
                 default:
                     fail();
+            }
+        }
+    }
+
+    /** A field whose mapping asks to keep its raw vectors off the page cache. */
+    private static final MappingLookup ON_DISK_VECTOR_FIELD = vectorField(true, true);
+
+    /** A mapping holding the dense vector field {@code vector}, with the given {@code on_disk_rescore} and {@code on_disk_merge}. */
+    static MappingLookup vectorField(boolean onDiskRescore, boolean onDiskMerge) {
+        Map<String, Object> indexOptions = new HashMap<>(Map.of("on_disk_rescore", onDiskRescore, "on_disk_merge", onDiskMerge));
+        FieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "vector",
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            false,
+            false,
+            List.of(),
+            false
+        ).dimensions(64)
+            .indexOptions(
+                DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW.parseIndexOptions("vector", indexOptions, mappingParserContext(), false)
+            )
+            .build(MapperBuilderContext.root(false, false));
+        return MappingLookup.fromMappers(Mapping.EMPTY, List.of(mapper), List.of(), IndexMode.STANDARD);
+    }
+
+    /** The parser context index options are parsed with: only the index version created is read. */
+    private static MappingParserContext mappingParserContext() {
+        return new MappingParserContext(
+            null,
+            null,
+            null,
+            IndexVersion.current(),
+            TransportVersion::current,
+            f -> true,
+            null,
+            ScriptCompiler.NONE,
+            null,
+            IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
+            query -> {
+                throw new UnsupportedOperationException();
+            },
+            null
+        );
+    }
+
+    /** A merge-context write of raw vectors, as a writer issues it. */
+    private static IOContext directIOMergeContext() {
+        return IOContext.merge(new MergeInfo(randomIntBetween(1, 1000), randomLongBetween(1, 1 << 20), false, -1))
+            .union(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE, new VectorFieldHint("vector"));
+    }
+
+    /**
+     * Whether merge-hinted creates through the given directory come out as direct I/O outputs: they
+     * do exactly when the directory has its merge delegate and the filesystem accepts direct I/O
+     * writes. The probe is a raw vector file: only those reach the merge delegate. Decides which of the two
+     * paths through {@code HybridDirectory#createOutput} a test exercises: the direct one where
+     * supported, the fallback to a buffered output where not.
+     * Neither outcome is skipped: both paths have to work.
+     */
+    private static boolean mergeCreatesAreDirect(FsDirectoryFactory.HybridDirectory dir) throws IOException {
+        boolean direct;
+        try (IndexOutput probe = dir.createOutput("_sample.vec", directIOMergeContext())) {
+            probe.writeInt(42);
+            // DirectIOIndexOutput is package-private in Lucene, so the class name in toString() is the only handle.
+            // If a Lucene upgrade renames it, this probe silently turns false and the direct-only assertions that
+            // depend on it are skipped rather than failed: check here first when they stop running
+            direct = probe.toString().contains("DirectIOIndexOutput");
+        }
+        dir.deleteFile("_sample.vec");
+        return direct;
+    }
+
+    /** Only files that are not reused get random or sequential advice, following the access hint; a merge or flush alone gets none. */
+    public void testReadAdviceFollowsWhatTheFileSays() {
+        var advice = FsDirectoryFactory.getReadAdviceFunc();
+        Optional<ReadAdvice> unadvised = Optional.of(Constants.DEFAULT_READADVICE);
+
+        assertEquals(unadvised, advice.apply("_0.vec", IOContext.DEFAULT));
+        assertEquals("read again, so it keeps its recency", unadvised, advice.apply("_0.vec", randomAccess()));
+        assertEquals("read again, so it keeps its recency", unadvised, advice.apply("_0.vec", sequentialAccess()));
+        assertEquals("no access pattern to act on", unadvised, advice.apply("_0.vec", IOContext.DEFAULT.withHints(NoReuseHint.INSTANCE)));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), advice.apply("_0.vec", randomAccess().union(NoReuseHint.INSTANCE)));
+        assertEquals(Optional.of(ReadAdvice.SEQUENTIAL), advice.apply("_0.vec", sequentialAccess().union(NoReuseHint.INSTANCE)));
+        assertEquals("read once is not read again", Optional.of(ReadAdvice.SEQUENTIAL), advice.apply("_0.si", IOContext.READONCE));
+
+        IOContext merge = IOContext.merge(new MergeInfo(1, 1L, false, 1));
+        assertEquals("a merge alone is not a reason", unadvised, advice.apply("_0.vec", merge));
+        assertEquals(
+            "a merge building a graph reads at random and again",
+            unadvised,
+            advice.apply("_0.vec", merge.withHints(DataAccessHint.RANDOM))
+        );
+        assertEquals(
+            "a merge that streams but does not say so",
+            unadvised,
+            advice.apply("_0.vec", merge.withHints(DataAccessHint.SEQUENTIAL))
+        );
+        assertEquals(
+            "a merge that reads front to back and does not come back",
+            Optional.of(ReadAdvice.SEQUENTIAL),
+            advice.apply("_0.vec", merge.withHints(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE))
+        );
+        assertEquals("a flush alone is not a reason", unadvised, advice.apply("_0.vec", IOContext.flush(new FlushInfo(1, 1L))));
+
+        assertEquals(
+            "standard I/O behaviour overrides what the file says",
+            Optional.of(ReadAdvice.NORMAL),
+            advice.apply(
+                "_0.vec",
+                IOContext.DEFAULT.withHints(StandardIOBehaviorHint.INSTANCE, DataAccessHint.RANDOM, NoReuseHint.INSTANCE)
+            )
+        );
+    }
+
+    private static IOContext randomAccess() {
+        return IOContext.DEFAULT.withHints(DataAccessHint.RANDOM);
+    }
+
+    private static IOContext sequentialAccess() {
+        return IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL);
+    }
+
+    public void testOnlyRawVectorFilesGoToTheMergeDelegate() {
+        for (String name : new String[] { "_0.vec", "_0_ES93HnswVectorsFormat_0.vec" }) {
+            assertTrue(name, FsDirectoryFactory.HybridDirectory.isRawVectorFile(name));
+        }
+        // a .vec.tmp is a temp file, not raw vector data: HybridDirectory#getExtension reports "tmp"
+        // recovery writes its copies under names whose extension is not Lucene's
+        for (String name : new String[] {
+            "_0.vemf",
+            "_0.veq",
+            "_0.veb",
+            "_0.vex",
+            "_0.mivf",
+            "_0_x.vec.tmp",
+            "_0",
+            "recovery.uuid.segments_2" }) {
+            assertFalse(name, FsDirectoryFactory.HybridDirectory.isRawVectorFile(name));
+        }
+    }
+
+    /**
+     * Which opens go to direct I/O: only raw vectors that say they are not reused, of a field whose mapping asks for it. A
+     * merge only streams them with it ({@code on_disk_merge}) and refuses it at random; a search reads them at random with it
+     * ({@code on_disk_rescore}); a flush never uses it.
+     */
+    public void testHybridDirectoryDirectIOReadsFollowTheMappingAndTheAccess() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        VectorFieldHint field = new VectorFieldHint("vector");
+        IOContext merge = IOContext.merge(new MergeInfo(1, 1L, false, -1));
+        MappingLookup rescore = vectorField(true, false);
+        MappingLookup merges = vectorField(false, true);
+        MappingLookup both = vectorField(true, true);
+
+        IOContext searchRead = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field);
+        assertTrue("a rescore read", opensDirect(rescore, "_0.vec", searchRead));
+        assertFalse("the field did not ask for it", opensDirect(merges, "_0.vec", searchRead));
+
+        IOContext mergeStream = merge.withHints(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE, field);
+        assertTrue("a merge stream", opensDirect(merges, "_0.vec", mergeStream));
+        assertFalse("the field did not ask for it", opensDirect(rescore, "_0.vec", mergeStream));
+
+        assertFalse(
+            "a merge reading at random",
+            opensDirect(both, "_0.vec", merge.withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field))
+        );
+        assertFalse("reused", opensDirect(both, "_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, field)));
+        // a graph walks these raw vectors, so they are reused, but a merge streaming them bypasses the page cache
+        IOContext graphMergeStream = merge.withHints(DataAccessHint.SEQUENTIAL, field);
+        assertTrue("a merge streaming the raw vectors a graph walks", opensDirect(merges, "_0.vec", graphMergeStream));
+        assertFalse("the field did not ask for it", opensDirect(rescore, "_0.vec", graphMergeStream));
+        assertFalse(
+            "a merge writing them without saying it streams them, as a graph that reads them back does",
+            createsDirect(merges, "_0.vec", merge.withHints(field))
+        );
+        assertTrue("a merge streaming the raw vectors searches scan", createsDirect(merges, "_0.vec", graphMergeStream));
+        assertFalse("the field did not ask for it", createsDirect(rescore, "_0.vec", graphMergeStream));
+        assertTrue("a merge writing raw vectors kept only to rescore", createsDirect(merges, "_0.vec", mergeStream));
+        assertFalse(
+            "a merge streaming a temp file that is reused",
+            opensDirect(merges, "_0_ivfdoc_1.tmp", merge.withHints(FileDataHint.KNN_VECTORS, DataAccessHint.SEQUENTIAL, field))
+        );
+        assertFalse(
+            "no field to ask about",
+            opensDirect(both, "_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE))
+        );
+        assertFalse("not raw vectors", opensDirect(both, "_0.veq", searchRead));
+        assertFalse(
+            "a flush",
+            opensDirect(both, "_0.vec", IOContext.flush(new FlushInfo(1, 1L)).withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field))
+        );
+
+        IOContext tempVectors = merge.withHints(FileDataHint.KNN_VECTORS, DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE, field);
+        assertTrue("a merge streaming its copy of the raw vectors", opensDirect(merges, "_0_ivfvec_1.tmp", tempVectors));
+        assertFalse(
+            "a merge reading its copy at random",
+            opensDirect(
+                both,
+                "_0_ivfvec_1.tmp",
+                merge.withHints(FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field)
+            )
+        );
+    }
+
+    /**
+     * The mapping is read when a file is opened: turning the options on or off reaches the next open of the field's raw
+     * vectors, while an input already open keeps reading the way it was opened.
+     */
+    public void testHybridDirectoryDirectIOFollowsTheMappingAsFilesAreOpened() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOMappingUpdate");
+        AtomicInteger directOpens = new AtomicInteger();
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> openOptions, FileAttribute<?>... attrs) throws IOException {
+                if (openOptions.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(openOptions);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, openOptions, attrs);
+            }
+        };
+        AtomicReference<MappingLookup> mapping = new AtomicReference<>(vectorField(false, false));
+        VectorFieldHint field = new VectorFieldHint("vector");
+        IOContext searchRead = IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field);
+        IOContext mergeStream = IOContext.merge(new MergeInfo(1, 1L, false, -1))
+            .withHints(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE, field);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(counting.wrapPath(path)),
+                0,
+                mapping::get
+            )
+        ) {
+            byte[] data = randomByteArrayOfLength(8192);
+            try (IndexOutput out = dir.createOutput("_0.vec", IOContext.DEFAULT)) {
+                out.writeBytes(data, data.length);
+            }
+            directOpens.set(0);
+            try (IndexInput search = dir.openInput("_0.vec", searchRead)) {
+                assertEquals("off: a search reads through the page cache", 0, directOpens.get());
+
+                mapping.set(vectorField(true, true));
+                try (IndexInput rescore = dir.openInput("_0.vec", searchRead); IndexInput merge = dir.openInput("_0.vec", mergeStream)) {
+                    assertEquals("on: the next search and merge read with direct I/O", 2, directOpens.get());
+                    // each input reads the file, whichever way it was opened
+                    assertEquals(data[0], rescore.readByte());
+                    assertEquals(data[0], merge.readByte());
+                }
+                assertEquals("the input opened before the update still reads", data[0], search.readByte());
+
+                mapping.set(vectorField(false, false));
+                try (IndexInput rescore = dir.openInput("_0.vec", searchRead); IndexInput merge = dir.openInput("_0.vec", mergeStream)) {
+                    assertEquals("off again: no new direct open", 2, directOpens.get());
+                    assertEquals(data[0], rescore.readByte());
+                    assertEquals(data[0], merge.readByte());
+                }
+            }
+        }
+    }
+
+    /** A merge's temp copy of the raw vectors is written with direct I/O like the field's own file, and reads back. */
+    public void testHybridDirectoryDirectIOTempOutput() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        VectorFieldHint field = new VectorFieldHint("vector");
+        IOContext stream = IOContext.merge(new MergeInfo(1, 1L, false, -1))
+            .withHints(FileDataHint.KNN_VECTORS, DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE, field);
+        assertTrue("on_disk_merge", createsTempDirect(vectorField(false, true), stream));
+        assertFalse("on_disk_rescore only", createsTempDirect(vectorField(true, false), stream));
+        assertFalse(
+            "reused",
+            createsTempDirect(
+                vectorField(true, true),
+                IOContext.merge(new MergeInfo(1, 1L, false, -1)).withHints(FileDataHint.KNN_VECTORS, DataAccessHint.SEQUENTIAL, field)
+            )
+        );
+    }
+
+    /** Whether creating a temp file with {@code context} goes to direct I/O, for a field mapped as {@code mapping}. */
+    private boolean createsTempDirect(MappingLookup mapping, IOContext context) throws IOException {
+        Path path = createTempDir("directIOTemp");
+        AtomicInteger directOpens = new AtomicInteger();
+        // counts the direct opens and strips the option, so that a direct create "works" on any file system
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> openOptions, FileAttribute<?>... attrs) throws IOException {
+                if (openOptions.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(openOptions);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, openOptions, attrs);
+            }
+        };
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(counting.wrapPath(path)),
+                0,
+                () -> mapping
+            )
+        ) {
+            byte[] bytes = randomByteArrayOfLength(8192);
+            String name;
+            try (IndexOutput out = dir.createTempOutput("_0", "ivfvec_", context)) {
+                name = out.getName();
+                out.writeBytes(bytes, bytes.length);
+            }
+            assertTrue(name, name.startsWith("_0_ivfvec_") && name.endsWith(".tmp"));
+            boolean direct = directOpens.get() > 0;
+            try (IndexInput in = dir.openInput(name, IOContext.DEFAULT)) {
+                byte[] read = new byte[bytes.length];
+                in.readBytes(read, 0, read.length);
+                assertArrayEquals(bytes, read);
+            }
+            return direct;
+        }
+    }
+
+    /** Whether creating {@code name} with {@code context} goes to direct I/O, for a field mapped as {@code mapping}. */
+    private boolean createsDirect(MappingLookup mapping, String name, IOContext context) throws IOException {
+        Path path = createTempDir("directIOWrite");
+        AtomicInteger directOpens = new AtomicInteger();
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> openOptions, FileAttribute<?>... attrs) throws IOException {
+                if (openOptions.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(openOptions);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, openOptions, attrs);
+            }
+        };
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(counting.wrapPath(path)),
+                0,
+                () -> mapping
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput(name, context)) {
+                out.writeBytes(new byte[8192], 8192);
+            }
+            return directOpens.get() > 0;
+        }
+    }
+
+    /** Whether opening {@code name} with {@code context} goes to direct I/O, for a field mapped as {@code mapping}. */
+    private boolean opensDirect(MappingLookup mapping, String name, IOContext context) throws IOException {
+        Path path = createTempDir("directIORead");
+        AtomicInteger directOpens = new AtomicInteger();
+        // counts the direct opens and strips the option, so that a direct open "works" on any file system
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> openOptions, FileAttribute<?>... attrs) throws IOException {
+                if (openOptions.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(openOptions);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, openOptions, attrs);
+            }
+        };
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(counting.wrapPath(path)),
+                0,
+                () -> mapping
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput(name, IOContext.DEFAULT)) {
+                out.writeBytes(new byte[8192], 8192);
+            }
+            directOpens.set(0);
+            try (IndexInput in = dir.openInput(name, context)) {
+                in.readByte();
+            }
+            return directOpens.get() > 0;
+        }
+    }
+
+    public void testHybridDirectoryDirectIOWriteRoundTrip() throws IOException {
+        Path path = createTempDir("directIOWriteRoundTrip");
+        try (
+            // a prefetch limit, so that the rescore delegate's inputs differ in class from the merge delegate's
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(path),
+                64,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            boolean direct = mergeCreatesAreDirect(dir);
+
+            // these assertions only mean something where the raw vector file itself does go direct
+            if (direct) {
+                try (IndexOutput meta = dir.createOutput("_0.vemf", directIOMergeContext())) {
+                    assertThat(
+                        "only raw vector files take the merge delegate",
+                        meta,
+                        hasToString(not(containsString("DirectIOIndexOutput")))
+                    );
+                    meta.writeInt(7);
+                }
+                try (IndexOutput ctrl = dir.createOutput("_0_ctrl.vec", directIOMergeContext())) {
+                    ctrl.writeInt(7);
+                }
+                try (IndexInput meta = dir.openInput("_0.vemf", directIOMergeContext())) {
+                    assertThat(
+                        "only raw vector files take the merge delegate on open too",
+                        meta,
+                        hasToString(not(containsString("DirectIOIndexInput")))
+                    );
+                    assertEquals(7, meta.readInt());
+                }
+                try (IndexInput ctrl = dir.openInput("_0_ctrl.vec", directIOMergeContext())) {
+                    assertEquals(
+                        "a merge-hinted raw vector open takes the merge delegate, not the prefetching rescore one",
+                        "DirectIOIndexInput",
+                        FilterIndexInput.unwrap(ctrl).getClass().getSimpleName()
+                    );
+                    assertEquals(7, ctrl.readInt());
+                }
+            }
+            try (IndexOutput plain = dir.createOutput("_0_plain.vec", IOContext.merge(new MergeInfo(10, 1024, false, -1)))) {
+                assertThat(plain, hasToString(not(containsString("DirectIOIndexOutput"))));
+            }
+            try (
+                IndexOutput plain = dir.createOutput(
+                    "_0_flush.vec",
+                    IOContext.DEFAULT.withHints(NoReuseHint.INSTANCE, new VectorFieldHint("vector"))
+                )
+            ) {
+                assertThat(plain, hasToString(not(containsString("DirectIOIndexOutput"))));
+            }
+
+            // deliberately not a multiple of any block or buffer size, to exercise the unaligned
+            // final block (written as a full aligned buffer and then truncated on close)
+            byte[] data = new byte[randomIntBetween(1, 4) * 256 * 1024 + (randomBoolean() ? 0 : randomIntBetween(1, 4095))];
+            random().nextBytes(data);
+
+            long checksum;
+            Matcher<String> directOutput = containsString("DirectIOIndexOutput");
+            try (IndexOutput out = dir.createOutput("_0_direct.vec", directIOMergeContext())) {
+                assertThat(
+                    "a merge-hinted create must take the same path as every other on this directory",
+                    out,
+                    hasToString(direct ? directOutput : not(directOutput))
+                );
+                out.writeBytes(data, data.length);
+                assertEquals(data.length, out.getFilePointer());
+                checksum = out.getChecksum();
+            }
+
+            // logical length must be the truncated length, not the last aligned write
+            assertEquals(data.length, dir.fileLength("_0_direct.vec"));
+
+            try (IndexInput in = dir.openInput("_0_direct.vec", IOContext.DEFAULT)) {
+                assertEquals(data.length, in.length());
+                byte[] read = new byte[data.length];
+                in.readBytes(read, 0, read.length);
+                assertArrayEquals(data, read);
+            }
+
+            CRC32 crc = new CRC32();
+            crc.update(data);
+            assertEquals("checksum must cover logical bytes only", crc.getValue(), checksum);
+        }
+    }
+
+    public void testHybridDirectoryDirectIOWriteExistingFile() throws IOException {
+        Path path = createTempDir("directIOWriteExisting");
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(path),
+                0,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            byte[] existing = new byte[randomIntBetween(1, 512)];
+            random().nextBytes(existing);
+            try (IndexOutput out = dir.createOutput("_0.vec", IOContext.DEFAULT)) {
+                out.writeBytes(existing, existing.length);
+            }
+
+            // the rejection may come from the direct create or, when the probe fails, from the buffered path
+            expectThrows(FileAlreadyExistsException.class, () -> dir.createOutput("_0.vec", directIOMergeContext()));
+
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(existing.length, in.length());
+                byte[] read = new byte[existing.length];
+                in.readBytes(read, 0, read.length);
+                assertArrayEquals(existing, read);
+            }
+        }
+    }
+
+    /**
+     * A failed direct open can leave the file behind: the JDK creates it and only then sets up direct I/O on the
+     * descriptor, so the directory probes with a file of its own before it creates a merge file.
+     */
+    public void testHybridDirectoryDirectIOWriteFallsBackWhenTheProbeFails() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOWriteFallback");
+        List<String> directAttempts = new CopyOnWriteArrayList<>();
+        // the JDK reports a failed descriptor setup as UnsupportedOperationException; a file system that rejects
+        // O_DIRECT fails the open with a FileSystemException: both leave the created file behind
+        boolean rejectedByTheFileSystem = randomBoolean();
+        FilterFileSystemProvider failing = new FilterFileSystemProvider("faildirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directAttempts.add(p.getFileName().toString());
+                    // what FileChannelImpl does: the open, and with it the create, succeed; the direct setup fails after
+                    Set<OpenOption> plain = new HashSet<>(options);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    super.newFileChannel(p, plain, attrs).close();
+                    if (rejectedByTheFileSystem) {
+                        throw new FileSystemException(p.toString(), null, "Invalid argument");
+                    }
+                    throw new UnsupportedOperationException("Error setting up DirectIO");
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        Path root = failing.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                assertThat(
+                    "the probe failed, so this must be the buffered path",
+                    out,
+                    hasToString(not(containsString("DirectIOIndexOutput")))
+                );
+                out.writeInt(3);
+            }
+            assertEquals("the probe is the one direct attempt", 1, directAttempts.size());
+            assertTrue("the probe file is removed", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+            assertEquals(4, dir.fileLength("_0.vec"));
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(3, in.readInt());
+            }
+
+            // a create over the existing name still fails, and the probe is repeated
+            expectThrows(FileAlreadyExistsException.class, () -> dir.createOutput("_0.vec", directIOMergeContext()));
+            assertEquals("the probe is repeated", 2, directAttempts.size());
+            assertTrue(
+                "the merge file is never opened directly: " + directAttempts,
+                directAttempts.stream().allMatch(f -> f.startsWith("_directio_probe_"))
+            );
+        }
+    }
+
+    /** A read that fails to open with direct I/O gets a plain mmap input, which searches can share like any other. */
+    public void testHybridDirectoryDirectIOReadFallsBackToMmap() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        assumeTrue("an input is shared only for contexts its mapping is advised the same way", MMapDirectory.supportsMadvise());
+        Path path = createTempDir("directIOReadFallback");
+        AtomicInteger directOpens = new AtomicInteger();
+        FilterFileSystemProvider failing = new FilterFileSystemProvider("faildirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    throw new FileSystemException(p.toString(), null, "Invalid argument");
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        VectorFieldHint field = new VectorFieldHint("vector");
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(failing.wrapPath(path)),
+                0,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            // larger than a page, so its mapping is advised
+            try (IndexOutput out = dir.createOutput("_0.vec", IOContext.DEFAULT)) {
+                for (int i = 0; i < 1 << 14; i++) {
+                    out.writeInt(i);
+                }
+            }
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field))) {
+                assertEquals("the rescore read tried direct I/O", 1, directOpens.get());
+                in.seek(4L * 42);
+                assertEquals(42, in.readInt());
+                assertTrue(
+                    "a search that reuses the vectors reads them the same way",
+                    in.isEfficientFor(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, field))
+                );
+            }
+        }
+    }
+
+    /** One successful probe settles direct I/O support for the directory. */
+    public void testHybridDirectoryDirectIOWriteProbesOnce() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOWriteProbe");
+        AtomicInteger directOpens = new AtomicInteger();
+        // counts the direct opens and strips the option, so that a direct create "works" on any file system
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(options);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        Path root = counting.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(1);
+            }
+            assertEquals("the probe and then the file", 2, directOpens.get());
+            assertTrue("the probe file is removed", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+            try (IndexOutput out = dir.createOutput("_1.vec", directIOMergeContext())) {
+                out.writeInt(2);
+            }
+            assertEquals("the answer is settled: only the file", 3, directOpens.get());
+        }
+    }
+
+    /**
+     * A name whose delete keeps failing stays in FSDirectory's pending-delete set, even once its file is
+     * gone. FSDirectory#createOutput takes the name off that set before creating, so a later retry of the
+     * pending deletes cannot remove the live file; a direct create that skipped that bookkeeping would
+     * leave the live merged file pending, and the next retry would delete it.
+     */
+    public void testHybridDirectoryDirectIOWritePendingDelete() throws IOException {
+        Path path = createTempDir("directIOWritePendingDelete");
+        // refuses to delete the file under test while the flag is set, whether or not it still exists:
+        // the shape of a delete that keeps failing
+        AtomicBoolean refuseDelete = new AtomicBoolean();
+        FilterFileSystemProvider refusing = new FilterFileSystemProvider("refusedelete://", path.getFileSystem()) {
+            @Override
+            public void delete(Path p) throws IOException {
+                if (refuseDelete.get() && p.getFileName().toString().equals("_0.vec")) {
+                    throw new AccessDeniedException(p.toString());
+                }
+                super.delete(p);
+            }
+        };
+        Path root = refusing.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(1);
+            }
+            refuseDelete.set(true);
+            dir.deleteFile("_0.vec");
+            assertTrue("a refused delete must be pending", dir.getPendingDeletions().contains("_0.vec"));
+
+            // the stale file goes away past every filesystem wrapper while its name stays pending
+            Path real = path;
+            while (real instanceof FilterPath filtered) {
+                real = filtered.unwrap();
+            }
+            Files.delete(real.resolve("_0.vec"));
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(2);
+            }
+            assertFalse("a live file must not stay pending delete", dir.getPendingDeletions().contains("_0.vec"));
+
+            // once deletes work again, a retry of the pending deletes has nothing left to remove
+            refuseDelete.set(false);
+            assertTrue(dir.getPendingDeletions().isEmpty());
+            assertEquals(4, dir.fileLength("_0.vec"));
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(2, in.readInt());
             }
         }
     }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -50,16 +52,12 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
 
     private final int queryBitsPerDim;
 
-    public ESNextDiskASHVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
-        throws IOException {
+    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
         this(state, getFormatReader, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
     }
 
-    public ESNextDiskASHVectorsReader(
-        SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader,
-        int queryBitsPerDim
-    ) throws IOException {
+    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader, int queryBitsPerDim)
+        throws IOException {
         super(
             state,
             getFormatReader,
@@ -70,6 +68,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             ESNextDiskASHVectorsFormat.VERSION_START,
             ESNextDiskASHVectorsFormat.VERSION_CURRENT,
             ESNextDiskASHVectorsFormat.VERSION_DIRECT_IO,
+            ESNextDiskASHVectorsFormat.VERSION_ON_DISK_MERGE,
+            ESNextDiskASHVectorsFormat.VERSION_NO_DIRECT_IO,
             ESNextDiskASHVectorsFormat.DYNAMIC_VISIT_RATIO
         );
         this.ashMatrixCache = new ConcurrentHashMap<>();
@@ -158,7 +158,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
     protected ASHFieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
-        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -184,7 +183,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         int ashBitsPerDim = input.readVInt();
         return new ASHFieldEntry(
             rawVectorFormat,
-            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -220,6 +218,23 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    /**
+     * Returns the trained ASH projection matrix W for the given field, or {@code null} if this
+     * segment does not have one (e.g. an empty field, or a field that was not ASH-encoded).
+     * <p>
+     * Used at merge time to seed the merged segment's projection matrix from an existing input
+     * segment instead of re-learning W from scratch. W is a global orthonormal projection of
+     * centered/normalized vectors, so it is effectively centroid-independent and can be reused
+     * across a merge without re-training.
+     */
+    AshProjectionMatrix getProjectionMatrix(FieldInfo fieldInfo) {
+        final ASHFieldEntry fieldEntry = fields.get(fieldInfo.number);
+        if (fieldEntry == null || fieldEntry.preconditionerLength <= 0) {
+            return null;
+        }
+        return getAshProjectionMatrix(fieldInfo);
     }
 
     @Override
@@ -281,8 +296,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 endDoc = sliceAcceptDocs.endDoc();
             }
             return AshPostingsVisitor.createSliced(
-                ashMatrix.wT(),
-                dimension,
+                ashMatrix,
                 target,
                 fieldInfo.getVectorSimilarityFunction(),
                 unwrappedInput,
@@ -296,8 +310,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             );
         }
         return AshPostingsVisitor.create(
-            ashMatrix.wT(),
-            dimension,
+            ashMatrix,
             target,
             fieldInfo.getVectorSimilarityFunction(),
             unwrappedInput,
@@ -413,7 +426,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
 
         ASHFieldEntry(
             String rawVectorFormat,
-            boolean doDirectIOReads,
             VectorSimilarityFunction similarityFunction,
             VectorEncoding vectorEncoding,
             int numCentroids,
@@ -433,7 +445,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         ) {
             super(
                 rawVectorFormat,
-                doDirectIOReads,
                 similarityFunction,
                 vectorEncoding,
                 numCentroids,

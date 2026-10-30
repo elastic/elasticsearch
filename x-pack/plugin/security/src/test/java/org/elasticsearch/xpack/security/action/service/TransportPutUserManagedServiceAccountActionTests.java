@@ -15,8 +15,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.PutResult;
@@ -31,29 +34,45 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase {
 
     private ServiceAccountService serviceAccountService;
+    private SecurityContext securityContext;
+    private Authentication authentication;
     private TransportPutUserManagedServiceAccountAction action;
 
     @Before
     public void init() {
         serviceAccountService = mock(ServiceAccountService.class);
+        securityContext = mock(SecurityContext.class);
+        authentication = AuthenticationTestHelper.builder().build();
+        when(securityContext.getAuthentication()).thenReturn(authentication);
         stubPutResult(randomFrom(PutResult.values()));
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        action = new TransportPutUserManagedServiceAccountAction(transportService, ActionFilters.EMPTY, serviceAccountService);
+        action = new TransportPutUserManagedServiceAccountAction(
+            transportService,
+            ActionFilters.EMPTY,
+            serviceAccountService,
+            securityContext
+        );
     }
 
+    /**
+     * The caller's authentication goes along with the request, so that the account records who wrote it.
+     */
     public void testTheRequestIsUnpackedForTheService() {
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
+        final String description = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final PutUserManagedServiceAccountRequest request = new PutUserManagedServiceAccountRequest(
             "engineering",
             "deploy_bot",
             roles,
             enabled,
+            description,
             refreshPolicy
         );
 
@@ -63,6 +82,8 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
             eq(new ServiceAccountId("engineering", "deploy_bot")),
             eq(roles),
             eq(enabled),
+            eq(description),
+            eq(authentication),
             eq(refreshPolicy),
             any()
         );
@@ -78,15 +99,15 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
     }
 
     private static PutUserManagedServiceAccountRequest newRequest() {
-        return new PutUserManagedServiceAccountRequest("engineering", "deploy_bot", List.of("deployer"), randomBoolean());
+        return new PutUserManagedServiceAccountRequest("engineering", "deploy_bot", List.of("deployer"), randomBoolean(), null);
     }
 
     private void stubPutResult(PutResult result) {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<PutResult> listener = (ActionListener<PutResult>) invocation.getArguments()[4];
+            final ActionListener<PutResult> listener = (ActionListener<PutResult>) invocation.getArguments()[6];
             listener.onResponse(result);
             return null;
-        }).when(serviceAccountService).putUserManagedAccount(any(), any(), anyBoolean(), any(), any());
+        }).when(serviceAccountService).putUserManagedAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
     }
 }

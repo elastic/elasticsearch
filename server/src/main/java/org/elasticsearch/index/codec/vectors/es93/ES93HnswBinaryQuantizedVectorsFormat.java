@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -56,12 +57,10 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     /**
      * Constructs a format using the given graph construction parameters.
-     *
-     * @param useDirectIO whether to use direct IO when reading raw vectors
      */
-    public ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+    public ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
         super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType);
     }
 
     /**
@@ -69,16 +68,10 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      *
      * @param maxConn the maximum number of connections to a node in the HNSW graph
      * @param beamWidth the size of the queue maintained during graph construction.
-     * @param useDirectIO whether to use direct IO when reading raw vectors
      */
-    public ES93HnswBinaryQuantizedVectorsFormat(
-        int maxConn,
-        int beamWidth,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO
-    ) {
+    public ES93HnswBinaryQuantizedVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType);
     }
 
     /**
@@ -86,7 +79,6 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      *
      * @param maxConn the maximum number of connections to a node in the HNSW graph
      * @param beamWidth the size of the queue maintained during graph construction.
-     * @param useDirectIO whether to use direct IO when reading raw vectors
      * @param numMergeWorkers number of workers (threads) that will be used when doing merge. If
      *     larger than 1, a non-null {@link ExecutorService} must be passed as mergeExec
      * @param mergeExec the {@link ExecutorService} that will be used by ALL vector writers that are
@@ -96,12 +88,11 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int maxConn,
         int beamWidth,
         DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, BBQ_HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType);
     }
 
     /**
@@ -109,7 +100,6 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      *
      * @param maxConn the maximum number of connections to a node in the HNSW graph
      * @param beamWidth the size of the queue maintained during graph construction.
-     * @param useDirectIO whether to use direct IO when reading raw vectors
      * @param numMergeWorkers number of workers (threads) that will be used when doing merge. If
      *     larger than 1, a non-null {@link ExecutorService} must be passed as mergeExec
      * @param mergeExec the {@link ExecutorService} that will be used by ALL vector writers that are
@@ -120,13 +110,12 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int maxConn,
         int beamWidth,
         DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, BBQ_HNSW_GRAPH_THRESHOLD));
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType);
     }
 
     @Override
@@ -150,6 +139,6 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(VectorReadHints.walkedByGraph(state)));
     }
 }

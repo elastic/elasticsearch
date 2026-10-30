@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -26,6 +27,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -42,6 +44,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
@@ -113,7 +116,6 @@ public class ES950DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     false,
@@ -128,7 +130,6 @@ public class ES950DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     true,
@@ -144,7 +145,6 @@ public class ES950DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     false,
@@ -504,4 +504,15 @@ public class ES950DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
         writer.addDocument(doc);
     }
 
+    /** Segments of the versions that recorded each field's direct I/O options still read back, every field of them. */
+    public void testDirectIOBackwardsCompatibleRead() throws IOException {
+        for (int version : new int[] { ES950DiskBBQVectorsFormat.VERSION_START, ES950DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE }) {
+            ES920DiskBBQVectorsFormatTests.assertReadsBack(new ES950DiskBBQVectorsFormat() {
+                @Override
+                public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                    return fieldsWriterForVersion(state, version);
+                }
+            });
+        }
+    }
 }

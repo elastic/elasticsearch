@@ -11,15 +11,20 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class FieldUsageTrackingDirectoryReaderTests extends ESTestCase {
 
@@ -52,6 +57,59 @@ public class FieldUsageTrackingDirectoryReaderTests extends ESTestCase {
         dir.close();
     }
 
+    public void testDocValuesSkipperUsage() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null))) {
+            Document doc = new Document();
+            doc.add(NumericDocValuesField.indexedField("skipped", 42L));
+            doc.add(new NumericDocValuesField("plain", 7L));
+            w.addDocument(doc);
+            w.flush();
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(w)) {
+                for (LeafReaderContext lrc : directoryReader.leaves()) {
+                    List<String> skipperFields = new ArrayList<>();
+                    var leafReader = new FieldUsageTrackingDirectoryReader.FieldUsageTrackingLeafReader(
+                        lrc.reader(),
+                        new TestFieldUsageNotifier() {
+                            @Override
+                            public void onDocValuesSkipperUsed(String field) {
+                                skipperFields.add(field);
+                            }
+                        }
+                    );
+                    assertNull(leafReader.getDocValuesSkipper("plain"));
+                    assertNull(leafReader.getDocValuesSkipper("missing"));
+                    assertTrue(skipperFields.isEmpty());
+                    assertNotNull(leafReader.getDocValuesSkipper("skipped"));
+                    assertEquals(List.of("skipped"), skipperFields);
+                }
+            }
+        }
+    }
+
+    public void testSequentialVectorsUsage() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null))) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("vector", new float[] { 1f, 2f }));
+            w.addDocument(doc);
+            try (DirectoryReader directoryReader = DirectoryReader.open(w)) {
+                List<String> vectorFields = new ArrayList<>();
+                var leafReader = new FieldUsageTrackingDirectoryReader.FieldUsageTrackingLeafReader(
+                    directoryReader.leaves().get(0).reader(),
+                    new TestFieldUsageNotifier() {
+                        @Override
+                        public void onKnnVectorsUsed(String field) {
+                            vectorFields.add(field);
+                        }
+                    }
+                );
+                assertNull(leafReader.getFloatVectorValues("missing", DataAccessHint.SEQUENTIAL));
+                assertNotNull(leafReader.getFloatVectorValues("vector", DataAccessHint.SEQUENTIAL));
+                assertEquals(List.of("vector"), vectorFields);
+            }
+        }
+    }
+
     private static class TestFieldUsageNotifier implements FieldUsageTrackingDirectoryReader.FieldUsageNotifier {
         @Override
         public void onTermsUsed(String field) {
@@ -80,6 +138,11 @@ public class FieldUsageTrackingDirectoryReaderTests extends ESTestCase {
 
         @Override
         public void onDocValuesUsed(String field) {
+
+        }
+
+        @Override
+        public void onDocValuesSkipperUsed(String field) {
 
         }
 

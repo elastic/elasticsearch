@@ -116,7 +116,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     false,
@@ -131,7 +130,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     true,
@@ -147,7 +145,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     false,
@@ -211,7 +208,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
@@ -227,7 +223,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
@@ -243,7 +238,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
@@ -259,7 +253,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
@@ -288,6 +281,39 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertThat(offHeap, aMapWithSize(3));
                 }
+            }
+        }
+    }
+
+    /**
+     * Version 3 is the last meta layout without the {@code on_disk_merge} byte, and what released segments carry. Opening
+     * the reader is the assertion: it parses that meta behind the current version gate, which must not read a byte that is
+     * not there.
+     */
+    public void testVersion3SegmentsReadBackWithoutTheOnDiskMergeByte() throws IOException {
+        KnnVectorsFormat version3 = new ES940DiskBBQVectorsFormat(
+            ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
+            64,
+            2,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2
+        );
+        float[] vector = randomVector(random().nextInt(12, 500));
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(version3));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                var values = getOnlyLeafReader(reader).getFloatVectorValues("f");
+                assertEquals(1, values.size());
+                assertArrayEquals(vector, values.vectorValue(0), 0f);
             }
         }
     }

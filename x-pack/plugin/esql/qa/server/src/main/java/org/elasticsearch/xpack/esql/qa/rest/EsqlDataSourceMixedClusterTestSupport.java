@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
@@ -16,6 +17,7 @@ import org.elasticsearch.test.cluster.local.LocalNodeSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.Assume;
 import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
@@ -151,9 +153,12 @@ public final class EsqlDataSourceMixedClusterTestSupport {
 
     /**
      * Writes the settings that do not exist on every version in a mixed cluster. A node that does not know a setting
-     * rejects it and fails to start, so the federation gate and the local-disk allowlist are set per node rather than
-     * cluster-wide. Any node can coordinate a query and federation has to agree across the cluster, so every node that
-     * knows the setting gets it; a build that predates it registers federation unconditionally and has it on without one.
+     * rejects it and fails to start, so the federation gate, the local-disk allowlist and the loopback endpoint allowlist
+     * are set per node rather than cluster-wide. Any node can coordinate a query and federation has to agree across the
+     * cluster, so every node that knows the setting gets it; a build that predates it registers federation unconditionally
+     * and has it on without one. The endpoint allowlist is registered from 9.5.6, ahead of the check that enforces it, so
+     * every node from that version accepts the key and one that also carries the check rejects the plain-http fixture
+     * unless it is set.
      */
     private static void configureNode(LocalNodeSpecBuilder node, Version version, boolean detached, Supplier<String> localAllowedPath) {
         if (detached == false && version.onOrAfter(Version.V_9_5_0)) {
@@ -161,6 +166,9 @@ public final class EsqlDataSourceMixedClusterTestSupport {
         }
         if (detached == false && localAllowedPath != null && version.onOrAfter(Version.V_9_5_0)) {
             node.setting(localAllowedPathsSetting(version), localAllowedPath);
+        }
+        if (detached == false && version.onOrAfter(Version.V_9_5_6)) {
+            node.setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
         }
     }
 
@@ -218,7 +226,8 @@ public final class EsqlDataSourceMixedClusterTestSupport {
                     new Node(
                         nodesInfo.evaluate("nodes." + id + ".name"),
                         version,
-                        nodesInfo.evaluate("nodes." + id + ".http.publish_address")
+                        nodesInfo.evaluate("nodes." + id + ".http.publish_address"),
+                        nodesInfo.evaluate("nodes." + id + ".roles")
                     )
                 );
             }
@@ -297,5 +306,14 @@ public final class EsqlDataSourceMixedClusterTestSupport {
     /**
      * One node returned by {@code GET /_nodes}.
      */
-    public record Node(String name, Version version, String httpAddress) {}
+    public record Node(String name, Version version, String httpAddress, List<String> roles) {
+
+        /**
+         * Whether the planner may place an external-source scan on this node. Nodes with the {@code index} role are never
+         * given one, so a stateless cluster's index nodes coordinate and write but do not read external data.
+         */
+        public boolean runsExternalScans() {
+            return roles.contains(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false;
+        }
+    }
 }

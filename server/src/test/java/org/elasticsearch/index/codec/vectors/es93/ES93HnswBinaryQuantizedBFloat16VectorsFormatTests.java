@@ -36,17 +36,12 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswBinaryQuantizedVectorsFormat(
-            maxConn,
-            beamWidth,
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            random().nextBoolean()
-        );
+        return new ES93HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16);
     }
 
     @Override
@@ -55,7 +50,6 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            random().nextBoolean(),
             numMergeWorkers,
             service
         );
@@ -101,15 +95,7 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
     public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
         // Use threshold=0 to ensure HNSW graph is always built
-        var format = new ES93HnswBinaryQuantizedVectorsFormat(
-            16,
-            100,
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            random().nextBoolean(),
-            1,
-            null,
-            0
-        );
+        var format = new ES93HnswBinaryQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, 1, null, 0);
         config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap
             ? allOf(

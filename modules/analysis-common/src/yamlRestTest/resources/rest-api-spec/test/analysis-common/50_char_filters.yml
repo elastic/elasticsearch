@@ -1,5 +1,32 @@
 ## Smoke tests for char filters included in the analysis-common module
 
+"thai":
+    - do:
+        indices.analyze:
+          body:
+            text: เเมว
+            tokenizer: keyword
+            char_filter:
+              - type: thai
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "แมว" }
+
+    # Pre-tokenization normalization lets the Thai tokenizer recover word boundaries
+    # that BreakIterator would otherwise merge (เเ -> แ).
+    - do:
+        indices.analyze:
+          body:
+            text: ฉันรักเเมวมาก
+            tokenizer: thai
+            char_filter:
+              - type: thai
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: "ฉัน" }
+    - match:  { tokens.1.token: "รัก" }
+    - match:  { tokens.2.token: "แมว" }
+    - match:  { tokens.3.token: "มาก" }
+
+---
 "html_strip":
     - do:
         indices.analyze:

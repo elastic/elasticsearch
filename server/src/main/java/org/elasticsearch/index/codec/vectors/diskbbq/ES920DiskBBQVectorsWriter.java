@@ -15,7 +15,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
@@ -60,7 +60,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     public ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -71,7 +70,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         this(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -85,7 +83,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        Boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -97,15 +94,16 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         super(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
             writeVersion,
             ES920DiskBBQVectorsFormat.NAME,
             ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
-            flatVectorThreshold
+            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO && writeVersion < ES920DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO,
+            flatVectorThreshold,
+            // this codec predates on_disk_merge: it never records that flag
+            false
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -234,7 +232,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
                 "qvec_",
-                IOContext.DEFAULT
+                mergeContext().union(DataAccessHint.SEQUENTIAL)
             )
         ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
@@ -319,7 +317,12 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             assert !overspills.hasNext();
         }
         // now we can read the quantized vectors from the temporary file
-        try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
+        try (
+            IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(
+                quantizedVectorsTempName,
+                mergeContext().union(DataAccessHint.RANDOM)
+            )
+        ) {
             final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(

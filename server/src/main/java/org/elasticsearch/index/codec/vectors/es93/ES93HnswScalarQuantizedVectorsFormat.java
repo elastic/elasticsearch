@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -42,11 +43,10 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         DenseVectorFieldMapper.ElementType elementType,
         Float confidenceInterval,
         int bits,
-        boolean compress,
-        boolean useDirectIO
+        boolean compress
     ) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -56,12 +56,11 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         Float confidenceInterval,
         int bits,
         boolean compress,
-        boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -71,7 +70,6 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         Float confidenceInterval,
         int bits,
         boolean compress,
-        boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec,
         int hnswGraphThreshold
@@ -84,7 +82,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             mergeExec,
             resolveThreshold(hnswGraphThreshold, ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)
         );
-        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
+        flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress);
     }
 
     @Override
@@ -108,6 +106,6 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorFormat.fieldsReader(VectorReadHints.walkedByGraph(state)));
     }
 }

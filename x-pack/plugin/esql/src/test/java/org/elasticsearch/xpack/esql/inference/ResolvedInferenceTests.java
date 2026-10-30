@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -18,7 +19,7 @@ public class ResolvedInferenceTests extends AbstractWireTestCase<ResolvedInferen
 
     @Override
     protected ResolvedInference createTestInstance() {
-        return new ResolvedInference(randomIdentifier(), randomTaskType());
+        return new ResolvedInference(randomIdentifier(), randomTaskType(), randomBoolean() ? null : randomFrom(SimilarityMeasure.values()));
     }
 
     @Override
@@ -26,8 +27,18 @@ public class ResolvedInferenceTests extends AbstractWireTestCase<ResolvedInferen
         if (randomBoolean()) {
             return new ResolvedInference(randomValueOtherThan(instance.inferenceId(), ESTestCase::randomIdentifier), instance.taskType());
         }
-
-        return new ResolvedInference(instance.inferenceId(), randomValueOtherThan(instance.taskType(), this::randomTaskType));
+        if (randomBoolean()) {
+            return new ResolvedInference(
+                instance.inferenceId(),
+                randomValueOtherThan(instance.taskType(), this::randomTaskType),
+                instance.similarity()
+            );
+        }
+        return new ResolvedInference(
+            instance.inferenceId(),
+            instance.taskType(),
+            randomValueOtherThan(instance.similarity(), () -> randomFrom(SimilarityMeasure.values()))
+        );
     }
 
     @Override

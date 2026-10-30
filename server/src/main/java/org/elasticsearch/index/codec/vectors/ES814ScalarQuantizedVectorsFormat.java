@@ -27,6 +27,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
@@ -121,7 +122,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 confidenceInterval,
                 bits,
                 compress,
-                rawVectorFormat.fieldsWriter(state),
+                rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
                 flatVectorScorer
             )
         );
@@ -129,7 +130,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(state);
+        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state));
         return new ES814ScalarQuantizedVectorsReader(
             new Lucene99ScalarQuantizedVectorsReader(state, rawDelegate, flatVectorScorer),
             rawDelegate
@@ -216,13 +217,18 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return getFloatVectorValues(field, DataAccessHint.RANDOM);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
             FloatVectorValues floatVectorValues = delegate.getFloatVectorValues(field);
             if (floatVectorValues == null) {
                 return null;
             }
             // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
             // raw vectors
-            return new QuantizedAndRawFloatVectorValues(floatVectorValues, rawDelegate.getFloatVectorValues(field));
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, rawDelegate.getFloatVectorValues(field, access));
         }
 
         @Override
@@ -238,6 +244,17 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public ScalarQuantizer getQuantizationState(String fieldName) {
             return delegate.getQuantizationState(fieldName);
+        }
+
+        /** Reads the raw vectors through the merge instance of the raw reader. */
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return new ES814ScalarQuantizedVectorsReader(delegate, rawDelegate.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            rawDelegate.finishMerge();
         }
 
         @Override

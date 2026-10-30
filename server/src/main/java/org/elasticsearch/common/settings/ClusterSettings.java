@@ -43,11 +43,12 @@ import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
@@ -230,6 +231,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+        AllocationService.PRESERVE_DECISION_LABELS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
@@ -248,6 +250,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS,
         DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
         DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
@@ -532,6 +536,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.MAX_OPEN_SCROLL_CONTEXT,
         SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER,
         SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING,
+        SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING,
+        SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING,
         Node.WRITE_PORTS_FILE_SETTING,
         Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
@@ -625,6 +631,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
         SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
         SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING,
+        SnapshotsService.ENCRYPTED_DATA_REQUIRED_SETTING,
         RepositoriesService.DEFAULT_REPOSITORY_SETTING,
         RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
         FsHealthService.ENABLED_SETTING,
@@ -687,9 +694,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
         ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING,
         TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
-        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
-        DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
-        DataStreamGlobalRetentionSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
+        DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
+        DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
+        DataStreamLifecycleSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
         ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME,
         ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME,
         DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,

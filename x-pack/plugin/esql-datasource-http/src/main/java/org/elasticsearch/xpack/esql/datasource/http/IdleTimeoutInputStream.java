@@ -145,7 +145,9 @@ final class IdleTimeoutInputStream extends FilterInputStream {
     }
 
     private SocketTimeoutException timeoutException(IOException cause) {
-        SocketTimeoutException timeout = new SocketTimeoutException("Idle timeout after " + idleTimeout + " reading " + path);
+        SocketTimeoutException timeout = new SocketTimeoutException(
+            "Idle timeout after " + idleTimeout + " reading " + HttpUrls.redact(path)
+        );
         if (cause != null) {
             timeout.initCause(cause);
         }

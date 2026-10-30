@@ -41,6 +41,8 @@ import java.util.Set;
 /**
  * This test is adapted from {@link SinglePassGroupingCollectorTests} with
  * modifications to test {@link FieldDoc after} parameter.
+ * Field collapsing is single-slice in production, so these tests use a sequential
+ * searcher and inspect one collector's {@link SinglePassGroupingCollector#getTopGroups}.
  */
 public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
     interface CollapsingDocValuesProducer<T extends Comparable<?>> {
@@ -87,7 +89,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
         }
 
         IndexReader reader = w.getReader();
-        IndexSearcher searcher = newSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         SortField sortField = dvProducers.sortField(reverseSort);
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType(sortField.getField());
@@ -106,11 +108,11 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
         FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { sortedValues.get(randomIndex) });
         SinglePassGroupingCollector<?> collapsingCollector = numeric
             ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
-            : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
+            : SinglePassGroupingCollector.createKeyword("field", fieldType, null, sort, expectedNumGroups, after);
 
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = Queries.ALL_DOCS_INSTANCE;
-        searcher.search(query, collapsingCollector);
+        searcher.search(query, singleThreadedCollectorManager(collapsingCollector));
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(sortField.getField(), collapseTopFieldDocs.field);

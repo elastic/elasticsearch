@@ -44,6 +44,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -134,6 +135,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             false
         );
+
         assertTermQueryWithBinaryDocValues(ft);
     }
 
@@ -387,7 +389,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT),
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT, NoopCircuitBreaker.INSTANCE),
             ft.wildcardQuery("foo*", null, MOCK_CONTEXT)
         );
     }
@@ -600,7 +602,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT),
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT, NoopCircuitBreaker.INSTANCE),
             ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT)
         );
     }

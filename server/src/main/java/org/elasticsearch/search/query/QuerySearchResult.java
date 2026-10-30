@@ -218,13 +218,20 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return topDocsAndMaxScore;
     }
 
-    public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
+    /**
+     * @param sortValueFormats the formats to render the sort values of the collected docs with, or <code>null</code> if this shard
+     *                         reports none. A shard that collected field docs must report one format per sort field.
+     */
+    public void topDocs(TopDocsAndMaxScore topDocs, @Nullable DocValueFormat[] sortValueFormats) {
         setTopDocs(topDocs);
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
-            if (numFields != sortValueFormats.length) {
+            if (sortValueFormats == null || numFields != sortValueFormats.length) {
                 throw new IllegalArgumentException(
-                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                    "The number of sort fields does not match: "
+                        + numFields
+                        + " != "
+                        + (sortValueFormats == null ? "null" : sortValueFormats.length)
                 );
             }
         }

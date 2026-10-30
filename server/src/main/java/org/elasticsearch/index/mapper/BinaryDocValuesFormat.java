@@ -45,5 +45,17 @@ public enum BinaryDocValuesFormat {
      * no companion field at all. See {@link ColumnarBinaryDocValuesField} for why the count has to travel inside
      * the blob.
      */
-    COLUMNAR_PAYLOAD
+    COLUMNAR_PAYLOAD,
+
+    /**
+     * The value's own bytes, unframed: no count prefix, no null slots, no empty arrays. Only sound when the
+     * mapping guarantees exactly one non-null value per document — specifically when {@code multi_value: false}.
+     * Under this framing the blob is the sort key directly, so no decoding is needed for index sorting or
+     * single-valued reads.
+     *
+     * <p>Produced only by the ColumNAR codec (the field still uses a columnar string column on disk), so it is
+     * routed to {@link org.elasticsearch.lucene.queries.ColumnarBinaryDocValuesQueries} and never to the
+     * scanning queries, which know nothing of the column it sits in.
+     */
+    PLAIN
 }

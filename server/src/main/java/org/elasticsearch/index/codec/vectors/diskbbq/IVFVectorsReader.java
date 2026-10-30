@@ -26,10 +26,12 @@ import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
@@ -99,6 +101,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private static final double BOOST_EXPONENT = 0.30;
     private static final int BOOST_K_REF = 10;
     private static final double BOOST_K_EXPONENT = 0.10;
+    /**
+     * the {@code versionOnDiskMerge} of a codec whose meta never records {@code on_disk_merge}; negative, so a bare
+     * {@code versionMeta >= versionOnDiskMerge} is always true and every use site must check {@code >= 0} first
+     */
+    protected static final int NO_ON_DISK_MERGE_IN_META = -1;
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
@@ -108,13 +115,15 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private final String centroidExtension;
     private final String clusterExtension;
     private final int versionDirectIo;
+    private final int versionOnDiskMerge;
+    private final int versionNoDirectIo;
     private final float dynamicVisitRatio;
     protected int versionMeta = -1;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
         SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader,
+        IOFunction<String, FlatVectorsReader> loadReader,
         String codecName,
         String centroidExtension,
         String clusterExtension,
@@ -122,6 +131,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int versionStart,
         int versionCurrent,
         int versionDirectIo,
+        int versionOnDiskMerge,
+        int versionNoDirectIo,
         float dynamicVisitRatio
     ) throws IOException {
         this.state = state;
@@ -131,6 +142,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.centroidExtension = centroidExtension;
         this.clusterExtension = clusterExtension;
         this.versionDirectIo = versionDirectIo;
+        this.versionOnDiskMerge = versionOnDiskMerge;
+        this.versionNoDirectIo = versionNoDirectIo;
         this.dynamicVisitRatio = dynamicVisitRatio;
         String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
@@ -173,6 +186,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.centroidExtension = other.centroidExtension;
         this.clusterExtension = other.clusterExtension;
         this.versionDirectIo = other.versionDirectIo;
+        this.versionOnDiskMerge = other.versionOnDiskMerge;
+        this.versionNoDirectIo = other.versionNoDirectIo;
         this.dynamicVisitRatio = other.dynamicVisitRatio;
         this.versionMeta = other.versionMeta;
         this.ivfCentroids = other.ivfCentroids;
@@ -236,7 +251,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         ChecksumIndexInput meta,
         int versionMeta,
         GenericFlatVectorReaders genericFields,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
@@ -244,16 +259,29 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            E fieldEntry = readField(meta, info, versionMeta);
-            genericFields.loadField(fieldNumber, fieldEntry, loadReader);
+            final String rawVectorFormat = meta.readString();
+            skipDirectIOFlags(meta, versionMeta);
+            E fieldEntry = readField(meta, info, rawVectorFormat);
+            genericFields.loadField(fieldNumber, fieldEntry.rawVectorFormatName(), loadReader);
 
             fields.put(info.number, fieldEntry);
         }
     }
 
-    private E readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
-        final String rawVectorFormat = input.readString();
-        final boolean useDirectIOReads = versionMeta >= versionDirectIo && input.readByte() == 1;
+    /** Reads past the direct I/O options a field records in a meta written before {@code versionNoDirectIo}. */
+    private void skipDirectIOFlags(IndexInput meta, int versionMeta) throws IOException {
+        if (versionMeta >= versionNoDirectIo) {
+            return;
+        }
+        if (versionMeta >= versionDirectIo) {
+            meta.readByte();
+        }
+        if (versionOnDiskMerge >= 0 && versionMeta >= versionOnDiskMerge) {
+            meta.readByte();
+        }
+    }
+
+    private E readField(IndexInput input, FieldInfo info, String rawVectorFormat) throws IOException {
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -282,7 +310,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return doReadField(
             input,
             rawVectorFormat,
-            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -298,7 +325,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     protected abstract E doReadField(
         IndexInput input,
         String rawVectorFormat,
-        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -359,6 +385,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final FloatVectorValues getFloatVectorValues(String field) throws IOException {
         return getReaderForField(field).getFloatVectorValues(field);
+    }
+
+    @Override
+    public final FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        return getReaderForField(field).getFloatVectorValues(field, access);
     }
 
     @Override
@@ -623,9 +654,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         IOUtils.close(closeables);
     }
 
-    protected static class FieldEntry implements GenericFlatVectorReaders.Field {
+    protected static class FieldEntry {
         protected final String rawVectorFormatName;
-        protected final boolean useDirectIOReads;
         protected final VectorSimilarityFunction similarityFunction;
         protected final VectorEncoding vectorEncoding;
         protected final int numCentroids;
@@ -639,7 +669,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         public FieldEntry(
             String rawVectorFormatName,
-            boolean useDirectIOReads,
             VectorSimilarityFunction similarityFunction,
             VectorEncoding vectorEncoding,
             int numCentroids,
@@ -652,7 +681,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             int bulkSize
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
-            this.useDirectIOReads = useDirectIOReads;
             this.similarityFunction = similarityFunction;
             this.vectorEncoding = vectorEncoding;
             this.numCentroids = numCentroids;
@@ -665,14 +693,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             this.bulkSize = bulkSize;
         }
 
-        @Override
         public String rawVectorFormatName() {
             return rawVectorFormatName;
-        }
-
-        @Override
-        public boolean useDirectIOReads() {
-            return useDirectIOReads;
         }
 
         public int numCentroids() {

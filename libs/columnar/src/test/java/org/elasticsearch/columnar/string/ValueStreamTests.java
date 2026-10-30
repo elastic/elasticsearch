@@ -10,11 +10,10 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,7 +26,8 @@ import java.util.List;
  */
 public class ValueStreamTests extends ESTestCase {
 
-    private static final String FILE = "stream.bin";
+    private static final String FILE = "stream";
+    private static final byte[] SEGMENT_ID = new byte[16];
 
     /** Values short enough that a block keeps each length beside its own value. */
     public void testInlineLengths() throws IOException {
@@ -134,24 +134,18 @@ public class ValueStreamTests extends ESTestCase {
         final String label = "codec=" + codec + " perBlock=" + valuesPerBlock + " chunk=" + targetChunkBytes + " n=" + values.size();
         try (Directory dir = newDirectory()) {
             final ValueStream.Metadata metadata;
-            try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
-                try (
-                    ValueStream.Writer writer = new ValueStream.Writer(
-                        codec,
-                        targetChunkBytes,
-                        valuesPerBlock,
-                        values.size(),
-                        dir,
-                        IOContext.DEFAULT,
-                        "stream",
-                        out
-                    )
-                ) {
-                    for (BytesRef value : values) {
-                        writer.add(value);
-                    }
-                    metadata = writer.finish();
+            try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
+                final ValueStream.Writer writer = new ValueStream.Writer(
+                    codec,
+                    ChunkBounds.ofBytes(targetChunkBytes),
+                    valuesPerBlock,
+                    out.outputs()
+                );
+                for (BytesRef value : values) {
+                    writer.add(value);
                 }
+                metadata = writer.finish();
+
             }
             assertEquals(label + " numValues", values.size(), metadata.numValues());
             long valueBytes = 0;
@@ -160,8 +154,8 @@ public class ValueStreamTests extends ESTestCase {
             }
             assertEquals(label + " valueBytes", valueBytes, metadata.valueBytes());
 
-            try (IndexInput in = dir.openInput(FILE, IOContext.DEFAULT)) {
-                final ValueStream.Reader reader = metadata.open(in);
+            try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, FILE, SEGMENT_ID)) {
+                final ValueStream.Reader reader = metadata.open(in.inputs());
                 final BytesRef read = new BytesRef();
 
                 for (int i = 0; i < values.size(); i++) {

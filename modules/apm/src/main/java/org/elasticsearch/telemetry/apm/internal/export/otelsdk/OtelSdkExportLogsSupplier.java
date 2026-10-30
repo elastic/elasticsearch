@@ -9,12 +9,16 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporter;
 import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
+import io.opentelemetry.sdk.logs.export.LogRecordExporter;
 import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.logging.log4j.core.LoggerContext;
@@ -40,11 +44,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -67,6 +73,15 @@ import javax.net.ssl.X509ExtendedTrustManager;
  *
  * <p>gRPC (not HTTP) is required by the otel-delivery-gateway: HTTP clients reuse long-lived
  * connections, leading to uneven load distribution behind Kubernetes services.
+ *
+ * <p>A rejected batch is retried for at least 60s ({@link OtelSdkSettings#TELEMETRY_LOGS_RETRY_POLICY}).
+ * The exporter timeout and the batch processor's export timeout are both
+ * {@link OtelSdkSettings#TELEMETRY_LOGS_EXPORT_TIMEOUT}, since each one covers every attempt.
+ *
+ * <p>The exporter records {@code otel.sdk.exporter.log.exported} on the supplied {@link MeterProvider},
+ * the system provider built for metrics export. A failure that never reaches the gateway (DNS, TLS,
+ * timeouts) is visible from the sender, with {@code error.type} set once retries are exhausted.
+ * The batch processor uses the same provider, so records dropped because its queue is full are reported too.
  */
 public class OtelSdkExportLogsSupplier implements Closeable {
 
@@ -82,25 +97,56 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     private final Path configDir;
     private final Collection<TelemetryLoggingFilterProvider> filterProviders;
     private final String serviceName;
+    private final Supplier<MeterProvider> meterProvider;
+    private final Duration exportTimeout;
+    private final RetryPolicy retryPolicy;
     private volatile SdkLoggerProvider loggerProvider;
+    private SwappableLogRecordExporter exporter;
     private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
-    private final List<ElasticsearchOtelAppender> appenders = new ArrayList<>();
 
     public OtelSdkExportLogsSupplier(
         Settings settings,
         Path configDir,
         Collection<TelemetryLoggingFilterProvider> filterProviders,
-        TelemetryLogResourceProvider logResourceProvider
+        TelemetryLogResourceProvider logResourceProvider,
+        Supplier<MeterProvider> meterProvider
+    ) {
+        this(
+            settings,
+            configDir,
+            filterProviders,
+            logResourceProvider,
+            meterProvider,
+            OtelSdkSettings.TELEMETRY_LOGS_EXPORT_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_LOGS_RETRY_POLICY
+        );
+    }
+
+    /**
+     * @param exportTimeout deadline for one batch, including every retry; applied to both the exporter and the batch processor
+     * @param retryPolicy   policy for retryable gateway and transport failures of one batch
+     */
+    OtelSdkExportLogsSupplier(
+        Settings settings,
+        Path configDir,
+        Collection<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider,
+        Supplier<MeterProvider> meterProvider,
+        Duration exportTimeout,
+        RetryPolicy retryPolicy
     ) {
         this.settings = settings;
         this.configDir = configDir;
         this.filterProviders = filterProviders;
         this.serviceName = logResourceProvider.serviceName();
+        this.meterProvider = meterProvider;
+        this.exportTimeout = Objects.requireNonNull(exportTimeout, "exportTimeout is null");
+        this.retryPolicy = Objects.requireNonNull(retryPolicy, "retryPolicy is null");
     }
 
     // for tests
     OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
-        this(settings, configDir, List.of(), new TelemetryLogResourceProvider.Default());
+        this(settings, configDir, List.of(), new TelemetryLogResourceProvider.Default(), MeterProvider::noop);
     }
 
     @Nullable
@@ -134,7 +180,8 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             // No telemetry enabled, exit.
             return;
         }
-        loggerProvider = buildProvider();
+        exporter = new SwappableLogRecordExporter(buildExporter());
+        loggerProvider = buildProvider(exporter);
         LoggerContext ctx = (LoggerContext) org.apache.logging.log4j.LogManager.getContext(false);
         Configuration config = ctx.getConfiguration();
         if (OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings)) {
@@ -158,7 +205,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         querylogAppender.start();
         config.addAppender(querylogAppender);
         querylogConfig.addAppender(querylogAppender, null, null);
-        appenders.add(querylogAppender);
         closeCallbacks.add(c -> closeQuerylogAppender(c, querylogAppender));
     }
 
@@ -193,7 +239,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         appender.start();
         config.addAppender(appender);
         auditLoggerConfig.addAppender(appender, null, null);
-        appenders.add(appender);
         closeCallbacks.add(c -> closeAuditAppender(c, appender));
     }
 
@@ -262,17 +307,20 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     }
 
     /**
-     * Build a fresh {@link SdkLoggerProvider} from the current settings, including reading TLS
+     * Build a fresh OTLP/gRPC exporter from the current settings, including reading TLS
      * material from disk. Used both at initial install and during cert hot-reload.
      */
-    private SdkLoggerProvider buildProvider() {
+    private OtlpGrpcLogRecordExporter buildExporter() {
         String cert = OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE.get(settings);
         String key = OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY.get(settings);
+        // LATEST opts into the semantic-convention metric names, which may change across SDK upgrades.
         OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder()
             .setEndpoint(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings))
-            .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
+            .setMeterProvider(meterProvider)
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
+            .setTimeout(exportTimeout)
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
+            .setRetryPolicy(retryPolicy);
         List<String> cas = OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES.get(settings);
         if (cas.isEmpty() == false || cert.isEmpty() == false) {
             try {
@@ -289,10 +337,25 @@ public class OtelSdkExportLogsSupplier implements Closeable {
                 throw new RuntimeException("Failed to initialise TLS context for OTel log export", e);
             }
         }
+        return exporterBuilder.build();
+    }
+
+    /**
+     * Build the {@link SdkLoggerProvider} once per install. Cert hot-reload replaces only the exporter behind it,
+     * see {@link SwappableLogRecordExporter}.
+     */
+    private SdkLoggerProvider buildProvider(LogRecordExporter logRecordExporter) {
         int maxQueueSize = OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings);
         return SdkLoggerProvider.builder()
             .setResource(logDeliveryResource(serviceName))
-            .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).setMaxQueueSize(maxQueueSize).build())
+            .addLogRecordProcessor(
+                BatchLogRecordProcessor.builder(logRecordExporter)
+                    .setMeterProvider(meterProvider)
+                    .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
+                    .setMaxQueueSize(maxQueueSize)
+                    .setExporterTimeout(exportTimeout)
+                    .build()
+            )
             .build();
     }
 
@@ -301,26 +364,20 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     }
 
     /**
-     * Rebuild the OTel logs export with fresh TLS material and swap it into the running appender
-     * atomically to avoid dropped records.
+     * Rebuild the gRPC exporter with fresh TLS material and swap it in behind the existing
+     * {@code BatchLogRecordProcessor}, so queued records are kept and no record is dropped.
      *
-     * <p>{@link ElasticsearchOtelAppender#setOpenTelemetry} is a volatile write guarded by a
-     * {@code ReadWriteLock} inside the appender, so new audit events switch to the new channel
-     * without a gap. The old {@link SdkLoggerProvider} is closed after the swap: its
-     * {@code BatchLogRecordProcessor} flushes any buffered records through the still-valid old
-     * channel (rotation happens before cert expiry) before shutting down the old gRPC connection.
+     * <p>Only the exporter is replaced: the processor and its queue metrics stay registered once
+     * for the life of the install. The old exporter is shut down after its active operations complete,
+     * so an export in flight completes through the still-valid old channel (rotation happens before cert expiry).
      */
-    private synchronized void reload() {
+    // package-private for tests
+    synchronized void reload() {
         if (loggerProvider == null) {
             return;
         }
         logger.info("TLS cert files changed; reloading OTel logs export with new certificates");
-        SdkLoggerProvider newProvider = buildProvider();
-        var sdk = OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build();
-        appenders.forEach(appender -> appender.setOpenTelemetry(sdk));
-        SdkLoggerProvider oldProvider = loggerProvider;
-        loggerProvider = newProvider;
-        oldProvider.close();
+        exporter.swap(buildExporter());
         logger.info("OTel SDK logs export reloaded; endpoint={}", OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings));
     }
 
@@ -349,6 +406,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         if (loggerProvider != null) {
             loggerProvider.close();
             loggerProvider = null;
+            exporter = null;
         }
     }
 
@@ -361,7 +419,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         Configuration config = ctx.getConfiguration();
         closeCallbacks.forEach(cb -> cb.accept(config));
         closeCallbacks.clear();
-        appenders.clear();
         ctx.updateLoggers();
     }
 }

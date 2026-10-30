@@ -10,8 +10,10 @@ package org.elasticsearch.compute.operator.lookup;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.store.DataAccessHint;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -65,6 +67,11 @@ class CachedDirectoryReader extends FilterDirectoryReader {
                 }
                 return curr;
             }));
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            return in.getFloatVectorValues(field, access);
         }
 
         @Override

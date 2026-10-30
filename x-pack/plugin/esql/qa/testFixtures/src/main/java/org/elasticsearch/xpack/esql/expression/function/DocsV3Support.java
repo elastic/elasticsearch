@@ -598,6 +598,10 @@ public abstract class DocsV3Support {
             // Grouping
             case "bucket", "tbucket", "categorize", "without" -> "grouping-functions";
 
+            // Unprefixed date-time functions. year/month/day/hour are DATE_EXTRACT sugars.
+            // month_name, day_name, and now have no date_ prefix, so docs generation needs a group for them too.
+            case "year", "month", "day", "hour", "month_name", "day_name", "now" -> "date-time-functions";
+
             // Time series
             case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";
 

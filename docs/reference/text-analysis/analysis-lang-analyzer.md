@@ -1742,9 +1742,14 @@ PUT /thai_example
       "analyzer": {
         "rebuilt_thai": {
           "tokenizer":  "thai",
+          "char_filter": [
+            "thai"
+          ],
           "filter": [
             "lowercase",
             "decimal_digit",
+            "thai_normalization",
+            "thai_repeat",
             "thai_stop"
           ]
         }

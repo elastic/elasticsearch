@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETION_ROW_LIMIT_SETTING;
 
-public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
+public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware, DocPreserving {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
@@ -77,18 +78,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Attribute targetField
     ) {
         this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
-    }
-
-    public Completion(
-        Source source,
-        LogicalPlan child,
-        Expression inferenceId,
-        Expression rowLimit,
-        Expression prompt,
-        Attribute targetField,
-        MapExpression taskSettings
-    ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, null);
     }
 
     public Completion(

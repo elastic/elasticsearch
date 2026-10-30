@@ -240,7 +240,7 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
             }
 
             @Override
-            public StoredFieldsReader getMergeInstance() {
+            public StoredFieldsReader getMergeInstance() throws IOException {
                 return new PruningStoredFieldsReader(
                     in.getMergeInstance(),
                     recoverySourceToKeep,
@@ -406,7 +406,7 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         }
 
         @Override
-        public StoredFieldsReader getMergeInstance() {
+        public StoredFieldsReader getMergeInstance() throws IOException {
             return new SkipSyntheticIdFilterStoredFieldsReader(in.getMergeInstance());
         }
 

@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 public class SubstituteRoundToGoldenTests extends GoldenTestCase {
+    private static final String TOPN_PREFILTER_LONG = "topn_prefilter_long";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -86,6 +87,39 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         }
     }
 
+    public void testDateTruncTransformToQueryAndTagsWithKeyCount() {
+        for (var aggregates : keyCountAggregates) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | eval x = date_trunc(1 day, date)
+                | stats {} by x
+                """, aggregates.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, aggregates.name());
+        }
+    }
+
+    private static final List<QueryAndName> keyCountAggregates = List.of(
+        new QueryAndName("c = count(*), k = count(x)", "count_first"),
+        new QueryAndName("k = count(x), c = count(*)", "key_count_first")
+    );
+
+    // Only an unfiltered count of the grouping key can be derived from the bucket count.
+    public void testDateTruncTransformToQueryAndTagsWithOtherCountNotPushed() {
+        for (var aggregates : otherCountAggregates) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | eval x = date_trunc(1 day, date)
+                | stats {} by x
+                """, aggregates.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, aggregates.name());
+        }
+    }
+
+    private static final List<QueryAndName> otherCountAggregates = List.of(
+        new QueryAndName("c = count(*), k = count(long)", "count_other_field"),
+        new QueryAndName("c = count(*), k = count(x) where long > 10", "filtered_key_count")
+    );
+
     // https://github.com/elastic/elasticsearch/issues/146479
     // When the grouping key is dropped and COUNT(*) is the only agg, CombineProjections removes
     // the grouping key from aggregates leaving [COUNT] (size 1). But it should still be pushed down.
@@ -123,7 +157,11 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats count(*) by x = {}, long
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+            builder(query).stages(EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION))
+                .searchStats(STATS)
+                .nestedPath(queryAndName.name())
+                .expectationChangesAt(TOPN_PREFILTER_LONG)
+                .run();
         }
     }
 

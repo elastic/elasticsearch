@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -65,7 +65,7 @@ if (buildParams.snapshotBuild == false) {
   restTestBlacklist.add('search.vectors/46_knn_search_bbq_ivf_byte/*')
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 
@@ -157,6 +157,10 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
     task.skipTest("ml/jobs_get_stats/Test reading v54 data counts and model size stats", "Version 5.4 support removed")
     task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
+    task.skipTest(
+      "ml/datafeeds_crud/Test put and update datafeed with max_consecutive_extraction_failures",
+      "-1 now resets max_consecutive_extraction_failures to its default and clears the field, where the older branch's test expects -1 back"
+    )
     task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
     task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
     task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
@@ -165,6 +169,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
     task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
     task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
+    task.skipTest("esql/160_union_types/CASE", "CASE now reports the multivalue condition warning the same way other functions do")
     task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
     task.skipTest("esql/190_lookup_join/fails with non-lookup index", "Error message changed")
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")
@@ -195,6 +200,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("aggregate-metrics/40_avg_agg/Test avg agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/30_sum_agg/Test sum agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/50_value_count_agg/Test value_count agg with query", "Default metric cannot be defined, so the query is empty")
+    task.skipTest("esql/120_profile/documents found", "Skip empty node_reduce driver")
     // Malformed values are now stored in binary doc values (sorted) instead of stored fields (insertion order).
     task.skipTest(
       "analytics/histogram/histogram with synthetic source and ignore_malformed",
@@ -210,8 +216,19 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
     task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
+    task.skipTest("deprecation/10_basic/Test Deprecations", "node_settings depends on the JVM version, see NodeSettingsDeprecationIT")
+    task.skipTest(
+      "data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API",
+      "node_settings depends on the JVM version, see NodeSettingsDeprecationIT"
+    )
     // Expected deprecation warning to compat yaml tests:
     task.addAllowedWarningRegex("Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10\\.0\\.")
+    task.addAllowedWarningRegex("The \\[time_series\\] aggregation, and the aggregations that rely on it .*")
+    // Previous-release YAML tests do not list NULL-misuse warnings.
+    task.addAllowedWarningRegex(
+      ".*Expression \\[.*\\] always evaluates to NULL\\.",
+      ".*NULL in the IN list of \\[.*\\].*"
+    )
   }
 )
 

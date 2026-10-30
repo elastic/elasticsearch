@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -37,15 +38,9 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
-    public ES94HnswScalarQuantizedVectorsFormat(
-        int maxConn,
-        int beamWidth,
-        DenseVectorFieldMapper.ElementType elementType,
-        int bits,
-        boolean useDirectIO
-    ) {
+    public ES94HnswScalarQuantizedVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType, int bits) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
+        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits);
     }
 
     public ES94HnswScalarQuantizedVectorsFormat(
@@ -53,12 +48,11 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int beamWidth,
         DenseVectorFieldMapper.ElementType elementType,
         int bits,
-        boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
+        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits);
     }
 
     public ES94HnswScalarQuantizedVectorsFormat(
@@ -66,13 +60,12 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int beamWidth,
         DenseVectorFieldMapper.ElementType elementType,
         int bits,
-        boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
-        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
+        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits);
     }
 
     @Override
@@ -96,6 +89,6 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorFormat.fieldsReader(VectorReadHints.walkedByGraph(state)));
     }
 }

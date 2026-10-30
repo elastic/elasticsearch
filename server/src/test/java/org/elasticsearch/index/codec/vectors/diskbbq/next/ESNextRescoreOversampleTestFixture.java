@@ -34,10 +34,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -81,7 +83,6 @@ public final class ESNextRescoreOversampleTestFixture {
                 vpc,
                 ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
@@ -325,7 +326,12 @@ public final class ESNextRescoreOversampleTestFixture {
                 IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(QuantEncoding.TWO_BIT_4BIT_QUERY), false, 3f)
             );
         };
-        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
+
+        // Use quality profile so that doc bits are uncapped
+        Codec codec = createDiskBbqCodec(
+            flushConfig,
+            IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY)
+        );
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
         writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 
@@ -387,43 +393,23 @@ public final class ESNextRescoreOversampleTestFixture {
     }
 
     public static IvfSegmentConfig readPersistedSegmentConfig(LeafReader leaf) throws IOException {
-        QuantEncoding encoding = persistedQuantEncodingOnLeaf(leaf);
-        if (encoding == null) {
-            return null;
-        }
-        return IvfSegmentConfig.of(
-            CentroidIndexFormat.FLAT,
-            new IvfSegmentConfig.OsqConfig(encoding),
-            persistedPreconditionOnLeaf(leaf),
-            persistedOversampleOnLeaf(leaf)
-        );
-    }
-
-    public static QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {
         CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
         if (reader == null) {
             return null;
         }
         FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
-        return fieldInfo == null ? null : reader.getQuantEncoding(fieldInfo);
-    }
-
-    public static boolean persistedPreconditionOnLeaf(LeafReader leaf) throws IOException {
-        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
-        if (reader == null) {
-            return false;
+        if (fieldInfo == null) {
+            return null;
         }
-        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
-        return fieldInfo != null && reader.shouldPrecondition(fieldInfo);
-    }
-
-    public static float persistedOversampleOnLeaf(LeafReader leaf) throws IOException {
-        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
-        if (reader == null) {
-            return Float.NaN;
-        }
-        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
-        return fieldInfo == null ? Float.NaN : reader.getOversampleFactor(fieldInfo);
+        return switch (reader.getCalibrationParameters(fieldInfo)) {
+            case null -> null;
+            case SegmentCalibrationParameters.Osq osq -> IvfSegmentConfig.of(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(osq.encoding()),
+                osq.precondition(),
+                osq.oversample()
+            );
+        };
     }
 
     private static FieldInfo fieldInfoOnLeaf(LeafReader leaf) throws IOException {
@@ -455,7 +441,8 @@ public final class ESNextRescoreOversampleTestFixture {
         assertThat(reader.leaves(), hasSize(2));
         Set<Float> found = new HashSet<>();
         for (LeafReaderContext leafCtx : reader.leaves()) {
-            float v = persistedOversampleOnLeaf(leafCtx.reader());
+            IvfSegmentConfig cfg = readPersistedSegmentConfig(leafCtx.reader());
+            float v = cfg != null ? cfg.rescoreOversample() : Float.NaN;
             found.add(v);
             assertThat("unexpected persisted oversample on leaf " + leafCtx.docBase, expected, hasItem(v));
         }

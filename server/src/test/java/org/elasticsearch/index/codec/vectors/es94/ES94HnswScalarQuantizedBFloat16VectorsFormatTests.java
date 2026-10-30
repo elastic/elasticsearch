@@ -42,8 +42,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomBitsPerValue(),
-            false
+            randomBitsPerValue()
         );
     }
 
@@ -53,8 +52,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomBitsPerValue(),
-            false
+            randomBitsPerValue()
         );
     }
 
@@ -65,7 +63,6 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             randomBitsPerValue(),
-            false,
             numMergeWorkers,
             service
         );
@@ -89,7 +86,6 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             100,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             randomBitsPerValue(),
-            false,
             1,
             null,
             0

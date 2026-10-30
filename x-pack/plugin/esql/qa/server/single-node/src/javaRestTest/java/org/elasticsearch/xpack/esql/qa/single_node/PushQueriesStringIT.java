@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnP
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -201,15 +200,15 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
-                 * FieldExistsQuery is because there are extra documents hiding in the index
-                 * that don't have the `foo` field. "*:*" is because sometimes we end up on
-                 * a shard where all `foo = 1`. single_value_match appears when multiple docs
-                 * with the same foo value are in the index.
+                 * FieldExistsQuery for foo appears when Lucene rewrites foo:[1 TO 1].
+                 * FieldExistsQuery for _primary_term filters extra documents hiding in the index.
+                 * "*:*" is because sometimes we end up on a shard where all `foo = 1`.
+                 * single_value_match appears when multiple docs with the same foo value are in the index.
                  */
                 List.of(
-                    "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                    "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
-                    "foo:[1 TO 1]",
+                    "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                    "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                    "FieldExistsQuery [field=foo]",
                     "FieldExistsQuery [field=_primary_term]"
                 );
             case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
@@ -275,7 +274,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
-        String value = "a".repeat(between(1, 256));
+        String value = "a".repeat(between(0, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
@@ -285,9 +284,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
-            case WILDCARD -> "".equals(value)
-                ? ":PatternAutomatonProvider[matchPattern=, caseInsensitive=true]"
-                : ":PatternAutomatonProvider[matchPattern=%value, caseInsensitive=true]";
+            case WILDCARD -> "".equals(value) ? ": []" : ":PatternAutomatonProvider[matchPattern=%value, caseInsensitive=true]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
@@ -679,7 +676,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
             | WHERE foo == 1 AND NOT (test like "%different_value*")
             """;
         /*
-         * foo:[1 TO 1] is optimized away when all docs have foo=1. SEMANTIC adds single_value_match.
+         * foo:[1 TO 1] is optimized away or rewritten to FieldExistsQuery when all present values are 1.
+         * SEMANTIC adds single_value_match.
          */
         List<String> luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
@@ -687,8 +685,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case WILDCARD -> List.of("-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -713,8 +711,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
             );
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -738,8 +736,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case WILDCARD -> List.of("-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -765,8 +763,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
             );
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -816,25 +814,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap() //
-                    .entry("drivers", instanceOf(List.class))
-                    .entry("plans", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("parsing", matchesMap().extraOk())
-                    .entry("view_resolution", matchesMap().extraOk())
-                    .entry("dataset_resolution", matchesMap().extraOk())
-                    .entry("preanalysis", matchesMap().extraOk())
-                    .entry("indices_resolution", matchesMap().extraOk())
-                    .entry("enrich_resolution", matchesMap().extraOk())
-                    .entry("inference_resolution", matchesMap().extraOk())
-                    .entry("analysis", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-                    .entry("field_caps_calls", instanceOf(Integer.class))
-                    .entry("unmapped_fields", instanceOf(String.class))
-                    .entry("minimumTransportVersion", instanceOf(Integer.class))
-            ),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             resultMatcher
         );

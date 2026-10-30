@@ -44,7 +44,7 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     private final long[] batchKeys2;
     final int[] batchIds;
     // defaults to false, switch to true if we ever see input blocks
-    private boolean seenBlocks = false;
+    boolean seenBlocks = false;
 
     public LongIntBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
         super(blockFactory);
@@ -546,6 +546,11 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     @Override
     public int numKeys() {
         return Math.toIntExact(hash.size());
+    }
+
+    @Override
+    public long estimatedBytesForPartitioning() {
+        return (long) numKeys() * (Long.BYTES * 2);
     }
 
     @Override

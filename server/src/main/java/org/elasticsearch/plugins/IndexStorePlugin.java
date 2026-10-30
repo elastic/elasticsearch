@@ -17,6 +17,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A plugin that provides alternative directory implementations.
@@ -58,6 +60,24 @@ public interface IndexStorePlugin {
         default Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting) throws IOException {
             return newDirectory(indexSettings, shardPath);
         }
+
+        /**
+         * Creates a new directory per shard. This method is called once per shard on shard creation.
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @param shardRouting the {@link ShardRouting}
+         * @param mappingLookup the shard's current mapping, for a directory deciding how to open a field's files
+         * @return a new lucene directory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        default Directory newDirectory(
+            IndexSettings indexSettings,
+            ShardPath shardPath,
+            ShardRouting shardRouting,
+            Supplier<MappingLookup> mappingLookup
+        ) throws IOException {
+            return newDirectory(indexSettings, shardPath, shardRouting);
+        }
     }
 
     /**
@@ -80,8 +100,14 @@ public interface IndexStorePlugin {
          * @param shardRouting the routing entry for the shard being created
          * @param localNode    the node on which the shard is being created
          * @param sourceNode   the node from which the shard is being recovered, or {@code null} for non-peer recoveries
+         * @param localRetries how many times this shard's recovery has already failed and been retried locally on this data node
          */
-        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode localNode, @Nullable DiscoveryNode sourceNode);
+        RecoveryState newRecoveryState(
+            ShardRouting shardRouting,
+            DiscoveryNode localNode,
+            @Nullable DiscoveryNode sourceNode,
+            int localRetries
+        );
     }
 
     /**

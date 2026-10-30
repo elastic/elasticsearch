@@ -33,6 +33,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
@@ -94,7 +95,9 @@ public abstract class DenseVectorQuery extends Query {
 
     @Override
     public void visit(QueryVisitor queryVisitor) {
-        queryVisitor.visitLeaf(this);
+        if (queryVisitor.acceptField(field)) {
+            queryVisitor.visitLeaf(this);
+        }
     }
 
     @Override
@@ -122,6 +125,11 @@ public abstract class DenseVectorQuery extends Query {
      * preference). Returns {@code null} when the leaf has no vector values for {@link #field}.
      */
     abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
+
+    /** {@link #vectorScorer} reading the vectors with {@code access}. */
+    VectorScorer vectorScorer(LeafReaderContext leafReaderContext, DataAccessHint access) throws IOException {
+        return vectorScorer(leafReaderContext);
+    }
 
     /**
      * Indicates if weight is cacheable given the query. Doc values require a careful override due to them being updatable.
@@ -192,7 +200,9 @@ public abstract class DenseVectorQuery extends Query {
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(get(Long.MAX_VALUE), cost);
+                    // scores every vector of the leaf, so reads them in order
+                    VectorScorer sequentialScorer = query.vectorScorer(context, DataAccessHint.SEQUENTIAL);
+                    return new DenseVectorBulkScorer(new DenseVectorScorer(sequentialScorer, filterIterator, boost), cost);
                 }
 
                 @Override
@@ -257,7 +267,19 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
-            FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
+            return scorer(leafReaderContext, leafReaderContext.reader().getFloatVectorValues(field));
+        }
+
+        @Override
+        VectorScorer vectorScorer(LeafReaderContext leafReaderContext, DataAccessHint access) throws IOException {
+            if (function == null) {
+                // the codec-bound scorer reads the quantized vectors
+                return vectorScorer(leafReaderContext);
+            }
+            return scorer(leafReaderContext, leafReaderContext.reader().getFloatVectorValues(field, access));
+        }
+
+        private VectorScorer scorer(LeafReaderContext leafReaderContext, FloatVectorValues vectorValues) throws IOException {
             if (vectorValues == null) {
                 return null;
             }
@@ -631,8 +653,8 @@ public abstract class DenseVectorQuery extends Query {
 
         private final VectorScorer vectorScorer;
         private final DocIdSetIterator filterIterator;
-        // Must lazily initialize because the default VectorScorer#bulk method advances the iterator in a way that breaks conjunctions.
-        // See https://github.com/apache/lucene/pull/16377.
+        // LUCENE WORKAROUND (apache/lucene#16377): the default VectorScorer#bulk advances the iterator eagerly, which breaks
+        // conjunctions, so initialize lazily. Remove once Lucene 11.0.0 is adopted.
         private VectorScorer.Bulk bulkScorer;
         private final DocIdSetIterator iterator;
         private final float boost;
@@ -703,8 +725,13 @@ public abstract class DenseVectorQuery extends Query {
         public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
             collector.setScorer(scorable);
 
-            if (scorer.docID() < min) {
-                scorer.iterator().advance(min);
+            int currentDoc = scorer.docID();
+            if (currentDoc < min) {
+                currentDoc = scorer.iterator().advance(min);
+            }
+
+            if (currentDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                return DocIdSetIterator.NO_MORE_DOCS;
             }
 
             for (scorer.nextDocsAndScores(max, acceptDocs, buffer); buffer.size > 0; scorer.nextDocsAndScores(max, acceptDocs, buffer)) {

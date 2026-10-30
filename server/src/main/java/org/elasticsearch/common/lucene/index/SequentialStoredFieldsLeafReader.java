@@ -14,6 +14,8 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 
+import java.io.IOException;
+
 /**
  * A {@link FilterLeafReader} that exposes a {@link StoredFieldsReader}
  * optimized for sequential access. This class should be used by custom
@@ -41,7 +43,7 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
     /**
      * Returns a {@link StoredFieldsReader} optimized for sequential access (adjacent doc ids).
      */
-    public StoredFieldsReader getSequentialStoredFieldsReader() {
+    public StoredFieldsReader getSequentialStoredFieldsReader() throws IOException {
         if (in instanceof CodecReader reader) {
             return doGetSequentialStoredFieldsReader(reader.getFieldsReader().getMergeInstance());
         } else if (in instanceof SequentialStoredFieldsLeafReader reader) {

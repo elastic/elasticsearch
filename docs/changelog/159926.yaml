@@ -1,0 +1,5 @@
+pr: 159926
+summary: Charge input-scaled collection allocations
+area: Infra/Scripting
+type: enhancement
+issues: []

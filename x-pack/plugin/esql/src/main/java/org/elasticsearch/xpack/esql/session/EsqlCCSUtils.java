@@ -10,17 +10,15 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -28,14 +26,15 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -69,42 +68,6 @@ public class EsqlCCSUtils {
             }
         }
         return unavailableRemotes;
-    }
-
-    /**
-     * ActionListener that receives LogicalPlan or error from logical planning.
-     * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
-     * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
-     */
-    abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
-        private final Configuration configuration;
-        private final EsqlExecutionInfo executionInfo;
-        private final ActionListener<Versioned<Result>> listener;
-
-        CssPartialErrorsActionListener(
-            Configuration configuration,
-            EsqlExecutionInfo executionInfo,
-            ActionListener<Versioned<Result>> listener
-        ) {
-            this.configuration = configuration;
-            this.executionInfo = executionInfo;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (returnSuccessWithEmptyResult(executionInfo, e)) {
-                updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(
-                    new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo, null),
-                        TransportVersion.current()
-                    )
-                );
-            } else {
-                listener.onFailure(e);
-            }
-        }
     }
 
     /**
@@ -216,12 +179,14 @@ public class EsqlCCSUtils {
      * Update the state for clusters that returned zero matching indices — fail the query, mark the cluster as skipped, or mark it as done.
      * @param executionInfo - The per-cluster CCS state
      * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
+     * @param indexViewOrigins - The views each index pattern was reached through, described in errors about missing indices.
      * @param usedFilter - Whether the query had a request-level filter.
      */
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
         Collection<IndexResolution> linkedResolution,
+        IndexViewOrigins indexViewOrigins,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -254,7 +219,7 @@ public class EsqlCCSUtils {
         for (String c : clustersWithNoMatchingIndices) {
             var cluster = executionInfo.getCluster(c);
             if (concreteIndexRequested(cluster.getIndexExpression())) {
-                String error = Strings.format("Unknown index [%s]", cluster.getQualifiedIndexExpression());
+                String error = unknownIndexError(cluster.getQualifiedIndexExpression(), indexViewOrigins);
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = new StringBuilder(error);
@@ -273,25 +238,7 @@ public class EsqlCCSUtils {
                     );
                 }
             } else {
-                // We check for the valid resolution because if we have empty resolution it's still an error.
-                for (IndexResolution indexResolution : indexResolutions) {
-                    if (indexResolution.isValid()) {
-                        List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
-                        // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
-                        if (failures.isEmpty()) {
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
-                        } else {
-                            // skip reporting index_not_found exceptions to avoid spamming users with such errors
-                            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
-                            Exception nonIndexNotFound = failures.stream()
-                                .map(FieldCapabilitiesFailure::getException)
-                                .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
-                                .findAny()
-                                .orElse(null);
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
-                        }
-                    }
-                }
+                markClusterWithNoMatchingIndices(executionInfo, c, indexResolutions);
             }
         }
         // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
@@ -306,7 +253,7 @@ public class EsqlCCSUtils {
                     continue;
                 }
                 if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
-                    String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
+                    String error = unknownIndexError(indexResolution.get().name(), indexViewOrigins);
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = new StringBuilder(error);
                     } else {
@@ -319,6 +266,49 @@ public class EsqlCCSUtils {
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage.toString());
         }
+    }
+
+    /**
+     * A wildcard cluster that matched no indices. Several resolutions can name the same cluster, one per
+     * {@link IndexPattern}. A resolution that did not query the cluster has an empty failure list, and marking from
+     * each resolution in turn would let that empty list overwrite a real field-caps failure.
+     */
+    private static void markClusterWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        Collection<IndexResolution> indexResolutions
+    ) {
+        boolean sawValid = false;
+        boolean sawFailure = false;
+        Exception nonIndexNotFound = null;
+        for (IndexResolution indexResolution : indexResolutions) {
+            if (indexResolution.isValid() == false) {
+                continue;
+            }
+            sawValid = true;
+            for (FieldCapabilitiesFailure failure : indexResolution.failures().getOrDefault(clusterAlias, List.of())) {
+                sawFailure = true;
+                if (nonIndexNotFound == null && ExceptionsHelper.unwrap(failure.getException(), IndexNotFoundException.class) == null) {
+                    nonIndexNotFound = failure.getException();
+                }
+            }
+        }
+        if (sawValid == false) {
+            return;
+        }
+        if (sawFailure == false) {
+            // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+            markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SUCCESSFUL, null);
+        } else {
+            // skip reporting index_not_found exceptions to avoid spamming users with such errors
+            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+            markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SKIPPED, nonIndexNotFound);
+        }
+    }
+
+    static String unknownIndexError(String indexExpression, IndexViewOrigins indexViewOrigins) {
+        String error = "Unknown index [" + indexExpression + "]";
+        return indexViewOrigins.describe(indexExpression).map(views -> error + " " + views).orElse(error);
     }
 
     // visible for testing
@@ -342,6 +332,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.queryProfile().planning().stop();
+        execInfo.queryProfile().foldResolutionIo(execInfo.externalPlanning());
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
@@ -376,7 +367,17 @@ public class EsqlCCSUtils {
             return;
         }
         try {
-            for (IndexPattern indexPattern : indexPatterns) {
+            // A pattern can occur twice: once for the query and once inside a view body (see IndexPattern#insideView). Both name the
+            // same indices, which must not be registered for their cluster twice: each registration appends to the index expression.
+            // Sort by pattern text. indexPatterns is a hash set keyed by IndexPattern, whose hash includes the view scope, so
+            // iterating it directly would make "Unknown index [...]" list names in hash order.
+            List<IndexPattern> orderedPatterns = new ArrayList<>(indexPatterns);
+            orderedPatterns.sort(Comparator.comparing(IndexPattern::indexPattern));
+            Set<String> registered = new HashSet<>();
+            for (IndexPattern indexPattern : orderedPatterns) {
+                if (registered.add(indexPattern.indexPattern()) == false) {
+                    continue;
+                }
                 var groupedIndices = indicesGrouper.groupIndices(
                     IndicesOptions.DEFAULT,
                     Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
@@ -481,7 +482,9 @@ public class EsqlCCSUtils {
      */
     public static boolean canAllowPartial(Exception e) {
         Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-        if (unwrapped instanceof IndexNotFoundException || unwrapped instanceof ElasticsearchSecurityException) {
+        if (unwrapped instanceof IndexNotFoundException
+            || unwrapped instanceof ElasticsearchSecurityException
+            || unwrapped instanceof TaskCancelledException) {
             return false;
         }
         return true;

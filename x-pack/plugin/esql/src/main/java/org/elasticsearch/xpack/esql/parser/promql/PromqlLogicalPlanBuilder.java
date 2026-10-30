@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -59,13 +58,13 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.CARET;
@@ -179,7 +178,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
         }
 
-        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME), command.stepId());
+        // The step list and its expansion are this relation's own columns: the command's step attribute is defined once, by
+        // the final projection, so no filter above can fold the whole list in where a single step is meant.
+        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME));
         var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
 
         return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);
@@ -205,7 +206,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
-            case Duration duration -> new LiteralSelector(source, Literal.timeDuration(source, duration));
+            // Prometheus: a duration in an expression is another spelling of a float literal, its number of seconds
+            // (`2m` is `120`, `1ms` is `0.001`); a range or offset written this way turns it back into a duration.
+            case Duration duration -> new LiteralSelector(source, Literal.fromDouble(source, duration.toNanos() / 1_000_000_000.0));
             case Expression expr -> throw new ParsingException(
                 source,
                 "Expected a plan or literal, got expression [{}]",
@@ -412,6 +415,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
         Source source = source(ctx);
+        if (ctx.op.getType() == MINUS) {
+            Instant end = visitTemporalInstant(ctx.left);
+            Instant start = visitTemporalInstant(ctx.right);
+            if (end != null || start != null) {
+                return timeRange(ctx, end, start);
+            }
+        }
         LogicalPlan le = wrapLiteral(ctx.left);
         LogicalPlan re = wrapLiteral(ctx.right);
 
@@ -512,6 +522,27 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     /**
+     * The duration between two timestamp parameters, such as the start and end of a dashboard's time range in
+     * {@code [?_tend - ?_tstart]}. Both operands must be timestamp parameters, without vector matching modifiers.
+     */
+    private LiteralSelector timeRange(PromqlBaseParser.ArithmeticBinaryContext ctx, Instant end, Instant start) {
+        Source source = source(ctx);
+        if (end != null && start != null && ctx.modifier() == null) {
+            if (end.isAfter(start) == false) {
+                throw new ParsingException(
+                    source,
+                    "Time range [{}] must end after it starts, got [{}] and [{}]",
+                    source.text(),
+                    end,
+                    start
+                );
+            }
+            return new LiteralSelector(source, Literal.timeDuration(source, Duration.between(start, end)));
+        }
+        throw new ParsingException(source, "A timestamp parameter can only be subtracted from another timestamp, got [{}]", source.text());
+    }
+
+    /**
      * Determine DataType from the result value.
      */
     private DataType determineResultType(Object value) {
@@ -537,16 +568,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         var paramsCtx = ctx.functionParams();
-        List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
-
-        List<LogicalPlan> rawParams = new ArrayList<>(params.size());
-        for (Node node : params) {
-            rawParams.add(switch (node) {
-                case LogicalPlan plan -> plan;
-                case Literal literal -> new LiteralSelector(source, literal);
-                default -> throw new IllegalStateException("Unexpected param: " + node);
-            });
-        }
+        // every argument is a plan: a literal (a duration one included) wraps into its selector
+        List<LogicalPlan> rawParams = paramsCtx != null ? paramsCtx.expression().stream().map(this::wrapLiteral).toList() : emptyList();
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
         AcrossSeriesAggregate.Grouping grouping = null;

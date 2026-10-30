@@ -251,7 +251,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             )
         ).build();
         DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
-        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null, 0);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)
             .setStage(RecoveryState.Stage.INDEX)
@@ -348,8 +348,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * uses a different buffer size for them.
      */
     public static IOContext randomIOContext() {
-        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READONCE);
-        assert ioContext.context() != IOContext.Context.MERGE;
-        return ioContext;
+        // Lucene opens a file with a merge context when it reads it in order, for instance through a stored fields merge instance
+        return randomFrom(IOContext.DEFAULT, IOContext.READONCE, IOContext.merge());
     }
 }

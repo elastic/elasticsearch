@@ -35,6 +35,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -84,6 +86,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -508,6 +511,7 @@ public final class IndexModule {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         IndicesQueryCache indicesQueryCache,
         MapperRegistry mapperRegistry,
@@ -561,6 +565,7 @@ public final class IndexModule {
                 threadPoolMergeExecutorService,
                 scriptService,
                 clusterService,
+                featureService,
                 client,
                 queryCache,
                 directoryFactory,
@@ -635,7 +640,17 @@ public final class IndexModule {
                 @Override
                 public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting)
                     throws IOException {
-                    return directoryWrapper.wrap(factory.newDirectory(indexSettings, shardPath, shardRouting), shardRouting);
+                    return newDirectory(indexSettings, shardPath, shardRouting, () -> MappingLookup.EMPTY);
+                }
+
+                @Override
+                public Directory newDirectory(
+                    IndexSettings indexSettings,
+                    ShardPath shardPath,
+                    ShardRouting shardRouting,
+                    Supplier<MappingLookup> mappingLookup
+                ) throws IOException {
+                    return directoryWrapper.wrap(factory.newDirectory(indexSettings, shardPath, shardRouting, mappingLookup), shardRouting);
                 }
             };
         }
@@ -679,6 +694,7 @@ public final class IndexModule {
      */
     public MapperService newIndexMapperService(
         ClusterService clusterService,
+        FeatureService featureService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService,
@@ -686,6 +702,7 @@ public final class IndexModule {
     ) throws IOException {
         return new MapperService(
             clusterService,
+            featureService,
             indexSettings,
             analysisRegistry.build(IndexCreationContext.METADATA_VERIFICATION, indexSettings),
             parserConfiguration,

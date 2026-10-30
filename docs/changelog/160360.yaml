@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160360
+summary: Limit decompression ratio for compressed external objects
+type: enhancement

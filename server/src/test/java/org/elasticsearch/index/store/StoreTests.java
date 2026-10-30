@@ -619,8 +619,8 @@ public class StoreTests extends ESTestCase {
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(1));
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.get(0).name(), endsWith(".liv"));
         }
-        // segments_N, fnm, dvd, dvm, dvs for the updated segment
-        int missingSize = 5;
+        // segments_N, fnm, dvd, dvm, dvp, dvs for the updated segment
+        int missingSize = 6;
 
         assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - missingSize - delFileCount));
         assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(delFileCount));

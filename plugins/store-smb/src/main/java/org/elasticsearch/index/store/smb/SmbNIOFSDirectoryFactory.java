@@ -13,15 +13,22 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
 public final class SmbNIOFSDirectoryFactory extends FsDirectoryFactory {
 
     @Override
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    protected Directory newFSDirectory(
+        Path location,
+        LockFactory lockFactory,
+        IndexSettings indexSettings,
+        Supplier<MappingLookup> mappingLookup
+    ) throws IOException {
         return new SmbDirectoryWrapper(new NIOFSDirectory(location, lockFactory));
     }
 }

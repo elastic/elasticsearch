@@ -28,7 +28,9 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,12 +45,14 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -62,8 +66,10 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -80,10 +86,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -211,7 +219,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
                 searchRequest,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
@@ -229,6 +237,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Collections.emptyMap(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 resultConsumer,
+                NoopCircuitBreaker.INSTANCE,
                 searchRequest,
                 null,
                 shardsIter,
@@ -415,7 +424,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
                 searchRequest,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
@@ -433,6 +442,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Collections.emptyMap(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 resultConsumer,
+                NoopCircuitBreaker.INSTANCE,
                 searchRequest,
                 null,
                 shardsIter,
@@ -494,6 +504,75 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     private void assertSerializationExceptionReachesCoordinator(TransportVersion channelVersion) throws Exception {
+        RecordingChannel channel = runBatchedNodeQuery(channelVersion, newLimitedBreakerService(ByteSizeValue.ofMb(10)), 2, true);
+        assertNotNull(channel.failure);
+    }
+
+    /**
+     * The batched query response holds the reduced results of every shard on the node, so its bytes stay charged to the request
+     * breaker until the transport has written them.
+     */
+    public void testBatchedNodeResponseChargedUntilSent() throws Exception {
+        assertResponseChargedUntilSent(TransportVersion.current());
+        assertResponseChargedUntilSent(TransportVersion.fromName("batched_query_phase_version"));
+    }
+
+    private void assertResponseChargedUntilSent(TransportVersion channelVersion) throws Exception {
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(10));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RecordingChannel channel = runBatchedNodeQuery(channelVersion, breakerService, 2, false);
+        assertNull(channel.failure);
+        BytesTransportResponse response = (BytesTransportResponse) channel.response;
+        try {
+            // The consumer has released its own charge, so what stays charged is the response, in whole pages.
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo((long) response.bytes().length()));
+            assertThat(breaker.getUsed(), greaterThan(0L));
+        } finally {
+            assertTrue(response.decRef());
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A breaker trip on the first page of the response fails the node's request with the trip, and leaves nothing charged.
+     */
+    public void testBatchedNodeResponseTripReachesCoordinator() throws Exception {
+        // Smaller than the first page.
+        assertResponseTripReachesCoordinator(TransportVersion.current(), 2, 1);
+        assertResponseTripReachesCoordinator(TransportVersion.fromName("batched_query_phase_version"), 2, 1);
+    }
+
+    /**
+     * A breaker trip while the response grows releases the pages already charged.
+     */
+    public void testBatchedNodeResponseTripWhileWritingReleasesPages() throws Exception {
+        // An empty shard result takes under 100 bytes, so 1,000 of them span several pages. The limit leaves room for the first page only.
+        int limit = PageCacheRecycler.BYTE_PAGE_SIZE * 3 / 2;
+        assertResponseTripReachesCoordinator(TransportVersion.current(), 1_000, limit);
+        assertResponseTripReachesCoordinator(TransportVersion.fromName("batched_query_phase_version"), 1_000, limit);
+    }
+
+    private void assertResponseTripReachesCoordinator(TransportVersion channelVersion, int shards, long limitBytes) throws Exception {
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofBytes(limitBytes));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RecordingChannel channel = runBatchedNodeQuery(channelVersion, breakerService, shards, false);
+        assertThat(channel.failure, instanceOf(CircuitBreakingException.class));
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Runs a request for {@code shards} shards through the batched query handler of a node whose shards return empty results, and
+     * returns the channel once the handler has responded on it.
+     *
+     * @param failWrites whether the response stream throws on its first write
+     */
+    private RecordingChannel runBatchedNodeQuery(
+        TransportVersion channelVersion,
+        CircuitBreakerService breakerService,
+        int shards,
+        boolean failWrites
+    ) throws Exception {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
         String nodeId = UUIDs.randomBase64UUID();
@@ -510,9 +589,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.emptySet(),
             nodeId
         ) {
-            // This stream will throw on first write
             @Override
             public RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
+                if (failWrites == false) {
+                    return super.newNetworkBytesStream(circuitBreaker);
+                }
+                // This stream will throw on first write
                 return new RecyclerBytesStreamOutput(
                     new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)).bytesRefRecycler()
                 ) {
@@ -537,10 +619,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             null,
             new FetchPhase(Collections.emptyList()),
-            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            breakerService,
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
             Tracer.NOOP,
-            OnlinePrewarmingService.NOOP
+            OnlinePrewarmingService.NOOP,
+            transport.getTaskManager()
         ) {
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
@@ -571,6 +654,163 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().size(0));
+            // The coordinator always sets it before sending. Unset, building each shard request fails.
+            searchRequest.allowPartialSearchResults(true);
+            var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, shards, 0L, null);
+            for (int i = 0; i < shards; i++) {
+                nodeQueryRequest.shards.add(
+                    new SearchQueryThenFetchAsyncAction.ShardToQuery(
+                        1.0f,
+                        new String[] { "idx" },
+                        i,
+                        new ShardId("idx", "uuid", i),
+                        null,
+                        SplitShardCountSummary.UNSET
+                    )
+                );
+            }
+
+            RecordingChannel channel = new RecordingChannel(channelVersion);
+
+            @SuppressWarnings("unchecked")
+            RequestHandlerRegistry<SearchQueryThenFetchAsyncAction.NodeQueryRequest> handler = (RequestHandlerRegistry<
+                SearchQueryThenFetchAsyncAction.NodeQueryRequest>) transport.getRequestHandler(
+                    SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME
+                );
+            handler.processMessageReceived(nodeQueryRequest, channel);
+
+            boolean completed = channel.responded.await(10, TimeUnit.SECONDS);
+            resultsToRelease.forEach(QuerySearchResult::decRef);
+            assertTrue("channel was not responded to within 10 seconds", completed);
+            return channel;
+        } finally {
+            IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
+        }
+    }
+
+    /**
+     * Records what the handler sends. It keeps a reference to the response, as the transport does until its write completes, so the
+     * caller must release it.
+     */
+    private static final class RecordingChannel implements TransportChannel {
+        private final TransportVersion version;
+        private final CountDownLatch responded = new CountDownLatch(1);
+        private volatile TransportResponse response;
+        private volatile Exception failure;
+
+        RecordingChannel(TransportVersion version) {
+            this.version = version;
+        }
+
+        @Override
+        public String getProfileName() {
+            return "";
+        }
+
+        @Override
+        public TransportVersion getVersion() {
+            return version;
+        }
+
+        @Override
+        public void sendResponse(TransportResponse response) {
+            response.mustIncRef();
+            this.response = response;
+            responded.countDown();
+        }
+
+        @Override
+        public void sendResponse(Exception exception) {
+            this.failure = exception;
+            responded.countDown();
+        }
+    }
+
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/158991.
+     * When a coordinator running a newer transport version encodes a PIT and a data node running an older version
+     * processes the batched query phase, the decoding error must be caught and handled.
+     */
+    public void testBatchedQueryPhaseSucceedsWhenPITEncodedByNewerVersion() throws Exception {
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
+        String nodeId = UUIDs.randomBase64UUID();
+        MockTransportService transport = new MockTransportService(
+            Settings.EMPTY,
+            innerTransport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNodeUtils.builder(nodeId)
+                .address(boundAddress.publishAddress())
+                .version(VersionInformation.CURRENT)
+                .build(),
+            null,
+            Collections.emptySet(),
+            nodeId
+        );
+        ClusterService clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            null
+        );
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        SearchService searchService = new SearchService(
+            clusterService,
+            null,
+            threadPool,
+            null,
+            null,
+            new FetchPhase(Collections.emptyList()),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            EmptySystemIndices.INSTANCE.getExecutorSelector(),
+            Tracer.NOOP,
+            OnlinePrewarmingService.NOOP,
+            transport.getTaskManager()
+        ) {
+            @Override
+            public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
+                    new SearchShardTarget(transport.getLocalNode().getId(), req.shardId(), null),
+                    null
+                );
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                result.from(0);
+                result.size(1);
+                resultsToRelease.add(result);
+                listener.onResponse(result);
+            }
+        };
+        // Encode a PIT using a transport version unknown to this node, simulating a newer coordinator.
+        // SearchContextId.decode throws IllegalArgumentException for unknown versions.
+        TransportVersion futureVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
+        assertFalse("futureVersion must be unknown to this node", futureVersion.isKnown());
+        BytesReference encodedPit = SearchContextId.encode(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            futureVersion,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(new NamedWriteableRegistry(List.of()), encodedPit));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> channelFailure = new AtomicReference<>();
+        try {
+            transport.start();
+            SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
+                new SearchTransportService(transport, null, null),
+                searchService,
+                new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
+                new NamedWriteableRegistry(List.of())
+            );
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.allowPartialSearchResults(false);
+            searchRequest.source(new SearchSourceBuilder().size(1).pointInTimeBuilder(new PointInTimeBuilder(encodedPit)));
+            // Two shards: with size=1 and no matching docs, both shards are outside the top results,
+            // which triggers maybeFreeContext -> isPartOfPIT for each
             var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, 2, 0L, null);
             nodeQueryRequest.shards.add(
                 new SearchQueryThenFetchAsyncAction.ShardToQuery(
@@ -592,8 +832,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     SplitShardCountSummary.UNSET
                 )
             );
-
-            CountDownLatch latch = new CountDownLatch(1);
             TransportChannel channel = new TransportChannel() {
                 @Override
                 public String getProfileName() {
@@ -602,28 +840,29 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
                 @Override
                 public TransportVersion getVersion() {
-                    return channelVersion;
+                    return TransportVersion.current();
                 }
 
                 @Override
-                public void sendResponse(TransportResponse response) {}
+                public void sendResponse(TransportResponse response) {
+                    latch.countDown();
+                }
 
                 @Override
                 public void sendResponse(Exception exception) {
+                    channelFailure.set(exception);
                     latch.countDown();
                 }
             };
-
             @SuppressWarnings("unchecked")
             RequestHandlerRegistry<SearchQueryThenFetchAsyncAction.NodeQueryRequest> handler = (RequestHandlerRegistry<
                 SearchQueryThenFetchAsyncAction.NodeQueryRequest>) transport.getRequestHandler(
                     SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME
                 );
             handler.processMessageReceived(nodeQueryRequest, channel);
-
-            boolean completed = latch.await(10, TimeUnit.SECONDS);
+            assertTrue("channel was not responded to within 10 seconds", latch.await(10, TimeUnit.SECONDS));
             resultsToRelease.forEach(QuerySearchResult::decRef);
-            assertTrue("channel was not responded to within 10 seconds", completed);
+            assertNull("expected success response but got: " + channelFailure.get(), channelFailure.get());
         } finally {
             IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
         }

@@ -35,8 +35,10 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
@@ -46,8 +48,13 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -57,19 +64,35 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES93BFloat16FlatVectorsReader.class);
 
-    private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
+    private final IntObjectHashMap<FieldEntry> fields;
     private final FlatVectorsScorer vectorScorer;
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
     private final IOContext dataContext;
+    private final Directory directory;
+    private final String vectorDataFN;
+    // the reader that owns the inputs, this one or the one it was created from
+    private final ES93BFloat16FlatVectorsReader original;
+    // opened lazily for merges and sequential reads, closed with this reader, guarded by this
+    private IndexInput mergeVectorData;
+    private IndexInput sequentialVectorData;
+    // guarded by this
+    private boolean closed;
 
     public ES93BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
+        this.fields = new IntObjectHashMap<>();
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
         this.vectorScorer = scorer;
-        // Flat formats are used to randomly access vectors from their node ID that is stored
-        // in the HNSW graph.
-        dataContext = state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
+        this.directory = state.directory;
+        this.vectorDataFN = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION
+        );
+        this.original = this;
+        // how these are read is up to whoever wraps this format
+        dataContext = state.context.union(FileTypeHint.DATA, FileDataHint.KNN_VECTORS);
         try {
             vectorData = openDataInput(
                 state,
@@ -82,6 +105,18 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
+    }
+
+    /** Reads the same fields as {@code reader}, through {@code vectorData}. */
+    private ES93BFloat16FlatVectorsReader(ES93BFloat16FlatVectorsReader reader, IndexInput vectorData) {
+        this.fields = reader.fields;
+        this.vectorScorer = reader.vectorScorer;
+        this.vectorData = vectorData;
+        this.fieldInfos = reader.fieldInfos;
+        this.dataContext = reader.dataContext;
+        this.directory = reader.directory;
+        this.vectorDataFN = reader.vectorDataFN;
+        this.original = reader.original;
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
@@ -178,9 +213,59 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
-        // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
-        vectorData.updateIOContext(dataContext.withHints(DataAccessHint.SEQUENTIAL));
-        return this;
+        IndexInput data = original.mergeVectorData();
+        return data == vectorData ? this : new ES93BFloat16FlatVectorsReader(this, data.clone());
+    }
+
+    /** Returns the input for merges, opening the data file again if needed. */
+    private synchronized IndexInput mergeVectorData() throws IOException {
+        assert original == this;
+        ensureOpen();
+        if (mergeVectorData == null) {
+            mergeVectorData = vectorDataFor(IOContext.merge().withHints(sequentialHints()), sequentialVectorData);
+        }
+        return mergeVectorData;
+    }
+
+    /** Returns the input for sequential reads by searches, opening the data file again if needed. */
+    private synchronized IndexInput sequentialVectorData() throws IOException {
+        assert original == this;
+        ensureOpen();
+        if (sequentialVectorData == null) {
+            // read by searches, even on a reader a merge opened
+            sequentialVectorData = vectorDataFor(IOContext.DEFAULT.withHints(sequentialHints()), mergeVectorData);
+        }
+        return sequentialVectorData;
+    }
+
+    /** Returns an input efficient for {@code context}, opening the data file again if none is. */
+    private IndexInput vectorDataFor(IOContext context, IndexInput other) throws IOException {
+        if (vectorData.isEfficientFor(context)) {
+            return vectorData;
+        }
+        if (other != null && other.isEfficientFor(context)) {
+            return other;
+        }
+        try {
+            return directory.openInput(vectorDataFN, context);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // an open reader outlives its files, so read through the input it already holds
+            return vectorData;
+        }
+    }
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new AlreadyClosedException("this reader is closed");
+        }
+    }
+
+    /** Returns the hints of the data file with sequential access. */
+    private IOContext.FileOpenHint[] sequentialHints() {
+        return Stream.concat(
+            dataContext.hints().stream().filter(hint -> hint instanceof DataAccessHint == false),
+            Stream.of(DataAccessHint.SEQUENTIAL)
+        ).toArray(IOContext.FileOpenHint[]::new);
     }
 
     @Override
@@ -209,6 +294,16 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return loadFloatVectorValues(field, vectorData);
+    }
+
+    @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        IndexInput data = access == DataAccessHint.SEQUENTIAL ? original.sequentialVectorData() : vectorData;
+        return loadFloatVectorValues(field, data);
+    }
+
+    private FloatVectorValues loadFloatVectorValues(String field, IndexInput data) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.FLOAT32);
         return OffHeapBFloat16VectorValues.load(
             fieldEntry.similarityFunction,
@@ -219,7 +314,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             fieldEntry.size,
             fieldEntry.vectorDataOffset,
             fieldEntry.vectorDataLength,
-            vectorData
+            data
         );
     }
 
@@ -259,15 +354,21 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public void finishMerge() throws IOException {
-        // This makes sure that the access pattern hint is reverted back since HNSW implementation
-        // needs it
-        vectorData.updateIOContext(dataContext);
-    }
-
-    @Override
     public void close() throws IOException {
-        IOUtils.close(vectorData);
+        // the inputs can be the same
+        Set<IndexInput> toClose = new LinkedHashSet<>();
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            toClose.add(vectorData);
+            toClose.add(mergeVectorData);
+            toClose.add(sequentialVectorData);
+            mergeVectorData = null;
+            sequentialVectorData = null;
+        }
+        IOUtils.close(toClose);
     }
 
     private record FieldEntry(

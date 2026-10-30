@@ -49,7 +49,6 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                     random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                     random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.BFLOAT16,
-                    random().nextBoolean(),
                     null,
                     1,
                     false,
@@ -61,7 +60,6 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                     random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.BFLOAT16,
-                    false,
                     null,
                     1,
                     true,
@@ -74,7 +72,6 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                     random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                     DenseVectorFieldMapper.ElementType.BFLOAT16,
-                    random().nextBoolean(),
                     null,
                     1,
                     false,
@@ -102,6 +99,12 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     @Override
     public void testAdvance() throws Exception {
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky
+    }
+
+    @Override
+    protected boolean mergeIsStable() {
+        // flush clusters the original float32 vectors while merges cluster the bfloat16 values read back from the segment
+        return false;
     }
 
     @Override

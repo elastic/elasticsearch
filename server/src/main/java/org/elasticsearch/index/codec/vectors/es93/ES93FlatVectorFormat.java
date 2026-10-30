@@ -21,6 +21,9 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.DataAccessHint;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
+import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -45,22 +48,28 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
 
     public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType) {
         super(NAME);
-        format = new ES93GenericFlatVectorsFormat(elementType, false);
+        format = new ES93GenericFlatVectorsFormat(elementType);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return format.fieldsWriter(state);
+        return format.fieldsWriter(VectorWriteHints.writtenToScan(state));
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93FlatVectorReader(format.fieldsReader(state));
+        SegmentReadState searchState = VectorReadHints.scannedBySearches(state);
+        return new ES93FlatVectorReader(format.fieldsReader(searchState));
     }
 
     @Override
     public int getMaxDimensions(String fieldName) {
         return MAX_DIMS_COUNT;
+    }
+
+    @Override
+    public String toString() {
+        return getName() + "(name=" + getName() + ", innerFormat=" + format + ")";
     }
 
     static class ES93FlatVectorReader extends KnnVectorsReader {
@@ -72,6 +81,16 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public KnnVectorsReader getMergeInstance() throws IOException {
+            return new ES93FlatVectorReader(reader.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            reader.finishMerge();
+        }
+
+        @Override
         public void checkIntegrity() throws IOException {
             reader.checkIntegrity();
         }
@@ -79,6 +98,11 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             return reader.getFloatVectorValues(field);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+            return reader.getFloatVectorValues(field, access);
         }
 
         @Override

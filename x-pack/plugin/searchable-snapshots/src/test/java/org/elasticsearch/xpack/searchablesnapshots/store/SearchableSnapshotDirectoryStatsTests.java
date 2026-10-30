@@ -38,6 +38,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
@@ -216,7 +217,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     final IndexInputStats inputStats = directory.getStats(fileName);
 
                     // account for internal buffered reads
-                    final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                    final long bufferSize = cachedBufferSize(ioContext);
                     final long remaining = input.length() % bufferSize;
                     final long expectedTotal = input.length();
                     final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -334,7 +335,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
 
                 // account for the CacheBufferedIndexInput internal buffer
-                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = cachedBufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -399,7 +400,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     input.readBytes(readBuffer, 0, size);
 
                     // BufferedIndexInput tries to read as much bytes as possible
-                    final long bytesRead = Math.min(BufferedIndexInput.bufferSize(ioContext), input.length() - randomPosition);
+                    final long bytesRead = Math.min(cachedBufferSize(ioContext), input.length() - randomPosition);
                     lastReadPosition = randomPosition + bytesRead;
                     totalBytesRead += bytesRead;
                     minBytesRead = (bytesRead < minBytesRead) ? bytesRead : minBytesRead;
@@ -548,6 +549,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         });
     }
 
+    /** The buffer of an input that goes through the cache, which never exceeds what the blob store cache keeps. */
+    private static long cachedBufferSize(IOContext ioContext) {
+        return Math.min(BufferedIndexInput.bufferSize(ioContext), BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
+    }
+
     private void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             randomCacheService(),
@@ -694,7 +700,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 )
             ).build();
             DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
-            RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+            RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null, 0);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
             future.get();

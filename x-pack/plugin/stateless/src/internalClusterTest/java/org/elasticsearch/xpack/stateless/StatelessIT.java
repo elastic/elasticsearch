@@ -1222,12 +1222,12 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         throws IOException {
         final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
             operationPurpose,
-            StatelessCompoundCommit.PREFIX
+            BatchedCompoundCommit.PREFIX
         )
             .values()
             .stream()
-            .filter(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
-            .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
+            .filter(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
+            .max(Comparator.comparingLong(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name())))
             .orElseThrow(() -> new AssertionError("retry with assertBusy"));
         final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
             latestUploadBccMetadata.name(),

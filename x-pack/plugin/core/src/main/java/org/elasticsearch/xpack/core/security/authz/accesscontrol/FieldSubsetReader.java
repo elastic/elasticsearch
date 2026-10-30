@@ -10,6 +10,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -29,9 +30,12 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -41,7 +45,9 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
@@ -50,6 +56,8 @@ import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.KeyFilteredSlots;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -151,6 +159,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     /** List of filtered fields */
     private final FieldInfos fieldInfos;
+    /**
+     * The keyed values of the {@code _unmapped} field, one slot for each value of an unmapped field, and their slot counts. The field is
+     * always granted, as every field whose name starts with {@code _} is, so the unmapped fields it holds are filtered on their own name.
+     */
+    private static final String UNMAPPED_SINK_KEYED = FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+    private static final String UNMAPPED_SINK_COUNTS = UNMAPPED_SINK_KEYED
+        + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
@@ -186,6 +202,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
                 String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
                 if (in.getFieldInfos().fieldInfo(parent) != null) {
+                    name = parent;
+                }
+            }
+
+            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
+                String parent = name.substring(0, name.length() - countsSuffix.length());
+                if (parent.isEmpty() == false && in.getFieldInfos().fieldInfo(parent) != null) {
                     name = parent;
                 }
             }
@@ -247,6 +271,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         if (fieldName.endsWith(onFailure)) {
             return stripSuffix(fieldName, onFailure);
+        }
+
+        // A columnar geo_shape field stores its normalized geometries in a <field>.source_geometry companion so synthetic source
+        // can be rebuilt
+        if (fieldName.endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)) {
+            return stripSuffix(fieldName, AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX);
         }
 
         return fieldName;
@@ -390,7 +420,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
             return null;
         }
-        return super.getNumericDocValues(field);
+        NumericDocValues dv = super.getNumericDocValues(field);
+        if (dv != null && UNMAPPED_SINK_COUNTS.equals(field)) {
+            BinaryDocValues slots = super.getBinaryDocValues(UNMAPPED_SINK_KEYED);
+            return slots == null ? dv : new GrantedUnmappedFieldCounts(new GrantedUnmappedFields(slots, dv, filter));
+        }
+        return dv;
     }
 
     @Override
@@ -402,6 +437,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         BinaryDocValues dv = super.getBinaryDocValues(field);
         if (isIgnoredSourceDocValues(dv, field)) {
             return new FilteredIgnoredSourceDocValues(in, dv, ignoredSourceFormat, filter);
+        }
+        if (dv != null && UNMAPPED_SINK_KEYED.equals(field)) {
+            NumericDocValues counts = super.getNumericDocValues(UNMAPPED_SINK_COUNTS);
+            return counts == null ? dv : new GrantedUnmappedFieldSlots(new GrantedUnmappedFields(dv, counts, filter));
         }
         return dv;
     }
@@ -420,7 +459,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * <p>
      * These counts must be hidden from callers: {@link FilteredIgnoredSourceDocValues} re-encodes the surviving values in the
      * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format, but
-     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
+     * {@link MultiValuedSortableBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
      * whether a {@code .counts} field is present. Leaving it visible makes the filtered payload be read as
      * {@link MultiValuedBinaryDocValuesField.SeparateCount} against unfiltered counts, which mis-decodes the values.
      */
@@ -444,19 +483,187 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
     }
 
+    @Override
+    public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        if (hasField(field) == false || isFilteredCountsField(field)) {
+            return null;
+        }
+        return super.getDocValuesSkipper(field);
+    }
+
+    /**
+     * Returns whether {@code field} is a counts field that stays visible but whose numeric doc values this reader filters:
+     * {@code _ignored_source.counts}, which {@link #getNumericDocValues} hides, and {@code _unmapped._keyed.counts}, which it
+     * reduces to the slots of granted unmapped fields. The skipper stored for such a field summarizes the unfiltered values,
+     * including those of hidden fields, so it must not be exposed. Returning no skipper is always correct: readers treat it
+     * as optional and read the doc values without one.
+     */
+    private boolean isFilteredCountsField(String field) {
+        return isIgnoredSourceCountsField(field) || UNMAPPED_SINK_COUNTS.equals(field);
+    }
+
+    /**
+     * The slots of the {@code _unmapped} field for one document at a time, keeping only those of the unmapped fields that
+     * {@code filter} grants. Each slot is {@code [valueLength+1]key\0value}, or {@code [0]key\0} for a null, and is kept as it is,
+     * so the granted slots read like the slots of a document that only held those fields.
+     */
+    private static final class GrantedUnmappedFields {
+        private final BinaryDocValues slots;
+        private final NumericDocValues counts;
+        private final CharacterRunAutomaton filter;
+        private final MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader reader =
+            new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
+        private final BytesRefBuilder granted = new BytesRefBuilder();
+        private int grantedCount;
+
+        GrantedUnmappedFields(BinaryDocValues slots, NumericDocValues counts, CharacterRunAutomaton filter) {
+            this.slots = slots;
+            this.counts = counts;
+            this.filter = filter;
+        }
+
+        /** Reads the slots of {@code doc}, and returns whether any is granted. */
+        boolean advanceExact(int doc) throws IOException {
+            granted.clear();
+            grantedCount = 0;
+            if (counts.advanceExact(doc) == false || slots.advanceExact(doc) == false) {
+                return false;
+            }
+            BytesRef blob = slots.binaryValue();
+            reader.reset(blob, Math.toIntExact(counts.longValue()));
+            while (reader.next()) {
+                if (filter.run(reader.key())) {
+                    granted.append(blob.bytes, reader.slotStart(), reader.slotEnd() - reader.slotStart());
+                    grantedCount++;
+                }
+            }
+            return grantedCount > 0;
+        }
+
+        /** Advances to the first document from {@code doc} on that has a granted slot. */
+        int advanceFrom(int doc) throws IOException {
+            while (doc != DocIdSetIterator.NO_MORE_DOCS && advanceExact(doc) == false) {
+                doc = slots.nextDoc();
+            }
+            return doc;
+        }
+    }
+
+    /**
+     * The binary doc values of the {@code _unmapped} field, holding only the slots of the granted unmapped fields. The synthetic
+     * source loader of the field reads the slots as they are stored instead, and skips those of the other fields as it decodes them.
+     */
+    private static final class GrantedUnmappedFieldSlots extends BinaryDocValues implements KeyFilteredSlots {
+        private final GrantedUnmappedFields fields;
+        private int doc = -1;
+
+        GrantedUnmappedFieldSlots(GrantedUnmappedFields fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public BinaryDocValues storedSlots() {
+            return fields.slots;
+        }
+
+        @Override
+        public NumericDocValues storedCounts() {
+            return fields.counts;
+        }
+
+        @Override
+        public boolean grants(String key) {
+            return fields.filter.run(key);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return fields.granted.get();
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            doc = target;
+            return fields.advanceExact(target);
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return doc = fields.advanceFrom(fields.slots.nextDoc());
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return doc = fields.advanceFrom(fields.slots.advance(target));
+        }
+
+        @Override
+        public long cost() {
+            return fields.slots.cost();
+        }
+    }
+
+    /** The {@code .counts} companion of the {@code _unmapped} field, counting only the slots of the granted unmapped fields. */
+    private static final class GrantedUnmappedFieldCounts extends NumericDocValues {
+        private final GrantedUnmappedFields fields;
+        private int doc = -1;
+
+        GrantedUnmappedFieldCounts(GrantedUnmappedFields fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public long longValue() {
+            return fields.grantedCount;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            doc = target;
+            return fields.advanceExact(target);
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return doc = fields.advanceFrom(fields.slots.nextDoc());
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return doc = fields.advanceFrom(fields.slots.advance(target));
+        }
+
+        @Override
+        public long cost() {
+            return fields.counts.cost();
+        }
+    }
+
     /**
      * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
      * <p>
-     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues}, filtered through the FLS field automaton, and the
-     * surviving values are stored as a list. Extending {@link MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues} lets
-     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued} read those values directly, avoiding the otherwise-necessary step of
+     * Per-document values are decoded via {@link MultiValuedSortableBinaryDocValues}, filtered through the FLS field automaton, and the
+     * surviving values are stored as a list. Extending {@link MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues} lets
+     * {@link MultiValuedSortableBinaryDocValues#fromMultiValued} read those values directly, avoiding the otherwise-necessary step of
      * re-encoding them into a blob that the caller would immediately parse apart again. {@link #binaryValue()} encodes on demand as a
      * fallback for anything that reads this instance as a plain {@link BinaryDocValues}.
      */
-    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues
+        implements
+            BlockLoader.OptionalDecodeMemoryUsageEstimator {
 
         private final BinaryDocValues delegate;
-        private final MultiValuedSortedBinaryDocValues multiValues;
+        private final MultiValuedSortableBinaryDocValues multiValues;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
         /** Held rather than built per entry: both capture {@link #filter}, so constructing them in the loop allocates on every value. */
         private final Function<Map<String, Object>, Map<String, Object>> mapFilter;
@@ -475,8 +682,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             this.ignoredSourceFormat = ignoredSourceFormat;
             this.mapFilter = v -> filter(v, filter, 0);
             this.nameFilter = filter::run;
-            // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
-            this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
+            // convert incoming binary doc values to reuse the code provided by MultiValuedSortableBinaryDocValues
+            this.multiValues = MultiValuedSortableBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            return delegate instanceof BlockLoader.OptionalDecodeMemoryUsageEstimator estimator ? estimator.maxDecodeBytes() : -1;
         }
 
         @Override
@@ -558,6 +770,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
+    public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
+        return hasField(field) ? in.getFloatVectorValues(field, access) : null;
+    }
+
+    @Override
     public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
         if (hasField(field)) {
             super.searchNearestVectors(field, target, collector, acceptDocs);
@@ -611,7 +828,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public StoredFieldsReader getMergeInstance() {
+        public StoredFieldsReader getMergeInstance() throws IOException {
             return new FieldSubsetStoredFieldsReader(reader.getMergeInstance(), ignoredSourceFormat);
         }
 

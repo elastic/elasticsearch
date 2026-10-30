@@ -16,11 +16,12 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.vectors.BFloat16BinaryDenseVectorDocValuesField;
@@ -64,7 +65,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         throw new IllegalArgumentException("String representation of doc values for vector fields is not supported");
     }
 
@@ -75,7 +76,12 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 return switch (elementType) {
                     case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                     // bfloat16 is hidden by the FloatVectorValues implementation
-                    case FLOAT, BFLOAT16 -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
+                    // scripts read every document, so in order
+                    case FLOAT, BFLOAT16 -> new KnnDenseVectorDocValuesField(
+                        reader.getFloatVectorValues(field, DataAccessHint.SEQUENTIAL),
+                        name,
+                        dims
+                    );
                     case BIT -> new BitKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                 };
             } else {
@@ -236,8 +242,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
         return switch (elementType) {
-            case BYTE -> new ByteDocValues(dims, format == DocValueFormat.BINARY);
-            case BIT -> new ByteDocValues(dims / Byte.SIZE, format == DocValueFormat.BINARY);
+            case BYTE, BIT -> new ByteDocValues(elementType.vectorLength(dims), format == DocValueFormat.BINARY);
             case FLOAT -> new FloatDocValues(format == DocValueFormat.BINARY);
             case BFLOAT16 -> new BFloat16DocValues(format == DocValueFormat.BINARY);
         };

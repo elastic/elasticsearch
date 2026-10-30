@@ -68,7 +68,6 @@ public class ES940v2DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTest
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,

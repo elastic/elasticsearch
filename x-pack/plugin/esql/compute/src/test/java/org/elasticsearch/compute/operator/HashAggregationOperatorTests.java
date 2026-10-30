@@ -418,7 +418,6 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 1.0,
                 128,
                 null,
-                null,
                 driverContext,
                 config,
                 true

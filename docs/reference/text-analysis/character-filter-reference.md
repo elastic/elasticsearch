@@ -20,6 +20,9 @@ Elasticsearch has a number of built in character filters which can be used to bu
 [Pattern Replace Character Filter](/reference/text-analysis/analysis-pattern-replace-charfilter.md)
 :   The `pattern_replace` character filter replaces any characters matching a regular expression with the specified replacement.
 
+[Thai Character Filter](/reference/text-analysis/analysis-thai-charfilter.md)
+:   The `thai` character filter normalizes Thai orthography before tokenization so word segmentation can recover correct boundaries.
+
 
 
 

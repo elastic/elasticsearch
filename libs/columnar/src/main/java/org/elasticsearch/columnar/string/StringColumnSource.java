@@ -27,6 +27,53 @@ public interface StringColumnSource {
     /** The column behind these values. */
     StringColumnReader reader();
 
+    /** Whether a document's blob is its one value's own bytes rather than a payload of its slots. */
+    boolean singleValued();
+
+    /** {@link #denseTermOrdinal} answer: the document holds no value. */
+    int NO_VALUE = -1;
+
+    /** {@link #denseTermOrdinal} answer: the document's one value is not in the dictionary. Read it with {@link #escapedValue}. */
+    int ESCAPED = -2;
+
+    /** {@link #denseTermOrdinal} answer: the document holds more than one non-null value. */
+    int MULTI_VALUED = -3;
+
+    /**
+     * What the document these values are positioned on holds, in one call, so a caller that counts or groups by value can
+     * work with small ints and read each term once rather than once for each document. Only for a column with a
+     * dictionary, which {@code reader().hasDictionary()} says, and only while these values are positioned on a document
+     * that has a value, which is when {@code advanceExact} or {@code nextDoc} has just landed on one.
+     *
+     * <p>The answer is the dense ordinal of the document's one value, or {@link #NO_VALUE}, {@link #ESCAPED} or
+     * {@link #MULTI_VALUED}. A null slot is no value, so a document of several slots with one non-null slot holds one
+     * value. A caller sends a {@link #MULTI_VALUED} document to a path that reads all its values.
+     *
+     * <p>A dense ordinal runs from zero up to, but not including, {@code reader().dictionarySize()}, so a caller can index an
+     * array of that size by it. It is
+     * not the ordinal the column stores, which reserves values for a null slot and for the marker of an escaped value, and
+     * so starts above zero. A value the dictionary does not name has no dense ordinal: the answer is {@link #ESCAPED}, and
+     * the column holds its bytes.
+     *
+     * <p>Answered from the ordinals the column records, so nothing is decoded.
+     */
+    int denseTermOrdinal() throws IOException;
+
+    /**
+     * The term at a dense ordinal, which must be below {@code reader().dictionarySize()}, in a column with a dictionary. The
+     * returned {@link BytesRef} is {@code dst}, and is only valid until the next call. The lookup holds no per-document
+     * state, so it can be asked for any ordinal at any time, such as to read the keys of a result after the documents are
+     * collected.
+     */
+    BytesRef termAt(int denseOrdinal, BytesRef dst) throws IOException;
+
+    /**
+     * The value that {@link #denseTermOrdinal} answered {@link #ESCAPED} for, so it is only for the call straight after that
+     * answer. Any other answer, or the next call to {@link #denseTermOrdinal}, leaves nothing to read. The returned
+     * {@link BytesRef} is {@code dst}, and is only valid until the next call.
+     */
+    BytesRef escapedValue(BytesRef dst) throws IOException;
+
     /**
      * The largest or smallest value the document these values are positioned on holds, or null when it holds none.
      *
@@ -57,4 +104,26 @@ public interface StringColumnSource {
      * null — so no value is decoded to count them.
      */
     int nonNullValueCount() throws IOException;
+
+    /**
+     * How many slots the document these values are positioned on holds, null slots included.
+     *
+     * <p>The bound on {@link #slotAt}: a slot at or past this belongs to the next document, which that method
+     * has no way to notice.
+     */
+    int slotCount() throws IOException;
+
+    /**
+     * The value in one slot of the document these values are positioned on, or {@code null} when that slot is null.
+     *
+     * <p>Handed over where the column holds it, so nothing is copied, which is what lets a caller read a document
+     * through rather than assemble it. The returned {@link BytesRef} is only valid until the next call.
+     */
+    BytesRef slotAt(int slot) throws IOException;
+
+    /**
+     * How many non-null values the document holds; when exactly one, its length in bytes is left in
+     * {@code length[0]}. Unlike {@link #nonNullValues} no value is decoded.
+     */
+    int nonNullLength(int[] length) throws IOException;
 }

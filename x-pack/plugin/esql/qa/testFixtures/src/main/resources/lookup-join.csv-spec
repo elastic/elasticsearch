@@ -235,6 +235,200 @@ languages:integer | emp_no:integer | language_code:integer | language_name:keywo
 1                 | 10005          | 1                     | English
 ;
 
+lookupThreeTimesWithEvalRenameDrop
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| EVAL language_code = languages - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| EVAL language_code = languages - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| DROP language_code
+| KEEP emp_no, languages, lang, lang_minus_one, lang_minus_two
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | lang:keyword | lang_minus_one:keyword | lang_minus_two:keyword
+10001          | 2                 | French       | English                | null
+10002          | 5                 | null         | German                 | Spanish
+10003          | 4                 | German       | Spanish                | French
+10004          | 5                 | null         | German                 | Spanish
+10005          | 1                 | English      | null                   | null
+;
+
+lookupThreeTimesParkingAColumnNamedLikeTheKey
+required_capability: join_lookup_v12
+required_capability: hoist_projects_past_lookup_joins
+
+FROM employees
+| WHERE emp_no <= 10005
+| KEEP emp_no, languages
+| RENAME languages AS language_code
+| RENAME language_code AS parked
+| EVAL language_code = parked
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| RENAME parked AS language_code
+| RENAME language_code AS parked
+| EVAL language_code = parked + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_plus_one
+| DROP language_code
+| RENAME parked AS language_code
+| RENAME language_code AS parked
+| EVAL language_code = parked - 3
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_three
+| DROP language_code
+| RENAME parked AS language_code
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | lang:keyword | lang_plus_one:keyword | lang_minus_three:keyword
+10001          | 2                     | French       | Spanish               | null
+10002          | 5                     | null         | null                  | French
+10003          | 4                     | German       | null                  | English
+10004          | 5                     | null         | null                  | French
+10005          | 1                     | English      | French                | null
+;
+
+lookupThreeTimesWithFilterAndStats
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| WHERE lang IS NOT NULL
+| EVAL language_code = languages - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| EVAL language_code = languages - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| DROP language_code
+| STATS employees = COUNT(*) BY lang, lang_minus_one, lang_minus_two
+| SORT lang
+;
+
+employees:long | lang:keyword | lang_minus_one:keyword | lang_minus_two:keyword
+15             | English      | null                   | null
+19             | French       | English                | null
+18             | German       | Spanish                | French
+17             | Spanish      | French                 | English
+;
+
+lookupBlocksWithFilterDissectAndEnrichInBetween
+required_capability: join_lookup_v12
+required_capability: enrich_load
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| WHERE lang IS NOT NULL
+| DISSECT lang "%{lang_head}ch"
+| EVAL code = TO_STRING(languages - 1)
+| ENRICH languages_policy ON code WITH enriched_minus_one = language_name
+| EVAL language_code = languages - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| KEEP emp_no, lang, lang_head, enriched_minus_one, lang_minus_two
+| SORT emp_no
+;
+
+emp_no:integer | lang:keyword | lang_head:keyword | enriched_minus_one:keyword | lang_minus_two:keyword
+10001          | French       | Fren              | English                    | null
+10003          | German       | null              | Spanish                    | French
+10005          | English      | null              | null                       | null
+;
+
+lookupBlocksAroundInlineStats
+required_capability: join_lookup_v12
+required_capability: inline_stats
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| INLINE STATS max_salary = MAX(salary) BY lang
+| EVAL language_code = languages - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| KEEP emp_no, lang, max_salary, lang_minus_one
+| SORT emp_no
+;
+
+emp_no:integer | lang:keyword | max_salary:integer | lang_minus_one:keyword
+10001          | French       | 57305              | English
+10002          | null         | 56371              | German
+10003          | German       | 61805              | Spanish
+10004          | null         | 56371              | German
+10005          | English      | 63528              | null
+;
+
+lookupBlocksAroundMvExpand
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no <= 10003
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| MV_EXPAND job_positions
+| EVAL language_code = languages - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| KEEP emp_no, job_positions, lang, lang_minus_one
+| SORT emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword   | lang:keyword | lang_minus_one:keyword
+10001          | Accountant              | French       | English
+10001          | Senior Python Developer | French       | English
+10002          | Senior Team Lead        | null         | German
+10003          | null                    | German       | Spanish
+;
+
+lookupBlocksAfterStatsWithRenamesAndLimit
+required_capability: join_lookup_v12
+
+FROM employees
+| STATS max_salary = MAX(salary) BY languages
+| RENAME languages AS language_code
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| EVAL language_code = language_code - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| SORT max_salary DESC
+| LIMIT 3
+;
+
+max_salary:integer | lang:keyword | lang_minus_one:keyword
+74999              | null         | null
+74970              | Spanish      | French
+74572              | German       | Spanish
+;
+
 projectsWithShadowingAfterPushdown
 required_capability: join_lookup_v12
 
@@ -4930,6 +5124,7 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+
 emp_no:integer | language_code:integer | language_name:keyword
 10001          |null           |null
 10002          |null           |null
@@ -6125,6 +6320,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 nullArithmeticFilterBeforeLookupJoin
 required_capability: join_lookup_v12
+required_capability: warn_null_misuse
 
 FROM employees
 | WHERE 1 + null > 0
@@ -6132,6 +6328,7 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP emp_no, language_code, language_name
 ;
+warning:Line 2:9: Expression [1 + null] always evaluates to NULL.
 
 emp_no:integer | language_code:integer | language_name:keyword
 ;

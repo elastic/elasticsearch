@@ -49,6 +49,6 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(VectorReadHints.walkedByGraph(state)));
     }
 }

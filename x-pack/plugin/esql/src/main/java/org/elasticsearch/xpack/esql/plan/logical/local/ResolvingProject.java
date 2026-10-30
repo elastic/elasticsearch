@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -74,8 +81,7 @@ public class ResolvingProject extends Project {
 
     /**
      * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
-     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
-     * sits is irrelevant: the response order comes from the replay in {@code UnmappedFieldsOrdering}, which strips it before resolving.
+     * (so KEEP/DROP/RENAME patterns cannot match the column), then re-appending them at the end.
      * <p>
      * At most one ever arrives. Every non-LOOKUP relation is stamped with one, so a multi-input plan starts out holding several, but
      * they all share {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}: nodes that merge their inputs collapse them by name, while
@@ -98,7 +104,7 @@ public class ResolvingProject extends Project {
         if (unmappedAttrs.isEmpty()) {
             return resolver.apply(childOutput);
         }
-        // See the javadoc for why one is all that can arrive; if that ever breaks, the post-processor's findIndex would use the first.
+        // See the javadoc for why one is all that can arrive; if that ever breaks, the response would hold several columns of that name.
         assert unmappedAttrs.size() <= 1 : "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + ", got " + unmappedAttrs;
         List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
         List<NamedExpression> result = new ArrayList<>(resolved.size() + unmappedAttrs.size());
@@ -121,6 +127,33 @@ public class ResolvingProject extends Project {
         return command.unmappedFieldsPattern();
     }
 
+    public Kind kind() {
+        return command.kind();
+    }
+
+    /** Whether KEEP/DROP/RENAME would keep a field named {@code name} that is materialized only after this node was resolved. */
+    public boolean admitsLateUnmappedField(String name) {
+        return switch (command.kind()) {
+            case KEEP -> unmappedFieldsPattern().matches(name);
+            case RENAME -> isUntouchedByRename(name);
+            case DROP -> unmappedFieldsPattern().matches(name)
+                && command.projections().stream().noneMatch(r -> r instanceof UnresolvedAttribute ua && name.equals(ua.name()));
+        };
+    }
+
+    private boolean isUntouchedByRename(String name) {
+        for (NamedExpression renaming : command.projections()) {
+            if (renaming instanceof Alias alias) {
+                String from = Expressions.name(alias.child());
+                // `RENAME a AS a` is skipped as a NOP, so it touches nothing.
+                if (from.equals(alias.name()) == false && (name.equals(from) || name.equals(alias.name()))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     protected NodeInfo<Project> info() {
         return NodeInfo.create(
@@ -133,7 +166,30 @@ public class ResolvingProject extends Project {
 
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
-        return new ResolvingProject(source(), newChild, command);
+        ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
+        // LOAD_ALL stamps _unmapped_fields. Convert synthetics must survive re-resolution of that KEEP/DROP.
+        if (newChild.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute) == false) {
+            return recomputed;
+        }
+        Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
+        Set<String> childNames = newChild.outputSet().names();
+        var missingSynthetics = projections().stream()
+            .filter(
+                p -> p.synthetic()
+                    && p instanceof UnmappedFieldsAttribute == false
+                    && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
+                    && names.contains(p.name()) == false
+                    && childNames.contains(p.name())
+            )
+            .toList();
+        return missingSynthetics.isEmpty()
+            ? recomputed
+            : new ResolvingProject(
+                source(),
+                recomputed.child(),
+                CollectionUtils.combine(recomputed.projections(), missingSynthetics),
+                command
+            );
     }
 
     @Override

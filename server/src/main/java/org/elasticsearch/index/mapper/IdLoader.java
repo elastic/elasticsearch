@@ -337,6 +337,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     for (int i = 0; i < routingPaths.size(); i++) {
                         routingHashDVs[i] = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, routingPaths.get(i)).forceSingle();
                     }
+                    success = true;
                 } finally {
                     if (success == false) {
                         Releasables.close(tsidDVs, timestampDVs, Releasables.wrap(routingHashDVs));

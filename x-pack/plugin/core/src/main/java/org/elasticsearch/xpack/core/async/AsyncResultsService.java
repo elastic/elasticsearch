@@ -76,6 +76,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
 
     public void retrieveResult(GetAsyncResultRequest request, ActionListener<Response> listener) {
         try {
+            store.ensureValidKeepAliveExtension(request.getKeepAlive());
             long nowInMillis = System.currentTimeMillis();
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             long expirationTime;

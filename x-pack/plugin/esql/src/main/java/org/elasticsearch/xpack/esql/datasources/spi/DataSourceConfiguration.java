@@ -169,20 +169,28 @@ public abstract class DataSourceConfiguration {
      * carries a mix of storage and format options; the storage plugin must ignore keys it does
      * not own rather than reject them as unknown. Returns {@code null}/empty unchanged.
      *
+     * <p>Also derives the identity of what was kept: this is the one place that holds both the consumed
+     * entries and each field's secret flag, so it is the only place that can identify a storage
+     * configuration without a list of credential names maintained elsewhere. A secret's value reaches the
+     * secret identity derived alongside it instead, digested rather than carried, so rotating one moves every
+     * key that folds that identity while no secret value reaches a key.
+     *
      * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
      * find out why the storage config came back with defaults. Only key <em>names</em> are
-     * logged — values are never emitted, since this method is unaware of which keys are secrets.
-     * Format keys (like {@code header_row}) will appear here too, which is expected.
+     * logged, never values. Format keys (like {@code header_row}) will appear here too, which is
+     * expected.
      */
     protected static Configured<Map<String, Object>> filterKnown(
         Map<String, Object> raw,
         Map<String, DataSourceConfigDefinition> fieldDefs
     ) {
         if (raw == null || raw.isEmpty()) {
-            return new Configured<>(raw, Set.of());
+            return new Configured<>(raw, Set.of(), "", "");
         }
         Map<String, Object> filtered = new HashMap<>(raw.size());
         Set<String> consumed = new HashSet<>();
+        Set<String> identifying = new HashSet<>();
+        Set<String> secrets = new HashSet<>();
         // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
         // is not worth tracking precisely here.
         boolean debug = logger.isDebugEnabled();
@@ -191,6 +199,11 @@ public abstract class DataSourceConfiguration {
             if (fieldDefs.containsKey(entry.getKey())) {
                 filtered.put(entry.getKey(), entry.getValue());
                 consumed.add(entry.getKey());
+                if (fieldDefs.get(entry.getKey()).secret() == false) {
+                    identifying.add(entry.getKey());
+                } else {
+                    secrets.add(entry.getKey());
+                }
             } else if (debug) {
                 if (dropped == null) {
                     dropped = new ArrayList<>();
@@ -201,7 +214,12 @@ public abstract class DataSourceConfiguration {
         if (dropped != null) {
             logger.debug("filtered out unknown keys [{}] from datasource config; recognized fields are [{}]", dropped, fieldDefs.keySet());
         }
-        return new Configured<>(filtered, consumed);
+        return new Configured<>(
+            filtered,
+            consumed,
+            Configured.identityOf(filtered, identifying, Set.of()),
+            Configured.secretIdentityOf(filtered, secrets)
+        );
     }
 
     /**
@@ -217,7 +235,7 @@ public abstract class DataSourceConfiguration {
     ) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
         T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());
-        return new Configured<>(value, filtered.consumedKeys());
+        return new Configured<>(value, filtered.consumedKeys(), filtered.identity(), filtered.secretIdentity());
     }
 
     /**
@@ -251,6 +269,18 @@ public abstract class DataSourceConfiguration {
     public String get(String key) {
         Object v = values.get(key);
         return v != null ? v.toString() : null;
+    }
+
+    /**
+     * Every setting name this configuration recognises, secret and not.
+     * <p>
+     * Exposed so a test can be written against the field set a provider actually declares rather than against a
+     * list of names typed beside it: a per-field test cannot fail when a provider GAINS a field, because nothing
+     * enumerates the fields it was supposed to cover. A census derived from here fails until the new field is
+     * either folded into the identity or excluded with a reason.
+     */
+    public Set<String> fieldNames() {
+        return Set.copyOf(fieldDefs.keySet());
     }
 
     /**

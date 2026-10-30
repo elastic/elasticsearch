@@ -21,11 +21,14 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
+import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -48,21 +51,21 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final QuantizedByteVectorValues.ScalarEncoding encoding;
 
     public ES94ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, 7);
     }
 
     public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, 7, false);
+        this(elementType, 7);
     }
 
-    public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, int bits, boolean useDirectIO) {
+    public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, int bits) {
         super(NAME);
         if (bits < 1 || bits > 8 || (ALLOWED_BITS & (1 << bits)) == 0) {
             throw new IllegalArgumentException("bits must be one of: 1, 2, 4, 7; bits=" + bits);
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType);
         this.encoding = switch (bits) {
             case 1 -> QuantizedByteVectorValues.ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE;
             case 2 -> QuantizedByteVectorValues.ScalarEncoding.DIBIT_QUERY_NIBBLE;
@@ -74,12 +77,17 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene104ScalarQuantizedVectorsWriter(state, encoding, rawVectorFormat.fieldsWriter(state), flatVectorScorer);
+        return new Lucene104ScalarQuantizedVectorsWriter(
+            state,
+            encoding,
+            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
+            flatVectorScorer
+        );
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer);
+        return new ESQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state)), flatVectorScorer);
     }
 
     @Override
@@ -222,15 +230,30 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             this.delegate = delegate;
         }
 
+        private ESQuantizedVectorsReader(ESQuantizedVectorsReader reader, FlatVectorsReader mergeDelegate) {
+            super(reader, mergeDelegate);
+            this.delegate = mergeDelegate;
+        }
+
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return new ESQuantizedVectorsReader(this, delegate.getMergeInstance());
+        }
+
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return getFloatVectorValues(field, DataAccessHint.RANDOM);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field, DataAccessHint access) throws IOException {
             FloatVectorValues floatVectorValues = super.getFloatVectorValues(field);
             if (floatVectorValues == null) {
                 return null;
             }
             // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
             // raw vectors
-            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field));
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field, access));
         }
     }
 

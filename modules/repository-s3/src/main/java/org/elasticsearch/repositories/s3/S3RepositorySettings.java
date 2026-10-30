@@ -32,6 +32,8 @@ final class S3RepositorySettings {
         S3ClientSettings.MAX_CONNECTIONS_SETTING,
         S3ClientSettings.MAX_RETRIES_SETTING,
         S3ClientSettings.API_CALL_TIMEOUT_SETTING,
+        S3ClientSettings.TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT_SETTING,
+        S3ClientSettings.TRANSLOG_UPLOAD_CALL_TIMEOUT_SETTING,
         S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
         S3ClientSettings.USE_PATH_STYLE_ACCESS,
         S3ClientSettings.DISABLE_CHUNKED_ENCODING,

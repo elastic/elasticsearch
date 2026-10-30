@@ -84,6 +84,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -680,13 +681,13 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             if (attempt.incrementAndGet() < 3) {
-                invocation.<ActionListener<Void>>getArgument(2).onFailure(new IOException("test"));
+                invocation.<ActionListener<Void>>getArgument(3).onFailure(new IOException("test"));
             } else {
                 compoundFiles.add(getBytes(invocation.getArgument(1)));
-                invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+                invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
             }
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), anyBoolean(), any());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> {
@@ -873,9 +874,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             syncStartedFuture.onResponse(null);
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), anyBoolean(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -923,16 +924,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             var metadata = CompoundTranslogHeader.readFromStore("test", invocation.<BytesReference>getArgument(1).streamInput()).metadata();
             if (metadata.get(shardId).operations().maxSeqNo() == 1L) {
-                firstSyncCompleter.set(invocation.getArgument(2));
+                firstSyncCompleter.set(invocation.getArgument(3));
                 intermediateStartedLatch.countDown();
                 return null;
             }
             if (metadata.get(shardId).operations().maxSeqNo() == 3L) {
                 finalSyncStartedLatch.countDown();
             }
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), anyBoolean(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1207,9 +1208,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             safeAwait(latch);
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), anyBoolean(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1607,9 +1608,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             uploadBlocker.get().await();
             compoundFiles.add(getBytes(invocation.getArgument(1)));
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), anyBoolean(), any());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> {

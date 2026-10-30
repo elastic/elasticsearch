@@ -48,6 +48,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -133,6 +134,10 @@ class S3BlobStore implements BlobStore {
 
     private final boolean tenaciousRetriesEnabled;
 
+    private final TimeValue translogUploadAttemptTimeout;
+
+    private final TimeValue translogUploadCallTimeout;
+
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
      * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
@@ -182,6 +187,8 @@ class S3BlobStore implements BlobStore {
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
         this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
         this.tenaciousRetriesEnabled = service.settings(projectId, repositoryMetadata).tenaciousRetriesEnabled;
+        this.translogUploadAttemptTimeout = service.settings(projectId, repositoryMetadata).translogUploadAttemptTimeout;
+        this.translogUploadCallTimeout = service.settings(projectId, repositoryMetadata).translogUploadCallTimeout;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
@@ -505,7 +512,7 @@ class S3BlobStore implements BlobStore {
         return switch (purpose) {
             case SNAPSHOT_DATA -> dataStorageClass;
             case SNAPSHOT_METADATA -> metadataStorageClass;
-            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> fallbackStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, TRANSLOG_WITH_ATTEMPT_TIMEOUT, RESHARDING -> fallbackStorageClass;
         };
     }
 
@@ -671,6 +678,16 @@ class S3BlobStore implements BlobStore {
         });
     }
 
+    // Similar to `configureRequestForMetrics` but for requests that upload data, that also bounds translog uploads by using the
+    // {@link S3ClientSettings#TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT_SETTING} and {@link S3ClientSettings#TRANSLOG_UPLOAD_CALL_TIMEOUT_SETTING}.
+    static void configureUploadRequest(AwsRequest.Builder request, S3BlobStore blobStore, Operation operation, OperationPurpose purpose) {
+        request.overrideConfiguration(builder -> {
+            builder.metricPublishers(List.of(blobStore.getMetricPublisher(operation, purpose)));
+            blobStore.addPurposeQueryParameter(purpose, builder);
+            blobStore.addTranslogUploadTimeouts(purpose, builder);
+        });
+    }
+
     public void addPurposeQueryParameter(OperationPurpose purpose, AwsRequestOverrideConfiguration.Builder builder) {
         if (addPurposeCustomQueryParameter || purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
             // REPOSITORY_ANALYSIS is a strict check for 100% S3 compatibility, including custom query parameter support, so is always added
@@ -678,4 +695,17 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    private void addTranslogUploadTimeouts(OperationPurpose purpose, AwsRequestOverrideConfiguration.Builder builder) {
+        if (purpose != OperationPurpose.TRANSLOG && purpose != OperationPurpose.TRANSLOG_WITH_ATTEMPT_TIMEOUT) {
+            return;
+        }
+
+        if (translogUploadCallTimeout.millis() >= 0) {
+            builder.apiCallTimeout(Duration.ofMillis(translogUploadCallTimeout.millis()));
+        }
+
+        if (purpose == OperationPurpose.TRANSLOG_WITH_ATTEMPT_TIMEOUT && translogUploadAttemptTimeout.millis() >= 0) {
+            builder.apiCallAttemptTimeout(Duration.ofMillis(translogUploadAttemptTimeout.millis()));
+        }
+    }
 }

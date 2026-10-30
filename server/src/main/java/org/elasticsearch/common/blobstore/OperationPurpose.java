@@ -22,6 +22,7 @@ public enum OperationPurpose {
     CLUSTER_STATE("ClusterState"),
     INDICES("Indices"),
     TRANSLOG("Translog"),
+    TRANSLOG_WITH_ATTEMPT_TIMEOUT("TranslogWithAttemptTimeout"),
     RESHARDING("Resharding");
 
     private final String key;

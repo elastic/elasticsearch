@@ -68,6 +68,9 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         this.create = create;
         this.versionInvariant = versionInvariant;
         this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.apply(IndexVersion.current()), versionInvariant);
+        if (versionInvariant == false) {
+            cache.put(IndexVersion.current(), current);
+        }
     }
 
     /** For analyzers whose behavior may vary with the Lucene version. */
@@ -122,7 +125,11 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     @Override
     public void close() throws IOException {
         List<Closeable> closeables = cache.values().stream().<Closeable>map(AnalyzerProvider::get).toList();
-        IOUtils.close(current.get(), () -> IOUtils.close(closeables));
+        if (versionInvariant == false) {
+            IOUtils.close(closeables);
+        } else {
+            IOUtils.close(current.get(), () -> IOUtils.close(closeables));
+        }
     }
 
     /**

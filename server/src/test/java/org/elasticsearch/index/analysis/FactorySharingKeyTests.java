@@ -195,6 +195,27 @@ public class FactorySharingKeyTests extends ESTestCase {
         }
     }
 
+    /** The current provider participates in custom version caching instead of occupying a separate slot. */
+    public void testCustomVersionPrebuiltAnalyzerSharesCurrentProvider() throws IOException {
+        Environment env = env();
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.versioned(
+                "versioned",
+                version -> true,
+                ignored -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> previousProvider = factory.get(
+                indexSettings(IndexVersionUtils.getPreviousVersion()),
+                env,
+                "versioned",
+                Settings.EMPTY
+            );
+            assertSame(currentProvider, previousProvider);
+        }
+    }
+
     /** Prebuilt analyzers registered with a plain supplier are version-invariant and keep sharing by name across versions. */
     public void testSupplierPrebuiltAnalyzerSharesAcrossVersions() throws IOException {
         Environment env = env();

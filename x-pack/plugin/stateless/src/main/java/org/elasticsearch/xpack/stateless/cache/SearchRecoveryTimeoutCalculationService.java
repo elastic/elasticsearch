@@ -78,6 +78,16 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
+    /// When enabled, a shard relocating from a healthy source while a search node is shutting down shares the target's free relocation
+    /// slots with the shards of the shutting-down node, so that it does not delay them past their grace period, see
+    /// [#relocationWithOtherNodeShutdownTimeout]. When disabled, such a shard always waits for the plain relocation-with-shutdown timeout.
+    public static final Setting<Boolean> OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_share_slots_with_shutting_down_nodes",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile int maxConcurrentRelocationRecoveries;
@@ -94,6 +104,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private volatile double searchRecoveryWarmingCacheRatio;
     private volatile boolean searchRecoveryWarmingFilterSourceShardsByTarget;
     private volatile boolean ignoreNonSearchNodeShutdowns;
+    private volatile boolean shareSlotsWithShuttingDownNodes;
 
     public SearchRecoveryTimeoutCalculationService(
         StatelessSharedBlobCacheService cacheService,
@@ -162,6 +173,10 @@ public class SearchRecoveryTimeoutCalculationService {
             OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
             value -> this.ignoreNonSearchNodeShutdowns = value
         );
+        clusterSettings.initializeAndWatch(
+            OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING,
+            value -> this.shareSlotsWithShuttingDownNodes = value
+        );
     }
 
     /// Decides, on expiry of `latestPlan`, whether the wait continues and for how long: returns the re-evaluated plan with its timeout
@@ -225,6 +240,12 @@ public class SearchRecoveryTimeoutCalculationService {
                 );
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
+                if (shareSlotsWithShuttingDownNodes == false) {
+                    return new SearchRecoveryTimeout(
+                        searchRecoveryWarmingRelocationWithShutdownTimeout,
+                        TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
+                    );
+                }
                 return relocationWithOtherNodeShutdownTimeout(state, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             return new SearchRecoveryTimeout(

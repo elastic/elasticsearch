@@ -125,6 +125,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING
             )
         );
@@ -538,7 +539,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
      */
     public void testSearchRecoveryReevaluationSwitchesToShutdownTimeoutWhenAnotherClusterNodeStartsShuttingDown() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            final var service = newCalculationService(threadPool);
+            final var clusterSettings = newClusterSettings(Settings.EMPTY);
+            final var service = newCalculationService(threadPool, clusterSettings, 0L);
             final ClusterState stateWithoutShutdown = ClusterStateCreationUtils.state(
                 DEFAULT_PROJECT_ID,
                 "test",
@@ -580,12 +582,29 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     )
                 )
             );
-            // the target has enough free relocation slots for the shutting-down node, so the shard is not squeezed
+            // slot sharing is off by default, so the shard simply waits for the with-shutdown timeout
             assertThat(
                 reevaluatedPlan.timeoutContext(),
-                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE)
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
             );
             assertThat(reevaluatedPlan.extendable(), is(true));
+
+            // once enabled, the target has enough free relocation slots for the shutting-down node, so the shard is not squeezed
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(),
+                        true
+                    )
+                    .build()
+            );
+            final var slotSharingPlan = service.searchRecoveryTimeout(stateWithOtherNodeShutdown, mockIndexShard(self), 0L, null);
+            assertThat(slotSharingPlan.timeout(), equalTo(reevaluatedPlan.timeout()));
+            assertThat(
+                slotSharingPlan.timeoutContext(),
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE)
+            );
+            assertThat(slotSharingPlan.extendable(), is(true));
         }
     }
 
@@ -2481,6 +2500,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     private static Settings otherNodeShutdownSettings() {
         return Settings.builder()
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(), true)
             // the DNRT limit stays unbounded, so the master's limit is the effective one
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
             .build();

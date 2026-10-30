@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -320,6 +321,20 @@ public final class SchemaReconciliation {
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
+        return reconcileUnionByName(fileMetadata, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Same as {@link #reconcileUnionByName(Map)}, refusing once the merged schema has more than {@code maxFields}
+     * columns. Each file is already held to the schema cap by its reader, but files whose columns diverge merge into a
+     * schema that is the sum of their distinct names, so the per-file cap does not bound it. The check runs as columns
+     * are added, so a merge that is too wide stops before the rest of it is built. It also bounds the merge scratch
+     * below, which has one entry per merged column.
+     *
+     * @param maxFields the most columns the merged schema may have
+     * @throws ExternalClientException (400) when the merged schema exceeds {@code maxFields}
+     */
+    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, int maxFields) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Per-column accumulator. We record *every* file's inferred type for every column up
         // front (it's cheap and gives the warning emitter a complete contributor list), then
@@ -342,6 +357,16 @@ public final class SchemaReconciliation {
                 if (existing == null) {
                     boolean attrNullable = attr.nullable() == Nullability.TRUE;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
+                    if (unified.size() > maxFields) {
+                        throw ExternalClientException.schemaTooWide(
+                            "the union of the files' columns has more than [" + maxFields + "] columns; "
+                            // At the ceiling raising the cap is rejected too, so point at declaring the columns.
+                                + (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS
+                                    ? "declare the dataset's columns with [dynamic: false] to skip inference"
+                                    : "raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields] "
+                                        + "to merge a wider schema")
+                        );
+                    }
                 } else {
                     if (existing.type != attr.dataType()) {
                         existing.type = widenToCommonOrKeyword(existing.type, attr.dataType());

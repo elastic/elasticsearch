@@ -37,13 +37,14 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
         Set<String> expected = new TreeSet<>();
         expected.add("optimized_reader");
         expected.add("late_materialization");
+        expected.add("schema_max_fields");
         assertEquals(expected, new TreeSet<>(ParquetFormatReader.RECOGNIZED_KEYS));
     }
 
     public void testEveryRecognizedKeyRoundTripsThroughWithConfig() {
         for (String key : ParquetFormatReader.RECOGNIZED_KEYS) {
             Map<String, Object> config = new HashMap<>();
-            config.put(key, true);
+            config.put(key, key.equals(ParquetFormatReader.CONFIG_SCHEMA_MAX_FIELDS) ? 10 : true);
             Configured<FormatReader> result = new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
             assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
         }

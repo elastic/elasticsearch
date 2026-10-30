@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -72,6 +73,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -85,6 +87,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -230,6 +233,151 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
         return future.actionGet();
+    }
+
+    // ===== schema_max_fields on the resolver's declared and union rails =====
+
+    /**
+     * A declaration wider than the dataset's {@code schema_max_fields} is refused on both glob rails: strict
+     * ({@code dynamic: false}) and the non-strict overlay ({@code dynamic: true}). Each rail runs its own
+     * {@code checkDeclaredWidth}, so dropping either one fails its half. At the cap both rails resolve.
+     */
+    public void testDeclaredWidthOverCapIsRefusedOnGlobStrictAndOverlay() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("long", null));
+        props.put("b", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG));
+        // First-file-wins keeps the union_by_name merge, which holds the file's own columns to the same cap, from
+        // refusing the overlay before its declared-width check runs.
+        Map<String, Object> overCap = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        overCap.put("schema_max_fields", 1);
+        Map<String, Object> atCap = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        atCap.put("schema_max_fields", 2);
+        for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.FALSE, DatasetMapping.Dynamic.TRUE)) {
+            Exception e = expectThrows(Exception.class, () -> resolveDeclaredWithConfig(fileSchema, props, dynamic, overCap, null));
+            assertThat("dynamic=" + dynamic, e.getMessage(), containsString("declares [2] columns, more than the [1] allowed"));
+            assertEquals("dynamic=" + dynamic, RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+            assertNotNull(
+                "dynamic=" + dynamic,
+                resolveDeclaredWithConfig(fileSchema, props, dynamic, atCap, null).resolvedSource(DECLARED_GLOB)
+            );
+        }
+    }
+
+    /**
+     * The strict rail's coercibility probe reads the anchor's footer with the cap raised to its ceiling: a declared
+     * dataset is not capped by how many columns its files have. The inferred rail keeps the dataset's cap. The stub
+     * reader enforces {@code schema_max_fields} from its config, as Parquet does.
+     */
+    public void testStrictDeclaredProbeLiftsTheReaderCap() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG), attr("c", DataType.LONG));
+        List<Object> capsSeen = new CopyOnWriteArrayList<>();
+        Map<String, Object> config = Map.of("schema_max_fields", 2);
+
+        ExternalSourceResolution strict = resolveDeclaredWithConfig(fileSchema, props, DatasetMapping.Dynamic.FALSE, config, capsSeen);
+        assertNotNull(strict.resolvedSource(DECLARED_GLOB));
+        assertThat("the probe read the footer at the ceiling", capsSeen, hasItem(ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS));
+
+        List<Object> inferredCaps = new CopyOnWriteArrayList<>();
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveDeclaredWithConfig(fileSchema, props, DatasetMapping.Dynamic.TRUE, config, inferredCaps)
+        );
+        assertThat(e.getMessage(), containsString("more than [2] columns"));
+    }
+
+    /** The merged schema under {@code union_by_name} is held to the dataset's cap, though each file is under it. */
+    public void testUnionByNameMergedWidthOverDatasetCapIsRefused() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = Map.of(
+            "s3://bucket/data/file1.parquet",
+            List.of(attr("a", DataType.LONG), attr("b", DataType.LONG)),
+            "s3://bucket/data/file2.parquet",
+            List.of(attr("c", DataType.LONG), attr("d", DataType.LONG))
+        );
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 100));
+        Map<String, Object> capped = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        capped.put("schema_max_fields", 3);
+        Exception e = expectThrows(Exception.class, () -> resolveMultiFileWithConfig(DECLARED_GLOB, schemasByPath, listing, capped));
+        assertThat(e.getMessage(), containsString("the union of the files' columns has more than [3] columns"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+
+        capped.put("schema_max_fields", 4);
+        ExternalSourceResolution atCap = resolveMultiFileWithConfig(DECLARED_GLOB, schemasByPath, listing, capped);
+        assertEquals(4, atCap.resolvedSource(DECLARED_GLOB).metadata().schema().size());
+    }
+
+    /**
+     * Resolves a one-file parquet glob under a declared mapping with the given dataset config. When {@code capsSeen} is
+     * non-null the reader enforces {@code schema_max_fields} from its config (default 1000) and records each cap it
+     * was configured with.
+     */
+    private ExternalSourceResolution resolveDeclaredWithConfig(
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic,
+        Map<String, Object> config,
+        @Nullable List<Object> capsSeen
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, fileSchema);
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            List.of(entry(file, 100))
+        );
+        ExternalSourceResolver resolver = capsSeen == null
+            ? createResolver(schemasByPath, listingsByPrefix)
+            : createResolverWithReader(
+                new StubStorageProvider(listingsByPrefix, schemasByPath),
+                new CapEnforcingStubReader(schemasByPath, ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS, capsSeen),
+                null
+            );
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>(config)),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        return future.actionGet();
+    }
+
+    /** A stub reader that refuses a file wider than its configured {@code schema_max_fields}, the way Parquet does. */
+    private static class CapEnforcingStubReader extends StubFormatReader {
+        private final Map<String, List<Attribute>> schemas;
+        private final int cap;
+        private final List<Object> capsSeen;
+
+        CapEnforcingStubReader(Map<String, List<Attribute>> schemas, int cap, List<Object> capsSeen) {
+            super(schemas);
+            this.schemas = schemas;
+            this.cap = cap;
+            this.capsSeen = capsSeen;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            Object configured = config == null ? null : config.get("schema_max_fields");
+            if (configured == null) {
+                return Configured.empty(this);
+            }
+            capsSeen.add(configured);
+            int newCap = ((Number) configured).intValue();
+            return Configured.fromKnownSubset(new CapEnforcingStubReader(schemas, newCap, capsSeen), config, Set.of("schema_max_fields"));
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            SourceMetadata metadata = super.metadata(object);
+            if (metadata.schema().size() > cap) {
+                throw ExternalClientException.schemaTooWide("file has more than [" + cap + "] columns");
+            }
+            return metadata;
+        }
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -3293,6 +3441,48 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    private ExternalSourceResolver createResolverWithReader(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        ExternalSourceCacheService cacheService
+    ) {
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     /**

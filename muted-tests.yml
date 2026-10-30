@@ -241,6 +241,11 @@ tests:
   - :qa:mixed-cluster:v8.19.24#mixedClusterTest
   method: test {yaml=aggregations/terms/Unmapped dates}
   issue: https://github.com/elastic/elasticsearch/issues/164021
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/163488
 
 # Examples:
 #

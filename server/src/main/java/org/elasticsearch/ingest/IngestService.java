@@ -1356,24 +1356,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             // If `failureStoreResolution` is true, we store the failure. If it's false, the target is a data stream,
             // but it doesn't have the failure store enabled. If it's null, the target wasn't a data stream.
             Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
-            if (failureStoreResolution != null && failureStoreResolution && isCapacityFailure(e) == false) {
+            // Failures for lack of capacity (429) are never redirected to the failure store, these should be retried by clients.
+            boolean capacityFailure = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)) == RestStatus.TOO_MANY_REQUESTS;
+            if (failureStoreResolution == null) {
+                listener.onFailure(e);
+            } else if (failureStoreResolution && capacityFailure == false) {
                 failureStoreMetrics.incrementFailureStore(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
-            } else if (failureStoreResolution != null) {
+            } else {
                 // If this document targeted a data stream that either didn't have the failure store enabled, or failed for lack of
-                // capacity, which is never redirected to the failure store, we increment the rejected counter.
+                // capacity, we increment the rejected counter.
                 // We also increment the total counter because this request will not reach the code that increments
                 // the total counter for non-rejected documents.
                 failureStoreMetrics.incrementTotal(originalIndex);
                 failureStoreMetrics.incrementRejected(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE, false);
-                if (failureStoreResolution) {
-                    // The failure store is enabled, but not applicable to this failure, like at the shard level
+                if (failureStoreResolution && capacityFailure) {
+                    // failure store is enabled, but bypassed for a capacity failure to return 429
                     listener.onFailure(e);
                 } else {
+                    // stamped with NOT_ENABLED
                     listener.onResponse(IngestPipelinesExecutionResult.failWithoutStoringIn(originalIndex, e));
                 }
-            } else {
-                listener.onFailure(e);
             }
         };
         final var project = state.metadata().projects().get(pipelines.projectId());
@@ -1539,15 +1542,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     final long originalSourceLength = indexRequest.indexSource().byteLength();
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     /*
-                     * Both the new source and the old one are retained until the bulk completes: the old one is a slice of the request
-                     * body, which is released by the REST layer only once the bulk is done, whatever happens to this request's source.
-                     * The old source is already accounted for in the size the bulk was admitted with, but the new one is a separate
-                     * allocation. Still, only the growth is charged, which is a deliberate approximation: it leaves at most the admitted
-                     * size of the document unaccounted for, which is bounded by the admission limit, whereas growth through pipelines
-                     * is not. Charging the new source in full would count the same document twice against a limit that, by default, is
-                     * the one that admitted the bulk, and would reject bulks in which no pipeline grew anything.
-                     * This runs on whichever thread completed the pipeline (for async processors that can be a search thread notifying a
-                     * whole batch of documents), so it must not throw: an exception would skip the remaining documents of the batch.
+                     * Charge how much the pipelines grew the source.
+                     * The original source is already accounted for in the admitted size and retained until the bulk completes. Not
+                     * charging for the original size twice (the full expanded copy) is a compromise to not risk rejecting too aggressively.
                      */
                     final long growth = indexRequest.indexSource().byteLength() - originalSourceLength;
                     if (growth > 0) {
@@ -1571,17 +1568,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             );
             exceptionHandler.accept(e); // document failed
         }
-    }
-
-    /**
-     * Whether a document failed in a pipeline because the node or a downstream service is out of capacity, such as on a rejected
-     * execution, a circuit breaker trip or any other failure reported as {@code 429 Too Many Requests}. Such a document is not written
-     * to the failure store: the document is fine and the client should retry it, whereas a failure document would be reported as a
-     * success and never retried. Exceptions that wrap the actual cause, such as the ones ingest or remote calls wrap processor failures
-     * in, are seen through.
-     */
-    private static boolean isCapacityFailure(Exception e) {
-        return ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)) == RestStatus.TOO_MANY_REQUESTS;
     }
 
     private static void executePipeline(

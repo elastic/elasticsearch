@@ -175,35 +175,17 @@ public class IndexingPressure implements IndexingPressureMonitor {
     }
 
     /**
-     * Starts accounting for the bytes by which ingest pipelines grow the documents of one bulk request beyond the size it was admitted
-     * with. The bytes are added to the same combined coordinating and primary counter as the bulk's wire size, but are checked against
-     * the primary limit: the bulk was already admitted, and the primary limit is the one that is meant to let data move forward that has
-     * already been received. A rejection is also counted in the coordinating rejections.
-     * <p>
-     * Only the growth is accounted for, not the full size of the grown documents: the original sources stay reachable until the bulk
-     * completes too, and are not accounted for twice. This approximation leaves at most the admitted size unaccounted for.
-     * <p>
-     * Unlike {@link Coordinating} the returned tracker is safe to use from several threads concurrently, as ingest pipelines complete
-     * on whichever thread ran their last asynchronous processor. It must be closed once the bulk is done, and not before the last
-     * document finished its pipeline.
+     * Accounts for growth of documents during ingest pipelines in the combined coordinating and primary bytes,
+     * but checks against the primary limit only (since the bulk was already admitted with the original sizes).
+     * Not accounting for the original size twice (due to the expanded copy) is a compromise to avoid rejecting too heavily.
      *
-     * @param forceExecution if true the bytes are always counted and never rejected
+     * @param forceExecution if true the bytes are counted, but never rejected
      */
     public CoordinatingExpansionTracker trackCoordinatingOperationExpansion(boolean forceExecution) {
         return new CoordinatingExpansionTrackerImpl(forceExecution);
     }
 
     public interface CoordinatingExpansionTracker extends Releasable {
-
-        static CoordinatingExpansionTracker noop() {
-            return new CoordinatingExpansionTracker() {
-                @Override
-                public void add(long bytes) {}
-
-                @Override
-                public void close() {}
-            };
-        }
 
         /**
          * Accounts for additional bytes. They are held until the tracker is closed, as the grown documents are retained that long.
@@ -227,8 +209,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
         @Override
         public void add(long bytes) {
             if (expandedBytes.get() == CLOSED_FLAG) {
-                // Callers may close only once, no more adds are expected
-                assert false : "Expanding IndexingPressure memory on a closed tracker";
+                logError("Expanding IndexingPressure memory on a closed tracker");
                 return;
             }
             addExpansionBytes(bytes, forceExecution);
@@ -236,7 +217,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
             if (value == CLOSED_FLAG) {
                 // Closed concurrently, close did not see this increase so reverting it here
                 releaseExpansionBytes(bytes);
-                assert false : "Expanding IndexingPressure memory on a closed tracker";
+                logError("CoordinatingExpansionTracker has been closed while performing an index pressure expansion");
             }
         }
 
@@ -244,8 +225,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
         public void close() {
             long expansion = expandedBytes.getAndSet(CLOSED_FLAG);
             if (expansion == CLOSED_FLAG) {
-                logger.error("CoordinatingExpansionTracker has been closed twice", new IllegalStateException("closed twice"));
-                assert false : "CoordinatingExpansionTracker has been closed twice";
+                logError("CoordinatingExpansionTracker has been closed twice");
             } else {
                 releaseExpansionBytes(expansion);
             }

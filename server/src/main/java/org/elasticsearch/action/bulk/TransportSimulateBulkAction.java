@@ -87,6 +87,16 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_IGNORED_FIELDS = new NodeFeature("simulate.ignored.fields");
 
+    // nothing to track for simulate
+    private static final IndexingPressure.CoordinatingExpansionTracker NOOP_EXPANSION_TRACKER =
+        new IndexingPressure.CoordinatingExpansionTracker() {
+            @Override
+            public void add(long bytes) {}
+
+            @Override
+            public void close() {}
+        };
+
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -127,8 +137,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
     @Override
     protected IndexingPressure.CoordinatingExpansionTracker trackIngestExpansion(boolean forceExecution) {
-        // Nothing is indexed, so nothing retains what the pipelines add to the documents beyond this request
-        return IndexingPressure.CoordinatingExpansionTracker.noop();
+        return NOOP_EXPANSION_TRACKER;
     }
 
     @Override

@@ -164,12 +164,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             final long requestContextBytes = threadPool.getThreadContext().estimatedRequestContextBytes();
             releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes + requestContextBytes, isOnlySystem);
         }
-        /*
-         * Ingest pipelines can grow documents beyond the size the bulk was admitted with. That growth is charged to a tracker of its own,
-         * as the charge above may be owned by the incremental bulk handler, and it is held until the bulk completes, as the grown
-         * sources are retained that long. It is released both by the bulk listener and once every document finished its pipeline,
-         * so that documents that are still in their pipelines when the bulk fails early remain charged.
-         */
+        // Accounts for documents growing in ingest pipelines. Released once both the bulk and all of its pipelines completed.
         final IngestExpansionAccounting expansionAccounting = new IngestExpansionAccounting(trackIngestExpansion(isOnlySystem));
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(
             listener,

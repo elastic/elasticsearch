@@ -1,0 +1,5 @@
+pr: 157749
+summary: Add updatable doc-values fields
+area: Mapping
+type: feature
+issues: []

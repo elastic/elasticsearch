@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -141,6 +143,95 @@ public abstract class FieldMapper extends Mapper {
         Property.Final,
         Property.ServerlessPublic
     );
+
+    /**
+     * Guards {@code doc_values.updatable=true}, which lets a field's doc-values column be mutated in place via the bulk API instead of
+     * reindexing the whole document.
+     */
+    public static final FeatureFlag DOC_VALUES_UPDATABLE_FEATURE_FLAG = new FeatureFlag("doc_values_updatable");
+
+    /**
+     * Validates the constraints Lucene places on a field whose doc values are updated in place via {@code IndexWriter#updateDocValues}:
+     * the field must be doc-values-only (no postings, points or vectors), must carry no doc-values skip index, and must not participate
+     * in the index sort. Lucene enforces these at update time; failing here turns a runtime error into a mapping error.
+     * <p>
+     * A field whose column cannot hold more than one updatable value (a {@code SORTED_NUMERIC} column, updated a single value at a time)
+     * passes {@code allowMultiValue=false} so that {@code multi_value=true} is rejected; a binary column (keyword) passes {@code true}.
+     *
+     * @param field          the full path of the field being validated
+     * @param indexed        whether the field also builds an inverted index or points
+     * @param hasSkipper     whether the field builds a doc-values skip index
+     * @param allowMultiValue whether this field type can be updated when it is multi-valued
+     */
+    public static void validateUpdatableDocValues(
+        String field,
+        DocValuesParameter.Values docValues,
+        boolean indexed,
+        boolean hasSkipper,
+        boolean allowMultiValue,
+        boolean hasMultiFields,
+        IndexSettings indexSettings
+    ) {
+        if (docValues.updatable() == false) {
+            return;
+        }
+        if (indexSettings.getIndexVersionCreated().before(IndexVersions.DOC_VALUES_UPDATABLE)) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] is not supported on field [" + field + "] on indices created before this version"
+            );
+        }
+        if (docValues.enabled() == false) {
+            throw new IllegalArgumentException("[doc_values.updatable] requires doc values on field [" + field + "]");
+        }
+        if (indexed) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] requires [index:false] on field ["
+                    + field
+                    + "]: only fields stored purely as doc values can be updated in place"
+            );
+        }
+        if (hasSkipper) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be combined with a doc values skip index on field ["
+                    + field
+                    + "]: the skip index stores per-range value bounds computed at index time that an in-place update would leave stale"
+            );
+        }
+        if (allowMultiValue == false && docValues.multiValue()) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] requires [doc_values.multi_value:false] on field ["
+                    + field
+                    + "]: this field type can only update a single value at a time"
+            );
+        }
+        if (hasMultiFields) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be set on field ["
+                    + field
+                    + "] because it has multi-fields: an in-place update rewrites only this field's doc values and would leave its "
+                    + "sub-fields stale"
+            );
+        }
+        var sortConfig = indexSettings.getIndexSortConfig();
+        if (sortConfig != null && sortConfig.hasSortOnField(field)) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be set on field ["
+                    + field
+                    + "] because it is used in the index sort: documents are physically ordered by this field at index time "
+                    + "and an in-place update cannot reorder them"
+            );
+        }
+        if (indexSettings.sequenceNumbersDisabled()) {
+            // updatable needs the update API, which requires sequence numbers; reject at mapping time with a clear reason.
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] on field ["
+                    + field
+                    + "] requires sequence numbers: a doc-values update is a partial update and needs the update API, which is disabled "
+                    + "when [index.disable_sequence_numbers] is [true] (the index is then append/overwrite-only). "
+                    + "Set [index.disable_sequence_numbers: false] to allow updates."
+            );
+        }
+    }
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -763,6 +854,64 @@ public abstract class FieldMapper extends Mapper {
      */
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         return null;
+    }
+
+    /**
+     * Whether this field's doc-values column can be updated in place through the bulk API instead of reindexing the whole document (the
+     * {@code doc_values.updatable} mapping parameter). Overridden by the field types that support it.
+     */
+    public boolean isDocValuesUpdatable() {
+        return false;
+    }
+
+    /**
+     * Receives the doc-values representation of a single field update produced by {@link #encodeDocValuesUpdate}. Modelled as a plain
+     * numeric-or-binary sink, decoupled from the translog's serializable update type.
+     */
+    public interface DocValuesUpdateSink {
+        void numeric(String field, long value);
+
+        void binary(String field, BytesRef value);
+    }
+
+    /**
+     * Encode {@code values} (the values taken from an update request's partial document for this field, in document order) into this
+     * field's doc-values representation and hand it to {@code sink}. The encoding MUST be identical to what indexing the same values would
+     * store, so that an in-place doc-values update is indistinguishable from a full reindex of the field. A single-element list is a
+     * single-valued update; more than one element is only passed when {@link #supportsMultiValueDocValuesUpdate()} is true. Only supported
+     * when {@link #isDocValuesUpdatable()} is true.
+     */
+    public void encodeDocValuesUpdate(List<Object> values, DocValuesUpdateSink sink) {
+        throw new UnsupportedOperationException("field [" + fullPath() + "] does not support doc values updates");
+    }
+
+    /**
+     * Whether an in-place update may carry more than one value for this field. Lucene replaces a whole {@code BINARY} value in one call,
+     * so a multi-valued binary column (keyword) can be updated with several values; a {@code SORTED_NUMERIC} column can only have a single
+     * value set per update, so numeric and date fields do not override this.
+     */
+    public boolean supportsMultiValueDocValuesUpdate() {
+        return false;
+    }
+
+    /**
+     * A per-leaf reader that decodes this updatable field's current doc-values value back to a {@code _source} value, i.e. the read-time
+     * inverse of {@link #encodeDocValuesUpdate}. Used to overlay an in-place doc-values update onto {@code columnar_stored} source. Only
+     * supported when {@link #isDocValuesUpdatable()} is true.
+     */
+    public interface DocValuesUpdateSourceReader {
+        /**
+         * The current {@code _source} value of the field for {@code doc}, or {@code null} if the document has no value for it.
+         */
+        Object read(int doc) throws IOException;
+    }
+
+    /**
+     * Creates a {@link DocValuesUpdateSourceReader} over {@code reader} for this field. Only supported when
+     * {@link #isDocValuesUpdatable()} is true.
+     */
+    public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
+        throw new UnsupportedOperationException("field [" + fullPath() + "] does not support doc values updates");
     }
 
     /**
@@ -1787,7 +1936,21 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability, OnFailure onFailure) {
+        public record Values(
+            boolean enabled,
+            Cardinality cardinality,
+            boolean multiValue,
+            boolean nullability,
+            OnFailure onFailure,
+            boolean updatable
+        ) {
+            /**
+             * Convenience constructor for a non-updatable field, letting call sites omit the {@code updatable} default.
+             */
+            public Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability, OnFailure onFailure) {
+                this(enabled, cardinality, multiValue, nullability, onFailure, false);
+            }
+
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1829,6 +1992,8 @@ public abstract class FieldMapper extends Mapper {
         /** Also set by the nested form (it delegates to the sub-parameters' parse); use {@link #nestedFormParsed} to tell them apart. */
         private boolean topLevelFormParsed;
         private Values composedValue;
+        public final Parameter<Boolean> updatableParameter;
+        private boolean supportsUpdatable = false;
 
         public Parameter<Boolean> multiValue() {
             return multiValueParameter;
@@ -1931,9 +2096,30 @@ public abstract class FieldMapper extends Mapper {
                 return parseOnFailure(o, subParameterDefaults.onFailure);
             }, m -> initializer.apply(m).onFailure, XContentBuilder::field, Objects::toString);
 
-            multiValueParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
-            nullabilityParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
-            onFailureParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
+            // updatable is not updateable in the mapping-merge sense: flipping it would change the Lucene doc-values type of a field
+            // that already has values on disk.
+            updatableParameter = Parameter.boolParam(
+                "updatable",
+                false,
+                m -> initializer.apply(m).updatable,
+                subParameterDefaults.updatable
+            ).addValidator(v -> {
+                if (v && DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() == false) {
+                    throw new MapperParsingException("[doc_values.updatable=true] is not yet supported");
+                }
+            });
+
+            // An updatable field has no top-level form: it serializes multi_value/nullability/on_failure together with updatable inside
+            // the doc_values object, so suppress their top-level emission while updatable is configured.
+            multiValueParameter.setSerializerCheck(
+                (incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && updatableConfigured() == false && (incl || conf)
+            );
+            nullabilityParameter.setSerializerCheck(
+                (incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && updatableConfigured() == false && (incl || conf)
+            );
+            onFailureParameter.setSerializerCheck(
+                (incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && updatableConfigured() == false && (incl || conf)
+            );
 
             this.addValidator(v -> {
                 if (v.enabled == false
@@ -1946,8 +2132,27 @@ public abstract class FieldMapper extends Mapper {
 
             this.setMergeValidator((previous, toMerge, mergeConflicts) -> {
                 assert previous != null && toMerge != null;
-                return previous.enabled == toMerge.enabled && previous.cardinality == toMerge.cardinality;
+                // updatable is excluded from the top-level attribute machinery, so it is checked here: flipping it would change the
+                // field's on-disk doc-values type and must be rejected like a change to enabled or cardinality.
+                return previous.enabled == toMerge.enabled
+                    && previous.cardinality == toMerge.cardinality
+                    && previous.updatable == toMerge.updatable;
             });
+        }
+
+        /**
+         * Opts this field type into {@code doc_values.updatable}. Only types whose doc values land on a Lucene type that
+         * {@code IndexWriter#updateDocValues} accepts (NUMERIC or BINARY, doc-values-only, no skip index) may do so; every other type
+         * rejects the sub-parameter outright.
+         */
+        public DocValuesParameter withUpdatableSupport() {
+            this.supportsUpdatable = true;
+            return this;
+        }
+
+        /** Whether this field type supports updatable doc values and the {@code updatable} sub-parameter has been explicitly set. */
+        private boolean updatableConfigured() {
+            return supportsUpdatable && updatableParameter.isConfigured();
         }
 
         /**
@@ -1981,9 +2186,9 @@ public abstract class FieldMapper extends Mapper {
             );
         }
 
-        private Values backingValue(boolean enabled, Values.Cardinality cardinality) {
+        private Values backingValue(boolean enabled, Values.Cardinality cardinality, boolean updatable) {
             Values defaults = getDefaultValue();
-            return new Values(enabled, cardinality, defaults.multiValue, defaults.nullability, defaults.onFailure);
+            return new Values(enabled, cardinality, defaults.multiValue, defaults.nullability, defaults.onFailure, updatable);
         }
 
         @Override
@@ -1995,13 +2200,15 @@ public abstract class FieldMapper extends Mapper {
             boolean multiValue = multiValueParameter.getValue();
             boolean nullability = nullabilityParameter.getValue();
             Values.OnFailure onFailure = onFailureParameter.getValue();
+            boolean updatable = base.updatable;
             Values composed = composedValue;
             if (composed == null
                 || composed.cardinality != base.cardinality
                 || composed.multiValue != multiValue
                 || composed.nullability != nullability
-                || composed.onFailure != onFailure) {
-                composed = new Values(true, base.cardinality, multiValue, nullability, onFailure);
+                || composed.onFailure != onFailure
+                || composed.updatable != updatable) {
+                composed = new Values(true, base.cardinality, multiValue, nullability, onFailure, updatable);
                 composedValue = composed;
             }
             return composed;
@@ -2012,7 +2219,8 @@ public abstract class FieldMapper extends Mapper {
             return super.isConfigured()
                 || multiValueParameter.isConfigured()
                 || nullabilityParameter.isConfigured()
-                || onFailureParameter.isConfigured();
+                || onFailureParameter.isConfigured()
+                || updatableConfigured();
         }
 
         /**
@@ -2029,6 +2237,9 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "on_failure": "fail"} - reject the document if it violates multi_value/nullability (default; columnar only)</li>
          *   <li>{@code "on_failure": "ignore"} - route the offending value to a per-field failure column
          *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}).</li>
+         *   <li>{@code "doc_values": { "updatable": true }} - the field's doc-values column may be mutated in place rather than by
+         *       reindexing the document. Only offered by field types that call {@link #withUpdatableSupport()}, gated by
+         *       {@link #DOC_VALUES_UPDATABLE_FEATURE_FLAG}, and expressible only in the nested form.</li>
          *   <li>Legacy nested form: {@code "doc_values": { "multi_value": false }} etc. — still accepted for backwards
          *       compatibility but no longer emitted for new indices.</li>
          * </ul>
@@ -2059,8 +2270,21 @@ public abstract class FieldMapper extends Mapper {
                         anyNestedAttribute = true;
                     }
                 }
+                if (valueMap.containsKey(updatableParameter.name)) {
+                    if (supportsUpdatable == false) {
+                        throw new MapperParsingException("[doc_values.updatable] is not supported for field [" + field + "]");
+                    }
+                    updatableParameter.parse(field, context, valueMap.get(updatableParameter.name));
+                    // updatable implies single-valued: default multi_value to false, but leave an explicit multi_value=true for
+                    // validateUpdatableDocValues to reject.
+                    if (updatableParameter.getValue() && multiValueParameter.isSet() == false) {
+                        multiValueParameter.setValue(false);
+                    }
+                }
                 nestedFormParsed = true;
-                if (anyNestedAttribute && supportsTopLevelAttributes) {
+                // updatable has no top-level form, so an updatable field must carry its sub-attributes inside [doc_values]: the nested
+                // form is not deprecated there, only when it is used on its own.
+                if (anyNestedAttribute && supportsTopLevelAttributes && valueMap.containsKey(updatableParameter.name) == false) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "doc_values_nested_attributes",
@@ -2069,10 +2293,10 @@ public abstract class FieldMapper extends Mapper {
                         field
                     );
                 }
-                super.setValue(backingValue(true, getDefaultValue().cardinality));
+                super.setValue(backingValue(true, getDefaultValue().cardinality, updatableParameter.getValue()));
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    super.setValue(backingValue(true, getDefaultValue().cardinality));
+                    super.setValue(backingValue(true, getDefaultValue().cardinality, getDefaultValue().updatable()));
                 } else {
                     // Cardinality has no meaning when doc values are disabled. If the default is itself disabled, an explicit
                     // false must equal it so that it merges with an omitted doc_values and is not serialized.
@@ -2088,16 +2312,26 @@ public abstract class FieldMapper extends Mapper {
             multiValueParameter.setValue(value.multiValue);
             nullabilityParameter.setValue(value.nullability);
             onFailureParameter.setValue(value.onFailure);
+            updatableParameter.setValue(value.updatable);
         }
 
         @Override
         void setMergedValue(Values value) {
-            super.setValue(backingValue(value.enabled, value.cardinality));
+            super.setValue(backingValue(value.enabled, value.cardinality, value.updatable));
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             Values value = getValue();
-            if (supportsTopLevelAttributes) {
+            if (updatableConfigured()) {
+                // updatable is only expressible inside the doc_values object, so emit the full nested form (the top-level
+                // multi_value/nullability/on_failure are suppressed for an updatable field) so that it round-trips.
+                builder.startObject(name);
+                builder.field(multiValueParameter.name, value.multiValue);
+                builder.field(nullabilityParameter.name, value.nullability);
+                builder.field(onFailureParameter.name, value.onFailure);
+                builder.field(updatableParameter.name, value.updatable);
+                builder.endObject();
+            } else if (supportsTopLevelAttributes) {
                 if (includeDefaults || value.enabled != getDefaultValue().enabled) {
                     builder.field(name, value.enabled);
                 }

@@ -11,7 +11,10 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
@@ -19,13 +22,16 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -2472,6 +2478,331 @@ public class InternalEngine extends Engine {
         return deleteResult;
     }
 
+    @Override
+    public DocValuesUpdateResult docValuesUpdate(DocValuesUpdate docValuesUpdate) throws IOException {
+        // Not append-only: this changes an existing document, so resolve versions under safe access, as delete and index do.
+        versionMap.enforceSafeAccess();
+        assert assertIncomingSequenceNumber(docValuesUpdate.origin(), docValuesUpdate.seqNo());
+        // The update advances the document's seq_no and primary term through the companion columns; its version is left unchanged.
+        final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
+        DocValuesUpdateResult result;
+        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(docValuesUpdate.uid())) {
+            lastWriteNanos = docValuesUpdate.startTime();
+            final DocValuesUpdateStrategy strategy = docValuesUpdateStrategyForOperation(docValuesUpdate);
+            final DocValuesUpdate op = strategy.op();
+            if (strategy.earlyResult() != null) {
+                // A primary conflict or a CCR follower skip: nothing to apply. The result carries UNASSIGNED_SEQ_NO, so nothing is
+                // replicated or marked, as for a skipped index or delete.
+                result = strategy.earlyResult();
+            } else {
+                final DocValuesUpdatePlan plan = strategy.plan();
+                assert op.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + op.origin();
+                result = updateDocValuesInLucene(op, plan);
+                if (seqNoAware && plan.applyInPlace() && result.getResultType() == Result.Type.SUCCESS) {
+                    // Publish the new identity so optimistic-concurrency reads and realtime get see the update before the next refresh.
+                    // The null location routes realtime get through the searcher, where the updated doc-values live.
+                    versionMap.maybePutIndexUnderLock(op.uid(), new IndexVersionValue(null, op.version(), op.seqNo(), op.primaryTerm()));
+                }
+            }
+            if (op.origin().isFromTranslog() == false && result.getResultType() == Result.Type.SUCCESS) {
+                final Translog.Location location = translog.add(
+                    new Translog.DocValuesUpdate(
+                        op.uid(),
+                        op.seqNo(),
+                        op.primaryTerm(),
+                        op.version(),
+                        op.getIfSeqNo(),
+                        op.getIfPrimaryTerm(),
+                        op.updates()
+                    )
+                );
+                result.setTranslogLocation(location);
+            }
+            localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
+            if (result.getTranslogLocation() == null) {
+                assert op.origin().isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
+                localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
+            }
+            result.setTook(System.nanoTime() - op.startTime());
+            result.freeze();
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("doc_values_update", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+        return result;
+    }
+
+    /**
+     * How a {@link DocValuesUpdate} is realized: the operation to apply, how it touches Lucene, and an optional early result that
+     * short-circuits application (a primary conflict, or a CCR follower skip).
+     */
+    public record DocValuesUpdateStrategy(
+        DocValuesUpdate op,
+        @Nullable DocValuesUpdatePlan plan,
+        @Nullable DocValuesUpdateResult earlyResult
+    ) {}
+
+    /**
+     * Builds the {@link DocValuesUpdateStrategy} for an operation: on the primary it runs the optimistic-concurrency check, assigns a
+     * sequence number, and plans an in-place apply; a replica or recovery operation is resolved against the live document. Overridden by
+     * the CCR following engine, which treats a leader-assigned primary-origin operation as a replayed, non-primary operation.
+     */
+    protected DocValuesUpdateStrategy docValuesUpdateStrategyForOperation(DocValuesUpdate op) throws IOException {
+        if (op.origin() == Operation.Origin.PRIMARY) {
+            // Conflict if a racing delete or reindex changed the document since the update was prepared, as index and delete do.
+            final DocValuesUpdateResult conflict = checkDocValuesUpdateConflict(op);
+            if (conflict != null) {
+                return new DocValuesUpdateStrategy(op, null, conflict);
+            }
+            final DocValuesUpdate seqNoOp = new DocValuesUpdate(
+                op.id(),
+                op.uid(),
+                generateSeqNoForOperationOnPrimary(op),
+                op.primaryTerm(),
+                op.version(),
+                op.versionType(),
+                op.origin(),
+                op.startTime(),
+                op.updates(),
+                op.getIfSeqNo(),
+                op.getIfPrimaryTerm()
+            );
+            advanceMaxSeqNoOfUpdatesOnPrimary(seqNoOp.seqNo());
+            // The primary computed this against the current live document, so it is always the document's newest operation.
+            return new DocValuesUpdateStrategy(seqNoOp, DocValuesUpdatePlan.APPLY_IN_PLACE, null);
+        }
+        advanceMaxSeqNo(op.seqNo());
+        return new DocValuesUpdateStrategy(op, planDocValuesUpdateAsNonPrimary(op), null);
+    }
+
+    /**
+     * How an in-place doc-values update touches Lucene.
+     */
+    public enum DocValuesUpdatePlan {
+        /** Patch the live document's columns and record the operation in history. */
+        APPLY_IN_PLACE(true, true),
+        /** A newer operation already changed the document: record history for recovery and CCR, but do not patch the live document. */
+        HISTORY_ONLY(false, true),
+        /** The operation is already in Lucene (e.g. replayed during recovery): touch nothing. */
+        SKIP_LUCENE(false, false);
+
+        private final boolean applyInPlace;
+        private final boolean addHistory;
+
+        DocValuesUpdatePlan(boolean applyInPlace, boolean addHistory) {
+            this.applyInPlace = applyInPlace;
+            this.addHistory = addHistory;
+        }
+
+        boolean applyInPlace() {
+            return applyInPlace;
+        }
+
+        boolean addHistory() {
+            return addHistory;
+        }
+    }
+
+    /**
+     * Resolves an in-place update against the live document's effective identity, returning a conflict result when the document no
+     * longer carries the sequence number the update was prepared against (it was deleted, reindexed, or updated in between), or
+     * {@code null} when the update may proceed. The companion columns are folded into the effective identity by {@link #resolveDocVersion},
+     * so a prior in-place update is seen too.
+     */
+    private DocValuesUpdateResult checkDocValuesUpdateConflict(DocValuesUpdate op) throws IOException {
+        if (op.getIfSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            return null;
+        }
+        final VersionValue versionValue = resolveDocVersion(op, true);
+        if (versionValue == null || versionValue.isDelete()) {
+            return docValuesUpdateConflict(op, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        }
+        if (versionValue.seqNo != op.getIfSeqNo() || versionValue.term != op.getIfPrimaryTerm()) {
+            return docValuesUpdateConflict(op, versionValue.seqNo, versionValue.term);
+        }
+        return null;
+    }
+
+    private DocValuesUpdateResult docValuesUpdateConflict(DocValuesUpdate op, long currentSeqNo, long currentTerm) {
+        final VersionConflictEngineException e = new VersionConflictEngineException(
+            shardId,
+            op.id(),
+            op.getIfSeqNo(),
+            op.getIfPrimaryTerm(),
+            currentSeqNo,
+            currentTerm
+        );
+        return new DocValuesUpdateResult(e, op.version(), op.primaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, op.id());
+    }
+
+    /**
+     * Plans how a replicated in-place update (replica, recovery, or CCR follower) touches Lucene. The delta is only valid against the
+     * base version it was computed against (see {@link DocValuesUpdate#getIfSeqNo()}), so it is applied in place only while the live
+     * document still carries that version; if a newer operation superseded it the delta is obsolete and recorded as history only, and if
+     * the base has not arrived yet the operation is failed for retry.
+     */
+    protected DocValuesUpdatePlan planDocValuesUpdateAsNonPrimary(DocValuesUpdate op) throws IOException {
+        if (hasBeenProcessedBefore(op)) {
+            // Already in the Lucene commit (recovery replay or CCR redelivery): skip so it is not applied twice, and so a document
+            // removed by an out-of-order delete that is not replayed is not resurrected.
+            return DocValuesUpdatePlan.SKIP_LUCENE;
+        }
+        final long baseSeqNo = op.getIfSeqNo();
+        if (baseSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            // No base identity (a sequence-number-disabled index does not replicate deltas): fall back to the seq_no comparison.
+            return planDocValuesUpdateBySeqNo(op);
+        }
+        if (localCheckpointTracker.hasProcessed(baseSeqNo) == false) {
+            // The base has not been applied on this copy yet (peer recovery and CCR deliver operations concurrently, so a delta can race
+            // ahead of its base): fail the operation so it is retried once the base arrives in order. The primary gates a delta on the base
+            // being at or below every tracked copy's checkpoint (see UpdateHelper), so this is only the residual off-permit race.
+            throw new DocValuesUpdateBaseNotPresentException(shardId, op.id(), op.seqNo(), baseSeqNo);
+        }
+        versionMap.enforceSafeAccess();
+        final VersionValue live = resolveDocVersion(op, true);
+        if (live != null && live.isDelete() == false && live.seqNo == baseSeqNo) {
+            // Live document is still the base: safe to patch in place.
+            return DocValuesUpdatePlan.APPLY_IN_PLACE;
+        }
+        // A newer reindex or delete superseded the base: the delta is obsolete. Record history for recovery and CCR, do not patch.
+        return DocValuesUpdatePlan.HISTORY_ONLY;
+    }
+
+    private DocValuesUpdatePlan planDocValuesUpdateBySeqNo(DocValuesUpdate op) throws IOException {
+        return switch (compareOpToLuceneDocBasedOnSeqNo(op)) {
+            case OP_NEWER -> DocValuesUpdatePlan.APPLY_IN_PLACE;
+            case OP_STALE_OR_EQUAL -> DocValuesUpdatePlan.HISTORY_ONLY;
+            case LUCENE_DOC_NOT_FOUND -> {
+                assert false : "in-place doc-values update [" + op.id() + "] seq#[" + op.seqNo() + "] found no live document";
+                yield DocValuesUpdatePlan.HISTORY_ONLY;
+            }
+        };
+    }
+
+    private DocValuesUpdateResult updateDocValuesInLucene(DocValuesUpdate op, DocValuesUpdatePlan plan) throws IOException {
+        try {
+            if (plan.applyInPlace()) {
+                assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), false, false);
+                final Term uidTerm = new Term(IdFieldMapper.NAME, op.uid());
+                // Patch the live document's columns before adding the history document, so it touches only the pre-existing document.
+                final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
+                final List<Field> fields = new ArrayList<>(op.updates().size() + 2);
+                for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
+                    fields.add(switch (update) {
+                        case Translog.DocValuesUpdate.NumericFieldUpdate n -> new SortedNumericDocValuesField(n.field(), n.value());
+                        case Translog.DocValuesUpdate.BinaryFieldUpdate b -> new BinaryDocValuesField(b.field(), b.value());
+                    });
+                }
+                if (seqNoAware) {
+                    // _seq_no cannot be rewritten in place, so record this update's seq_no and primary term in the companion columns;
+                    // readers combine them with _seq_no as the effective identity.
+                    fields.add(new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME, op.seqNo()));
+                    fields.add(new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME, op.primaryTerm()));
+                }
+                // Capture the pre-image of each field updated here for the first time, in the same updateDocValues call so a reader cannot
+                // see the new value without it. Synthetic and columnar_stored sources both rebuild a past operation's _source from the live
+                // columns - directly, or by overlaying them on the stored blob - so both need the pre-image; a stored source keeps its own.
+                final var mappingLookup = engineConfig.getMapperService().mappingLookup();
+                if (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored()) {
+                    capturePreImage(op, fields);
+                }
+                indexWriter.updateDocValues(uidTerm, fields.toArray(Field[]::new));
+            }
+
+            if (plan.addHistory()) {
+                // The in-place update leaves no trace in Lucene history, so write a born-soft-deleted history document for peer recovery
+                // and CCR to reconstruct the operation.
+                final ParsedDocument history = ParsedDocument.docValuesUpdateHistory(
+                    engineConfig.getIndexSettings().seqNoIndexOptions(),
+                    op.id(),
+                    Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.getIfSeqNo(), op.getIfPrimaryTerm(), op.updates()).toBytesRef()
+                );
+                history.updateSeqID(op.seqNo(), op.primaryTerm());
+                history.version().setLongValue(op.version());
+                final LuceneDocument doc = history.docs().getFirst();
+                doc.add(softDeletesField);
+                indexWriter.addDocument(doc);
+            }
+            return new DocValuesUpdateResult(op.version(), op.primaryTerm(), op.seqNo(), op.id());
+        } catch (final Exception ex) {
+            // A document-level failure here is unexpected (e.g. the field is not a doc-values-only field, or a corrupt index). A sequence
+            // number has already been issued, so this is fatal: fail the engine, mirroring deleteInLucene.
+            if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
+                failEngine("doc values update id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "] failed", ex);
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * Appends the pre-image companion columns for every field this update touches for the first time on the live document. The field's
+     * current value is read from the internal reader - the same snapshot that decides whether a pre-image already exists - so a value is
+     * captured only while the live document still holds the original, and a field already captured by an earlier update is left untouched.
+     * <p>
+     * A document indexed but not yet refreshed is not visible to the reader; as realtime get does, the internal searcher is refreshed and
+     * the read retried, which is amortized since one refresh makes every buffered document visible at once.
+     */
+    private void capturePreImage(DocValuesUpdate op, List<Field> fields) throws IOException {
+        boolean refreshed = false;
+        while (true) {
+            final boolean captured = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
+                final DocIdAndVersion live = VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), false);
+                if (live == null) {
+                    return Boolean.FALSE;
+                }
+                readPreImage(op, live.reader, live.docId, fields);
+                return Boolean.TRUE;
+            });
+            if (captured) {
+                return;
+            }
+            if (refreshed) {
+                // The document was planned for in-place update, so it must exist; failing here is safer than writing the new value with no
+                // pre-image, which would let the recovery source reconstruct a past operation with the updated value.
+                throw new IllegalStateException(
+                    "in-place doc-values update [" + op.id() + "] found no live document to capture a pre-image from"
+                );
+            }
+            refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
+            refreshed = true;
+        }
+    }
+
+    private static void readPreImage(DocValuesUpdate op, LeafReader reader, int docId, List<Field> fields) throws IOException {
+        for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
+            final String field = update.field();
+            final NumericDocValues presence = reader.getNumericDocValues(DocValuesUpdatePreImage.presenceField(field));
+            if (presence != null && presence.advanceExact(docId)) {
+                // An earlier update already captured this field's pre-image: the original value must not be overwritten.
+                continue;
+            }
+            // The marker is set whether or not a value is captured below, so a captured-but-absent field is not mistaken for one that was
+            // never updated.
+            fields.add(new NumericDocValuesField(DocValuesUpdatePreImage.presenceField(field), 1L));
+            final String valueField = DocValuesUpdatePreImage.valueField(field);
+            switch (update) {
+                case Translog.DocValuesUpdate.NumericFieldUpdate n -> {
+                    final SortedNumericDocValues dv = reader.getSortedNumericDocValues(field);
+                    if (dv != null && dv.advanceExact(docId)) {
+                        for (int v = 0; v < dv.docValueCount(); v++) {
+                            fields.add(new SortedNumericDocValuesField(valueField, dv.nextValue()));
+                        }
+                    }
+                }
+                case Translog.DocValuesUpdate.BinaryFieldUpdate b -> {
+                    final BinaryDocValues dv = reader.getBinaryDocValues(field);
+                    if (dv != null && dv.advanceExact(docId)) {
+                        fields.add(new BinaryDocValuesField(valueField, BytesRef.deepCopyOf(dv.binaryValue())));
+                    }
+                }
+            }
+        }
+    }
+
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {
         assert operation.origin() == Operation.Origin.PRIMARY : operation;
         assert operation.seqNo() == UNASSIGNED_SEQ_NO : operation;
@@ -3624,6 +3955,11 @@ public class InternalEngine extends Engine {
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
         iwc.setMergePolicy(wrapMergePolicy(mergePolicy));
+        if (engineConfig.getIndexSettings().getMode().isStrictColumnar()) {
+            // Sparse doc-values overlays keep an in-place update to the changed documents instead of rewriting the whole column. Only
+            // columnar indices update doc values in place; elsewhere the overlay stays off so the write path is unchanged.
+            iwc.setMaxDocValuesOverlays(engineConfig.getIndexSettings().getDocValuesMaxOverlays());
+        }
         // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -4416,14 +4752,20 @@ public class InternalEngine extends Engine {
                         uid = compoundIdStr != null ? Uid.encodeId(compoundIdStr) : null;
                     }
                     if (uid == null) {
-                        assert isTombstone;
+                        // A doc-values update history document carries no _id (its uid rides in the payload) and is not a tombstone. It
+                        // holds no live-document identity to restore, so skip it; its sequence number was already marked above.
+                        assert isTombstone || dv.isDocValuesUpdate(docId)
+                            : "document [" + docId + "] has no _id but is neither a tombstone nor a doc-values update history document";
                         continue;
                     }
                     id = SliceIdFieldMapper.decodeCompoundId(uid);
                 } else {
                     id = leafIdLoader.getId(docId);
                     if (id == null) {
-                        assert isTombstone;
+                        // A doc-values update history document carries no _id (its uid rides in the payload) and is not a tombstone. It
+                        // holds no live-document identity to restore, so skip it; its sequence number was already marked above.
+                        assert isTombstone || dv.isDocValuesUpdate(docId)
+                            : "document [" + docId + "] has no _id but is neither a tombstone nor a doc-values update history document";
                         continue;
                     }
                     uid = Uid.encodeId(id);

@@ -13,11 +13,13 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -56,7 +59,16 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
     private int skippedOperations;
     private long lastSeenSeqNo;
 
-    private record SearchRecord(FieldDoc doc, boolean isTombstone, long seqNo, long primaryTerm, long version, long size) {
+    private record SearchRecord(
+        FieldDoc doc,
+        boolean isTombstone,
+        boolean isDocValuesUpdate,
+        BytesRef docValuesUpdatePayload,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        long size
+    ) {
         int index() {
             return doc.shardIndex;
         }
@@ -175,9 +187,12 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             int index = scoreDoc.shardIndex;
             var primaryTerm = combinedDocValues.docPrimaryTerm(segmentDocID);
             assert primaryTerm > 0 : "nested child document must be excluded";
+            boolean isDocValuesUpdate = combinedDocValues.isDocValuesUpdate(segmentDocID);
             documentRecords[index] = new SearchRecord(
                 (FieldDoc) scoreDoc,
                 combinedDocValues.isTombstone(segmentDocID),
+                isDocValuesUpdate,
+                isDocValuesUpdate ? combinedDocValues.docValuesUpdatePayload(segmentDocID) : null,
                 combinedDocValues.docSeqNo(segmentDocID),
                 primaryTerm,
                 combinedDocValues.docVersion(segmentDocID),
@@ -216,6 +231,11 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                     if (record.isTombstone()) {
                         continue;
                     }
+                    // A doc-values-update history document is reconstructed from its own payload, not through the source loader, so it
+                    // is excluded here (it also carries no recovery-source size).
+                    if (record.isDocValuesUpdate()) {
+                        continue;
+                    }
                     if (record.hasRecoverySourceSize() == false) {
                         assert requiredFullRange == false : "source not found for seqno=" + record.seqNo();
                         continue;
@@ -233,7 +253,11 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 // source loader, it is also used as a heuristic for bulk reading doc values (E.g. SingletonDocValuesLoader).
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
-                leafSourceLoader = sourceLoader.leaf(leafReaderContext, nextDocIdArray);
+                // Where a field was updated in place, its live column holds the latest value, not the one written at this operation's
+                // sequence number. Overlay the captured pre-image so the source loader reconstructs the original value for updated
+                // documents; documents never updated read the live column unchanged.
+                LeafReaderContext sourceContext = preImageSourceContext(leafReaderContext);
+                leafSourceLoader = sourceLoader.leaf(sourceContext, nextDocIdArray);
                 if (routingDocValues) {
                     leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
                 }
@@ -278,7 +302,16 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
             id = fieldLoader.id();
         }
-        if (docRecord.isTombstone() && id == null) {
+        if (docRecord.isDocValuesUpdate()) {
+            assert docRecord.isTombstone() == false : "a doc-values-update history document must not be a tombstone";
+            assert assertDocSoftDeleted(context.reader(), segmentDocID) : "doc-values update but soft_deletes field is not set";
+            return Translog.DocValuesUpdate.fromHistoryPayload(
+                docRecord.seqNo(),
+                docRecord.primaryTerm(),
+                docRecord.version(),
+                docRecord.docValuesUpdatePayload()
+            );
+        } else if (docRecord.isTombstone() && id == null) {
             assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
             return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
@@ -313,6 +346,28 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 -1 // autogenerated timestamp
             );
         }
+    }
+
+    /**
+     * Returns the context to load {@code _source} from: the leaf itself when it holds no pre-images, or a view that overlays the captured
+     * pre-image of every updated field otherwise. The updated fields are discovered from the segment's own marker columns, so the overlay
+     * never depends on the current mapping.
+     */
+    private static LeafReaderContext preImageSourceContext(LeafReaderContext leafReaderContext) {
+        Set<String> preImageFields = null;
+        for (FieldInfo fieldInfo : leafReaderContext.reader().getFieldInfos()) {
+            String field = DocValuesUpdatePreImage.fieldForPresenceColumn(fieldInfo.name);
+            if (field != null) {
+                if (preImageFields == null) {
+                    preImageFields = new HashSet<>();
+                }
+                preImageFields.add(field);
+            }
+        }
+        if (preImageFields == null) {
+            return leafReaderContext;
+        }
+        return new DocValuesUpdatePreImageLeafReader(leafReaderContext.reader(), preImageFields).getContext();
     }
 
     private static String readRoutingFromDocValues(SortedDocValues routingDocValues, int segmentDocID) throws IOException {

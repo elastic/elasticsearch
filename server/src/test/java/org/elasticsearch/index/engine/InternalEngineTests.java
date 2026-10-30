@@ -5475,7 +5475,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(1, 10));
             ParsedDocument doc = createParsedDoc(id, null);
-            Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
+            Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.INDEX, Engine.Operation.TYPE.DELETE, Engine.Operation.TYPE.NO_OP);
             switch (type) {
                 case INDEX -> {
                     Engine.IndexResult index = indexDoc(engine, replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));

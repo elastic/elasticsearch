@@ -49,11 +49,18 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
 
             NumericDocValues seqNoField = null;
             NumericDocValues primaryTermField = null;
+            // An in-place doc-values update leaves _seq_no untouched and records its sequence number and primary term in these companion
+            // columns. The hit must report the document's effective identity so a client that feeds a searched seq_no back into if_seq_no
+            // does not conflict against the newer value the engine now holds. Null on indices without in-place updates.
+            NumericDocValues updateSeqNoField = null;
+            NumericDocValues updatePrimaryTermField = null;
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
                 seqNoField = readerContext.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
                 primaryTermField = readerContext.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                updateSeqNoField = readerContext.reader().getNumericDocValues(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME);
+                updatePrimaryTermField = readerContext.reader().getNumericDocValues(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME);
             }
 
             @Override
@@ -72,6 +79,16 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
                     assert found : "found seq no for " + docId + " but not a primary term";
                     seqNo = seqNoField.longValue();
                     primaryTerm = primaryTermField.longValue();
+                    // Overlay the in-place-update companion when it holds a newer identity.
+                    if (updateSeqNoField != null && updateSeqNoField.advanceExact(docId)) {
+                        long updateSeqNo = updateSeqNoField.longValue();
+                        if (updateSeqNo > seqNo) {
+                            seqNo = updateSeqNo;
+                            boolean foundTerm = updatePrimaryTermField != null && updatePrimaryTermField.advanceExact(docId);
+                            assert foundTerm : "found update seq no for " + docId + " but not a primary term";
+                            primaryTerm = updatePrimaryTermField.longValue();
+                        }
+                    }
                 }
                 hitContext.hit().setSeqNo(seqNo);
                 hitContext.hit().setPrimaryTerm(primaryTerm);

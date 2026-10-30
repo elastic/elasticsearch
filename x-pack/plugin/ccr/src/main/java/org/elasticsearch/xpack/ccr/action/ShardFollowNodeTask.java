@@ -24,6 +24,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.DocValuesUpdateBaseNotPresentException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
@@ -639,7 +640,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             || actual instanceof NoSuchRemoteClusterException
             || actual instanceof NoSeedNodeLeftException
             || actual instanceof EsRejectedExecutionException
-            || actual instanceof CircuitBreakingException;
+            || actual instanceof CircuitBreakingException
+            // A doc-values delta that raced ahead of its base version on the follower: retry re-delivers the base, in order, first.
+            || actual instanceof DocValuesUpdateBaseNotPresentException;
     }
 
     // These methods are protected for testing purposes:

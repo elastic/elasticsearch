@@ -518,7 +518,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                                 unassignedInfo,
                                 shardRoutingRoleStrategy.newRestoredRole(i),
-                                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                                ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING
                             )
                         );
                     } else {
@@ -529,7 +529,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary ? recoverySource : PeerRecoverySource.INSTANCE,
                                 withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
                                 shardRoutingRoleStrategy.newRestoredRole(i),
-                                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                                ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING
                             )
                         );
                     }
@@ -643,6 +643,10 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             assert shards != null;
             for (IndexShardRoutingTable.Builder existing : shards) {
                 assert existing != null;
+                // If the shard already has an active replica then the new replica just adds capacity
+                final ShardRouting.RecoveryPriority recoveryPriority = existing.hasActiveReplica()
+                    ? ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                    : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
                 // version 0, will get updated when reroute will happen
                 existing.addShard(
                     ShardRouting.newUnassigned(
@@ -651,7 +655,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         PeerRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
                         role,
-                        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                        recoveryPriority
                     )
                 );
             }

@@ -17,6 +17,7 @@ import org.junit.BeforeClass;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntFunction;
 
@@ -111,6 +112,35 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
             assertArrayEquals(expectedScores, bulkScores, delta);
         } else {
             assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
+        }
+    }
+
+    // Exercises the heap-only typed-array bulk API: non-zero dataset and scores offsets, and counts
+    // that are not a multiple of the maxSim chunk size, must produce the same scores as the segment
+    // binding on an equivalent dataset.
+    public void testFloat32BulkHeap() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("heap bulk API is dot product only", function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
+        final int dims = size;
+        for (int numVecs : new int[] { 1, 31, 33, 70, randomIntBetween(2, 101) }) {
+            var values = new float[numVecs][];
+            for (int i = 0; i < numVecs; i++) {
+                values[i] = randomFloatArray(dims);
+            }
+            final int headBytes = randomIntBetween(1, dims) * Float.BYTES;
+            byte[] dataset = new byte[headBytes + numVecs * dims * Float.BYTES];
+            var datasetSeg = MemorySegment.ofArray(dataset);
+            for (int i = 0; i < numVecs; i++) {
+                MemorySegment.copy(values[i], 0, datasetSeg, LAYOUT_LE_FLOAT, headBytes + (long) i * dims * Float.BYTES, dims);
+            }
+            int queryOrd = randomInt(numVecs - 1);
+            float[] expectedScores = new float[numVecs];
+            ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
+
+            final int headScores = randomIntBetween(1, numVecs);
+            float[] scores = new float[headScores + numVecs];
+            getVectorDistance().dotProductF32Bulk(dataset, headBytes, values[queryOrd], dims, numVecs, scores, headScores);
+            assertArrayEquals(expectedScores, Arrays.copyOfRange(scores, headScores, scores.length), delta);
         }
     }
 

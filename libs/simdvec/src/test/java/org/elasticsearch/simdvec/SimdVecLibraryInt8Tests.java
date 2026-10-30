@@ -14,6 +14,7 @@ import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.Arrays;
 import java.util.function.IntFunction;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -98,6 +99,34 @@ public class SimdVecLibraryInt8Tests extends SimdVecLibraryTests {
             assertArrayEquals(expectedScores, bulkScores, delta);
         } else {
             assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
+        }
+    }
+
+    // Exercises the heap-only typed-array bulk API: non-zero dataset and scores offsets, and counts
+    // that are not a multiple of the maxSim chunk size, must produce the same scores as the segment
+    // binding on an equivalent dataset.
+    public void testByteBulkHeap() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("heap bulk API is dot product only", function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
+        final int dims = size;
+        for (int numVecs : new int[] { 1, 31, 33, 70, randomIntBetween(2, 101) }) {
+            var values = new byte[numVecs][];
+            for (int i = 0; i < numVecs; i++) {
+                values[i] = randomByteArrayOfLength(dims);
+            }
+            final int headBytes = randomIntBetween(1, dims);
+            byte[] dataset = new byte[headBytes + numVecs * dims];
+            for (int i = 0; i < numVecs; i++) {
+                System.arraycopy(values[i], 0, dataset, headBytes + i * dims, dims);
+            }
+            int queryOrd = randomInt(numVecs - 1);
+            float[] expectedScores = new float[numVecs];
+            ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
+
+            final int headScores = randomIntBetween(1, numVecs);
+            float[] scores = new float[headScores + numVecs];
+            getVectorDistance().dotProductI8Bulk(dataset, headBytes, values[queryOrd], dims, numVecs, scores, headScores);
+            assertArrayEquals(expectedScores, Arrays.copyOfRange(scores, headScores, scores.length), delta);
         }
     }
 

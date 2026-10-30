@@ -184,14 +184,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /// [ShardRecoveryListener] and the retry/lock-wait continuations ([createShardWhenLockAvailable]) compare
         /// it against the current map entry by reference before acting.
         ///
-        /// This is a final class rather than a record because we rely on pendingAllocationStates.remove(key, creatingShard)
+        /// This is a final class rather than a record because we rely on pendingAllocationStates.remove(key, inFlight)
         /// to remove the exact instance rather than a record that just has the same fields.
-        final class CreatingShard implements PendingAllocationState {
+        final class InFlight implements PendingAllocationState {
             private final long startTimeMillis;
             private final int localRecoveryRetries;
             private final long primaryTerm;
 
-            CreatingShard(long startTimeMillis, int localRecoveryRetries, long primaryTerm) {
+            InFlight(long startTimeMillis, int localRecoveryRetries, long primaryTerm) {
                 this.startTimeMillis = startTimeMillis;
                 this.localRecoveryRetries = localRecoveryRetries;
                 this.primaryTerm = primaryTerm;
@@ -212,7 +212,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             @Override
             public String toString() {
-                return "CreatingShard{startTimeMillis="
+                return "InFlight{startTimeMillis="
                     + startTimeMillis
                     + ", localRecoveryRetries="
                     + localRecoveryRetries
@@ -475,7 +475,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Removes pending-allocation-state entries no longer allocated to this node, or re-allocated under a
-     * different allocation id. {@link PendingAllocationState.CreatingShard} and
+     * different allocation id. {@link PendingAllocationState.InFlight} and
      * {@link PendingAllocationState.AwaitingRecoveryRetry} entries are also removed once their allocation
      * stops initializing, since their lifecycle only makes sense during an in-progress creation/recovery
      * attempt. For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
@@ -502,7 +502,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
             Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
 
-            if (entry.getValue() instanceof PendingAllocationState.CreatingShard
+            if (entry.getValue() instanceof PendingAllocationState.InFlight
                 || entry.getValue() instanceof PendingAllocationState.AwaitingRecoveryRetry) {
                 PendingAllocationState ticket = entry.getValue();
                 if (shardAllocationTicketIsOutOfDate(key, state)) {
@@ -554,7 +554,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /// Returns `true` if `key` is no longer "the current allocation" in `state` -- i.e. the shard isn't routed to this node anymore, is
     /// routed under a different allocation id, or is no longer initializing. Only valid for
-    /// [PendingAllocationState.CreatingShard]/[PendingAllocationState.AwaitingRecoveryRetry] tickets: their lifecycle only spans the
+    /// [PendingAllocationState.InFlight]/[PendingAllocationState.AwaitingRecoveryRetry] tickets: their lifecycle only spans the
     /// shard-creation/recovery attempt, which is necessarily still initializing. Use [shardAllocationGone] for
     /// [PendingAllocationState.FailureReported], which can legitimately persist while the shard shows as started.
     private static boolean shardAllocationTicketIsOutOfDate(ShardAllocationKey key, ClusterState state) {
@@ -789,7 +789,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // Closing/reopening an index doesn't change a shard's allocation id or initializing-ness, so the
                 // sweep in updatePendingAllocationStates wouldn't evict these on its own; removeIndex tears the
                 // shard down directly, without going through the per-shard branches below that pair shard removal
-                // with clearing this allocation's entry. Without this, a leftover CreatingShard/AwaitingRecoveryRetry
+                // with clearing this allocation's entry. Without this, a leftover InFlight/AwaitingRecoveryRetry
                 // ticket would block the shard from ever being recreated once the index reopens.
                 pendingAllocationStates.keySet().removeIf(key -> key.shardId().getIndex().equals(index));
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
@@ -1110,13 +1110,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 sourceNode = null;
             }
 
-            final Optional<PendingAllocationState.CreatingShard> claim = tryClaimCreatingShard(key, primaryTerm);
+            final Optional<PendingAllocationState.InFlight> claim = tryClaimInFlight(key, primaryTerm);
             if (claim.isEmpty()) {
                 // Something already owns creating this allocation, or master already knows it failed.
                 logger.debug("{} not creating shard: already owned by ticket [{}]", key, pendingAllocationStates.get(key));
                 return;
             }
-            final PendingAllocationState.CreatingShard creatingShard = claim.get();
+            final PendingAllocationState.InFlight inFlight = claim.get();
 
             createShardWhenLockAvailable(
                 shardRouting,
@@ -1124,7 +1124,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 sourceNode,
                 primaryTerm,
                 key,
-                creatingShard,
+                inFlight,
                 0,
                 0L,
                 new RunOnce(
@@ -1184,14 +1184,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /// Claims ownership of creating shard identified by `key`. Refuses (and returns empty) if an attempt is
     /// already creating the shard, or if master already knows this allocation failed. Carries the retry count
     /// forward from whatever [PendingAllocationState.AwaitingRecoveryRetry] (or absent) state preceded it.
-    private Optional<PendingAllocationState.CreatingShard> tryClaimCreatingShard(ShardAllocationKey key, long primaryTerm) {
+    private Optional<PendingAllocationState.InFlight> tryClaimInFlight(ShardAllocationKey key, long primaryTerm) {
         assert Thread.holdsLock(this);
         PendingAllocationState current = pendingAllocationStates.get(key);
-        if (current instanceof PendingAllocationState.CreatingShard || current instanceof PendingAllocationState.FailureReported) {
+        if (current instanceof PendingAllocationState.InFlight || current instanceof PendingAllocationState.FailureReported) {
             return Optional.empty();
         }
         int retries = current instanceof PendingAllocationState.AwaitingRecoveryRetry(var n, var ignoredTerm) ? n : 0;
-        var candidate = new PendingAllocationState.CreatingShard(threadPool.relativeTimeInMillis(), retries, primaryTerm);
+        var candidate = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), retries, primaryTerm);
         pendingAllocationStates.put(key, candidate);
         return Optional.of(candidate);
     }
@@ -1202,7 +1202,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
         ShardAllocationKey key,
-        PendingAllocationState.CreatingShard creatingShard,
+        PendingAllocationState.InFlight inFlight,
         int iteration,
         long delayMillis,
         RunOnce dumpHotThreads,
@@ -1215,7 +1215,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 state.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
-                new ShardRecoveryListener(shardRouting, primaryTerm, state.version(), creatingShard),
+                new ShardRecoveryListener(shardRouting, primaryTerm, state.version(), inFlight),
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -1223,7 +1223,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 state.nodes().getLocalNode(),
                 sourceNode,
                 state.version(),
-                creatingShard.localRecoveryRetries()
+                inFlight.localRecoveryRetries()
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
@@ -1263,7 +1263,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // does.
                         synchronized (this) {
                             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-                            if (pendingAllocationStates.get(key) != creatingShard) {
+                            if (pendingAllocationStates.get(key) != inFlight) {
                                 // Not my claim anymore. Either the allocation went stale and was removed
                                 // when new cluster state applied or the shard has been failed and master has been notified.
                                 logger.debug("{} giving up on shard lock retry: no longer own the creating-shard attempt", key);
@@ -1271,7 +1271,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 return;
                             }
 
-                            final var newDelayMillis = threadPool.relativeTimeInMillis() - creatingShard.startTimeMillis();
+                            final var newDelayMillis = threadPool.relativeTimeInMillis() - inFlight.startTimeMillis();
                             if (newDelayMillis > shardLockRetryTimeout.millis()) {
                                 logger.warn(
                                     "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
@@ -1319,7 +1319,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 sourceNode,
                                 primaryTerm,
                                 key,
-                                creatingShard,
+                                inFlight,
                                 iteration + 1,
                                 newDelayMillis,
                                 dumpHotThreads,
@@ -1495,18 +1495,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * The creating-shard ticket claimed for this attempt.
          */
-        private final PendingAllocationState.CreatingShard creatingShard;
+        private final PendingAllocationState.InFlight inFlight;
 
         private ShardRecoveryListener(
             final ShardRouting shardRouting,
             final long primaryTerm,
             final long creationClusterStateVersion,
-            final PendingAllocationState.CreatingShard creatingShard
+            final PendingAllocationState.InFlight inFlight
         ) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
             this.creationClusterStateVersion = creationClusterStateVersion;
-            this.creatingShard = creatingShard;
+            this.inFlight = inFlight;
         }
 
         @Override
@@ -1516,8 +1516,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ShardLongFieldRange eventIngestedMillisFieldRange
         ) {
             final var key = ShardAllocationKey.fromRouting(shardRouting);
-            // Relies on CreatingShard#equals using reference-identity rather than value-equality
-            if (pendingAllocationStates.remove(key, creatingShard) == false) {
+            // Relies on InFlight#equals using reference-identity rather than value-equality
+            if (pendingAllocationStates.remove(key, inFlight) == false) {
                 logger.debug("{} ignoring stale recovery success; no longer the current attempt", key);
                 return;
             }
@@ -1538,7 +1538,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // symptom of a shard that is closing and this is communicated to master through other
                 // means (or the master already knows because the master initiated it, e.g. by moving the shard).
                 final var key = ShardAllocationKey.fromRouting(shardRouting);
-                if (pendingAllocationStates.remove(key, creatingShard)) {
+                if (pendingAllocationStates.remove(key, inFlight)) {
                     logger.debug("{} recovery aborted; cleared creating-shard ticket", key);
                 } else {
                     logger.debug("{} recovery aborted; ticket no longer the current attempt", key);
@@ -1552,7 +1552,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, state, creatingShard);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, state, inFlight);
                     listener.onResponse(null);
                 }
             );
@@ -1566,17 +1566,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         Exception failure,
         RecoveryState recoveryState,
-        PendingAllocationState.CreatingShard creatingShard
+        PendingAllocationState.InFlight inFlight
     ) {
         final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
-        if (pendingAllocationStates.get(key) != creatingShard) {
+        if (pendingAllocationStates.get(key) != inFlight) {
             logger.debug("{} ignoring stale recovery failure; no longer the current attempt", key);
             return;
         }
 
         final FailureStrategy finalStrategy;
         final Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
-        // A still-live creatingShard ticket (checked above) guarantees any local shard for this shardId
+        // A still-live inFlight ticket (checked above) guarantees any local shard for this shardId
         // is this allocation's: every path that replaces it with a different allocation's shard also
         // invalidates this exact ticket first, inside the same synchronized section.
         assert shard == null || shard.routingEntry().isSameAllocation(shardRouting)
@@ -1618,7 +1618,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
                 // Record the retry ticket before scheduling so the next createShard (from this retry path
                 // or the cluster state application) uses the retry context.
-                final var myTicket = recordAwaitingRecoveryRetry(key, creatingShard, recoveryState.getLocalRetries() + 1, primaryTerm);
+                final var myTicket = recordAwaitingRecoveryRetry(key, inFlight, recoveryState.getLocalRetries() + 1, primaryTerm);
 
                 // Fork onto cluster state applier thread to retry attempt to create shard
                 clusterService.getClusterApplierService()
@@ -1666,7 +1666,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }, ActionListener.noop());
             } else if (finalStrategy == FailureStrategy.FAIL_SILENT) {
                 logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
-                pendingAllocationStates.remove(key, creatingShard);
+                pendingAllocationStates.remove(key, inFlight);
             }
         } catch (Exception e) {
             // should not be possible
@@ -1678,15 +1678,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /// Records that the shard allocation defined by `key` should be retried with `localRecoveryRetries`,
     /// under the given `primaryTerm`, and returns the ticket that was written. Caller must be the owner
-    /// of current `creatingShard` ticket.
+    /// of current `inFlight` ticket.
     private PendingAllocationState.AwaitingRecoveryRetry recordAwaitingRecoveryRetry(
         ShardAllocationKey key,
-        PendingAllocationState.CreatingShard creatingShard,
+        PendingAllocationState.InFlight inFlight,
         int localRecoveryRetries,
         long primaryTerm
     ) {
         assert Thread.holdsLock(this);
-        assert pendingAllocationStates.get(key) == creatingShard : "expected our own CreatingShard ticket still present for " + key;
+        assert pendingAllocationStates.get(key) == inFlight : "expected our own InFlight ticket still present for " + key;
         var ticket = new PendingAllocationState.AwaitingRecoveryRetry(localRecoveryRetries, primaryTerm);
         pendingAllocationStates.put(key, ticket);
         return ticket;

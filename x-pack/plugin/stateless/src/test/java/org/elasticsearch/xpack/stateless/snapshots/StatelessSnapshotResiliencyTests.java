@@ -110,7 +110,6 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
-import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
@@ -862,7 +861,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 clusterService.getClusterSettings(),
                 clusterService.getSettings(),
                 ByteSizeValue.ZERO,
-                ShardWarmVolumes.NOOP,
                 TelemetryProvider.NOOP
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
@@ -1116,7 +1114,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         projectResolver,
                         bccHeaderReadExecutor,
                         clusterService,
-                        warmingRatioProviderFactory
+                        warmingRatioProviderFactory,
+                        client
                     )
                 );
             }

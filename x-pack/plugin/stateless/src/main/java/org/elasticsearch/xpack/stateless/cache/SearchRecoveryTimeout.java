@@ -45,8 +45,8 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)",
             false
         ),
-        RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME(
-            "relocation source shutting down (warm volume share of remaining time to capped grace deadline)",
+        RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT(
+            "relocation source shutting down (warm amount share of remaining time to capped grace deadline)",
             false
         ),
         RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE(
@@ -74,7 +74,7 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         public boolean sourceShuttingDown() {
             return switch (this) {
                 case RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME,
-                    RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
+                    RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
                 case SKIP, NON_RELOCATION_ANOTHER_ACTIVE_COPY, RESHARD_SPLIT_TARGET,
                     RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
                     RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT -> false;
@@ -95,10 +95,10 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
     public boolean shouldExtendAfter(SearchRecoveryTimeout previous) {
         assert previous.extendable();
         return switch (timeoutContext) {
-            // A full data-volume or warm-volume share is only handed out as the first plan once the source started shutting down.
+            // A full data-volume or warm-amount share is only handed out as the first plan once the source started shutting down.
             // Within the shutdown phase only the time saved by shards that finished earlier than planned is handed out; the calculation
-            // service never produces a data-volume or warm-volume plan then, so this is a safeguard.
-            case RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME, RELOCATION_SOURCE_SHUTTING_DOWN_WARM_VOLUME -> previous.timeoutContext
+            // service never produces a data-volume or warm-amount plan then, so this is a safeguard.
+            case RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME, RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT -> previous.timeoutContext
                 .sourceShuttingDown() == false;
             case RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT ->
                 previous.timeoutContext != TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;

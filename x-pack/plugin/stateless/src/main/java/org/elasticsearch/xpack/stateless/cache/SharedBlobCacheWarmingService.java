@@ -809,6 +809,7 @@ public class SharedBlobCacheWarmingService {
      * may proceed. When {@code endTargetsToWarm} is non-null (internal replicated-files path),
      * {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} decides whether to wait for warming up to a timeout;
      * otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via {@link ActionListener#noop()}).
+     * {@code sourceWarmAmountShare} is the shutting-down relocation source's answer for the warm-amount heuristic, if any.
      *
      * Notice that this may synchronously invoke the listener.
      */
@@ -819,11 +820,18 @@ public class SharedBlobCacheWarmingService {
         BlobStoreCacheDirectory directory,
         WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+        SourceWarmAmountShare sourceWarmAmountShare,
         ActionListener<Void> resumeRecoveryListener
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm, null)
+            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(
+                clusterStateSupplier.get(),
+                indexShard,
+                totalBytesToWarm,
+                null,
+                sourceWarmAmountShare
+            )
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;

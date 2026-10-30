@@ -55,7 +55,6 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
                 ByteSizeValue.ZERO,
-                ShardWarmVolumes.NOOP,
                 TelemetryProvider.NOOP
             )
         ) {

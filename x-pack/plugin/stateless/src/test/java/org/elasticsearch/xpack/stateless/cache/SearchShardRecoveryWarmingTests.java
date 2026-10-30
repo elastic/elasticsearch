@@ -191,7 +191,6 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
                 ByteSizeValue.ZERO,
-                ShardWarmVolumes.NOOP,
                 TelemetryProvider.NOOP
             )
         ) {
@@ -267,6 +266,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 null,
+                SourceWarmAmountShare.NOT_REQUESTED,
                 resume
             );
             // recovery is resumed
@@ -332,6 +332,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
+                SourceWarmAmountShare.NOT_REQUESTED,
                 resume
             );
             // recovery is NOT resumed
@@ -388,6 +389,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
+                SourceWarmAmountShare.NOT_REQUESTED,
                 resume
             );
             // recovery resumed (synchronously)
@@ -453,6 +455,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
+                SourceWarmAmountShare.NOT_REQUESTED,
                 resume
             );
             // Note: must not assert that `resume` is still incomplete here; the timeout is 1-10ms and races with an assertion.
@@ -738,7 +741,6 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
                 ByteSizeValue.ZERO,
-                ShardWarmVolumes.NOOP,
                 TelemetryProvider.NOOP
             ) {
                 @Override
@@ -746,7 +748,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     ClusterState state,
                     IndexShard indexShard,
                     long totalBytesToWarm,
-                    @Nullable SearchRecoveryTimeout previous
+                    @Nullable SearchRecoveryTimeout previous,
+                    SourceWarmAmountShare sourceWarmAmountShare
                 ) {
                     return planForBytesToWarmAndPreviousPlan.apply(totalBytesToWarm, previous);
                 }

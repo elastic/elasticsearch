@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -879,6 +881,43 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
         );
         assertTrue("MATCH_PHRASE over a fused field_extract must run at runtime, not be pushed", matchPhrase.isRuntimeSearch());
+    }
+
+    public void testFieldExtractIntoKnnFusesButStaysRuntime() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // KNN over an inline TO_DENSE_VECTOR of a flattened field_extract: the field_extract fuses into a keyed sub-field
+        // load whose FieldAttribute has a synthetic name with no indexed field behind it. KNN must run at runtime; a
+        // Lucene knn query on that name would silently match nothing. See https://github.com/elastic/elasticsearch/issues/163402
+        // Runtime KNN is rejected when a participating node predates it, so pin the minimum version to one that supports it.
+        Analyzer analyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("test", "mapping-flattened_keyed.json")
+            .minimumTransportVersion(TransportVersion.current())
+            .buildAnalyzer();
+        PhysicalPlan plan = new TestPlannerOptimizer(config, analyzer).plan("""
+            FROM test
+            | WHERE KNN(TO_DENSE_VECTOR(field_extract(data, "h")), [64, 0, 0], {"similarity": 0.9})
+            | SORT id
+            | LIMIT 10
+            | KEEP id
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding KNN should fuse", pushed, hasSize(1));
+
+        List<Knn> knns = new ArrayList<>();
+        plan.forEachExpressionDown(Knn.class, knns::add);
+        assertThat("KNN must survive as a runtime expression, not be pushed to Lucene", knns, hasSize(1));
+        Knn knn = knns.get(0);
+
+        // Its field argument is TO_DENSE_VECTOR over the fused field_extract.
+        ToDenseVector toDenseVector = as(knn.field(), ToDenseVector.class);
+        FieldAttribute field = as(toDenseVector.field(), FieldAttribute.class);
+        assertThat(
+            as(field.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+        assertTrue("KNN over TO_DENSE_VECTOR of a fused field_extract must run at runtime, not be pushed", knn.isRuntimeSearch());
     }
 
     public void testLengthIntoMatchFusesButStaysRuntime() {

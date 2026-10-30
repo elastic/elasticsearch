@@ -19,6 +19,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongFunction;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -260,4 +263,119 @@ public class ScriptValuesTests extends ESTestCase {
         }
     }
 
+    /**
+     * A value script over {@code _value} that returns {@code null} for negative inputs and {@code 100 - _value} otherwise.
+     * The mapping reverses the input order, so the values that remain must be re-sorted.
+     */
+    private static AggregationScript nullForNegativeValueScript(LongFunction<Number> box) {
+        return new AggregationScript() {
+            @Override
+            public Object execute() {
+                final long value = ((Number) get_value()).longValue();
+                return value < 0 ? null : box.apply(100 - value);
+            }
+        };
+    }
+
+    /**
+     * Per-document input values for the value-script tests: one document where every value is negative (so the
+     * script returns {@code null} for all of them), one where none is, one with a mix, then random documents.
+     */
+    private static long[][] valueScriptInputs() {
+        final long[][] docs = new long[3 + randomInt(10)][];
+        docs[0] = new long[] { -3, -2, -1 };
+        docs[1] = new long[] { 1, 2, 3 };
+        docs[2] = new long[] { -2, -1, 0, 4, 7 };
+        for (int i = 3; i < docs.length; ++i) {
+            docs[i] = new long[randomIntBetween(1, 8)];
+            for (int j = 0; j < docs[i].length; ++j) {
+                docs[i][j] = randomIntBetween(-50, 50);
+            }
+            Arrays.sort(docs[i]);
+        }
+        return docs;
+    }
+
+    /** The values a doc should expose after the value script ran: nulls dropped, the rest mapped and sorted. */
+    private static long[] expectedValueScriptOutput(long[] input) {
+        return Arrays.stream(input).filter(v -> v >= 0).map(v -> 100 - v).sorted().toArray();
+    }
+
+    public void testNumericValueScriptLongsSkipsNull() throws IOException {
+        final long[][] docs = valueScriptInputs();
+        final SortedNumericLongValues source = new SortedNumericLongValues(null) {
+            private int doc = -1;
+            private int index;
+
+            @Override
+            public boolean advanceExact(int target) {
+                doc = target;
+                index = 0;
+                return docs[doc].length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return docs[doc].length;
+            }
+
+            @Override
+            public long nextValue() {
+                return docs[doc][index++];
+            }
+        };
+        final ValuesSource.Numeric.WithScript.LongValues scriptValues = new ValuesSource.Numeric.WithScript.LongValues(
+            source,
+            nullForNegativeValueScript(Long::valueOf)
+        );
+        for (int i = 0; i < docs.length; ++i) {
+            final long[] expected = expectedValueScriptOutput(docs[i]);
+            assertEquals("doc " + i, expected.length > 0, scriptValues.advanceExact(i));
+            if (expected.length > 0) {
+                assertEquals("doc " + i, expected.length, scriptValues.docValueCount());
+                for (long value : expected) {
+                    assertEquals("doc " + i, value, scriptValues.nextValue());
+                }
+            }
+        }
+    }
+
+    public void testNumericValueScriptDoublesSkipsNull() throws IOException {
+        final long[][] docs = valueScriptInputs();
+        final SortedNumericDoubleValues source = new SortedNumericDoubleValues(null) {
+            private int doc = -1;
+            private int index;
+
+            @Override
+            public boolean advanceExact(int target) {
+                doc = target;
+                index = 0;
+                return docs[doc].length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return docs[doc].length;
+            }
+
+            @Override
+            public double nextValue() {
+                return docs[doc][index++];
+            }
+        };
+        final ValuesSource.Numeric.WithScript.DoubleValues scriptValues = new ValuesSource.Numeric.WithScript.DoubleValues(
+            source,
+            nullForNegativeValueScript(v -> (double) v)
+        );
+        for (int i = 0; i < docs.length; ++i) {
+            final long[] expected = expectedValueScriptOutput(docs[i]);
+            assertEquals("doc " + i, expected.length > 0, scriptValues.advanceExact(i));
+            if (expected.length > 0) {
+                assertEquals("doc " + i, expected.length, scriptValues.docValueCount());
+                for (long value : expected) {
+                    assertEquals("doc " + i, (double) value, scriptValues.nextValue(), 0d);
+                }
+            }
+        }
+    }
 }

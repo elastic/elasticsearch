@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -276,6 +277,37 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             try {
                 client().performRequest(new Request("DELETE", "/_query/view/" + viewName));
             } catch (ResponseException ignore) {}
+        }
+    }
+
+    /** INTO writes its rows rather than returning them; a client that streams by default gets the statistics row streamed. */
+    public void testIntoStreamsItsStatisticsRow() throws IOException {
+        assumeTrue("INTO is behind the esql_into feature flag", RestEsqlTestCase.hasCapabilities(client(), List.of("into_command")));
+        assertOK(client().performRequest(new Request("PUT", "/stream-test-into")));
+        try {
+            List<Map<String, Object>> lines = stream("""
+                {"query": "FROM stream-test | KEEP value, description | INTO stream-test-into"}
+                """);
+            assertThat("columns, one page, footer", lines, hasSize(3));
+            assertThat(
+                columnNames(lines.get(0), "columns"),
+                equalTo(List.of("total", "created", "updated", "version_conflicts", "batches", "failures", "failure_messages"))
+            );
+            List<List<Object>> rows = rows(lines.get(1));
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).subList(0, 2), equalTo(List.of(4, 4)));
+            assertThat(rows.get(0).get(5), equalTo(0));
+            Map<String, Object> footer = lines.get(2);
+            assertThat(footer, hasKey("took"));
+            assertThat(footer.get("is_partial"), equalTo(false));
+            assertThat(footer, not(hasKey("error")));
+
+            List<Map<String, Object>> readBack = stream("""
+                {"query": "FROM stream-test-into | STATS c = COUNT(*)"}
+                """);
+            assertThat(rows(readBack.get(1)).get(0), equalTo(List.of(4)));
+        } finally {
+            client().performRequest(new Request("DELETE", "/stream-test-into"));
         }
     }
 

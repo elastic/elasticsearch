@@ -998,6 +998,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterIntoCommand(EsqlBaseParser.IntoCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { }
   /**
    * {@inheritDoc}

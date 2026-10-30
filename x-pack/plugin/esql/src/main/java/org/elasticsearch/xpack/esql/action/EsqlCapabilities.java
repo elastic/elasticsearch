@@ -4630,6 +4630,13 @@ public class EsqlCapabilities {
          * does for a search on an indexed field, rather than the score from before it.
          */
         RUNTIME_SCORE_FIX,
+        /**
+         * The {@code INTO} command, which writes a query's rows to an index instead of returning them, with
+         * {@code collisions}, {@code refresh}, {@code keep_going} and {@code approximate} options and a reindex-style
+         * statistics row as its result. Behind the {@code esql_into} feature flag while in development: on in snapshot
+         * builds unless {@code -Des.esql_into_feature_flag_enabled=false}, off in release builds unless set to true.
+         */
+        INTO_COMMAND(new FeatureFlag("esql_into")),
 
         /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms

@@ -1,0 +1,300 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ into_command ]
+      reason: "INTO command"
+
+  - do:
+      indices.create:
+        index: src
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              host:
+                type: keyword
+              cpu:
+                type: double
+
+  - do:
+      indices.create:
+        index: dst
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              host:
+                type: keyword
+              max_cpu:
+                type: double
+
+  - do:
+      indices.create:
+        index: unrefreshed
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+          mappings:
+            properties:
+              host:
+                type: keyword
+              max_cpu:
+                type: double
+
+  - do:
+      indices.create:
+        index: strict
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: strict
+            properties:
+              host:
+                type: keyword
+
+  - do:
+      bulk:
+        index: src
+        refresh: true
+        body:
+          - { "index": { "_id": "1" } }
+          - { "host": "a", "cpu": 10 }
+          - { "index": { "_id": "2" } }
+          - { "host": "a", "cpu": 30 }
+          - { "index": { "_id": "3" } }
+          - { "host": "b", "cpu": 20 }
+
+---
+"INTO writes the rows and reports what it wrote":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO dst'
+  - length: { columns: 7 }
+  - match: { columns.0.name: "total" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "created" }
+  - match: { columns.2.name: "updated" }
+  - match: { columns.3.name: "version_conflicts" }
+  - match: { columns.4.name: "batches" }
+  - match: { columns.5.name: "failures" }
+  - match: { columns.6.name: "failure_messages" }
+  - match: { columns.6.type: "keyword" }
+  - length: { values: 1 }
+  - match: { values.0.0: 2 }
+  - match: { values.0.1: 2 }
+  - match: { values.0.2: 0 }
+  - match: { values.0.3: 0 }
+  - match: { values.0.4: 1 }
+  - match: { values.0.5: 0 }
+  - match: { values.0.6: null }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM dst | SORT host | KEEP host, max_cpu'
+  - length: { values: 2 }
+  - match: { values.0: [ "a", 30.0 ] }
+  - match: { values.1: [ "b", 20.0 ] }
+
+---
+"INTO refreshes the destination unless told not to":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO unrefreshed WITH { "refresh": false }'
+  - match: { values.0.1: 2 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM unrefreshed | STATS c = COUNT(*)'
+  - match: { values.0.0: 0 }
+
+  - do:
+      indices.refresh:
+        index: unrefreshed
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM unrefreshed | STATS c = COUNT(*)'
+  - match: { values.0.0: 2 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO unrefreshed'
+  - match: { values.0.1: 2 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM unrefreshed | STATS c = COUNT(*)'
+  - match: { values.0.0: 4 }
+
+---
+"INTO resolves collisions on the _id column":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src METADATA _id | KEEP _id, host, cpu | INTO dst'
+  - match: { values.0.1: 3 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src METADATA _id | EVAL cpu = cpu + 100 | KEEP _id, host, cpu | INTO dst WITH { "collisions": "keep" }'
+  - match: { values.0.0: 3 }
+  - match: { values.0.1: 0 }
+  - match: { values.0.3: 3 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src METADATA _id | EVAL cpu = cpu + 100 | KEEP _id, host, cpu | INTO dst WITH { "collisions": "replace" }'
+  - match: { values.0.1: 0 }
+  - match: { values.0.2: 3 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM dst | STATS c = COUNT(*), min_cpu = MIN(cpu)'
+  - match: { values.0: [ 3, 110.0 ] }
+
+  - do:
+      catch: conflict
+      esql.query:
+        body:
+          query: 'FROM src METADATA _id | KEEP _id, host, cpu | INTO dst'
+  - match: { error.reason: "/.*document\\s\\[\\d\\]\\salready\\sexists;\\suse\\s\"collisions\":\\s\"replace\"\\sor.*/" }
+
+---
+"INTO refuses what the destination cannot take":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO strict'
+  - match: { error.reason: "/.*\\[max_cpu\\]\\sis\\snot\\smapped\\sin\\s\\[strict\\]\\sand\\sits\\smapping\\sdoes\\snot\\sallow\\sdynamic\\sfields\\s\\(dynamic=strict\\).*/" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO missing'
+  - match: { error.reason: "/.*\\[missing\\]\\sdoes\\snot\\sexist\\sand\\sno\\sindex\\stemplate\\smatches\\sit.*/" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src | SORT host | INTO dst'
+  - match: { error.reason: "/.*SORT\\shas\\sno\\seffect\\son\\swhat\\sINTO\\swrites.*/" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src | INTO dst WITH { "collisions": "merge" }'
+  - match: { error.reason: "/.*invalid\\svalue\\s\\[merge\\]\\sfor\\soption\\s\\[collisions\\].*/" }
+
+---
+"INTO fails on a row the destination refuses":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src | EVAL max_cpu = CASE(host == "b", "not a number", cpu::keyword) | KEEP host, max_cpu | INTO dst'
+  - match: { error.reason: "/.*failed\\sto\\sparse\\sfield\\s\\[max_cpu\\].*use\\s\"keep_going\":\\strue.*/" }
+
+---
+"INTO reports rows the destination refused with keep_going":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src | EVAL max_cpu = CASE(host == "b", "not a number", cpu::keyword) | KEEP host, max_cpu | INTO dst WITH { "keep_going": true }'
+  - match: { values.0.0: 3 }
+  - match: { values.0.1: 2 }
+  - match: { values.0.5: 1 }
+  # A single failure message is rendered as a plain value rather than a one-element list.
+  - match: { values.0.6: "/dst\\/.*failed\\sto\\sparse\\sfield\\s\\[max_cpu\\].*/" }
+
+---
+"INTO lets a data stream generate its own document ids":
+  - do:
+      indices.put_index_template:
+        name: into-stream-template
+        body:
+          index_patterns: [ "into-stream*" ]
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host:
+                  type: keyword
+                cpu:
+                  type: double
+
+  - do:
+      indices.create_data_stream:
+        name: into-stream
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src METADATA _id | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP _id, `@timestamp`, host, cpu | INTO into-stream'
+  - match: { error.reason: "/.*\\[_id\\]\\scannot\\sbe\\swritten\\sto\\s\\[into-stream\\]:\\sa\\sdata\\sstream\\sgenerates\\sits\\sown\\sdocument\\sids.*/" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream'
+  - match: { values.0.0: 3 }
+  - match: { values.0.1: 3 }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream WITH { "collisions": "replace" }'
+  - match: { error.reason: "/.*\\[into-stream\\]\\sis\\sa\\sdata\\sstream,\\swhich\\sonly\\stakes\\snew\\sdocuments.*/" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream WITH { "collisions": "keep" }'
+  - match: { values.0.0: 3 }
+  - match: { values.0.1: 3 }
+  - match: { values.0.2: 0 }
+  - match: { values.0.3: 0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM into-stream | STATS c = COUNT(*)'
+  - match: { values.0: [ 6 ] }

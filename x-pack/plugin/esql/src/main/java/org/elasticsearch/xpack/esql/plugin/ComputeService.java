@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -98,6 +100,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoAuthorizer;
+import org.elasticsearch.xpack.esql.into.IntoDestination;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -112,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -220,6 +226,8 @@ public class ComputeService {
     private final Executor searchExecutor;
     private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
+    /** Writes the rows of an {@code INTO} query, with the caller's privileges. */
+    private final Client client;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
@@ -238,6 +246,7 @@ public class ComputeService {
         Client client
     ) {
         this.searchService = transportActionServices.searchService();
+        this.client = client;
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -1113,6 +1122,106 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        final IntoExec intoPlan = physicalPlan instanceof StreamingOutputExec streaming && streaming.child() instanceof IntoExec into ? into
+            : physicalPlan instanceof IntoExec into ? into
+            : null;
+        if (intoPlan == null) {
+            executeChecked(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, planTimeProfile, listener);
+            return;
+        }
+        // The destination is looked at only once the caller is known to be allowed to write to it, so a refusal never
+        // tells a caller without that privilege what the destination is or whether it exists. Checked before anything is
+        // read, so a query that cannot be written does not write part of itself.
+        final PhysicalPlan plan = physicalPlan;
+        IntoAuthorizer.authorize(
+            client,
+            intoPlan.destination(),
+            intoPlan.options(),
+            new ThreadedActionListener<>(
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                true,
+                listener.delegateFailureAndWrap((l, ignored) -> {
+                    try {
+                        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+                        IntoDestination.resolve(project, intoPlan.destination()).validate(intoPlan.child().output(), intoPlan.options());
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                        return;
+                    }
+                    executeChecked(sessionId, rootTask, flags, plan, configuration, foldContext, execInfo, planTimeProfile, l);
+                })
+            )
+        );
+    }
+
+    private void executeChecked(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<Result> listener
+    ) {
+        PageStreamPublisher.Producer streamProducer = null;
+        if (physicalPlan instanceof StreamingOutputExec streaming && streaming.child() instanceof IntoExec into) {
+            // A client may stream everything; there is nothing to stream here until the write is over, and then only
+            // the statistics row, which goes out through the stream once it is known.
+            streamProducer = streaming.pageStream().registerProducer();
+            physicalPlan = into;
+        }
+        if (physicalPlan instanceof IntoExec into) {
+            // The rows go to the destination rather than into the result, which carries the writer's statistics instead.
+            // Attached here, where the client is, and read back once the run is over: a failure the writer recorded fails
+            // the query, as does a partial result, since the destination would then hold part of the answer. A result
+            // the user cut short with an async STOP is partial by their own choice, so it answers with the statistics
+            // of what was written, and the response says it is partial.
+            IntoPageWriter writer = new IntoPageWriter(client, into.destination(), into.options(), into.child().output());
+            physicalPlan = into.withWriter(writer);
+            final PageStreamPublisher.Producer producer = streamProducer;
+            listener = listener.delegateFailureAndWrap((l, result) -> {
+                if (writer.failure() != null || (execInfo.isPartial() && execInfo.isStopped() == false)) {
+                    if (producer != null) {
+                        producer.finish();
+                    }
+                    l.onFailure(
+                        writer.failure() != null
+                            ? writer.failure()
+                            : new ElasticsearchException(
+                                "INTO [{}] failed: part of the query did not run, so the destination holds a partial result",
+                                into.destination()
+                            )
+                    );
+                    return;
+                }
+                if (writer.refreshWarning() != null) {
+                    HeaderWarning.addWarning(writer.refreshWarning());
+                }
+                Page stats = writer.stats().toPage(blockFactory);
+                List<Page> pages;
+                if (producer == null) {
+                    pages = List.of(stats);
+                } else {
+                    // The producer owns the page from here, and a stream carries its rows rather than the result.
+                    producer.addPage(stats);
+                    producer.finish();
+                    pages = List.of();
+                }
+                l.onResponse(
+                    new Result(
+                        result.schema(),
+                        pages,
+                        result.attributeMetadata(),
+                        result.configuration(),
+                        result.completionInfo(),
+                        result.executionInfo(),
+                        result.approximationApplied()
+                    )
+                );
+            });
+        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1147,21 +1256,30 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce
                 );
-                case SubPlan.Merge merge -> new SubPlansExecutor(
-                    this,
-                    exchangeService,
-                    sessionId,
-                    rootTask,
-                    flags,
-                    configuration,
-                    foldContext,
-                    execInfo,
-                    initialClusterStatuses,
-                    warnIndexCoordinatorOnce,
-                    planTimeProfile,
-                    merge,
-                    dispatchListener
-                ).executePlan();
+                case SubPlan.Merge merge -> {
+                    if (physicalPlan instanceof IntoExec) {
+                        // The merge path wires its own output sink as it is built, which would leave the writer unused.
+                        dispatchListener.onFailure(
+                            new IllegalArgumentException("INTO is not supported in a query with FORK or UNION branches")
+                        );
+                        return;
+                    }
+                    new SubPlansExecutor(
+                        this,
+                        exchangeService,
+                        sessionId,
+                        rootTask,
+                        flags,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        initialClusterStatuses,
+                        warnIndexCoordinatorOnce,
+                        planTimeProfile,
+                        merge,
+                        dispatchListener
+                    ).executePlan();
+                }
             }
         } catch (Exception e) {
             // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a
@@ -1393,7 +1511,11 @@ public class ComputeService {
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
-        if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
+        if (coordinatorPlan instanceof IntoExec into) {
+            // The rows are written rather than collected; execute() attached the writer and reports its statistics.
+            assert into.writer() != null : "INTO plan executed without a writer";
+            coordinatorPlan = new OutputExec(into.child(), into.writer());
+        } else if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
             coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         }
 
@@ -2345,5 +2467,4 @@ public class ComputeService {
         });
         return holder.getOrDefault(Map::of);
     }
-
 }

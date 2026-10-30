@@ -948,12 +948,15 @@ FROM partial_mapping_sample_data
 fieldIsUnmappedSingleIndex
 required_capability: optional_fields_v5
 
+// tag::unmapped-load-named-field[]
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, message, unmapped_message
 | SORT @timestamp DESC
+// end::unmapped-load-named-field[]
 ;
 
+// tag::unmapped-load-named-field-result[]
 @timestamp:date          | message:keyword        | unmapped_message:keyword
 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
@@ -962,6 +965,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 42                     | 43
 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+// end::unmapped-load-named-field-result[]
 ;
 
 // Reproducer for #141990: replacing an unmapped field from an empty mapping with an EVAL expression should not drop source loading.

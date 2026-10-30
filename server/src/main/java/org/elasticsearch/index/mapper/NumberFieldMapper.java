@@ -484,6 +484,8 @@ public class NumberFieldMapper extends FieldMapper {
          * field whose owner opted it out, see {@link #disallowColumnarCodec()}.
          */
         // TODO: sort an index by a ColumNAR numeric field, as keyword fields can be.
+        // TODO: store index_terms fields with ColumNAR too, writing their terms with INDEX_TERMS_FIELD_TYPE_INDEX_ONLY beside separate
+        // binary doc values, as indexed keyword fields do.
         private DocValuesDiskFormat diskFormat(String fullName) {
             if (docValuesParameters.getValue().enabled() == false) {
                 return DocValuesDiskFormat.NONE;

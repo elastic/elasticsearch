@@ -278,7 +278,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public static final Setting<Boolean> IVF_SLICES_ENABLED = Setting.boolSetting(
         "search.vectors.ivf.slices.enabled",
-        false,
+        true,
         Property.NodeScope,
         Property.Dynamic
     );

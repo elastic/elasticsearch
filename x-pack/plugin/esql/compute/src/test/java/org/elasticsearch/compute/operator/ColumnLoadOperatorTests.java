@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ColumnLoadOperatorTests extends OperatorTestCase {
     @Override
@@ -83,5 +85,89 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
+    }
+
+    /**
+     * Operators created by one {@link ColumnLoadOperator.Factory} share a single copy of the values, charged to the
+     * drivers' common parent breaker once, and released when the last of them closes.
+     */
+    public void testFactorySharesOneCopy() {
+        BlockFactory blockFactory = blockFactory();
+        CircuitBreaker breaker = blockFactory.breaker();
+        Operator.OperatorFactory factory = simple();
+        long before = breaker.getUsed();
+
+        Operator first = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        long withCopy = breaker.getUsed();
+        assertThat(withCopy, greaterThan(before));
+
+        Operator second = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        assertThat("the second operator reuses the copy", breaker.getUsed(), equalTo(withCopy));
+
+        first.close();
+        assertThat("the copy stays while the second operator uses it", breaker.getUsed(), equalTo(withCopy));
+        second.close();
+        assertThat("the last close releases the copy", breaker.getUsed(), equalTo(before));
+
+        // Once released, the next operator makes a fresh copy rather than using the closed one.
+        Operator third = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        assertThat(breaker.getUsed(), equalTo(withCopy));
+        third.close();
+        assertThat(breaker.getUsed(), equalTo(before));
+    }
+
+    /**
+     * The values contain a null so they are an array block rather than a vector block: looking up from an array block
+     * takes a reference to the shared copy itself, which is what concurrent drivers must not race on.
+     */
+    public void testConcurrentOperatorsShareCopy() {
+        BlockFactory blockFactory = blockFactory();
+        int valueCount = 10;
+        LongBlock values;
+        try (LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(valueCount)) {
+            for (int i = 0; i < valueCount; i++) {
+                if (i == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendLong(3L * i);
+                }
+            }
+            values = builder.build();
+        }
+        Operator.OperatorFactory factory = new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values("values", values), 0);
+        int threads = between(2, 8);
+        int pages = between(50, 200);
+        startInParallel(threads, t -> {
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+            try (Operator op = factory.get(driverContext)) {
+                for (int p = 0; p < pages; p++) {
+                    int size = between(1, 100);
+                    int[] keys = new int[size];
+                    for (int i = 0; i < size; i++) {
+                        keys[i] = between(0, valueCount - 1);
+                    }
+                    op.addInput(new Page(blockFactory.newIntArrayVector(keys, size).asBlock()));
+                    int checked = 0;
+                    Page out;
+                    while ((out = op.getOutput()) != null) {
+                        try {
+                            LongBlock loaded = out.getBlock(1);
+                            for (int i = 0; i < loaded.getPositionCount(); i++) {
+                                int key = keys[checked++];
+                                if (key == 0) {
+                                    assertTrue(loaded.isNull(i));
+                                } else {
+                                    assertThat(loaded.getLong(loaded.getFirstValueIndex(i)), equalTo(3L * key));
+                                }
+                            }
+                        } finally {
+                            out.releaseBlocks();
+                        }
+                    }
+                    assertThat(checked, equalTo(size));
+                }
+            }
+        });
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 }

@@ -7,23 +7,40 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.table.RowInTableLookup;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RowInTableLookupOperatorTests extends OperatorTestCase {
     @Override
@@ -97,9 +114,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex(
-            "RowInTableLookup\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+(\\.\\d*k)?b}, keys=\\[foo], mapping=\\[0]]"
-        );
+        return matchesRegex("RowInTableLookup\\[unbuilt, keys=\\[foo], mapping=\\[0]]");
     }
 
     public void testSelectBlocks() {
@@ -121,5 +136,211 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             )
         );
         assertSimpleOutput(runner.deepCopy(), results, 1, 2);
+    }
+
+    /**
+     * Operators created by one {@link RowInTableLookupOperator.Factory} share a single table, charged to the
+     * drivers' common parent breaker once, and released when the last of them closes.
+     */
+    public void testFactorySharesOneTable() {
+        BlockFactory blockFactory = blockFactory();
+        CircuitBreaker breaker = blockFactory.breaker();
+        Operator.OperatorFactory factory = simple();
+        long before = breaker.getUsed();
+
+        Operator first = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        assertThat("the table is built on the first input", breaker.getUsed(), equalTo(before));
+        lookupOneRow(first);
+        long withTable = breaker.getUsed();
+        assertThat(withTable, greaterThan(before));
+
+        Operator second = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        lookupOneRow(second);
+        assertThat("the second operator reuses the table", breaker.getUsed(), equalTo(withTable));
+
+        first.close();
+        assertThat("the table stays while the second operator uses it", breaker.getUsed(), equalTo(withTable));
+        second.close();
+        assertThat("the last close releases the table", breaker.getUsed(), equalTo(before));
+
+        // Once released, the next operator builds a fresh table rather than using the closed one.
+        Operator third = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        lookupOneRow(third);
+        assertThat(breaker.getUsed(), equalTo(withTable));
+        third.close();
+        assertThat(breaker.getUsed(), equalTo(before));
+    }
+
+    /**
+     * A driver whose input is empty never needs the table, so it finishes without building one.
+     */
+    public void testNoInputSkipsBuild() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        try (Operator operator = simple().get(new DriverContext(blockFactory.bigArrays(), blockFactory, null))) {
+            operator.finish();
+            assertTrue(operator.isFinished());
+        }
+        assertThat(breaker.peak(), equalTo(0L));
+    }
+
+    /**
+     * While one driver builds the shared table the others hold their input rather than block, so their upstream
+     * operators keep running. They block once they hold {@link RowInTableLookupOperator#MAX_PENDING_BYTES}, and
+     * emit what they held, in order, once the table is built.
+     */
+    public void testHoldsInputWhileAnotherDriverBuilds() {
+        PausingBreaker breaker = new PausingBreaker(-1);
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        Operator.OperatorFactory factory = simple();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (Operator builder = factory.get(driverContext); Operator waiter = factory.get(driverContext)) {
+            Thread build = new Thread(() -> builder.addInput(keysPage(1)));
+            build.start();
+            safeAwait(breaker.paused);
+
+            List<Page> input = new ArrayList<>();
+            while (waiter.needsInput()) {
+                Page page = keysPage(10_000);
+                input.add(BlockTestUtils.deepCopyOf(page, TestBlockFactory.getNonBreakingInstance()));
+                waiter.addInput(page);
+                assertNull(waiter.getOutput());
+                if (waiter.needsInput()) {
+                    assertTrue("below the limit the driver keeps moving pages", waiter.isBlocked().listener().isDone());
+                }
+            }
+            assertThat(input.size(), greaterThan(1));
+            assertFalse("holding the limit, it waits for the build", waiter.isBlocked().listener().isDone());
+
+            breaker.resume.countDown();
+            safeJoin(build);
+            assertTrue(waiter.isBlocked().listener().isDone());
+            waiter.finish();
+            List<Page> results = new ArrayList<>();
+            while (waiter.isFinished() == false) {
+                Page out = waiter.getOutput();
+                if (out != null) {
+                    results.add(out);
+                }
+            }
+            try {
+                assertSimpleOutput(input, results);
+            } finally {
+                Releasables.close(() -> results.forEach(Page::releaseBlocks), () -> {
+                    Page out;
+                    while ((out = builder.getOutput()) != null) {
+                        out.releaseBlocks();
+                    }
+                });
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A failed build fails the drivers waiting on it too, rather than leaving them blocked, and they release the
+     * input they held.
+     */
+    public void testBuildFailureFailsWaitingDrivers() {
+        PausingBreaker breaker = new PausingBreaker(0);
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        Operator.OperatorFactory factory = simple();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (Operator builder = factory.get(driverContext); Operator waiter = factory.get(driverContext)) {
+            AtomicReference<Exception> builderFailure = new AtomicReference<>();
+            Thread build = new Thread(
+                () -> builderFailure.set(expectThrows(CircuitBreakingException.class, () -> { builder.addInput(keysPage(1)); }))
+            );
+            build.start();
+            safeAwait(breaker.paused);
+
+            waiter.addInput(keysPage(10));
+            waiter.finish();
+            assertFalse(waiter.isBlocked().listener().isDone());
+
+            breaker.resume.countDown();
+            safeJoin(build);
+            assertTrue(waiter.isBlocked().listener().isDone());
+            assertThat(expectThrows(CircuitBreakingException.class, waiter::getOutput), sameInstance(builderFailure.get()));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A vector-backed key is hashed in place. Copying it first would hold the copy for the whole build, so building
+     * through the operator would peak higher than building straight from the key.
+     */
+    public void testBuildDoesNotCopyVectorKeys() {
+        int size = between(1_000, 10_000);
+        LongBlock key = TestBlockFactory.getNonBreakingInstance()
+            .newLongArrayVector(LongStream.range(0, size).map(i -> i * 3).toArray(), size)
+            .asBlock();
+
+        TrackingCircuitBreaker direct = new TrackingCircuitBreaker();
+        RowInTableLookup.build(trackingBlockFactory(direct), new Block[] { key }).close();
+        assertThat(direct.getUsed(), equalTo(0L));
+
+        TrackingCircuitBreaker viaOperator = new TrackingCircuitBreaker();
+        RowInTableLookupOperator.buildLookup(
+            trackingBlockFactory(viaOperator),
+            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) }
+        ).close();
+        assertThat(viaOperator.peak(), equalTo(direct.peak()));
+        assertThat(viaOperator.getUsed(), equalTo(0L));
+    }
+
+    private Page keysPage(int positions) {
+        return new Page(
+            blockFactory().newLongArrayVector(LongStream.range(0, positions).map(l -> randomFrom(1, 7, 14, 20)).toArray(), positions)
+                .asBlock()
+        );
+    }
+
+    private void lookupOneRow(Operator operator) {
+        operator.addInput(keysPage(1));
+        operator.getOutput().releaseBlocks();
+    }
+
+    /**
+     * Holds the first reservation, which is the start of a table build, until {@link #resume} is released, so a
+     * test can act while the build is in progress.
+     */
+    private static class PausingBreaker extends TrackingCircuitBreaker {
+        private final CountDownLatch paused = new CountDownLatch(1);
+        private final CountDownLatch resume = new CountDownLatch(1);
+        private final AtomicBoolean first = new AtomicBoolean(true);
+
+        PausingBreaker(long limit) {
+            super(limit);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            if (first.compareAndSet(true, false)) {
+                paused.countDown();
+                safeAwait(resume);
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+    }
+
+    private static BlockFactory trackingBlockFactory(TrackingCircuitBreaker breaker) {
+        CircuitBreakerService service = new CircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return breaker;
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                return null;
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                return null;
+            }
+        };
+        return new BlockFactory(breaker, new BigArrays(null, service, CircuitBreaker.REQUEST).withCircuitBreaking());
     }
 }

@@ -30,6 +30,11 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
      *     inside the {@link Page}. Close it to release those references.
      * </p>
+     * <p>
+     *     Lookups don't modify the table and build their results with the factory the table was
+     *     built with, so a table built with a thread-safe factory may be probed by several threads
+     *     at once.
+     * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 

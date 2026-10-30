@@ -10,9 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.core.Releasables;
 
 /**
  * {@link Block#lookup Looks up} values from a provided {@link Block} and
@@ -28,13 +29,44 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
     /**
      * Factory for {@link ColumnLoadOperator}. The {@link Block} inside {@link Values}
-     * is never closed by this factory; each operator instance deep-copies it into its
-     * own {@link BlockFactory} on construction.
+     * is never closed by this factory. All operators created by one factory read from
+     * a single shared copy of it: the first {@link #get} makes the copy and the last
+     * operator to close releases it. A copy per driver would multiply the copy time
+     * and the memory by the number of drivers, and drivers are created one at a time,
+     * so the copies would also delay every driver's start.
      */
-    public record Factory(Values values, int positionsOrd) implements OperatorFactory {
+    public static final class Factory implements OperatorFactory {
+        private final Values values;
+        private final int positionsOrd;
+        /**
+         * The copy shared by the operators this factory created, or {@code null} before the first {@link #get}.
+         * Guarded by {@code this}.
+         */
+        private SharedValues shared;
+
+        public Factory(Values values, int positionsOrd) {
+            this.values = values;
+            this.positionsOrd = positionsOrd;
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnLoadOperator(new Values(values.name, values.block.deepCopy(driverContext.blockFactory())), positionsOrd);
+            /*
+             * Copy with the query-wide parent factory rather than this driver's: the copy outlives any single
+             * driver and is released from whichever driver closes last, so it must not be charged to a
+             * driver-local breaker.
+             */
+            return new ColumnLoadOperator(acquire(driverContext.blockFactory().parent()), positionsOrd);
+        }
+
+        /**
+         * Returns the shared copy with a reference taken for the caller, making it if no live one exists.
+         */
+        private synchronized SharedValues acquire(BlockFactory blockFactory) {
+            if (shared == null || shared.tryIncRef() == false) {
+                shared = new SharedValues(values.name, values.block.deepCopy(blockFactory));
+            }
+            return shared;
         }
 
         @Override
@@ -43,12 +75,55 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         }
     }
 
-    private final Values values;
+    /**
+     * A copy of the values and the count of operators using it. The copy is closed when the last operator releases it.
+     * <p>
+     * {@link Block}s are immutable, so reading the copy from many drivers at once is safe, but their reference counts are
+     * not thread-safe. {@link Block#lookup} takes a reference to the block it reads from and the returned iterator
+     * releases it on close, so both happen while holding this object's monitor.
+     * </p>
+     */
+    private static final class SharedValues extends AbstractRefCounted {
+        private final Values values;
+
+        private SharedValues(String name, Block block) {
+            this.values = new Values(name, block);
+        }
+
+        synchronized ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+            ReleasableIterator<? extends Block> delegate = values.block.lookup(positions, targetBlockSize);
+            return new ReleasableIterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public Block next() {
+                    return delegate.next();
+                }
+
+                @Override
+                public void close() {
+                    synchronized (SharedValues.this) {
+                        delegate.close();
+                    }
+                }
+            };
+        }
+
+        @Override
+        protected void closeInternal() {
+            values.block.close();
+        }
+    }
+
+    private final SharedValues shared;
     private final int positionsOrd;
 
-    public ColumnLoadOperator(Values values, int positionsOrd) {
+    private ColumnLoadOperator(SharedValues shared, int positionsOrd) {
+        this.shared = shared;
         this.positionsOrd = positionsOrd;
-        this.values = values;
     }
 
     /**
@@ -59,16 +134,20 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
-        return appendBlocks(page, values.block.lookup(page.getBlock(positionsOrd), TARGET_BLOCK_SIZE));
+        return appendBlocks(page, shared.lookup(page.getBlock(positionsOrd), TARGET_BLOCK_SIZE));
     }
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(values.block, super::close);
+        try {
+            super.close();
+        } finally {
+            shared.decRef();
+        }
     }
 
     @Override
     public String toString() {
-        return "ColumnLoad[values=" + values + ", positions=" + positionsOrd + "]";
+        return "ColumnLoad[values=" + shared.values + ", positions=" + positionsOrd + "]";
     }
 }

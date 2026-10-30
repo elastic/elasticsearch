@@ -125,7 +125,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new SqlLogProducer(), logWriterProvider, fieldProvider);
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger.sink()));
+        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
     }
 
     @Override

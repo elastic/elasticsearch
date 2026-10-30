@@ -269,7 +269,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger.sink()));
+        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()

@@ -17,11 +17,13 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Captures the activity of an action - its completion, whether successful or not - and hands it to the {@link ActivitySink}s.
  * The context is built once and passed to every enabled sink. The interceptor neither logs nor knows what the sinks do: the
- * query log ({@link QueryLogger}) is one sink among others.
+ * query log ({@link QueryLogger}) is one sink among others. Capturing is best effort: a failure to build the context or in a
+ * sink is logged and never changes the outcome of the action.
  * Specific details are added in the specific context types for each action, such as search, ESQL query, etc.
  * @param <Context> Logging context type
  */
@@ -29,33 +31,53 @@ import java.util.function.Consumer;
 public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
     private static final Logger logger = LogManager.getLogger(ActivityInterceptor.class);
 
-    private final List<ActivitySink<Context, ?>> sinks;
+    private final List<ActivitySink<Context>> sinks;
 
-    public ActivityInterceptor(List<ActivitySink<Context, ?>> sinks) {
+    public ActivityInterceptor(List<ActivitySink<Context>> sinks) {
         this.sinks = List.copyOf(sinks);
     }
 
     private boolean anySinkEnabled() {
-        for (var sink : sinks) {
-            if (sink.isEnabled()) {
-                return true;
-            }
+        return sinks.stream().anyMatch(ActivityInterceptor::isEnabled);
+    }
+
+    /** A sink whose switch fails is treated as disabled: a sink must never fail the action. */
+    private static boolean isEnabled(ActivitySink<?> sink) {
+        try {
+            return sink.isEnabled();
+        } catch (Exception e) {
+            logger.warn(() -> Strings.format("activity sink [%s] failed to report whether it is enabled", sink), e);
+            return false;
         }
-        return false;
     }
 
     // Accessible for tests
     void notifySinks(Context context) {
         for (var sink : sinks) {
-            if (sink.isEnabled()) {
+            if (isEnabled(sink)) {
                 try {
                     sink.accept(context);
                 } catch (Exception e) {
                     // a sink must never fail the action or starve the other sinks
-                    logger.debug(() -> Strings.format("activity sink [%s] failed", sink), e);
+                    logger.warn(() -> Strings.format("activity sink [%s] failed", sink), e);
                 }
             }
         }
+    }
+
+    /**
+     * Build the context and hand it to the sinks. Capturing is best effort: a failure to build the context is logged and
+     * swallowed so that it can never change the outcome of the action.
+     */
+    private void capture(Supplier<Context> contextSupplier) {
+        final Context context;
+        try {
+            context = contextSupplier.get();
+        } catch (Exception e) {
+            logger.warn("failed to build the activity context, the activity is not captured", e);
+            return;
+        }
+        notifySinks(context);
     }
 
     /**
@@ -73,24 +95,14 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
         return new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(R r) {
-                captureResponse(r);
+                capture(() -> contextBuilder.build(r));
                 delegate.onResponse(r);
             }
 
             @Override
             public void onFailure(Exception e) {
-                captureFailure(e);
+                capture(() -> contextBuilder.build(e));
                 super.onFailure(e);
-            }
-
-            private void captureResponse(R r) {
-                Context ctx = contextBuilder.build(r);
-                notifySinks(ctx);
-            }
-
-            private void captureFailure(Exception e) {
-                Context ctx = contextBuilder.build(e);
-                notifySinks(ctx);
             }
 
             @Override
@@ -120,13 +132,8 @@ public final class ActivityInterceptor<Context extends ActivityCaptureContext> {
         try {
             action.accept(wrap(listener, contextBuilder));
         } catch (Exception e) {
-            handleException(e, contextBuilder);
+            capture(() -> contextBuilder.build(e));
             throw e;
         }
-    }
-
-    private <Req, R> void handleException(Exception e, ActivityCaptureContextBuilder<Context, Req, R> contextBuilder) {
-        Context ctx = contextBuilder.build(e);
-        notifySinks(ctx);
     }
 }

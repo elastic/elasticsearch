@@ -14,47 +14,44 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class ActivitySinkTests extends ESTestCase {
 
-    public void testWriterReceivesWhatTheProducerMakesOfTheContext() {
-        List<String> written = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, String>(
-            () -> true,
-            context -> Optional.of("took " + context.getTookInNanos()),
-            written::add,
-            () -> "test-sink"
-        );
+    public void testAcceptReceivesTheContext() {
+        List<TestContext> accepted = new ArrayList<>();
+        var sink = new TestActivitySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
+        var context = new TestContext(42);
 
-        sink.accept(new TestContext(42));
+        sink.accept(context);
 
-        assertThat(written, contains("took 42"));
-    }
-
-    public void testEmptyFromProducerWritesNothing() {
-        List<String> written = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, String>(() -> true, context -> Optional.empty(), written::add, () -> "test-sink");
-
-        sink.accept(new TestContext(42));
-
-        assertThat(written, empty());
+        assertThat(accepted, contains(context));
     }
 
     public void testIsEnabledIsReadEachTime() {
         var enabled = new AtomicBoolean(false);
-        var sink = new ActivitySink<TestContext, String>(enabled::get, context -> Optional.empty(), message -> {}, () -> "test-sink");
+        var sink = new TestActivitySink<TestContext>(enabled::get, context -> {}, () -> "test-sink");
 
-        assertThat(sink.toString(), equalTo("test-sink"));
         assertFalse(sink.isEnabled());
         enabled.set(true);
         assertTrue(sink.isEnabled());
+    }
+
+    public void testDescriptionIsEvaluatedLazily() {
+        var evaluations = new AtomicInteger();
+        var sink = new TestActivitySink<TestContext>(() -> true, context -> {}, () -> {
+            evaluations.incrementAndGet();
+            return "test-sink";
+        });
+
+        assertThat(evaluations.get(), equalTo(0));
+        assertThat(sink.toString(), equalTo("test-sink"));
+        assertThat(evaluations.get(), equalTo(1));
     }
 
     private static class TestContext extends ActivityCaptureContext {

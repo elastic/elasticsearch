@@ -25,11 +25,12 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
- * The query log. It is an {@link ActivitySink} of the {@link ActivityInterceptor} of a query action, like any other sink, and
- * its switch, threshold, level and system index filter are driven by the {@code elasticsearch.querylog.*} settings.
- * Its producer and writer exchange {@link ESLogMessage}s.
+ * The query log. It is an {@link ActivitySink}, registered with the {@link ActivityInterceptor} of a query action like any other
+ * sink. Its switch, threshold, level and system index filter are driven by the {@code elasticsearch.querylog.*} settings.
+ * On {@link #accept} it uses its {@link ActivityLogProducer} to turn the context into an {@link ESLogMessage}, which it
+ * hands to its {@link ActivityLogWriter}.
  */
-public class QueryLogger<Context extends QueryCaptureContext> {
+public class QueryLogger<Context extends QueryCaptureContext> extends ActivitySink<Context> {
     /** Prefix for query log related settings */
     public static final String QUERY_LOGGER_SETTINGS_PREFIX = "elasticsearch.querylog.";
 
@@ -76,7 +77,6 @@ public class QueryLogger<Context extends QueryCaptureContext> {
     private final ActivityLogWriter writer;
     private final ActionLoggingFields additionalFields;
     private final Predicate<String> systemChecker;
-    private final ActivitySink<Context, ESLogMessage> sink;
 
     private volatile boolean enabled = false;
     private volatile long threshold = -1;
@@ -100,29 +100,17 @@ public class QueryLogger<Context extends QueryCaptureContext> {
         ActionLoggingFieldsProvider fieldsProvider,
         Predicate<String> systemChecker
     ) {
+        super(() -> "query_log/" + producer.getClass().getSimpleName());
         this.producer = producer;
         this.writer = writerProvider.getWriter(producer.loggerName());
         var fieldsContext = new ActionLoggingFieldsContext(true);
         this.additionalFields = fieldsProvider.create(fieldsContext);
         this.systemChecker = systemChecker;
-        this.sink = new ActivitySink<>(
-            this::isEnabled,
-            this::produce,
-            this::write,
-            () -> "query_log/" + producer.getClass().getSimpleName()
-        );
         settings.initializeAndWatch(QUERY_LOGGER_ENABLED, v -> enabled = v);
         settings.initializeAndWatch(QUERY_LOGGER_THRESHOLD, v -> threshold = v.nanos());
         settings.initializeAndWatch(QUERY_LOGGER_LEVEL, this::setLogLevel);
         settings.initializeAndWatch(QUERY_LOGGER_INCLUDE_USER, fieldsContext::setIncludeUserInformation);
         settings.initializeAndWatch(QUERY_LOGGER_LOG_SYSTEM, v -> logSystemSearches = v);
-    }
-
-    /**
-     * The sink to register with the {@link ActivityInterceptor} of the action.
-     */
-    public ActivitySink<Context, ESLogMessage> sink() {
-        return sink;
     }
 
     private void setLogLevel(Level level) {
@@ -132,8 +120,14 @@ public class QueryLogger<Context extends QueryCaptureContext> {
         logLevel = level;
     }
 
-    private boolean isEnabled() {
+    @Override
+    public boolean isEnabled() {
         return enabled;
+    }
+
+    @Override
+    public void accept(Context context) {
+        produce(context).ifPresent(this::write);
     }
 
     private Optional<ESLogMessage> produce(Context context) {

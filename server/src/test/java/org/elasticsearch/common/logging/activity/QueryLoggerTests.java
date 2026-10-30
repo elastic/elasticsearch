@@ -64,7 +64,7 @@ public class QueryLoggerTests extends ESTestCase {
         writerProvider = mock(ActivityLogWriterProvider.class);
         when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink()));
+        interceptor = new ActivityInterceptor<>(List.of(queryLogger()));
     }
 
     private ESLogMessage randomMessage() {
@@ -125,8 +125,8 @@ public class QueryLoggerTests extends ESTestCase {
 
     public void testExtraSinkCalledWhenQueryLogDisabled() {
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, accepted::add, () -> "test-sink");
-        var interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink(), sink));
+        var sink = new TestActivitySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
+        var interceptor = new ActivityInterceptor<>(List.of(queryLogger(), sink));
         TestContext context = new TestContext(100);
 
         interceptor.notifySinks(context);
@@ -138,8 +138,8 @@ public class QueryLoggerTests extends ESTestCase {
     public void testExtraSinkAndQueryLogBothCalledWhenEnabled() {
         enableLogger();
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, accepted::add, () -> "test-sink");
-        var interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink(), sink));
+        var sink = new TestActivitySink<TestContext>(() -> true, accepted::add, () -> "test-sink");
+        var interceptor = new ActivityInterceptor<>(List.of(queryLogger(), sink));
         TestContext context = new TestContext(100);
         ESLogMessage randomMessage = randomMessage();
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
@@ -153,8 +153,8 @@ public class QueryLoggerTests extends ESTestCase {
     public void testDisabledExtraSinkIsSkippedWhileQueryLogIsEnabled() {
         enableLogger();
         List<TestContext> accepted = new ArrayList<>();
-        var sink = new ActivitySink<TestContext, TestContext>(() -> false, Optional::of, accepted::add, () -> "test-sink");
-        var interceptor = new ActivityInterceptor<>(List.of(queryLogger().sink(), sink));
+        var sink = new TestActivitySink<TestContext>(() -> false, accepted::add, () -> "test-sink");
+        var interceptor = new ActivityInterceptor<>(List.of(queryLogger(), sink));
         TestContext context = new TestContext(100);
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage()));
 
@@ -166,7 +166,7 @@ public class QueryLoggerTests extends ESTestCase {
     public void testSinkDescriptionNamesTheProducer() {
         var queryLogger = new QueryLogger<>(clusterSettings, new SearchLogProducer(), writerProvider, fieldProvider);
 
-        assertThat(queryLogger.sink().toString(), equalTo("query_log/SearchLogProducer"));
+        assertThat(queryLogger.toString(), equalTo("query_log/SearchLogProducer"));
     }
 
     private QueryLogger<TestContext> queryLogger() {

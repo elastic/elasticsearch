@@ -118,7 +118,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger.sink()));
+        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
     }
 
     @Override

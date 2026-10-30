@@ -321,6 +321,6 @@ public class EsqlQueryLogTests extends ESTestCase {
             context -> new ActionLoggingFields(context) {}
         );
 
-        assertThat(queryLogger.sink().toString(), equalTo("query_log/EsqlLogProducer"));
+        assertThat(queryLogger.toString(), equalTo("query_log/EsqlLogProducer"));
     }
 }

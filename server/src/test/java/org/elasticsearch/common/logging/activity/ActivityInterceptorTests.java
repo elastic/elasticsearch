@@ -9,14 +9,15 @@
 
 package org.elasticsearch.common.logging.activity;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.contains;
@@ -94,16 +95,82 @@ public class ActivityInterceptorTests extends ESTestCase {
     }
 
     public void testFailingSinkDoesNotFailTheActionOrStarveOthers() {
-        var failing = new ActivitySink<TestContext, TestContext>(() -> true, Optional::of, context -> {
-            throw new IllegalStateException("sink failure");
-        }, () -> "failing-sink");
+        var failing = new TestActivitySink<TestContext>(
+            () -> true,
+            context -> { throw new IllegalStateException("sink failure"); },
+            () -> "failing-sink"
+        );
         var after = new RecordingSink(true);
 
-        interceptor(List.of(failing, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+        try (var mockLog = MockLog.capture(ActivityInterceptor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "failing sink is named in the warning",
+                    ActivityInterceptor.class.getCanonicalName(),
+                    Level.WARN,
+                    "activity sink [failing-sink] failed"
+                )
+            );
+
+            interceptor(List.of(failing, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+            mockLog.assertAllExpectationsMatched();
+        }
 
         assertThat(after.accepted.size(), equalTo(1));
         assertThat(responses, contains("done"));
         assertThat(failures, empty());
+    }
+
+    public void testThrowingSinkSwitchDoesNotFailTheActionOrStarveOthers() {
+        var broken = new TestActivitySink<TestContext>(
+            () -> { throw new IllegalStateException("switch failure"); },
+            context -> fail("a sink with a throwing switch must not be called"),
+            () -> "broken-sink"
+        );
+        var after = new RecordingSink(true);
+
+        interceptor(List.of(broken, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+        assertThat(after.accepted.size(), equalTo(1));
+        assertThat(responses, contains("done"));
+        assertThat(failures, empty());
+    }
+
+    public void testThrowingContextBuilderDoesNotFailSuccessfulAction() {
+        var sink = new RecordingSink(true);
+
+        interceptor(List.of(sink.sink)).wrap(listener, new ThrowingContextBuilder()).onResponse("done");
+
+        assertThat(sink.accepted, empty());
+        assertThat(responses, contains("done"));
+        assertThat(failures, empty());
+    }
+
+    public void testThrowingContextBuilderPreservesOriginalFailure() {
+        var sink = new RecordingSink(true);
+        var failure = new IllegalStateException("boom");
+
+        interceptor(List.of(sink.sink)).wrap(listener, new ThrowingContextBuilder()).onFailure(failure);
+
+        assertThat(sink.accepted, empty());
+        assertThat(responses, empty());
+        assertThat(failures, contains(sameInstance(failure)));
+    }
+
+    public void testWrapAndRunThrowingContextBuilderRethrowsOriginal() {
+        var sink = new RecordingSink(true);
+        var failure = new IllegalStateException("thrown by the action");
+
+        var thrown = expectThrows(
+            IllegalStateException.class,
+            () -> interceptor(List.of(sink.sink)).wrapAndRun(listener, new ThrowingContextBuilder(), l -> {
+                throw failure;
+            })
+        );
+
+        assertThat(thrown, sameInstance(failure));
+        assertThat(sink.accepted, empty());
     }
 
     public void testWrapAndRunReportsExceptionToSinkAndRethrows() {
@@ -122,7 +189,7 @@ public class ActivityInterceptorTests extends ESTestCase {
         assertFalse(sink.accepted.get(0).isSuccess());
     }
 
-    private static ActivityInterceptor<TestContext> interceptor(List<ActivitySink<TestContext, ?>> sinks) {
+    private static ActivityInterceptor<TestContext> interceptor(List<ActivitySink<TestContext>> sinks) {
         return new ActivityInterceptor<>(sinks);
     }
 
@@ -130,11 +197,28 @@ public class ActivityInterceptorTests extends ESTestCase {
     private static class RecordingSink {
         final AtomicBoolean enabled;
         final List<TestContext> accepted = new ArrayList<>();
-        final ActivitySink<TestContext, TestContext> sink;
+        final ActivitySink<TestContext> sink;
 
         RecordingSink(boolean enabled) {
             this.enabled = new AtomicBoolean(enabled);
-            this.sink = new ActivitySink<>(this.enabled::get, Optional::of, accepted::add, () -> "recording-sink");
+            this.sink = new TestActivitySink<>(this.enabled::get, accepted::add, () -> "recording-sink");
+        }
+    }
+
+    /** A builder that fails to build the context, to check that this can never change the outcome of the action. */
+    private static class ThrowingContextBuilder extends ActivityCaptureContextBuilder<TestContext, String, String> {
+        ThrowingContextBuilder() {
+            super(mock(Task.class), "request");
+        }
+
+        @Override
+        public TestContext build(String response) {
+            throw new IllegalStateException("cannot build context from response");
+        }
+
+        @Override
+        public TestContext build(Exception e) {
+            throw new IllegalStateException("cannot build context from failure");
         }
     }
 

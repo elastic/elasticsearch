@@ -275,7 +275,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger.sink()));
+        this.activityInterceptor = new ActivityInterceptor<>(List.of(queryLogger));
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

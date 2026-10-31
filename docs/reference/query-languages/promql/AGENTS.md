@@ -1,21 +1,57 @@
 # PromQL reference docs
 
-## Keep the limitations list current
+## Keep the Prometheus compatibility page current
 
-`_snippets/promql-unsupported-constructs.md` is the single list of PromQL constructs that Elasticsearch does not
-evaluate yet. Both the limitations page and the `PROMQL` command page include it. Agents rely on it as a concise,
-complete list of what to avoid. A stale entry makes generated queries fail, or steers them away from constructs that
-now work.
+`prometheus-compatibility.md` is the single page of differences between PromQL in Elasticsearch and Prometheus. Each of its
+sections is a snippet in `_snippets/compatibility/`, so other pages include the same rows instead of keeping their own
+copies:
+
+- The `PROMQL` command page includes every section except `http-api.md`.
+- `promql-http-api.md` includes `http-api.md`.
+
+The sections and headings mirror the Prometheus querying docs, so readers find a difference under the same heading
+that documents the feature in Prometheus:
+
+| Snippet | Prometheus page | Headings |
+|---|---|---|
+| `basics.md` | [Querying basics](https://prometheus.io/docs/prometheus/latest/querying/basics/) | Its section headings, such as `Instant vector selectors`, `@ modifier`, and `Staleness` |
+| `operators.md` | [Operators](https://prometheus.io/docs/prometheus/latest/querying/operators/) | Its section headings, such as `Comparison binary operators` and `Vector matching` |
+| `functions.md` | [Functions](https://prometheus.io/docs/prometheus/latest/querying/functions/) | None. One table, sorted by function name |
+| `http-api.md` | [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) | Its section headings, such as `Expression queries` |
+
+Put a new row under the Prometheus heading that documents its construct, and use that heading's name. Add a heading
+only when Prometheus has it. A construct that spans pages, such as native histograms, gets one row per heading. Leave out a heading that has no rows.
+
+Agents rely on these rows as a concise, complete list of what to avoid. A stale row makes generated queries fail, or
+steers them away from constructs that now work.
 
 When you add, remove, or change the restrictions on a PromQL construct (selector, operator, modifier, aggregation,
-subquery, function, and so on), update that list in the same PR. Check the version badges too: an entry that only
-applies to some versions needs an `{applies_to}` badge. Unsupported functions are the exception: their list is
-generated from `PromqlFunctionRegistry` by `PromqlKibanaDefinitionGeneratorTests`.
+subquery, function, and so on), or change a result so it matches Prometheus, update the matching row in the same PR.
+
+- Each row compares what Elasticsearch does with what Prometheus does. Expected behavior comes from Prometheus, never
+  from Elasticsearch tests.
+- List features that aren't supported yet and differences by design, not bugs. Bugs are tracked and fixed separately.
+- Columns are `# | Construct | Example | {{es}} | Prometheus | Issue`. Construct is a short name, with a version badge
+  at its end when the row needs one. Example holds one or two queries in code spans.
+- Start the Elasticsearch cell with the outcome in bold, such as `**Unsupported**` for a construct that Elasticsearch
+  rejects, `**No results**`, or `**Approximate**`, followed by the workaround or detail. Write `Supported` in the
+  Prometheus column unless Prometheus needs a feature flag.
+- Keep every table inside `:::{table}` with `:widths: 1-3-2-3-2-1`, so all tables share the same column grid.
+- A difference that has no construct of its own, such as the `or` operand limit, is a sentence under its heading, not a
+  row.
+- The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
+- Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
+- Check the version badges. A row without a badge applies to every version. A difference that only exists from some
+  version on gets `stack: ga <version>+` and `serverless: ga`. Don't keep rows that only apply to older versions, such
+  as `stack: ga =9.5`: the badge renders as "Generally available in 9.5", which reads as if the limitation still
+  applies. When a change lifts a limitation, remove its row.
+- Unsupported functions are listed separately: their list is generated from `PromqlFunctionRegistry` by
+  `PromqlKibanaDefinitionGeneratorTests`.
 
 ## Copies for agents
 
 The `PROMQL` command page (`esql/_snippets/commands/layout/promql.md`) is copied verbatim into the context of
-agents that generate PromQL. It includes the unsupported constructs snippet, so the copies get the full list:
+agents that generate PromQL. It includes the compatibility snippets, so the copies get the full list:
 
 - Kibana's ES|QL generation tool syncs it to `esql_docs/esql-promql.txt`.
 - The `elasticsearch-esql` agent skill in `elastic/agent-skills-sandbox` copies it with `make sync-docs`.

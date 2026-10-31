@@ -24,4 +24,4 @@ vector1 or vector2
 
 **Differences from Prometheus**
 
-For the restrictions on `or` in {{es}}, see [Unsupported PromQL constructs](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+For the restrictions on `or` in {{es}}, see [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-logical-set-binary-operators).

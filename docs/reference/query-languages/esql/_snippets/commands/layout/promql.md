@@ -7,7 +7,7 @@ The `PROMQL` source command queries [time series indices](docs-content://manage-
 Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
 
 ::::{note}
-`PROMQL` supports most, but not all, of PromQL. Refer to [Limitations](#esql-promql-limitations) for unsupported constructs, to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) for behavioral differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
+`PROMQL` supports most, but not all, of PromQL. Refer to [Prometheus compatibility](#esql-prometheus-compatibility) for unsupported constructs and differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
 ::::
 
 
@@ -180,12 +180,21 @@ expression at the end of the time range of the date picker
   `[?_tend - ?_tstart]`, and set `time=?_tend`.
   Refer to [Time range durations](#esql-promql-time-range-durations).
 
-## Limitations [esql-promql-limitations]
+## Prometheus compatibility [esql-prometheus-compatibility]
 
-:::{include} ../../../../promql/_snippets/promql-unsupported-constructs.md
+These are the same rows as on the [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md) page, which also lists the differences of the Prometheus HTTP API.
+Headings follow the Prometheus querying documentation.
+
+:::{include} ../../../../promql/_snippets/compatibility/basics.md
 :::
 
-For behavioral differences from Prometheus, refer to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md).
+:::{include} ../../../../promql/_snippets/compatibility/operators.md
+:::
+
+### Functions [esql-prometheus-compatibility-functions]
+
+:::{include} ../../../../promql/_snippets/compatibility/functions.md
+:::
 
 ## Examples
 

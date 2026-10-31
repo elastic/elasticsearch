@@ -12,7 +12,7 @@ products:
 
 These binary operators compare scalars and instant vectors. By default they act as filters; with the [`bool` modifier](../operators.md#promql-operators-bool-modifier) they return `0` or `1`.
 
-For the restrictions on comparisons in {{es}}, see [PromQL limitations](../promql-limitations.md#promql-limitations-unsupported-constructs).
+For the restrictions on comparisons in {{es}}, see [Prometheus compatibility](../prometheus-compatibility.md#prometheus-compatibility-comparison-binary-operators).
 
 :::{include} ../_snippets/generated/x-pack-esql/operators/lists/comparison.md
 :::

@@ -51,7 +51,7 @@ This endpoint evaluates a PromQL expression over a time window and returns matri
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
+The `lookback_delta` and `stats` parameters are not supported yet (see [Differences from Prometheus](#promql-http-api-differences)).
 
 ### Instant query [promql-http-api-query-instant]
 
@@ -65,11 +65,11 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | PromQL expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). The handler still uses an internal five-minute range ending at this time (see [Limitations](promql-limitations.md)) |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (see [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
+The `lookback_delta` and `stats` parameters are not supported yet (see [Differences from Prometheus](#promql-http-api-differences)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
@@ -136,7 +136,7 @@ At least one `match[]` parameter is required.
 
 This endpoint returns metric-level information such as type, help, and unit, analogous to Prometheus `TYPE`, `HELP`, and `UNIT` lines.
 
-The `help` field is always an empty string for now (see [Limitations](promql-limitations.md#promql-limitations-metadata-help)).
+The `help` field is always an empty string for now (see [Differences from Prometheus](#promql-http-api-differences)).
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -244,9 +244,16 @@ Errors return a non-2xx HTTP status and a JSON body of the form:
 }
 ```
 
-Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or PromQL that {{es}} does not evaluate yet (see [Limitations](promql-limitations.md)). Those failures usually return `errorType: bad_data`.
+Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or PromQL that {{es}} does not evaluate yet (see [Prometheus compatibility](prometheus-compatibility.md)). Those failures usually return `errorType: bad_data`.
 
 Server errors (HTTP 5xx) and timeout responses reflect operational failures inside {{es}}. Those responses typically use `errorType: timeout` or `execution` depending on the situation.
+
+## Differences from Prometheus [promql-http-api-differences]
+
+These rows are part of [Prometheus compatibility](prometheus-compatibility.md), which also covers the differences in query evaluation.
+
+:::{include} _snippets/compatibility/http-api.md
+:::
 
 ## Further reading
 
@@ -254,4 +261,4 @@ Server errors (HTTP 5xx) and timeout responses reflect operational failures insi
 - [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
 - [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md)
-- [Limitations](promql-limitations.md)
+- [Prometheus compatibility](prometheus-compatibility.md)

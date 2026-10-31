@@ -831,3 +831,21 @@ redirects:
     anchors:
       'esql-task-management-get-all': 'query-task-management-list'
       'esql-task-management-cancelEsqlQueryRequestTests': 'query-task-management-cancel'
+
+  # The PromQL limitations page is now the Prometheus compatibility page.
+  'reference/query-languages/promql/promql-limitations.md':
+    to: 'reference/query-languages/promql/prometheus-compatibility.md'
+    anchors:
+      'promql-limitations-exemplars': 'prometheus-compatibility-querying-exemplars'
+      'promql-limitations-form-post': 'prometheus-compatibility-format-overview'
+      'promql-limitations-functions': 'prometheus-compatibility-functions'
+      'promql-limitations-http-api': 'prometheus-compatibility-http-api'
+      'promql-limitations-instant-query': 'prometheus-compatibility-staleness'
+      'promql-limitations-lookback': 'prometheus-compatibility-staleness'
+      'promql-limitations-metadata-help': 'prometheus-compatibility-querying-metric-metadata'
+      'promql-limitations-native-histograms': 'prometheus-compatibility-expression-language-data-types'
+      'promql-limitations-range-query': 'prometheus-compatibility-staleness'
+      'promql-limitations-staleness': 'prometheus-compatibility-staleness'
+      'promql-limitations-unsupported-constructs': 'prometheus-compatibility-basics'
+      'promql-limitations-unsupported-query-params': 'prometheus-compatibility-expression-queries'
+      'promql-limitations-time-buckets': 'prometheus-compatibility-staleness'

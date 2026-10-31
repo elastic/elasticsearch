@@ -31,6 +31,7 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -50,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
@@ -257,6 +259,27 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         } else {
             return null;
         }
+    }
+
+    @Override
+    protected boolean hasUnrecognizedQuery(Predicate<String> fieldMatcher, Query query) {
+        boolean[] hasUnknownLeaf = new boolean[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public boolean acceptField(String field) {
+                return hasUnknownLeaf[0] == false && fieldMatcher.test(field);
+            }
+
+            @Override
+            public void visitLeaf(Query leaf) {
+                // Shared automata support token filtering, but Lucene only recognizes its own automaton query classes.
+                if (leaf instanceof SharedAutomatonQuery == false
+                    && CustomUnifiedHighlighter.super.hasUnrecognizedQuery(fieldMatcher, leaf)) {
+                    hasUnknownLeaf[0] = true;
+                }
+            }
+        });
+        return hasUnknownLeaf[0];
     }
 
     /**

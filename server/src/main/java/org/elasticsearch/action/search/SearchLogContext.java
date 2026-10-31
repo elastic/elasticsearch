@@ -56,6 +56,22 @@ public class SearchLogContext extends QueryLoggerContext {
         this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 
+    /**
+     * The request as it was received, before it was rewritten.
+     */
+    public SearchRequest getRequest() {
+        return request;
+    }
+
+    /**
+     * The response, or {@code null} if the search failed. It is ref-counted and may be released once the context has been
+     * handled, so whatever is needed of it is copied while handling it.
+     */
+    @Nullable
+    public SearchResponse getResponse() {
+        return response;
+    }
+
     @Override
     public String getQuery() {
         var source = request.source();

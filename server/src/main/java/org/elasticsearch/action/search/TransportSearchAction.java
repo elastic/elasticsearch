@@ -202,6 +202,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final ActivityLogger<SearchLogContext> activityLogger;
+    private final SearchLogListeners searchLogListeners;
 
     @Inject
     public TransportSearchAction(
@@ -223,6 +224,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
+        SearchLogListeners searchLogListeners,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
         // Charges a response sent to another node, such as a CCS search with minimize_roundtrips, until it is written.
@@ -276,6 +278,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
+        this.searchLogListeners = searchLogListeners;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -426,6 +429,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         activityLogger.wrapAndRun(
             listener,
             searchLogContextBuilder,
+            searchLogListeners.start(task, searchRequest),
             l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }

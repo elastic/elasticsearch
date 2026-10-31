@@ -28,6 +28,7 @@ import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
+import org.elasticsearch.action.search.SearchLogListeners;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -1495,6 +1496,10 @@ class NodeConstruction {
             ActivityLogWriterProvider.class,
             () -> Log4jWriter.PROVIDER
         );
+        // after the plugin components, which the listeners may use
+        SearchLogListeners searchLogListeners = new SearchLogListeners(
+            pluginsService.filterPlugins(ActionPlugin.class).flatMap(plugin -> plugin.getSearchLogListeners().stream()).toList()
+        );
 
         ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
@@ -1548,6 +1553,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(SearchLogListeners.class).toInstance(searchLogListeners);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
             b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });

@@ -49,6 +49,7 @@ dependencies {
   implementation project(':modules:mapper-extras');
   api(project(':x-pack:plugin:esql-core'))
   api(project(':x-pack:plugin:core'))
+  api(project(':x-pack:plugin:query-sampling'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   api(project(':x-pack:plugin:esql:qa:testFixtures'))

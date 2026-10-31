@@ -26,6 +26,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingMemoryLimits;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -95,9 +96,16 @@ public class IndicesServiceBuilder {
     Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
     ThrottlingRecoveryService throttlingRecoveryService;
+    IndexingMemoryLimits indexingMemoryLimits;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
+        return this;
+    }
+
+    /** The limits for the indexing buffers. */
+    public IndicesServiceBuilder indexingMemoryLimits(IndexingMemoryLimits indexingMemoryLimits) {
+        this.indexingMemoryLimits = indexingMemoryLimits;
         return this;
     }
 
@@ -256,6 +264,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(searchOperationListener);
         Objects.requireNonNull(loggingFieldsProvider);
         Objects.requireNonNull(throttlingRecoveryService);
+        Objects.requireNonNull(indexingMemoryLimits);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

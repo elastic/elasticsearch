@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -62,6 +63,8 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             return EngineConfig.builder(config)
                 .indexSettings(indexSettings)
                 .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+                // We need to explicitly override the IndexingMemoryLimits to use the overridden settings.
+                .indexingMemoryLimits(new SettingsIndexingMemoryLimits(settings))
                 .build();
         }
 

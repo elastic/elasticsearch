@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingMemoryLimits;
 import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -161,6 +162,8 @@ public final class EngineConfig {
 
     private final MergeMetrics mergeMetrics;
 
+    private final IndexingMemoryLimits indexingMemoryLimits;
+
     /**
      * Allows to pass an {@link ElasticsearchIndexDeletionPolicy} wrapper to egine implementations.
      */
@@ -197,6 +200,7 @@ public final class EngineConfig {
         MapperService mapperService,
         EngineResetLock engineResetLock,
         MergeMetrics mergeMetrics,
+        IndexingMemoryLimits indexingMemoryLimits,
         Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         this.shardId = shardId;
@@ -225,7 +229,7 @@ public final class EngineConfig {
         if (maxBufferSize != null) {
             indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
         } else {
-            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());
+            indexingBufferSize = indexingMemoryLimits.indexBufferSize();
         }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
@@ -247,6 +251,7 @@ public final class EngineConfig {
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
         this.engineResetLock = engineResetLock;
         this.mergeMetrics = mergeMetrics;
+        this.indexingMemoryLimits = indexingMemoryLimits;
         this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
     }
 
@@ -539,6 +544,7 @@ public final class EngineConfig {
         private MapperService mapperService;
         private EngineResetLock engineResetLock;
         private MergeMetrics mergeMetrics;
+        private IndexingMemoryLimits indexingMemoryLimits;
         private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
 
         Builder() {}
@@ -574,6 +580,7 @@ public final class EngineConfig {
             this.mapperService = config.mapperService;
             this.engineResetLock = config.engineResetLock;
             this.mergeMetrics = config.mergeMetrics;
+            this.indexingMemoryLimits = config.indexingMemoryLimits;
             this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
         }
 
@@ -727,6 +734,11 @@ public final class EngineConfig {
             return this;
         }
 
+        public Builder indexingMemoryLimits(IndexingMemoryLimits indexingMemoryLimits) {
+            this.indexingMemoryLimits = indexingMemoryLimits;
+            return this;
+        }
+
         public Builder indexDeletionPolicyWrapper(
             Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
         ) {
@@ -766,6 +778,7 @@ public final class EngineConfig {
                 mapperService,
                 engineResetLock,
                 mergeMetrics,
+                indexingMemoryLimits,
                 indexDeletionPolicyWrapper
             );
         }

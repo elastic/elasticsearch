@@ -499,7 +499,7 @@ toc:
           - file: promql/operators/unary.md
           - file: promql/operators/label-matching.md
       - file: promql/promql-grafana.md
-      - file: promql/promql-limitations.md
+      - file: promql/prometheus-compatibility.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md

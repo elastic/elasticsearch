@@ -1,7 +1,7 @@
-% Included in both the PromQL limitations page and the ES|QL PROMQL command page. The command page
+% Included in both the Prometheus compatibility page and the ES|QL PROMQL command page. The command page
 % is copied verbatim into the context of agents: Kibana's ES|QL generation docs (esql_docs/esql-promql.txt)
 % and the elasticsearch-esql agent skill (references/promql-command.md).
-% Rows are numbered across all snippets in _snippets/limitations/. A row without a version badge applies to every
+% Rows are numbered across all snippets in _snippets/compatibility/. A row without a version badge applies to every
 % version.
 
 The majority of PromQL expressions run unchanged.

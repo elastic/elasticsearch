@@ -34,5 +34,5 @@ When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} q
 * [Functions](promql/functions.md): PromQL function reference organized by category, including {{es}}-specific differences from Prometheus.
 * [Operators](promql/operators.md): PromQL operator reference organized by category, including {{es}}-specific differences from Prometheus.
 * [Prometheus data source in Grafana](promql/promql-grafana.md): Use {{es}} as a Prometheus data source in Grafana for dashboards, autocomplete, and Metrics Drilldown.
-* [Limitations](promql/promql-limitations.md): How behavior differs from Prometheus, including unsupported PromQL constructs, HTTP behavior, instant-query nuances, staleness semantics, exemplars, and related topics.
+* [Prometheus compatibility](promql/prometheus-compatibility.md): How behavior differs from Prometheus, including unsupported PromQL constructs, HTTP behavior, instant-query nuances, staleness semantics, exemplars, and related topics.
 

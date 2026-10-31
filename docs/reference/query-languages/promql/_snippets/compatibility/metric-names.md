@@ -1,4 +1,4 @@
-% Section of promql-limitations.md, also included in other pages. Rows are numbered across all sections.
+% Section of prometheus-compatibility.md, also included in other pages. Rows are numbered across all sections.
 
 Prometheus drops the metric name (`__name__`) from the result of most functions and of arithmetic, because the result is no longer a sample of that metric.
 

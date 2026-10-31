@@ -1,4 +1,4 @@
-% Section of promql-limitations.md, also included in other pages. Rows are numbered across all sections.
+% Section of prometheus-compatibility.md, also included in other pages. Rows are numbered across all sections.
 
 Further differences are listed under **Differences from Prometheus** on each [function's reference entry](/reference/query-languages/promql/functions.md).
 

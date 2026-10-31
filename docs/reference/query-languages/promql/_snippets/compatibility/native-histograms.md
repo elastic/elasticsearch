@@ -1,4 +1,4 @@
-% Section of promql-limitations.md, also included in other pages. Rows are numbered across all sections.
+% Section of prometheus-compatibility.md, also included in other pages. Rows are numbered across all sections.
 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
 

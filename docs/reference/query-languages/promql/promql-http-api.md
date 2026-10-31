@@ -65,7 +65,7 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | PromQL expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (see [Lookback and time](promql-limitations.md#promql-limitations-lookback)) |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (see [Lookback and time](prometheus-compatibility.md#prometheus-compatibility-lookback)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
@@ -244,15 +244,15 @@ Errors return a non-2xx HTTP status and a JSON body of the form:
 }
 ```
 
-Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or PromQL that {{es}} does not evaluate yet (see [Limitations](promql-limitations.md)). Those failures usually return `errorType: bad_data`.
+Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or PromQL that {{es}} does not evaluate yet (see [Prometheus compatibility](prometheus-compatibility.md)). Those failures usually return `errorType: bad_data`.
 
 Server errors (HTTP 5xx) and timeout responses reflect operational failures inside {{es}}. Those responses typically use `errorType: timeout` or `execution` depending on the situation.
 
 ## Differences from Prometheus [promql-http-api-differences]
 
-These rows are part of [PromQL limitations](promql-limitations.md), which also covers the differences in query evaluation.
+These rows are part of [Prometheus compatibility](prometheus-compatibility.md), which also covers the differences in query evaluation.
 
-:::{include} _snippets/limitations/http-api.md
+:::{include} _snippets/compatibility/http-api.md
 :::
 
 ## Further reading
@@ -261,4 +261,4 @@ These rows are part of [PromQL limitations](promql-limitations.md), which also c
 - [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
 - [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md)
-- [Limitations](promql-limitations.md)
+- [Prometheus compatibility](prometheus-compatibility.md)

@@ -497,7 +497,7 @@ In this tutorial, you learned how to:
 
 - Connect Grafana and run PromQL from dashboards. Refer to [Prometheus data source in Grafana](promql-grafana.md).
 - Explore the supported PromQL [functions](functions.md) and [operators](operators.md), including differences from Prometheus.
-- Review the behavioral differences from Prometheus before you port production queries. Refer to [Limitations](promql-limitations.md).
+- Review the behavioral differences from Prometheus before you port production queries. Refer to [Prometheus compatibility](prometheus-compatibility.md).
 
 ## Related pages
 

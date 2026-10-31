@@ -7,7 +7,7 @@ The `PROMQL` source command queries [time series indices](docs-content://manage-
 Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
 
 ::::{note}
-`PROMQL` supports most, but not all, of PromQL. Refer to [Limitations](#esql-promql-limitations) for unsupported constructs and differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
+`PROMQL` supports most, but not all, of PromQL. Refer to [Prometheus compatibility](#esql-prometheus-compatibility) for unsupported constructs and differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
 ::::
 
 
@@ -180,33 +180,33 @@ expression at the end of the time range of the date picker
   `[?_tend - ?_tstart]`, and set `time=?_tend`.
   Refer to [Time range durations](#esql-promql-time-range-durations).
 
-## Limitations [esql-promql-limitations]
+## Prometheus compatibility [esql-prometheus-compatibility]
 
-These are the same rows as on the [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) page, which also lists the differences of the Prometheus HTTP API.
+These are the same rows as on the [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md) page, which also lists the differences of the Prometheus HTTP API.
 
-### Unsupported constructs [esql-promql-limitations-unsupported-constructs]
+### Unsupported constructs [esql-prometheus-compatibility-unsupported-constructs]
 
-:::{include} ../../../../promql/_snippets/limitations/unsupported-constructs.md
+:::{include} ../../../../promql/_snippets/compatibility/unsupported-constructs.md
 :::
 
-### Lookback and time [esql-promql-limitations-lookback]
+### Lookback and time [esql-prometheus-compatibility-lookback]
 
-:::{include} ../../../../promql/_snippets/limitations/lookback.md
+:::{include} ../../../../promql/_snippets/compatibility/lookback.md
 :::
 
-### Metric names in results [esql-promql-limitations-metric-name]
+### Metric names in results [esql-prometheus-compatibility-metric-name]
 
-:::{include} ../../../../promql/_snippets/limitations/metric-names.md
+:::{include} ../../../../promql/_snippets/compatibility/metric-names.md
 :::
 
-### Function results [esql-promql-limitations-functions]
+### Function results [esql-prometheus-compatibility-functions]
 
-:::{include} ../../../../promql/_snippets/limitations/function-results.md
+:::{include} ../../../../promql/_snippets/compatibility/function-results.md
 :::
 
-### Native histograms [esql-promql-limitations-native-histograms]
+### Native histograms [esql-prometheus-compatibility-native-histograms]
 
-:::{include} ../../../../promql/_snippets/limitations/native-histograms.md
+:::{include} ../../../../promql/_snippets/compatibility/native-histograms.md
 :::
 
 ## Examples

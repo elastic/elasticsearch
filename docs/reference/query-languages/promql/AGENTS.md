@@ -1,9 +1,9 @@
 # PromQL reference docs
 
-## Keep the limitations current
+## Keep the Prometheus compatibility page current
 
-`promql-limitations.md` is the single page of differences between PromQL in Elasticsearch and Prometheus. Each of its
-sections is a snippet in `_snippets/limitations/`, so other pages include the same rows instead of keeping their own
+`prometheus-compatibility.md` is the single page of differences between PromQL in Elasticsearch and Prometheus. Each of its
+sections is a snippet in `_snippets/compatibility/`, so other pages include the same rows instead of keeping their own
 copies:
 
 - The `PROMQL` command page includes every section except `http-api.md`.
@@ -29,7 +29,7 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 ## Copies for agents
 
 The `PROMQL` command page (`esql/_snippets/commands/layout/promql.md`) is copied verbatim into the context of
-agents that generate PromQL. It includes the limitations snippets, so the copies get the full list:
+agents that generate PromQL. It includes the compatibility snippets, so the copies get the full list:
 
 - Kibana's ES|QL generation tool syncs it to `esql_docs/esql-promql.txt`.
 - The `elasticsearch-esql` agent skill in `elastic/agent-skills-sandbox` copies it with `make sync-docs`.

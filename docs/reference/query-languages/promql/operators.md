@@ -78,14 +78,14 @@ PromQL follows the same binary operator precedence as Prometheus. The following 
 `^` is right-associative; all other binary operators are left-associative. Use parentheses to override the default precedence.
 
 ::::{note}
-Operators listed under [Not yet supported](#promql-operators-not-supported) are included here for completeness, but are not evaluated yet in {{es}}. See also [PromQL limitations](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+Operators listed under [Not yet supported](#promql-operators-not-supported) are included here for completeness, but are not evaluated yet in {{es}}. See also [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-unsupported-constructs).
 ::::
 
 ## Vector matching [promql-operators-vector-matching]
 
 When a binary operator is applied between two instant vectors, PromQL matches samples that have identical label sets (one-to-one matching). Prometheus provides modifiers that change which labels are considered (`on(...)` and `ignoring(...)`) and that enable many-to-one and one-to-many matching (`group_left` and `group_right`).
 
-For the vector matching modifiers that {{es}} supports, see [PromQL limitations](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+For the vector matching modifiers that {{es}} supports, see [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-unsupported-constructs).
 
 ## The `bool` modifier [promql-operators-bool-modifier]
 

@@ -31,9 +31,14 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 - Each row compares what Elasticsearch does with what Prometheus does. Expected behavior comes from Prometheus, never
   from Elasticsearch tests.
 - List features that aren't supported yet and differences by design, not bugs. Bugs are tracked and fixed separately.
-- Write `Unsupported` in the Elasticsearch column for a construct that Elasticsearch rejects, followed by the
-  workaround if there is one, and `Supported` in the Prometheus column unless Prometheus needs a feature flag.
-- Keep every table inside `:::{table}` with `:widths: 1-4-3-3-1`, so all tables share the same column grid.
+- Columns are `# | Construct | Example | {{es}} | Prometheus | Issue`. Construct is a short name, with a version badge
+  at its end when the row needs one. Example holds one or two queries in code spans.
+- Start the Elasticsearch cell with the outcome in bold, such as `**Unsupported**` for a construct that Elasticsearch
+  rejects, `**No results**`, or `**Approximate**`, followed by the workaround or detail. Write `Supported` in the
+  Prometheus column unless Prometheus needs a feature flag.
+- Keep every table inside `:::{table}` with `:widths: 1-3-2-3-2-1`, so all tables share the same column grid.
+- A difference that has no construct of its own, such as the `or` operand limit, is a sentence under its heading, not a
+  row.
 - The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
 - Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
 - Check the version badges. A row without a badge applies to every version. A difference that only exists from some

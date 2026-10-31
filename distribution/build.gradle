@@ -133,7 +133,9 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
 }
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
-// All transport modules are included so that they may be randomized for testing
+// All transport modules are included so that they may be randomized for testing.
+// rest-root is included so that every test cluster answers on `/`, which the test framework pings to tell
+// a cluster that is merely unhealthy from one that has died.
 def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
   into integTestOutputs
 }
@@ -219,7 +221,9 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
   dependencies.add('featuresMetadata', dependencies.project(path: module.path))
-  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
+  if (module.name.startsWith('transport-')
+    || module.name == 'rest-root'
+    || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 

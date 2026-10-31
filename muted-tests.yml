@@ -575,3 +575,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testRunsEveryTaskOnce
   issue: https://github.com/elastic/elasticsearch/issues/163879
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  tasks:
+  - :x-pack:plugin:encryption:internalClusterTest
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/164186

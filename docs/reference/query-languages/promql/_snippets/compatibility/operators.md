@@ -35,9 +35,9 @@ Prometheus drops the metric name (`__name__`) from the result of arithmetic, bec
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 26 | A filtering comparison with a scalar on the left and an instant vector on the right: `100 < x`, `time() <= x` | Error. Write it the other way round: `x > 100` | The series of `x` for which the comparison holds | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
-| 27 | A comparison with a non-literal scalar on the right: `x > time()`, `x > scalar(y)`, `1 < bool time()` | Error | Evaluates | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
-| 28 | A comparison between two instant vectors, and a `bool` comparison with a scalar on the left: `x > y`, `sum by (job) (a) > sum by (job) (b)`, `100 > bool x` | Error | Evaluates | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
+| 26 | A filtering comparison with a scalar as the first operand and an instant vector as the second: `100 < x`, `time() <= x` | Error. Swap the operands: `x > 100` | The series of `x` for which the comparison holds | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
+| 27 | A comparison with a non-literal scalar as the second operand: `x > time()`, `x > scalar(y)`, `1 < bool time()` | Error | Evaluates | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
+| 28 | A comparison between two instant vectors, and a `bool` comparison with a scalar as the first operand: `x > y`, `sum by (job) (a) > sum by (job) (b)`, `100 > bool x` | Error | Evaluates | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 29 | A comparison inside another expression: `x > 100 > 200`, `(x > 100) + 1`, `count(x > 100)` | Error | Evaluates | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 30 | A `bool` comparison with a number: `x > bool 100` | Keeps `__name__` | Drops `__name__` | [#150318](https://github.com/elastic/elasticsearch/issues/150318) |
 

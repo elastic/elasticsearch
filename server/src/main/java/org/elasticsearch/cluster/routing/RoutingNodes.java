@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
@@ -223,10 +224,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     private void updateRecoveryCounts(final ShardRouting routing, final boolean increment, @Nullable ShardRouting primary) {
-        if (routing.isPromotableToPrimary() == false && primary != null && primary.active() == false) {
-            // Cheap shards prototype: an unpromotable copy can only be initializing next to an inactive primary if it was allocated
-            // without one (ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING); it recovers from
-            // the object store, not from that primary. Without the setting the primary of an initializing unpromotable copy is active.
+        if (ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY
+            && routing.isPromotableToPrimary() == false
+            && primary != null
+            && primary.assignedToNode() == false) {
+            // Cheap shards prototype: the constructor passes the shard table's primary even when it is unassigned; treat that like
+            // findAssignedPrimaryIfPeerRecovery (no primary) so that adding and removing the recovery count the same way. An assigned
+            // but inactive primary is counted as before (removal finds it too, active or not).
             primary = null;
         }
         final int howMany = increment ? 1 : -1;
@@ -238,7 +242,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
-            if (primary == null && routing.isPromotableToPrimary() == false) {
+            if (primary == null
+                && ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY
+                && routing.isPromotableToPrimary() == false) {
                 // Cheap shards prototype: an unpromotable copy allocated without an active primary (only possible with
                 // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING) recovers from the object
                 // store: there is no outgoing recovery to count.
@@ -506,7 +512,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             // Assigning a primary, no need to check.
             return true;
         }
-        if (unassignedShard.isPromotableToPrimary() == false) {
+        if (ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY && unassignedShard.isPromotableToPrimary() == false) {
             // Cheap shards prototype: unpromotable copies may be assigned without an active primary when
             // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING is on (the deciders enforce it)
             return true;

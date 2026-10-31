@@ -34,12 +34,22 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
         Setting.Property.NodeScope
     );
 
+    /**
+     * Node-wide copy of {@link #UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING} for the relaxed assertions and recovery accounting in
+     * {@code RoutingNodes} and {@code IndexShardRoutingTable}, which have no {@link ClusterSettings}: with it off they run their original
+     * code. Prototype shortcut: a mutable static (one value per JVM, last writer wins) rather than threading the setting through.
+     */
+    public static volatile boolean UNPROMOTABLE_WITHOUT_PRIMARY = false;
+
     private volatile boolean unpromotableWithoutPrimary = false;
 
     public ReplicaAfterPrimaryActiveAllocationDecider() {}
 
     public ReplicaAfterPrimaryActiveAllocationDecider(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING, value -> this.unpromotableWithoutPrimary = value);
+        clusterSettings.initializeAndWatch(UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING, value -> {
+            this.unpromotableWithoutPrimary = value;
+            UNPROMOTABLE_WITHOUT_PRIMARY = value;
+        });
     }
 
     @Override

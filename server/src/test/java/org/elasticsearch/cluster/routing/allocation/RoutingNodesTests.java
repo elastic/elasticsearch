@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -661,6 +662,52 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node-1").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
         assertThat(routingNodes.node("node-3").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
         assertThat(routingNodes.unassigned().ignored(), empty());
+    }
+
+    /**
+     * Cheap shards prototype (unpromotable copies without an active primary, setting on): an unparked primary and a search copy that
+     * are both initializing and are started in the same batch (one mutable {@link RoutingNodes}) keep the recovery counts consistent.
+     */
+    public void testStartInitializingPrimaryAndUnpromotableCopyInSameBatch() {
+        ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY = true;
+        try {
+            final var projectId = randomProjectIdOrDefault();
+            final var indexMetadata = IndexMetadata.builder(randomIndexName())
+                .settings(indexSettings(IndexVersion.current(), 1, 1))
+                .build();
+            final var shardId = new ShardId(indexMetadata.getIndex(), 0);
+            final var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+                .addShard(shardRoutingBuilder(shardId, "node-1", true, INITIALIZING).withRole(ShardRouting.Role.INDEX_ONLY).build())
+                .addShard(shardRoutingBuilder(shardId, "node-2", false, INITIALIZING).withRole(ShardRouting.Role.SEARCH_ONLY).build())
+                .build();
+            final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+                .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build())
+                .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
+                .build();
+
+            final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+            // the search copy's PEER recovery is counted against the (assigned, inactive) primary's node
+            assertThat(routingNodes.getOutgoingRecoveries("node-1"), equalTo(1));
+            assertThat(routingNodes.getIncomingRecoveries("node-2"), equalTo(1));
+
+            final var primary = routingNodes.node("node-1").getByShardId(shardId);
+            final var copy = routingNodes.node("node-2").getByShardId(shardId);
+            if (randomBoolean()) {
+                routingNodes.startShard(primary, RoutingChangesObserver.NOOP, primary.getExpectedShardSize());
+                routingNodes.startShard(copy, RoutingChangesObserver.NOOP, copy.getExpectedShardSize());
+            } else {
+                routingNodes.startShard(copy, RoutingChangesObserver.NOOP, copy.getExpectedShardSize());
+                routingNodes.startShard(primary, RoutingChangesObserver.NOOP, primary.getExpectedShardSize());
+            }
+            for (String node : new String[] { "node-1", "node-2" }) {
+                assertThat(node, routingNodes.getOutgoingRecoveries(node), equalTo(0));
+                assertThat(node, routingNodes.getIncomingRecoveries(node), equalTo(0));
+            }
+            assertTrue(assertShardStats(routingNodes));
+        } finally {
+            ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY = false;
+        }
     }
 
     private boolean assertShardStats(RoutingNodes routingNodes) {

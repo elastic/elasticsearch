@@ -20,12 +20,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReplicaAfterPrimaryActiveAllocationDeciderTests extends ESTestCase {
+
+    @After
+    public void resetGate() {
+        ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY = false; // set by the watcher, static (prototype)
+    }
 
     /** Cheap shards prototype: only with the setting on, and only unpromotable copies, may be allocated without an active primary. */
     public void testUnpromotableWithoutPrimarySetting() {

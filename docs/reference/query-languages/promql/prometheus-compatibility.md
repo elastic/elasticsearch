@@ -20,7 +20,7 @@ This page lists the PromQL features {{es}} doesn't support yet and where its beh
 It applies to both the [Prometheus-compatible HTTP API](promql-http-api.md) and the {{esql}} [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source command, unless a section says otherwise.
 
 - [Basics](#prometheus-compatibility-basics): data types, literals, selectors, modifiers, subqueries, and staleness.
-- [Operators](#prometheus-compatibility-operators): unary, binary, and aggregation operators, and vector matching.
+- [Operators](#prometheus-compatibility-operators): binary and aggregation operators, and vector matching.
 - [Functions](#prometheus-compatibility-functions).
 - [HTTP API](#prometheus-compatibility-http-api).
 

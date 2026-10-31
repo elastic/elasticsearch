@@ -843,7 +843,6 @@ redirects:
       'promql-limitations-instant-query': 'prometheus-compatibility-staleness'
       'promql-limitations-lookback': 'prometheus-compatibility-staleness'
       'promql-limitations-metadata-help': 'prometheus-compatibility-querying-metric-metadata'
-      'promql-limitations-metric-name': 'prometheus-compatibility-operators'
       'promql-limitations-native-histograms': 'prometheus-compatibility-expression-language-data-types'
       'promql-limitations-range-query': 'prometheus-compatibility-staleness'
       'promql-limitations-staleness': 'prometheus-compatibility-staleness'

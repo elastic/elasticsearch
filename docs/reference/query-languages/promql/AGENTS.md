@@ -20,7 +20,7 @@ that documents the feature in Prometheus:
 | `http-api.md` | [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) | Its section headings, such as `Expression queries` |
 
 Put a new row under the Prometheus heading that documents its construct, and use that heading's name. Add a heading
-only when Prometheus has it. A construct that spans pages, such as dropping `__name__`, gets one row per heading.
+only when Prometheus has it. A construct that spans pages, such as native histograms, gets one row per heading. Leave out a heading that has no rows.
 
 Agents rely on these rows as a concise, complete list of what to avoid. A stale row makes generated queries fail, or
 steers them away from constructs that now work.

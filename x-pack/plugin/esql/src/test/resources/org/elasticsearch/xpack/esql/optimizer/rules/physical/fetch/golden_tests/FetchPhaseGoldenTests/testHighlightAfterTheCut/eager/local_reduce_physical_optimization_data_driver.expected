@@ -1,0 +1,11 @@
+ExchangeSinkExec[[_doc{f}#0, description{f}#1, book_no{f}#2],false]
+\_ProjectExec[[_doc{f}#0, description{f}#1, book_no{f}#2]]
+  \_FieldExtractExec[[description{f}#1, book_no{f}#2]<[],[],[]>,_doc{f}#0]
+    \_EsQueryExec[books], indexMode[standard], [_doc{f}#0], limit[5], sort[[FieldSort[field=book_no{f}#2, direction=ASC, nulls=LAST]]] estimatedRowSize[1090] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "description" : {
+      "query" : "ring",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]

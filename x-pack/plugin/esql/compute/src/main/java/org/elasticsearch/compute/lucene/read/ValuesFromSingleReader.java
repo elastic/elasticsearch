@@ -280,11 +280,10 @@ class ValuesFromSingleReader extends ValuesReader {
      */
     private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
         int count = docs.count();
-        if (count < SEQUENTIAL_BOUNDARY) {
+        if (count == 0) {
             return false;
         }
-        int range = docs.get(count - 1) - docs.get(0);
-        return range * storedFieldsSequentialProportion <= count;
+        return new SegmentRun(count, docs.get(0), docs.get(count - 1)).readsStoredFieldsSequentially(storedFieldsSequentialProportion);
     }
 
     /**

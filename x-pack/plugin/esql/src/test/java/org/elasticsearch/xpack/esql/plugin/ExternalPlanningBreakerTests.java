@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -610,9 +613,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(transportService.getTaskManager()).thenReturn(new TaskManager(Settings.EMPTY, threadPool, Set.of()));
 
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
+        registered.add(FetchService.MAX_CONCURRENT_SHARD_TASKS);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registered);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
@@ -656,6 +661,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         TransportActionServices transport = new TransportActionServices(
             transportService,
             null,
+            new SearchTransportService(transportService, null, null),
             exchangeService,
             clusterService,
             null,

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -249,6 +250,12 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     * Turns the fetch phase on or off for one query, whatever {@code esql.query.fetch_phase.enabled} says. A build
+     * without the fetch phase ignores it. Without the pragma the cluster setting decides.
+     */
+    public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -279,7 +286,8 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        SINGLE_NODE_OPTIMIZATIONS
+        SINGLE_NODE_OPTIMIZATIONS,
+        FETCH_PHASE
 
     ).map(Setting::getKey).toList();
 
@@ -564,6 +572,14 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it and the cluster setting decides.
+     */
+    @Nullable
+    public Boolean fetchPhase() {
+        return settings.hasValue(FETCH_PHASE.getKey()) ? FETCH_PHASE.get(settings) : null;
     }
 
     public boolean isEmpty() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -97,6 +99,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
+import org.elasticsearch.xpack.esql.fetch.FetchContextService;
+import org.elasticsearch.xpack.esql.fetch.FetchFailures;
+import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -107,10 +115,12 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -118,7 +128,10 @@ import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
+import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerServices;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
@@ -192,6 +205,10 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_E
 public class ComputeService {
     public static final String DATA_DESCRIPTION = "data";
     public static final String REDUCE_DESCRIPTION = "node_reduce";
+    /**
+     * Describes the drivers that load fetched columns on the nodes that hold the documents.
+     */
+    public static final String FETCH_DESCRIPTION = "fetch";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -205,6 +222,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final FetchPhaseServices fetchPhaseServices;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -248,6 +266,9 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        FetchContextService fetchContextService = new FetchContextService(searchService, transportActionServices.searchTransportService());
+        fetchContextService.registerTaskListener();
+        fetchContextService.registerHandlers();
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -278,6 +299,17 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
+        FetchService fetchService = new FetchService(
+            transportService,
+            clusterService,
+            searchService,
+            blockFactory,
+            threadPool.executor(EsqlPlugin.computePool()),
+            plannerSettings::get,
+            this::fetchPlanner
+        );
+        fetchService.registerHandlers();
+        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService, fetchService, clusterService);
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -287,6 +319,10 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    FetchPhaseServices fetchPhaseServices() {
+        return fetchPhaseServices;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -1472,6 +1508,11 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
+        // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
+        // frees once it no longer reads them, and the query once it ends. The fetch reads only local indices.
+        final FetchContextLease.Execution fetchContexts = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
+            ? fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(localOriginalIndices)
+            : null;
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1493,6 +1534,8 @@ public class ComputeService {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
+                // the fetches of the query record the shards they went on without, which the local cluster reports as failed
+                final FetchFailures fetchFailures = new FetchFailures(configuration.allowPartialResults());
                 try (
                     var localListener = new ComputeListener(
                         cancelQueryOnFailure,
@@ -1501,12 +1544,15 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
+                                    // only now: the data nodes assign the shard counts, which would replace the fetch failures
+                                    boolean fetchFailed = fetchFailures.applyTo(builder, v);
                                     if (execInfo.isMainPlan()) {
                                         // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
                                         // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
                                         // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
                                         // indices to search) to PARTIAL.
                                         boolean failed = localClusterWasInterrupted.get()
+                                            || fetchFailed
                                             || (v.getFailedShards() != null && v.getFailedShards() > 0)
                                             || v.getFailures().isEmpty() == false;
                                         applyClusterStatusAfterBranch(builder, v, failed, false);
@@ -1518,6 +1564,21 @@ public class ComputeService {
                         })
                     )
                 ) {
+                    FetchOperatorProvider fetchOperators = FetchOperatorProvider.UNSUPPORTED;
+                    ActionListener<DriverCompletionInfo> coordinatorListener = localListener.acquireCompute();
+                    if (coordinatorPlan.anyMatch(FetchExec.class::isInstance)) {
+                        // the fetches of the query send their requests as children of its task, and count their drivers as its own
+                        fetchOperators = fetchPhaseServices.operatorProvider(
+                            new QueryFetchScope(
+                                rootTask,
+                                sessionId,
+                                configuration,
+                                localListener::acquireCompute,
+                                fetchFailures,
+                                fetchContexts
+                            )
+                        );
+                    }
                     runCompute(
                         rootTask,
                         new ComputeContext(
@@ -1530,13 +1591,14 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
-                            false
+                            false,
+                            fetchOperators
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
                         LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
-                        localListener.acquireCompute()
+                        coordinatorListener
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -1551,6 +1613,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            fetchContexts,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1989,6 +2052,7 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
+                new PlannerServices(context.fetchOperators()),
                 computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
@@ -2190,6 +2254,58 @@ public class ComputeService {
     }
 
     /**
+     * The planner of one fetch request on this node, built like the planners of the query phase. A fetch plan has no
+     * exchange.
+     */
+    private LocalExecutionPlanner fetchPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask task,
+        Configuration configuration,
+        FoldContext foldCtx,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        FetchSourceProvider fetchSources
+    ) {
+        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
+            foldCtx,
+            shardContexts,
+            searchService.getIndicesService().getAnalysis(),
+            plannerSettings.get(),
+            directoryBytesReadSupplier(searchService.getIndicesService()),
+            QueryWarnings.EMIT
+        );
+        ThreadPool workerThreadPool = transportService.getThreadPool();
+        return new LocalExecutionPlanner(
+            sessionId,
+            clusterAlias,
+            task,
+            bigArrays,
+            blockFactory,
+            clusterService.getSettings(),
+            configuration,
+            () -> {
+                throw new IllegalStateException("a fetch plan reads no exchange");
+            },
+            () -> { throw new IllegalStateException("a fetch plan writes no exchange"); },
+            enrichLookupService,
+            lookupFromIndexService,
+            inferenceService,
+            userAgentParserRegistry,
+            ipLocationService,
+            projectResolver,
+            projectResolver.getProjectMetadata(clusterService.state()),
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            Build.current().isSnapshot(),
+            PlannerServices.forFetchPlan(fetchSources),
+            workerThreadPool.executor(EsqlPlugin.computePool()),
+            workerThreadPool.info(EsqlPlugin.computePool()).getMax(),
+            grokMatcherWatchdog.get(),
+            clusterService.state().getMinTransportVersion()
+        );
+    }
+
+    /**
      * Supplier for per-thread store directory bytes used by Lucene operators and planner-time accounting.
      */
     static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
@@ -2259,6 +2375,10 @@ public class ComputeService {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
 
+        return verifyReductionPlan(reductionPlan, originalPlan);
+    }
+
+    private static ReductionPlan verifyReductionPlan(ReductionPlan reductionPlan, ExchangeSinkExec originalPlan) {
         // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
         // able to perform this check.
         if (Assertions.ENABLED == false

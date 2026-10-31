@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -62,8 +63,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.ColocatedJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.ColocatedJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -88,7 +92,9 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -321,11 +327,45 @@ public class PlannerUtils {
     }
 
     public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
-        plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
+        plan.forEachDown(FragmentExec.class, f -> forEachMainRelation(f.fragment(), action));
+    }
+
+    /**
+     * Visits the relations that the data-node request must carry shards for. Lookup indices and the right side of a
+     * co-located join are skipped: both are opened by the lookup service on the data node, not scanned by the main pipeline.
+     */
+    private static void forEachMainRelation(LogicalPlan plan, Consumer<EsRelation> action) {
+        if (plan instanceof ColocatedJoin join) {
+            forEachMainRelation(join.left(), action);
+            return;
+        }
+        if (plan instanceof EsRelation r) {
             if (r.indexMode() != IndexMode.LOOKUP) {
                 action.accept(r);
             }
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            forEachMainRelation(child, action);
+        }
+    }
+
+    /**
+     * The concrete right index of a co-located join in the data-node plan, or {@code null} when the plan has none. The request
+     * sender uses it to send each left shard to a node that also holds the right shard with the same number.
+     */
+    public static String colocatedJoinPartnerIndex(PhysicalPlan plan) {
+        Holder<String> partner = new Holder<>();
+        plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(ColocatedJoin.class, join -> {
+            EsRelation right = ColocatedJoin.findRelation(join.right());
+            if (right != null) {
+                List<String> local = right.concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                if (local != null && local.size() == 1) {
+                    partner.set(local.get(0));
+                }
+            }
         }));
+        return partner.get();
     }
 
     /**
@@ -605,9 +645,10 @@ public class PlannerUtils {
             plan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
         }
         var isCoordPlan = new Holder<>(Boolean.TRUE);
-        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
+        // The right child of a lookup join or a co-located join stays logical: it is shipped to (or compiled by) the lookup service.
+        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(x -> x instanceof LookupJoinExec || x instanceof ColocatedJoinExec)
             .stream()
-            .map(x -> ((LookupJoinExec) x).right())
+            .map(x -> ((BinaryExec) x).right())
             .collect(Collectors.toSet());
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
@@ -700,8 +741,14 @@ public class PlannerUtils {
             if (fe.esFilter() != null && fe.esFilter().supportsVersion(minTransportVersion)) {
                 requestFilters.add(fe.esFilter());
             }
+            // Filters on the right side of a co-located join apply to the partner index, not to the shards of this request.
+            Set<Filter> partnerFilters = Collections.newSetFromMap(new IdentityHashMap<>());
+            fe.fragment().forEachDown(ColocatedJoin.class, join -> join.right().forEachDown(Filter.class, partnerFilters::add));
             // detect filter inside the query
             fe.fragment().forEachUp(Filter.class, f -> {
+                if (partnerFilters.contains(f)) {
+                    return;
+                }
                 // the only filter that can be pushed down is that on top of the relation
                 // reuses the logic from LocalPhysicalPlanOptimizer#PushFiltersToSource
                 // but get executed on the logical plan

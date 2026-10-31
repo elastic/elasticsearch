@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -38,8 +39,11 @@ import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -216,8 +220,16 @@ class LateMaterializationPlanner {
             return null;
         }
 
+        // The right index of a JOIN command is looked up, not scanned, like a lookup index: giving it the left's _doc would make
+        // the join output that _doc as one of its right-side columns.
+        Set<EsRelation> lookedUp = Collections.newSetFromMap(new IdentityHashMap<>());
+        pipelineBreaker.forEachDown(Join.class, j -> {
+            if (j.isCandicateColocatedJoin()) {
+                j.right().forEachDown(EsRelation.class, lookedUp::add);
+            }
+        });
         LogicalPlan withAddedDocToRelation = pipelineBreaker.transformUp(EsRelation.class, r -> {
-            if (r.indexMode() == IndexMode.LOOKUP) {
+            if (r.indexMode() == IndexMode.LOOKUP || lookedUp.contains(r)) {
                 return r;
             }
             return r.withAttributes(CollectionUtils.prependToCopy(doc, r.output()));

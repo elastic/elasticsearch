@@ -180,7 +180,8 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         LogicalPlan plan = filter;
         // pushdown only through LEFT joins
         // TODO: generalize this for other join types
-        if (join.config().type() == JoinTypes.LEFT) {
+        // The JOIN command is an inner join: pushing a side-scoped filter into that side is always valid.
+        if (join.config().type() == JoinTypes.LEFT || join.isCandicateColocatedJoin()) {
             LogicalPlan left = join.left();
             LogicalPlan right = join.right();
             var conjunctions = Predicates.splitAnd(filter.condition());

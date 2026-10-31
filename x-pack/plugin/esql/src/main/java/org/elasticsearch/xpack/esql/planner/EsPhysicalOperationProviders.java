@@ -64,6 +64,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -809,6 +810,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
+    /**
+     * The shard at {@code shardIndex} of this request. Used by the co-located join to pick the partner shard of a left page.
+     */
+    public ShardId shardId(int shardIndex) {
+        if (shardContexts.get(shardIndex) instanceof DefaultShardContext defaultShardContext) {
+            return defaultShardContext.shardId();
+        }
+        throw new IllegalStateException("shard context [" + shardIndex + "] does not know its shard id");
+    }
+
     public static class DefaultShardContext extends ShardContext {
         private final int index;
 
@@ -835,6 +846,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public int index() {
             return index;
+        }
+
+        /** The shard this context reads. */
+        public ShardId shardId() {
+            return new ShardId(ctx.getFullyQualifiedIndex(), ctx.getShardId());
         }
 
         @Override

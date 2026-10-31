@@ -105,6 +105,9 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -1267,6 +1270,56 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
             mode
         );
+    }
+
+    @Override
+    public PlanFactory visitInnerJoinCommand(EsqlBaseParser.InnerJoinCommandContext ctx) {
+        var source = source(ctx);
+        if (false == EsqlCapabilities.Cap.COLOCATED_JOIN_V1.isEnabled()) {
+            throw new ParsingException(source, "JOIN is only available in SNAPSHOT build");
+        }
+        var target = ctx.joinTarget();
+        var rightPattern = visitIndexPattern(List.of(target.index));
+        if (rightPattern.contains(WILDCARD)) {
+            throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in JOIN", rightPattern);
+        }
+        if (RemoteClusterAware.splitIndexName(rightPattern).clusterAlias() != null) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], remote clusters are not supported with JOIN",
+                rightPattern
+            );
+        }
+        if (rightPattern.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], index pattern selectors are not supported in JOIN",
+                rightPattern
+            );
+        }
+        // A regular (STANDARD) relation: it is resolved as a main index, not as a lookup index.
+        UnresolvedRelation right = new UnresolvedRelation(
+            source(target),
+            new IndexPattern(source(target.index), rightPattern),
+            false,
+            emptyList(),
+            IndexMode.STANDARD,
+            null
+        );
+        var joinInfo = typedParsing(this, ctx.joinCondition(), JoinInfo.class);
+        if (joinInfo.joinExpressions().isEmpty() == false) {
+            throw new ParsingException(source(ctx.joinCondition()), "JOIN ON clause only supports a single field name");
+        }
+        if (joinInfo.joinFields().size() != 1) {
+            throw new ParsingException(
+                source(ctx.joinCondition()),
+                "JOIN ON clause supports exactly one field, found [{}]",
+                joinInfo.joinFields().size()
+            );
+        }
+        // A plain INNER join: how it executes (co-located or not at all) is decided on the coordinator before mapping.
+        JoinConfig config = new JoinConfig(JoinTypes.INNER, joinInfo.joinFields(), joinInfo.joinFields(), null);
+        return p -> new Join(source, p, right, config, ExecuteLocation.ANY);
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}

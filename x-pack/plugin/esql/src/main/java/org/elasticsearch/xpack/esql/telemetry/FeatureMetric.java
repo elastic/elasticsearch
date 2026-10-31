@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -115,6 +116,7 @@ public enum FeatureMetric {
     RENAME(Rename.class::isInstance),
     LOOKUP_JOIN(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() == null),
     LOOKUP_JOIN_ON_EXPRESSION(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() != null),
+    JOIN(plan -> plan instanceof Join join && join.isCandicateColocatedJoin()),
     LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),

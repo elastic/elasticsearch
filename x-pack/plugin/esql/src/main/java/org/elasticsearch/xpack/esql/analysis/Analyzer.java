@@ -1513,6 +1513,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
+                case Join j when j.isCandicateColocatedJoin() -> resolveIndexJoin(j);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
@@ -1986,6 +1987,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+        }
+
+        private Join resolveIndexJoin(Join join) {
+            JoinConfig config = join.config();
+            if (Expressions.anyMatch(join.references().stream().toList(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                return join;
+            }
+            // USING semantics: the single ON field is resolved once against each side.
+            List<Attribute> leftKeys = Resolvables.resolved(config.leftFields())
+                ? config.leftFields()
+                : resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+            List<Attribute> rightKeys = Resolvables.resolved(config.rightFields())
+                ? config.rightFields()
+                : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
+            return join.withConfig(new JoinConfig(config.type(), leftKeys, rightKeys, null));
         }
 
         private static ExecuteLocation newLookupJoinMode(ExecuteLocation mode, boolean hasRemoteIndices) {

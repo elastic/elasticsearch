@@ -1790,6 +1790,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterInnerJoinCommand(EsqlBaseParser.InnerJoinCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInnerJoinCommand(EsqlBaseParser.InnerJoinCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
   /**
    * {@inheritDoc}

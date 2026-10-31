@@ -27,6 +27,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeBase;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.lookup.RightChunkedInnerJoin;
+import org.elasticsearch.compute.operator.lookup.RightChunkedJoin;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -79,6 +81,16 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private final boolean profile;
     @Nullable
     private final Configuration configuration;
+    /**
+     * Co-located join only: the shard of {@link #lookupIndex} every batch is looked up against, or {@code -1} for a lookup join,
+     * whose lookup index has a single shard.
+     */
+    private final int shardNumber;
+    /**
+     * Emit only the left rows with a match ({@code INNER} join) instead of padding the unmatched ones with nulls.
+     */
+    private final boolean innerJoin;
+    private final int maxWorkers;
 
     // State
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
@@ -113,12 +125,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
      */
     private static class PendingJoin {
         final long batchId;
-        final RightChunkedLeftJoin join;
+        final RightChunkedJoin join;
         boolean receivedLastPage = false;
 
-        PendingJoin(long batchId, Page inputPage, int loadFieldCount) {
+        PendingJoin(long batchId, Page inputPage, int loadFieldCount, boolean innerJoin) {
             this.batchId = batchId;
-            this.join = new RightChunkedLeftJoin(inputPage, loadFieldCount);
+            this.join = innerJoin
+                ? new RightChunkedInnerJoin(inputPage, loadFieldCount)
+                : new RightChunkedLeftJoin(inputPage, loadFieldCount);
         }
     }
 
@@ -139,6 +153,57 @@ public class StreamingLookupFromIndexOperator implements Operator {
         boolean profile,
         @Nullable Configuration configuration
     ) {
+        this(
+            driverContext,
+            matchFields,
+            sessionId,
+            parentTask,
+            maxOutstandingRequests,
+            lookupService,
+            lookupIndexPattern,
+            lookupIndex,
+            loadFields,
+            source,
+            rightPreJoinPlan,
+            joinOnConditions,
+            exchangeBufferSize,
+            profile,
+            configuration,
+            -1,
+            false,
+            maxOutstandingRequests
+        );
+    }
+
+    /**
+     * @param shardNumber the shard of {@code lookupIndex} to look up against (co-located join), or {@code -1} for the single shard of a
+     *                    lookup index
+     * @param innerJoin   emit only the left rows with a match
+     * @param maxWorkers  the most lookup sessions to open
+     */
+    StreamingLookupFromIndexOperator(
+        DriverContext driverContext,
+        List<MatchConfig> matchFields,
+        String sessionId,
+        CancellableTask parentTask,
+        int maxOutstandingRequests,
+        LookupFromIndexService lookupService,
+        String lookupIndexPattern,
+        String lookupIndex,
+        List<NamedExpression> loadFields,
+        Source source,
+        PhysicalPlan rightPreJoinPlan,
+        Expression joinOnConditions,
+        int exchangeBufferSize,
+        boolean profile,
+        @Nullable Configuration configuration,
+        int shardNumber,
+        boolean innerJoin,
+        int maxWorkers
+    ) {
+        this.shardNumber = shardNumber;
+        this.innerJoin = innerJoin;
+        this.maxWorkers = maxWorkers;
         this.driverContext = driverContext;
         this.maxOutstandingRequests = maxOutstandingRequests;
         this.lookupService = lookupService;
@@ -214,7 +279,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     );
                 }
 
-                lookupService.lookupAsync(setupRequest, serverNode, parentTask, ActionListener.wrap(response -> {
+                ActionListener<AbstractLookupService.LookupResponse> setupListener = ActionListener.wrap(response -> {
                     planningEndNanos = System.nanoTime();
                     logger.debug("Server setup complete for node={}", serverNode.getId());
                     listener.onResponse(response.planString());
@@ -229,7 +294,12 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     );
                     failure.set(e);
                     listener.onFailure(e);
-                }));
+                });
+                if (shardNumber >= 0) {
+                    lookupService.lookupAsyncOnShard(setupRequest, shardNumber, serverNode, parentTask, setupListener);
+                } else {
+                    lookupService.lookupAsync(setupRequest, serverNode, parentTask, setupListener);
+                }
             };
 
             driverContext.addAsyncAction();
@@ -247,7 +317,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     ? (workerKey, planString) -> planToWorkers.computeIfAbsent(planString, k -> ConcurrentHashMap.newKeySet())
                         .add(workerKey)
                     : null,  // Only track plans when profiling
-                maxOutstandingRequests,
+                maxWorkers,
                 this::determineServerNode  // Supplier for getting server nodes for workers
             );
 
@@ -259,6 +329,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private DiscoveryNode determineServerNode() {
+        if (shardNumber >= 0) {
+            return lookupService.shardCopyNode(lookupIndex, shardNumber);
+        }
         var clusterState = lookupService.getClusterService().state();
         var projectState = lookupService.getProjectResolver().getProjectState(clusterState);
         var shardIterators = lookupService.getClusterService()
@@ -365,7 +438,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         }
 
         // Track batch for receiving results
-        PendingJoin batch = new PendingJoin(batchId, page, loadFields.size());
+        PendingJoin batch = new PendingJoin(batchId, page, loadFields.size(), innerJoin);
         activeBatches.put(batchId, batch);
         pagesReceived++;
     }
@@ -695,6 +768,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
         }
 
         return NOT_BLOCKED;
+    }
+
+    /**
+     * The batches sent and not yet fully joined.
+     */
+    int activeBatchCount() {
+        return activeBatches.size();
     }
 
     @Override

@@ -33,13 +33,17 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.join.ColocatedJoin;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -69,6 +73,10 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         var externalFieldsBuilder = AttributeSet.builder();
         Map<Attribute, Expression> attrToConstant = new HashMap<>();
         plan.forEachUp(ExternalRelation.class, external -> externalFieldsBuilder.addAll(external.output()));
+        // The right side of a co-located join is read by the lookup service from another index; the stats of this fragment's
+        // shards say nothing about its fields, so they are retained like lookup-index fields.
+        Set<EsRelation> colocatedRightRelations = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachUp(ColocatedJoin.class, join -> join.right().forEachUp(EsRelation.class, colocatedRightRelations::add));
         plan.forEachUp(EsRelation.class, esRelation -> {
             // Looking for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
             // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
@@ -76,7 +84,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             // not work as this rule also gets called just on the right hand side of a JOIN, which means that we don't always know that
             // we're inside the right (or left) branch of a JOIN node. (See PlannerUtils.localPlan - this looks for FragmentExecs and
             // performs local logical optimization of the fragments; the right hand side of a LookupJoinExec can be a FragmentExec.)
-            if (esRelation.indexMode() == IndexMode.LOOKUP) {
+            if (esRelation.indexMode() == IndexMode.LOOKUP || colocatedRightRelations.contains(esRelation)) {
                 lookupFieldsBuilder.addAll(esRelation.output());
             }
             // find constant values only in the main indices

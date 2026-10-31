@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Optional;
@@ -128,7 +127,7 @@ import java.util.stream.IntStream;
  * |     l99 | null | null |
  * }</pre>
  */
-public class RightChunkedLeftJoin implements Releasable {
+public class RightChunkedLeftJoin implements RightChunkedJoin {
     private final Page leftHand;
     private final int mergedElementCount;
     /**
@@ -143,6 +142,7 @@ public class RightChunkedLeftJoin implements Releasable {
         this.mergedElementCount = mergedElementCounts;
     }
 
+    @Override
     public Page join(Page rightHand) {
         IntVector positions = rightHand.<IntBlock>getBlock(0).asVector();
         if (positions.getInt(0) < next - 1) {
@@ -209,6 +209,7 @@ public class RightChunkedLeftJoin implements Releasable {
         }
     }
 
+    @Override
     public Optional<Page> noMoreRightHandPages() {
         if (next == leftHand.getPositionCount()) {
             return Optional.empty();
@@ -237,9 +238,7 @@ public class RightChunkedLeftJoin implements Releasable {
         }
     }
 
-    /**
-     * Release this on <strong>any</strong> thread, rather than just the thread that built it.
-     */
+    @Override
     public void releaseOnAnyThread() {
         leftHand.allowPassingToDifferentDriver();
         leftHand.releaseBlocks();

@@ -4664,6 +4664,11 @@ public class EsqlCapabilities {
          */
         METRICS_INFO_FIELD_PRESENCE,
 
+        /**
+         * {@code FROM a | JOIN b ON key}: inner join between two identically partitioned indices, executed on the data nodes.
+         */
+        COLOCATED_JOIN_V1(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -14,9 +14,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -99,6 +101,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -106,6 +109,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
@@ -161,6 +165,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.enrich.PartnerShards;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
@@ -187,6 +192,7 @@ import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ColocatedJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
@@ -258,8 +264,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -526,6 +534,8 @@ public class LocalExecutionPlanner {
             return planDistinctBy(distinctBy, context);
         } else if (node instanceof LookupJoinExec join) {
             return planLookupJoin(join, context);
+        } else if (node instanceof ColocatedJoinExec join) {
+            return planColocatedJoin(join, context);
         }
         // output
         else if (node instanceof StreamingOutputExec streamingOutput) {
@@ -1883,6 +1893,121 @@ public class LocalExecutionPlanner {
         );
     }
 
+    /**
+     * Plans a co-located join as lookups against the right shards that hold each row's matches. Same operator chain as a
+     * lookup join; the differences are that the right index is a regular multi-shard index routed by the join key, and the
+     * target shards are chosen per left page by {@link PartnerShards}: the same shard number as the page's left shard when
+     * that shard is aligned with the right index, otherwise by hashing each key like the right index routes it.
+     */
+    private PhysicalOperation planColocatedJoin(ColocatedJoinExec join, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(join.left(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        for (Attribute f : join.addedFields()) {
+            layoutBuilder.append(f);
+        }
+        Layout layout = layoutBuilder.build();
+
+        EsRelation esRelation = findEsRelation(join.right());
+        if (esRelation == null) {
+            throw new IllegalArgumentException("can't plan [" + join + "]: no relation on the right side");
+        }
+        List<String> localIndices = esRelation.concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        if (localIndices == null || localIndices.size() != 1) {
+            throw new IllegalArgumentException(
+                "can't plan [" + join + "]: expected a single local index, found " + esRelation.concreteIndices()
+            );
+        }
+        String indexName = localIndices.get(0);
+        if (join.leftFields().size() != 1 || join.rightFields().size() != 1) {
+            throw new IllegalArgumentException("can't plan [" + join + "]: expected a single join key");
+        }
+        TypedAttribute left = (TypedAttribute) join.leftFields().get(0);
+        FieldAttribute right = (FieldAttribute) join.rightFields().get(0);
+        Layout.ChannelAndType input = source.layout.get(left.id());
+        if (input == null) {
+            throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
+        }
+        List<MatchConfig> matchFields = List.of(new MatchConfig(right.exactAttribute().fieldName().string(), input));
+
+        PartnerShards partnerShards = partnerShards(join, indexName, left, input.channel(), source.layout);
+        // Stream unless the query turns it off or a node holding a right shard can't stream.
+        boolean streaming = context.queryPragmas().colocatedJoinStreaming()
+            && configuration != null
+            && allCopiesSupportStreaming(lookupFromIndexService, indexName);
+
+        return source.with(
+            new LookupFromIndexOperator.Factory(
+                matchFields,
+                sessionId,
+                parentTask,
+                context.queryPragmas().enrichMaxWorkers(),
+                ctx -> lookupFromIndexService,
+                esRelation.indexPattern(),
+                indexName,
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
+                join.source(),
+                join.right(),
+                null,
+                streaming,
+                context.queryPragmas().exchangeBufferSize(),
+                configuration.profile(),
+                configuration,
+                partnerShards,
+                true
+            ),
+            layout
+        );
+    }
+
+    /**
+     * Builds the {@link PartnerShards} of a co-located join from this node's view of the cluster. Left shards are aligned
+     * with the right index when their index is routed by the left key the same way ({@link ColocatedRouting#aligned}); that
+     * takes the {@code _doc} column, which says which left shard a page came from, so without it every key is hashed.
+     */
+    private PartnerShards partnerShards(
+        ColocatedJoinExec join,
+        String rightIndexName,
+        TypedAttribute leftKey,
+        int keyChannel,
+        Layout layout
+    ) {
+        ProjectMetadata project = projectResolver.getProjectMetadata(lookupFromIndexService.getClusterService().state());
+        IndexMetadata right = project.index(rightIndexName);
+        if (right == null) {
+            throw new IndexNotFoundException(rightIndexName);
+        }
+        PartnerShards.KeyType keyType = switch (leftKey.dataType()) {
+            case KEYWORD -> PartnerShards.KeyType.KEYWORD;
+            case IP -> PartnerShards.KeyType.IP;
+            case INTEGER -> PartnerShards.KeyType.INTEGER;
+            case LONG -> PartnerShards.KeyType.LONG;
+            default -> throw new IllegalArgumentException("can't plan [" + join + "]: unsupported key type [" + leftKey.dataType() + "]");
+        };
+        String leftKeyField = leftKey instanceof FieldAttribute field ? field.fieldName().string() : null;
+        int docChannel = -1;
+        IntUnaryOperator alignedPartner = null;
+        Attribute docAttribute = join.left().output().stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        Layout.ChannelAndType doc = docAttribute == null ? null : layout.get(docAttribute.id());
+        if (doc != null && leftKeyField != null && physicalOperationProviders instanceof EsPhysicalOperationProviders esProviders) {
+            docChannel = doc.channel();
+            // Drivers of the same plan share the factory, so the cache is concurrent.
+            Map<Integer, Integer> partners = new ConcurrentHashMap<>();
+            alignedPartner = shardIndex -> partners.computeIfAbsent(shardIndex, i -> {
+                ShardId shardId = esProviders.shardId(i);
+                IndexMetadata left = project.index(shardId.getIndex());
+                return left != null && ColocatedRouting.aligned(left, leftKeyField, right) ? shardId.id() : -1;
+            });
+        }
+        return new PartnerShards(
+            keyChannel,
+            keyType,
+            IndexRouting.fromIndexMetadata(right),
+            right.getNumberOfShards(),
+            docChannel,
+            alignedPartner
+        );
+    }
+
     private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
@@ -1895,7 +2020,18 @@ public class LocalExecutionPlanner {
             if (service.getClusterService().getClusterSettings().get(EsqlPlugin.LOOKUP_JOIN_STREAMING) == false) {
                 return false;
             }
+        } catch (Exception e) {
+            logger.debug("Failed to read the lookup join streaming setting, using non-streaming operator", e);
+            return false;
+        }
+        return allCopiesSupportStreaming(service, indexName);
+    }
 
+    /**
+     * Whether every node holding a copy of a shard of {@code indexName} supports the streaming lookup protocol.
+     */
+    private static boolean allCopiesSupportStreaming(LookupFromIndexService service, String indexName) {
+        try {
             ClusterState clusterState = service.getClusterService().state();
 
             // Resolve target nodes for the lookup index

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.RoutingField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexMode;
@@ -159,6 +160,7 @@ public class DocumentMapper {
             );
         }
 
+        validateRoutingField(settings);
         settings.getMode().validateMapping(mappingLookup, settings.getSettings());
         /*
          * Build an empty source loader to validate that the mapping is compatible
@@ -219,6 +221,43 @@ public class DocumentMapper {
         }
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
+        }
+    }
+
+    /**
+     * With {@link IndexSettings#ROUTING_FIELD}, routing must be required and the routing field mapped with a type whose
+     * values can be read back from the source exactly: a keyword without normalizer, an integer type or an ip, and not a
+     * sub-field (multi-fields have no value of their own in the source).
+     */
+    private void validateRoutingField(IndexSettings settings) {
+        String path = IndexSettings.ROUTING_FIELD.get(settings.getSettings());
+        if (path.isEmpty()) {
+            return;
+        }
+        String index = settings.getIndex().getName();
+        if (routingFieldMapper().required() == false) {
+            throw new IllegalArgumentException(
+                "[_routing] must be required in the mapping of index ["
+                    + index
+                    + "] because ["
+                    + IndexSettings.ROUTING_FIELD.getKey()
+                    + "] is set"
+            );
+        }
+        MappedFieldType fieldType = mappingLookup.getFieldType(path);
+        if (fieldType == null || mappingLookup.isMultiField(path) || RoutingField.Type.forFieldType(fieldType.typeName()) == null) {
+            throw new IllegalArgumentException(
+                "routing field ["
+                    + path
+                    + "] of index ["
+                    + index
+                    + "] must be mapped as one of "
+                    + RoutingField.SUPPORTED_FIELD_TYPES.stream().sorted().toList()
+                    + (fieldType == null ? ", but it is not mapped" : ", found [" + fieldType.typeName() + "]")
+            );
+        }
+        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.hasNormalizer()) {
+            throw new IllegalArgumentException("routing field [" + path + "] of index [" + index + "] must not have a normalizer");
         }
     }
 }

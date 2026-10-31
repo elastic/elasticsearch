@@ -98,6 +98,10 @@ public abstract sealed class IndexRouting {
         if (metadata.isRoutingPartitionedIndex()) {
             return new Partitioned(metadata, routingFunction, reshardingMetadata);
         }
+        String routingField = IndexSettings.ROUTING_FIELD.get(metadata.getSettings());
+        if (routingField.isEmpty() == false) {
+            return new FieldRouted(metadata, routingFunction, reshardingMetadata, routingField);
+        }
         return new Unpartitioned(metadata, routingFunction, reshardingMetadata);
     }
 
@@ -391,6 +395,59 @@ public abstract sealed class IndexRouting {
     private static final class Unpartitioned extends IdAndRoutingOnly {
         Unpartitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
             super(metadata, routingFunction, reshardingMetadata);
+        }
+
+        @Override
+        protected int shardId(String id, @Nullable String routing) {
+            return routingFunction.shardNum(effectiveRoutingToHash(routing == null ? id : routing));
+        }
+
+        @Override
+        public void collectSearchShards(String routing, IntConsumer consumer) {
+            consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(effectiveRoutingToHash(routing))));
+        }
+    }
+
+    /**
+     * Strategy for indices with {@link IndexSettings#ROUTING_FIELD}: routes like {@link Unpartitioned}, with {@code _routing}
+     * taken from the routing field of the document. A request without routing gets the field's value; a request with a
+     * different routing is rejected. The data node checks again when parsing, which also covers updates.
+     */
+    private static final class FieldRouted extends IdAndRoutingOnly {
+        private final String path;
+        /**
+         * {@code null} while the field is not mapped: there is no type to read values with, so writes fail.
+         */
+        @Nullable
+        private final RoutingField routingField;
+
+        FieldRouted(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata, String path) {
+            super(metadata, routingFunction, reshardingMetadata);
+            this.path = path;
+            RoutingField.Type type = RoutingField.typeFromMapping(metadata.mapping(), path);
+            this.routingField = type == null ? null : new RoutingField(path, type);
+        }
+
+        @Override
+        public void preProcess(IndexRequest indexRequest) {
+            super.preProcess(indexRequest);
+            if (routingField == null) {
+                throw new IllegalArgumentException(
+                    "routing field ["
+                        + path
+                        + "] of index ["
+                        + indexName
+                        + "] must be mapped as one of "
+                        + RoutingField.SUPPORTED_FIELD_TYPES.stream().sorted().toList()
+                );
+            }
+            String value = routingField.extract(indexRequest.getContentType(), indexRequest.source());
+            String routing = indexRequest.routing();
+            if (routing == null) {
+                indexRequest.routing(value);
+            } else if (routing.equals(value) == false) {
+                throw new IllegalArgumentException(routingField.mismatch(routing, value));
+            }
         }
 
         @Override

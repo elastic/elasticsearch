@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -80,6 +81,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
                     case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
                     case MarkJoin markJoin -> pruneUnusedMarkJoin(markJoin, used, recheck);
+                    case Join join when join.isCandicateColocatedJoin() -> pruneColumnsInJoinRight(join, used);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
@@ -207,6 +209,28 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         return p;
+    }
+
+    /**
+     * The right index of a {@code JOIN} command is a standard index, but it is looked up per left row rather than scanned, so
+     * {@code InsertFieldExtraction} never trims it and every field it outputs is loaded for every match. Keep only the fields
+     * used above the join, the join keys, and whatever the right side itself references.
+     */
+    private static LogicalPlan pruneColumnsInJoinRight(Join join, AttributeSet.Builder used) {
+        AttributeSet.Builder needed = AttributeSet.builder().addAll(used).addAll(join.config().rightFields());
+        LogicalPlan plan = join.right();
+        while (plan instanceof UnaryPlan unary) {
+            needed.addAll(unary.references());
+            plan = unary.child();
+        }
+        if (plan instanceof EsRelation relation) {
+            List<Attribute> kept = relation.output().stream().filter(needed::contains).toList();
+            if (kept.isEmpty() == false && kept.size() < relation.output().size()) {
+                EsRelation pruned = relation.withAttributes(kept);
+                return join.replaceChildren(join.left(), join.right().transformUp(EsRelation.class, r -> r == relation ? pruned : r));
+            }
+        }
+        return join;
     }
 
     /**

@@ -13,6 +13,8 @@ JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
 DEV_JOIN_FULL :   'full' {this.isDevVersion()}?          -> pushMode(JOIN_MODE);
 DEV_JOIN_LEFT :   'left' {this.isDevVersion()}?          -> pushMode(JOIN_MODE);
 DEV_JOIN_RIGHT :  'right' {this.isDevVersion()}?         -> pushMode(JOIN_MODE);
+// Bare `JOIN <index> ON <field>`: co-located inner join between two regular indices.
+DEV_JOIN :        'join' {this.isDevVersion()}?          -> pushMode(JOIN_MODE);
 
 mode JOIN_MODE;
 JOIN_PIPE : PIPE -> type(PIPE), popMode;

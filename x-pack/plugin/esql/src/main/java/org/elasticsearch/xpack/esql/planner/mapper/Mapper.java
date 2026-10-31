@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.ColocatedJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -261,6 +262,10 @@ public class Mapper {
                 return new ProjectExec(innerJoin.source(), join, innerJoin.output());
             }
             return MapperUtils.unsupported(bp);
+        }
+        if (bp instanceof ColocatedJoin) {
+            // Executes on the data nodes as a whole: each node joins its local shard pairs.
+            return new FragmentExec(bp);
         }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();

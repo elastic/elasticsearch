@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
@@ -97,6 +98,11 @@ public class FieldNameUtils {
         Set<Aggregate> inlinestatsAggs = new HashSet<>();
         for (LogicalPlan i : inlinestats) {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
+        }
+
+        if (parsed.anyMatch(p -> p instanceof Join join && join.isCandicateColocatedJoin())) {
+            // POC: the JOIN command loads every column of both indices; column pruning through the join is a follow-up.
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }
 
         if (false == mainQueryRequiresFieldCollection(parsed, inlinestatsAggs)) {

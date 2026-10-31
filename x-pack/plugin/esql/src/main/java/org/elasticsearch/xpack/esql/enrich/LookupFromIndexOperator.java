@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +20,8 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.lookup.RightChunkedInnerJoin;
+import org.elasticsearch.compute.operator.lookup.RightChunkedJoin;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -62,13 +66,64 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         boolean useStreamingOperator,
         int exchangeBufferSize,
         boolean profile,
-        @Nullable Configuration configuration
+        @Nullable Configuration configuration,
+        /**
+         * Co-located join only: which shard of {@link #lookupIndex} holds the matches of each input row. Each batch is
+         * looked up against exactly those shards, on this node when they have a copy here. {@code null} for a regular lookup
+         * join, which targets the single shard of a lookup index wherever it is.
+         */
+        @Nullable PartnerShards partnerShards,
+        /**
+         * Emit only the left rows with a match ({@code INNER} join) instead of padding the unmatched ones with nulls.
+         */
+        boolean innerJoin
     ) implements OperatorFactory {
 
         public Factory {
             if (useStreamingOperator && configuration == null) {
                 throw new IllegalArgumentException("configuration is required for streaming lookup operator");
             }
+            if (useStreamingOperator && innerJoin && partnerShards == null) {
+                throw new IllegalArgumentException("the streaming lookup operator does not support inner joins");
+            }
+        }
+
+        public Factory(
+            List<MatchConfig> matchFields,
+            String sessionId,
+            CancellableTask parentTask,
+            int maxOutstandingRequests,
+            Function<DriverContext, LookupFromIndexService> lookupService,
+            String lookupIndexPattern,
+            String lookupIndex,
+            List<NamedExpression> loadFields,
+            Source source,
+            PhysicalPlan rightPreJoinPlan,
+            Expression joinOnConditions,
+            boolean useStreamingOperator,
+            int exchangeBufferSize,
+            boolean profile,
+            @Nullable Configuration configuration
+        ) {
+            this(
+                matchFields,
+                sessionId,
+                parentTask,
+                maxOutstandingRequests,
+                lookupService,
+                lookupIndexPattern,
+                lookupIndex,
+                loadFields,
+                source,
+                rightPreJoinPlan,
+                joinOnConditions,
+                useStreamingOperator,
+                exchangeBufferSize,
+                profile,
+                configuration,
+                null,
+                false
+            );
         }
 
         private String operatorName() {
@@ -89,12 +144,49 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             }
             stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
             stringBuilder.append(" join_on_expression=").append(joinOnConditions == null ? "null" : joinOnConditions.toString());
+            if (partnerShards != null) {
+                stringBuilder.append(" colocated=true");
+            }
+            if (innerJoin) {
+                stringBuilder.append(" join=inner");
+            }
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
+            if (useStreamingOperator && partnerShards != null) {
+                LookupFromIndexService service = lookupService.apply(driverContext);
+                return new ColocatedStreamingLookupOperator(
+                    partnerShards,
+                    maxOutstandingRequests,
+                    shard -> new StreamingLookupFromIndexOperator(
+                        driverContext,
+                        matchFields,
+                        sessionId,
+                        parentTask,
+                        maxOutstandingRequests,
+                        service,
+                        lookupIndexPattern,
+                        lookupIndex,
+                        loadFields,
+                        source,
+                        rightPreJoinPlan,
+                        joinOnConditions,
+                        exchangeBufferSize,
+                        profile,
+                        configuration,
+                        shard,
+                        innerJoin,
+                        // one lookup session per right shard and driver: the shards already spread the batches
+                        1
+                    ),
+                    lookupIndex,
+                    loadFields,
+                    innerJoin
+                );
+            }
             if (useStreamingOperator) {
                 return new StreamingLookupFromIndexOperator(
                     driverContext,
@@ -126,7 +218,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     loadFields,
                     source,
                     rightPreJoinPlan,
-                    joinOnConditions
+                    joinOnConditions,
+                    partnerShards,
+                    innerJoin
                 );
             }
         }
@@ -143,6 +237,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final List<MatchConfig> matchFields;
     private final PhysicalPlan rightPreJoinPlan;
     private final Expression joinOnConditions;
+    @Nullable
+    private final PartnerShards partnerShards;
+    private final boolean innerJoin;
     // MatchFieldsMapping is the same for all batches (based on operator configuration, not input pages)
     private final MatchFieldsMapping matchFieldsMapping;
     /**
@@ -173,7 +270,43 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         PhysicalPlan rightPreJoinPlan,
         Expression joinOnConditions
     ) {
+        this(
+            matchFields,
+            sessionId,
+            driverContext,
+            parentTask,
+            maxOutstandingRequests,
+            lookupService,
+            lookupIndexPattern,
+            lookupIndex,
+            loadFields,
+            source,
+            rightPreJoinPlan,
+            joinOnConditions,
+            null,
+            false
+        );
+    }
+
+    public LookupFromIndexOperator(
+        List<MatchConfig> matchFields,
+        String sessionId,
+        DriverContext driverContext,
+        CancellableTask parentTask,
+        int maxOutstandingRequests,
+        LookupFromIndexService lookupService,
+        String lookupIndexPattern,
+        String lookupIndex,
+        List<NamedExpression> loadFields,
+        Source source,
+        PhysicalPlan rightPreJoinPlan,
+        Expression joinOnConditions,
+        @Nullable PartnerShards partnerShards,
+        boolean innerJoin
+    ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
+        this.partnerShards = partnerShards;
+        this.innerJoin = innerJoin;
         this.matchFields = matchFields;
         this.sessionId = sessionId;
         this.parentTask = parentTask;
@@ -210,9 +343,77 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        Block[] inputBlockArray = matchFieldsMapping.applyTo(inputPage);
         totalRows += inputPage.getBlock(0).getTotalValueCount();
+        if (partnerShards == null) {
+            lookup(inputPage, -1, listener);
+            return;
+        }
+        List<PartnerShards.Group> groups = partnerShards.split(inputPage);
+        if (groups.isEmpty()) {
+            // No row can match (every key is null): nothing to look up.
+            listener.onResponse(new OngoingJoin(newJoin(inputPage), Collections.emptyIterator()));
+        } else if (groups.size() == 1 && groups.get(0).positions() == null) {
+            lookup(inputPage, groups.get(0).shard(), listener);
+        } else {
+            lookupGroups(inputPage, groups, listener);
+        }
+    }
 
+    private RightChunkedJoin newJoin(Page inputPage) {
+        return innerJoin ? new RightChunkedInnerJoin(inputPage, loadFields.size()) : new RightChunkedLeftJoin(inputPage, loadFields.size());
+    }
+
+    /**
+     * Looks up the rows of a page that go to different right shards: one lookup per shard, run in parallel, then joined
+     * one after the other. The inner join promises no order across the groups.
+     */
+    private void lookupGroups(Page inputPage, List<PartnerShards.Group> groups, ActionListener<OngoingJoin> listener) {
+        OngoingJoin[] joins = new OngoingJoin[groups.size()];
+        Page[] subPages = new Page[groups.size()];
+        try {
+            for (int i = 0; i < groups.size(); i++) {
+                subPages[i] = inputPage.filter(false, groups.get(i).positions());
+            }
+        } catch (Exception e) {
+            for (Page subPage : subPages) {
+                if (subPage != null) {
+                    subPage.releaseBlocks();
+                }
+            }
+            listener.onFailure(e);
+            return;
+        }
+        ActionListener<Void> allDone = ActionListener.wrap(ignored -> {
+            // The groups own their rows now; the page they came from is released here, like a page whose join completed.
+            releasePageOnAnyThread(inputPage);
+            OngoingJoin chain = null;
+            for (int i = joins.length - 1; i >= 0; i--) {
+                chain = joins[i].followedBy(chain);
+            }
+            listener.onResponse(chain);
+        }, e -> {
+            for (int i = 0; i < joins.length; i++) {
+                if (joins[i] != null) {
+                    joins[i].releaseOnAnyThread();
+                } else {
+                    releasePageOnAnyThread(subPages[i]);
+                }
+            }
+            listener.onFailure(e);
+        });
+        try (RefCountingListener refs = new RefCountingListener(allDone)) {
+            for (int i = 0; i < groups.size(); i++) {
+                int index = i;
+                lookup(subPages[i], groups.get(i).shard(), refs.acquire(join -> joins[index] = join));
+            }
+        }
+    }
+
+    /**
+     * Looks up the rows of a page, against {@code shard} of the lookup index or, when it is {@code -1}, its only shard.
+     */
+    private void lookup(Page inputPage, int shard, ActionListener<OngoingJoin> listener) {
+        Block[] inputBlockArray = matchFieldsMapping.applyTo(inputPage);
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
@@ -228,15 +429,20 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             false, // profile - non-streaming lookup doesn't support plan output
             null // configuration - non-streaming lookup doesn't use planning pipeline
         );
-        lookupService.lookupAsync(request, parentTask, listener.map(response -> {
+        ActionListener<AbstractLookupService.LookupResponse> joinListener = listener.map(response -> {
             totalBytesRead.addAndGet(response.bytesRead());
             // Replay warnings accumulated by the (possibly remote) lookup driver.
             for (String warning : response.warnings()) {
                 driverContext().addWarning(warning);
             }
             List<Page> pages = response.takePages();
-            return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
-        }));
+            return new OngoingJoin(newJoin(inputPage), pages.iterator());
+        });
+        if (shard >= 0) {
+            lookupService.lookupAsyncOnShard(request, shard, parentTask, joinListener);
+        } else {
+            lookupService.lookupAsync(request, parentTask, joinListener);
+        }
     }
 
     /**
@@ -279,10 +485,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 right.releaseBlocks();
             }
         }
-        // Current join is all done. Emit any trailing unmatched rows.
+        // Current join is all done. Emit any trailing unmatched rows, then move on to the next join of the chain, if any.
         Optional<Page> remaining = ongoing.join.noMoreRightHandPages();
-        ongoing.close();
-        ongoing = null;
+        OngoingJoin next = ongoing.next;
+        ongoing.closeThis();
+        ongoing = next;
         if (remaining.isEmpty()) {
             return null;
         }
@@ -315,6 +522,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
         stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
         stringBuilder.append(" join_on_expression=").append(joinOnConditions == null ? "null" : joinOnConditions.toString());
+        if (partnerShards != null) {
+            stringBuilder.append(" colocated=true");
+        }
+        if (innerJoin) {
+            stringBuilder.append(" join=inner");
+        }
         stringBuilder.append("]");
         return stringBuilder.toString();
     }
@@ -487,16 +700,37 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         }
     }
 
-    record OngoingJoin(RightChunkedLeftJoin join, Iterator<Page> itr) implements Releasable {
+    /**
+     * A join of one batch of left rows with the right pages fetched for them. The co-located join can split a page into
+     * batches for different right shards; their joins are chained through {@link #next}, which is {@code null} otherwise.
+     */
+    record OngoingJoin(RightChunkedJoin join, Iterator<Page> itr, @Nullable OngoingJoin next) implements Releasable {
+        OngoingJoin(RightChunkedJoin join, Iterator<Page> itr) {
+            this(join, itr, null);
+        }
+
+        OngoingJoin followedBy(@Nullable OngoingJoin next) {
+            assert this.next == null;
+            return new OngoingJoin(join, itr, next);
+        }
+
         @Override
         public void close() {
+            Releasables.close(this::closeThis, next);
+        }
+
+        /**
+         * Releases this join but not the ones after it.
+         */
+        void closeThis() {
             Releasables.close(join, Releasables.wrap(() -> Iterators.map(itr, page -> page::releaseBlocks)));
         }
 
         public void releaseOnAnyThread() {
             Releasables.close(
                 join::releaseOnAnyThread,
-                Releasables.wrap(() -> Iterators.map(itr, page -> () -> releasePageOnAnyThread(page)))
+                Releasables.wrap(() -> Iterators.map(itr, page -> () -> releasePageOnAnyThread(page))),
+                next == null ? null : next::releaseOnAnyThread
             );
         }
     }

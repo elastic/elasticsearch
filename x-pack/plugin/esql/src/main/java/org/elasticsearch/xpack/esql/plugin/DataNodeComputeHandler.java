@@ -186,6 +186,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+        String colocatedPartnerIndex = PlannerUtils.colocatedJoinPartnerIndex(dataNodePlan);
 
         new DataNodeRequestSender(
             clusterService,
@@ -201,6 +202,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
             configuration.pragmas().unavailableShardResolutionAttempts()
         ) {
+            @Override
+            protected String colocatedPartnerIndex() {
+                return colocatedPartnerIndex;
+            }
+
             @Override
             protected void sendRequest(
                 DiscoveryNode node,

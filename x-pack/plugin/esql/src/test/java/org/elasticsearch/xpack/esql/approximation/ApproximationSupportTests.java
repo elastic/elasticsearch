@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.ColocatedJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -223,6 +224,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ResolvingProject.class,
         SemiJoin.class,
         SparklineGenerateEmptyBuckets.class,
+        ColocatedJoin.class,
 
         // internals
         PackDims.class,

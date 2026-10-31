@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.planner.premapper;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
@@ -34,10 +36,28 @@ public class PreMapper {
      * the broader rationale.
      */
     public void preMapper(Versioned<LogicalPlan> plan, ActionListener<LogicalPlan> listener) {
-        queryRewrite(plan.inner(), listener.delegateFailureAndWrap((l, p) -> {
+        LogicalPlan withJoinStrategies;
+        try {
+            withJoinStrategies = selectJoinStrategies(plan.inner());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        queryRewrite(withJoinStrategies, listener.delegateFailureAndWrap((l, p) -> {
             p.setOptimized();
             l.onResponse(p);
         }));
+    }
+
+    /**
+     * Picks how each {@code JOIN} command executes. Needs the cluster state, so it cannot be part of the logical optimizer.
+     */
+    private LogicalPlan selectJoinStrategies(LogicalPlan plan) {
+        if (plan.anyMatch(p -> p instanceof Join join && join.isCandicateColocatedJoin()) == false) {
+            return plan;
+        }
+        ProjectState project = services.projectResolver().getProjectState(services.clusterService().state());
+        return SelectJoinStrategy.apply(plan, project);
     }
 
     private void queryRewrite(LogicalPlan plan, ActionListener<LogicalPlan> listener) {

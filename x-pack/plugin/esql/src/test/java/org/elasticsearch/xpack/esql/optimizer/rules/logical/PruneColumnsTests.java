@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -56,6 +58,8 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -72,6 +76,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldNames;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -3450,5 +3455,63 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         Highlight highlight = soleHighlight(plan);
         assertThat(fieldNames(highlight.fields()), equalTo(List.of("last_name")));
         assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_last_name")));
+    }
+
+    /**
+     * The right index of a {@code JOIN} command is a standard index that is looked up, not scanned, so nothing else trims it:
+     * only the right fields used above the join, plus the key, are kept.
+     */
+    public void testJoinCommandKeepsOnlyUsedRightFields() {
+        FieldAttribute key = getFieldAttribute("session_id");
+        FieldAttribute seq = getFieldAttribute("seq");
+        FieldAttribute rightKey = getFieldAttribute("session_id");
+        FieldAttribute country = getFieldAttribute("country");
+        FieldAttribute plan = getFieldAttribute("plan");
+        Join join = joinCommand(relation("events", key, seq), relation("sessions", rightKey, country, plan), key, rightKey);
+        LogicalPlan pruned = new PruneColumns().apply(new Project(EMPTY, join, List.of(seq, country)));
+        Join prunedJoin = as(as(pruned, Project.class).child(), Join.class);
+        assertThat(as(prunedJoin.right(), EsRelation.class).output(), equalTo(List.of(rightKey, country)));
+        assertThat(prunedJoin.rightOutputFields(), equalTo(List.of(country)));
+        // the left side is trimmed later, by field extraction
+        assertThat(as(prunedJoin.left(), EsRelation.class).output(), equalTo(List.of(key, seq)));
+    }
+
+    /**
+     * {@code STATS COUNT(*)} after a {@code JOIN} uses no right field: the right index keeps only the key.
+     */
+    public void testJoinCommandWithNoUsedRightField() {
+        FieldAttribute key = getFieldAttribute("session_id");
+        FieldAttribute rightKey = getFieldAttribute("session_id");
+        FieldAttribute country = getFieldAttribute("country");
+        Join join = joinCommand(relation("events", key), relation("sessions", rightKey, country), key, rightKey);
+        Alias count = new Alias(EMPTY, "n", new Count(EMPTY, Literal.keyword(EMPTY, "*")));
+        LogicalPlan pruned = new PruneColumns().apply(new Aggregate(EMPTY, join, List.of(), List.of(count)));
+        Join prunedJoin = as(as(pruned, Aggregate.class).child(), Join.class);
+        assertThat(as(prunedJoin.right(), EsRelation.class).output(), equalTo(List.of(rightKey)));
+        assertThat(prunedJoin.rightOutputFields(), empty());
+    }
+
+    private static Join joinCommand(LogicalPlan left, LogicalPlan right, FieldAttribute leftKey, FieldAttribute rightKey) {
+        Join join = new Join(
+            EMPTY,
+            left,
+            right,
+            new JoinConfig(JoinTypes.INNER, List.of(leftKey), List.of(rightKey), null),
+            ExecuteLocation.ANY
+        );
+        assertTrue(join.isCandicateColocatedJoin());
+        return join;
+    }
+
+    private static EsRelation relation(String index, FieldAttribute... fields) {
+        return new EsRelation(
+            EMPTY,
+            index,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(index)),
+            Map.of(),
+            List.of(fields)
+        );
     }
 }

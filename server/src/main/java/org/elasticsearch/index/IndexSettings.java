@@ -780,6 +780,57 @@ public final class IndexSettings {
     );
 
     /**
+     * Names a document field whose value is the document's {@code _routing}: the coordinating node fills {@code _routing}
+     * from it and rejects a different one, and the data node rejects any document where the two disagree, so a value always
+     * lives on the shard it hashes to. See {@link org.elasticsearch.cluster.routing.RoutingField}. Only for standard indices
+     * that route by {@code _routing} alone.
+     */
+    public static final Setting<String> ROUTING_FIELD = Setting.simpleString("index.routing_field", new Setting.Validator<>() {
+        @Override
+        public void validate(String field) {}
+
+        @Override
+        public void validate(String field, Map<Setting<?>, Object> settings) {
+            if (field.isEmpty()) {
+                return;
+            }
+            IndexMode mode = (IndexMode) settings.get(MODE);
+            if (mode != IndexMode.STANDARD) {
+                throw incompatible(MODE.getKey() + "=" + mode.getName());
+            }
+            if (((List<?>) settings.get(IndexMetadata.INDEX_ROUTING_PATH)).isEmpty() == false) {
+                throw incompatible(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+            }
+            if ((Integer) settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != 1) {
+                throw incompatible(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey());
+            }
+            if ((Boolean) settings.get(SLICE_ENABLED)) {
+                throw incompatible(SLICE_ENABLED.getKey());
+            }
+            if ((Boolean) settings.get(BATCH_INDEXING)) {
+                // the columnar batch path neither routes nor parses documents one by one, so it would skip both checks
+                throw incompatible(BATCH_INDEXING.getKey());
+            }
+        }
+
+        private static IllegalArgumentException incompatible(String other) {
+            return new IllegalArgumentException("[index.routing_field] cannot be used with [" + other + "]");
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            List<Setting<?>> dependencies = List.of(
+                MODE,
+                IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+                SLICE_ENABLED,
+                BATCH_INDEXING
+            );
+            return dependencies.iterator();
+        }
+    }, Property.IndexScope, Property.Final);
+
+    /**
      * Enables slice semantics for the index. When enabled, APIs accept {@code slice} and treat it as routing.
      */
     public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {

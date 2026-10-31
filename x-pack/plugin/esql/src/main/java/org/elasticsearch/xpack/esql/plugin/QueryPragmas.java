@@ -78,6 +78,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
+    public static final Setting<Boolean> COLOCATED_JOIN_STREAMING = Setting.boolSetting("colocated_join_streaming", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -279,7 +281,8 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        SINGLE_NODE_OPTIMIZATIONS
+        SINGLE_NODE_OPTIMIZATIONS,
+        COLOCATED_JOIN_STREAMING
 
     ).map(Setting::getKey).toList();
 
@@ -389,6 +392,15 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean singleNodeOptimizations() {
         return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
+     * Whether the {@code JOIN} command (co-located join) streams its lookups, keeping one lookup session per right shard open for
+     * the whole query, instead of sending one lookup request per page. Falls back to per-page lookups when streaming is not
+     * supported. Does not affect {@code LOOKUP JOIN}, which follows the {@code esql.query.lookup_join_streaming} cluster setting.
+     */
+    public boolean colocatedJoinStreaming() {
+        return COLOCATED_JOIN_STREAMING.get(settings);
     }
 
     /**

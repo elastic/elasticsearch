@@ -25,6 +25,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.cluster.routing.RoutingField;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -49,7 +50,9 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -427,6 +430,36 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         String routing = context.routing();
         if (routing != null) {
             addRoutingField(context, context.doc(), routing);
+        }
+    }
+
+    /**
+     * With {@link IndexSettings#ROUTING_FIELD}, checks that {@code _routing} is the value of the routing field. The coordinating
+     * node already fills and checks it for index requests; this is the guarantee, because some writes never pass through the
+     * coordinator's routing: updates rebuild the document on the primary with the stored routing, and a write may come from a
+     * node that does not know the setting.
+     */
+    @Override
+    public void postParse(DocumentParserContext context) throws IOException {
+        String path = IndexSettings.ROUTING_FIELD.get(context.indexSettings().getSettings());
+        if (path.isEmpty()) {
+            return;
+        }
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(path);
+        RoutingField.Type type = fieldType == null ? null : RoutingField.Type.forFieldType(fieldType.typeName());
+        if (type == null) {
+            throw new IllegalArgumentException(
+                "routing field [" + path + "] must be mapped as one of " + RoutingField.SUPPORTED_FIELD_TYPES.stream().sorted().toList()
+            );
+        }
+        RoutingField routingField = new RoutingField(path, type);
+        String value;
+        try (XContentParser parser = context.sourceToParse().source().parser(routingField.parserConfig())) {
+            value = routingField.extract(parser);
+        }
+        String routing = context.sourceToParse().routing();
+        if (value.equals(routing) == false) {
+            throw new IllegalArgumentException(routingField.mismatch(routing, value));
         }
     }
 

@@ -10,6 +10,10 @@ joinCommand
     : type=(JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT) JOIN joinTarget joinCondition
     ;
 
+innerJoinCommand
+    : DEV_JOIN joinTarget joinCondition
+    ;
+
 joinTarget
     // Cannot use UNQUOTED_IDENTIFIER for the qualifier because the lexer will confuse it with an UNQUOTED_SOURCE; would
     // require pushing a mode to the lexer to disambiguate.

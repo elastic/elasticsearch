@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -35,7 +33,7 @@ public final class HashJoinColumnLoadOperator extends AbstractPageMappingToItera
         @Override
         public HashJoinColumnLoadOperator get(DriverContext driverContext) {
             bridge.incRef();
-            return new HashJoinColumnLoadOperator(bridge, payloadIndex, positionsChannel, driverContext.blockFactory());
+            return new HashJoinColumnLoadOperator(bridge, payloadIndex, positionsChannel);
         }
 
         @Override
@@ -49,30 +47,23 @@ public final class HashJoinColumnLoadOperator extends AbstractPageMappingToItera
     private final HashJoinBridge bridge;
     private final int payloadIndex;
     private final int positionsChannel;
-    private final BlockFactory blockFactory;
     private final Releasable releaseBridge;
 
-    private Block copy;
-
-    private HashJoinColumnLoadOperator(HashJoinBridge bridge, int payloadIndex, int positionsChannel, BlockFactory blockFactory) {
+    private HashJoinColumnLoadOperator(HashJoinBridge bridge, int payloadIndex, int positionsChannel) {
         this.bridge = bridge;
         this.payloadIndex = payloadIndex;
         this.positionsChannel = positionsChannel;
-        this.blockFactory = blockFactory;
         this.releaseBridge = Releasables.releaseOnce(bridge::decRef);
     }
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
-        if (copy == null) {
-            copy = bridge.payload(payloadIndex).deepCopy(blockFactory);
-        }
-        return appendBlocks(page, copy.lookup(page.getBlock(positionsChannel), TARGET_BLOCK_SIZE));
+        return appendBlocks(page, bridge.payload(payloadIndex).lookup(page.getBlock(positionsChannel), TARGET_BLOCK_SIZE));
     }
 
     @Override
     public void close() {
-        Releasables.close(copy, super::close, releaseBridge);
+        Releasables.close(super::close, releaseBridge);
     }
 
     @Override

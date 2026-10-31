@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
@@ -36,6 +37,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -553,6 +555,93 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
         assertEquals(laneCounts.getFirst(), laneCounts.getLast());
     }
 
+    public void testBroadcastBuildIsSharedAcrossWorkerLanes() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setupJoinIndices();
+        String query = """
+            FROM events
+            | STATS c = COUNT(*) BY user_id
+            | LEFT OUTER JOIN (FROM salaries | RENAME amount AS amount1) ON user_id
+            | LEFT OUTER JOIN (FROM salaries | RENAME amount AS amount2) ON user_id
+            | STATS total = SUM(amount1 + amount2), count = SUM(c)
+            """;
+        int workers = clusterService().state().nodes().getDataNodes().size();
+        int partitions = randomIntBetween(3, 5);
+        QueryResult baseline = runWithWarnings(query, Settings.EMPTY);
+        QueryResult shuffled = runWithWarnings(query, shuffleJoinPragmas(partitions, true, "broadcast"));
+        assertEquals(baseline.columns(), shuffled.columns());
+        assertEquals(baseline.rows(), shuffled.rows());
+        assertEquals(baseline.warnings(), shuffled.warnings());
+        var builds = shuffled.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.operators().stream().anyMatch(operator -> operator.operator().startsWith("HashJoinBuild[")))
+            .toList();
+        assertEquals(workers * 2, builds.size());
+        assertEquals(
+            (long) SALARY_DOC_COUNT * workers * 2,
+            builds.stream()
+                .flatMap(driver -> driver.operators().stream())
+                .filter(operator -> operator.status() instanceof ExchangeSourceOperator.Status)
+                .mapToLong(operator -> ((ExchangeSourceOperator.Status) operator.status()).rowsEmitted())
+                .sum()
+        );
+        var probes = shuffled.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.operators().stream().anyMatch(operator -> operator.operator().startsWith("HashJoinProbe[")))
+            .toList();
+        assertEquals(workers * partitions, probes.size());
+        assertEquals(workers, builds.stream().map(driver -> driver.nodeName()).distinct().count());
+    }
+
+    public void testSharedBroadcastBuildFitsRequestBreaker() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("wide_build")
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping("user_id", "type=long", "payload", "type=keyword")
+        );
+        String suffix = randomAlphaOfLength(2040);
+        for (int start = 0; start < 8000; start += BULK_SIZE) {
+            BulkRequestBuilder bulk = client().prepareBulk("wide_build");
+            for (int doc = start; doc < start + BULK_SIZE; doc++) {
+                bulk.add(
+                    client().prepareIndex().setSource(Map.of("user_id", doc, "payload", String.format(Locale.ROOT, "%08d", doc) + suffix))
+                );
+            }
+            bulk.get();
+        }
+        client().admin().indices().prepareRefresh("wide_build").get();
+        List<List<Object>> expected = runSorted("""
+            FROM events
+            | STATS c = COUNT(*) BY user_id
+            | WHERE user_id IS NOT NULL
+            | STATS total = SUM(LENGTH(TO_STRING(c)) + 2048)
+            """, Settings.EMPTY);
+        Settings pragmas = Settings.builder()
+            .put(shuffleJoinPragmas(8, true, "broadcast"))
+            .put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), 1)
+            .put(QueryPragmas.PAGE_SIZE.getKey(), 128)
+            .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+            .build();
+        setRequestCircuitBreakerLimit(ByteSizeValue.ofMb(64));
+        try {
+            assertEquals(expected, runSorted("""
+                FROM events
+                | STATS c = COUNT(*) BY user_id
+                | LEFT OUTER JOIN (FROM wide_build | KEEP user_id, payload) ON user_id
+                | STATS total = SUM(LENGTH(CONCAT(TO_STRING(c), payload)))
+                """, pragmas));
+        } finally {
+            setRequestCircuitBreakerLimit(null);
+        }
+    }
+
     public void testShuffleBufferBudgetRejectsMinimumTopology() {
         Settings pragmas = Settings.builder()
             .put(shufflePragmas(4))
@@ -573,14 +662,14 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
             FailingPauseFieldPlugin.resetPlugin();
             String query = """
                 FROM events
-                | KEEP user_id
+                | STATS c = COUNT(*) BY user_id
                 | LEFT OUTER JOIN (
                     FROM events | KEEP user_id, fail_me | RENAME fail_me AS build_value
                 ) ON user_id
                 | STATS total = SUM(build_value)
                 """;
             Settings pragmas = Settings.builder()
-                .put(shuffleJoinPragmas(2, false, strategy))
+                .put(shuffleJoinPragmas(2, true, strategy))
                 .put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), 1)
                 .build();
             ActionFuture<EsqlQueryResponse> future = client().execute(

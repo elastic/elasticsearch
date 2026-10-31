@@ -1874,63 +1874,14 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planDistributedHashJoin(DistributedHashJoinExec join, LocalExecutionPlannerContext context) {
-        HashJoinBridge bridge = new HashJoinBridge();
-        LocalExecutionPlannerContext buildContext = new LocalExecutionPlannerContext(
-            context.description(),
-            context.driverFactories(),
-            new Holder<>(DriverParallelism.SINGLE),
-            context.queryPragmas(),
-            context.bigArrays(),
-            context.blockFactory(),
-            context.foldCtx(),
-            context.plannerSettings(),
-            context.timeSeries(),
-            context.settings(),
-            context.shardContexts(),
-            context.analysisRegistry(),
-            context.lastVisitedTopN(),
-            context.luceneMinCompetitivePilot(),
-            context.singleNodeOptimizations()
-        );
-        PhysicalOperation build = plan(join.right(), buildContext);
-        List<Attribute> buildOutput = join.right().output();
-        int[] rightKeyChannels = new int[join.rightFields().size()];
-        ElementType[] keyTypes = new ElementType[join.rightFields().size()];
-        for (int i = 0; i < join.rightFields().size(); i++) {
-            Attribute field = join.rightFields().get(i);
-            rightKeyChannels[i] = buildChannel(build.layout, buildOutput, field);
-            keyTypes[i] = PlannerUtils.toElementType(field.dataType());
-        }
-
+        ExchangeWiring.SharedHashJoin shared = join.mode() == DistributedHashJoinExec.Mode.BROADCAST
+            && join.right() instanceof StageSourceExec source
+            && exchangeWiring != null ? exchangeWiring.sharedHashJoins().get(source.edgeKey()) : null;
+        HashJoinBridge bridge = shared == null ? new HashJoinBridge() : shared.bridge();
         List<Attribute> payloadFields = join.addedFields().stream().filter(field -> Mapper.isJoinMarker(field) == false).toList();
-        int[] payloadChannels = new int[payloadFields.size()];
-        ElementType[] payloadTypes = new ElementType[payloadFields.size()];
-        for (int i = 0; i < payloadFields.size(); i++) {
-            Attribute field = payloadFields.get(i);
-            payloadChannels[i] = buildChannel(build.layout, buildOutput, field);
-            payloadTypes[i] = PlannerUtils.toElementType(field.dataType());
+        if (shared == null || shared.claimBuild()) {
+            planHashJoinBuild(join, context, bridge, payloadFields, shared != null);
         }
-
-        build = build.withSink(
-            new HashJoinBuildOperator.Factory(bridge, rightKeyChannels, keyTypes, payloadChannels, payloadTypes, join.source()),
-            build.layout
-        );
-        context.addDriverFactory(
-            new DriverFactory(
-                new DriverSupplier(
-                    context.description(),
-                    ClusterName.CLUSTER_NAME_SETTING.get(context.settings()).value(),
-                    Node.NODE_NAME_SETTING.get(context.settings()),
-                    context.bigArrays(),
-                    context.blockFactory(),
-                    context.shardContexts(),
-                    build,
-                    context.queryPragmas().statusInterval(),
-                    context.settings()
-                ),
-                DriverParallelism.SINGLE
-            )
-        );
 
         PhysicalOperation probe = plan(join.left(), context);
         int positionsChannel = probe.layout.numberOfChannels();
@@ -1970,6 +1921,79 @@ public class LocalExecutionPlanner {
         IntStream.range(0, positionsChannel).forEach(projection::add);
         IntStream.range(positionsChannel + 1, positionsChannel + 1 + payloadFields.size()).forEach(projection::add);
         return probe.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    private void planHashJoinBuild(
+        DistributedHashJoinExec join,
+        LocalExecutionPlannerContext context,
+        HashJoinBridge bridge,
+        List<Attribute> payloadFields,
+        boolean retainBridge
+    ) {
+        LocalExecutionPlannerContext buildContext = new LocalExecutionPlannerContext(
+            context.description(),
+            context.driverFactories(),
+            new Holder<>(DriverParallelism.SINGLE),
+            context.queryPragmas(),
+            context.bigArrays(),
+            context.blockFactory(),
+            context.foldCtx(),
+            context.plannerSettings(),
+            context.timeSeries(),
+            context.settings(),
+            context.shardContexts(),
+            context.analysisRegistry(),
+            context.lastVisitedTopN(),
+            context.luceneMinCompetitivePilot(),
+            context.singleNodeOptimizations()
+        );
+        PhysicalOperation build = plan(join.right(), buildContext);
+        List<Attribute> buildOutput = join.right().output();
+        int[] rightKeyChannels = new int[join.rightFields().size()];
+        ElementType[] keyTypes = new ElementType[join.rightFields().size()];
+        for (int i = 0; i < join.rightFields().size(); i++) {
+            Attribute field = join.rightFields().get(i);
+            rightKeyChannels[i] = buildChannel(build.layout, buildOutput, field);
+            keyTypes[i] = PlannerUtils.toElementType(field.dataType());
+        }
+
+        int[] payloadChannels = new int[payloadFields.size()];
+        ElementType[] payloadTypes = new ElementType[payloadFields.size()];
+        for (int i = 0; i < payloadFields.size(); i++) {
+            Attribute field = payloadFields.get(i);
+            payloadChannels[i] = buildChannel(build.layout, buildOutput, field);
+            payloadTypes[i] = PlannerUtils.toElementType(field.dataType());
+        }
+
+        build = build.withSink(
+            new HashJoinBuildOperator.Factory(
+                bridge,
+                rightKeyChannels,
+                keyTypes,
+                payloadChannels,
+                payloadTypes,
+                join.source(),
+                retainBridge
+            ),
+            build.layout
+        );
+        context.addDriverFactory(
+            new DriverFactory(
+                new DriverSupplier(
+                    context.description(),
+                    ClusterName.CLUSTER_NAME_SETTING.get(context.settings()).value(),
+                    Node.NODE_NAME_SETTING.get(context.settings()),
+                    context.bigArrays(),
+                    context.blockFactory(),
+                    context.shardContexts(),
+                    build,
+                    context.queryPragmas().statusInterval(),
+                    context.settings()
+                ),
+                DriverParallelism.SINGLE
+            )
+        );
+
     }
 
     private static int buildChannel(Layout layout, List<Attribute> buildOutput, Attribute field) {

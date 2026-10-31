@@ -19,11 +19,14 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.planner.ExchangeWiring;
 
 import java.util.ArrayList;
@@ -36,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * Runs one stage lane and links its inputs and output to the pre-opened shuffle exchanges.
+ * Runs a stage's local lanes, sharing broadcast builds and linking inputs and outputs to pre-opened shuffle exchanges.
  */
 final class StageComputeHandler {
     private final ComputeService computeService;
@@ -108,16 +111,40 @@ final class StageComputeHandler {
 
         task.addListener(() -> finishSinkHandlers(outputIds, new TaskCancelledException(task.getReasonCancelled())));
 
-        ActionListener<DriverCompletionInfo> afterComputes = ActionListener.wrap(
-            info -> awaitOutputCompletion(outputIds, outputHandlers, keepAlive, info, listener),
-            e -> failOutputs(outputIds, keepAlive, e, listener, new AtomicBoolean())
+        Map<String, ExchangeWiring.SharedHashJoin> sharedHashJoins = new HashMap<>();
+        ActionListener<DriverCompletionInfo> afterComputes = ActionListener.runBefore(
+            ActionListener.wrap(
+                info -> awaitOutputCompletion(outputIds, outputHandlers, keepAlive, info, listener),
+                e -> failOutputs(outputIds, keepAlive, e, listener, new AtomicBoolean())
+            ),
+            () -> Releasables.close(sharedHashJoins.values())
         );
         try (ComputeListener computeListener = new ComputeListener(computeService.cancelQueryOnFailure(task), afterComputes)) {
             try {
+                for (DistributedHashJoinExec join : stagePlan.collect(DistributedHashJoinExec.class)) {
+                    if (join.mode() == DistributedHashJoinExec.Mode.BROADCAST) {
+                        if (join.right() instanceof StageSourceExec source) {
+                            sharedHashJoins.computeIfAbsent(source.edgeKey(), ignored -> new ExchangeWiring.SharedHashJoin());
+                        } else {
+                            throw new IllegalStateException("broadcast build must read a stage source");
+                        }
+                    }
+                }
+                task.addListener(
+                    () -> sharedHashJoins.values()
+                        .forEach(shared -> shared.bridge().fail(new TaskCancelledException(task.getReasonCancelled())))
+                );
+                // Worker lanes are assigned round-robin, so each node's first lane is also its broadcast consumer ordinal.
+                int broadcastConsumer = wiring.localLanes().getFirst();
                 for (int lane : wiring.localLanes()) {
+                    task.ensureNotCancelled();
                     Map<String, Supplier<ExchangeSource>> sourcesByEdge = new HashMap<>();
                     for (StageWiring.Input input : wiring.inputs()) {
+                        if (sharedHashJoins.containsKey(input.edgeKey()) && lane != broadcastConsumer) {
+                            continue;
+                        }
                         ExchangeSourceHandler source = new ExchangeSourceHandler(request.pragmas().exchangeBufferSize(), searchExecutor);
+                        task.addListener(() -> source.finishEarly(true, ActionListener.noop()));
                         try (Releasable hold = source.addEmptySink()) {
                             for (StageWiring.Producer producer : input.producers()) {
                                 for (String producerNodeId : producer.nodeIds()) {
@@ -153,7 +180,11 @@ final class StageComputeHandler {
                         }
                     }
 
-                    ExchangeWiring exchangeWiring = new ExchangeWiring(sourcesByEdge, Map.of(output.edgeKey(), outputHandlers));
+                    ExchangeWiring exchangeWiring = new ExchangeWiring(
+                        sourcesByEdge,
+                        Map.of(output.edgeKey(), outputHandlers),
+                        sharedHashJoins
+                    );
                     ComputeContext context = new ComputeContext(
                         request.sessionId() + "/l" + lane,
                         "stage" + wiring.stageId() + ".lane" + lane,

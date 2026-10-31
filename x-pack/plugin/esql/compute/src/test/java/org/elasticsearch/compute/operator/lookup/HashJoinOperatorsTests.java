@@ -27,6 +27,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -105,17 +106,74 @@ public class HashJoinOperatorsTests extends ComputeTestCase {
         assertThat(causeMessages(failure), hasItem("build source failed"));
     }
 
+    public void testSharedBuildWithConcurrentProbesAndAnEmptyLane() {
+        List<BuildRow> buildRows = new ArrayList<>();
+        List<ProbeRow> probeRows = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            buildRows.add(new BuildRow(List.of(i % 100L), i));
+            probeRows.add(new ProbeRow(i % 7 == 0 ? null : List.of(i % 120L), i));
+        }
+        int lanes = randomIntBetween(3, 6);
+        JoinResult result = runJoin(buildRows, probeRows, null, lanes);
+        List<JoinRow> expected = new ArrayList<>();
+        for (int lane = 1; lane < lanes; lane++) {
+            expected.addAll(nestedLoopJoin(buildRows, probeRows));
+        }
+        assertEquals(sorted(expected), sorted(result.rows()));
+    }
+
+    public void testSharedBuildFailureUnblocksProbes() {
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> runJoin(List.of(), List.of(new ProbeRow(List.of(1L), 1)), new IllegalArgumentException("shared build failed"), 4)
+        );
+        assertThat(causeMessages(failure), hasItem("shared build failed"));
+    }
+
+    public void testSharedBuildReleasedAfterLastConsumer() {
+        BlockFactory factory = blockFactory();
+        DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+        HashJoinBridge bridge = new HashJoinBridge();
+        try (
+            Releasable owner = Releasables.releaseOnce(bridge::decRef);
+            HashJoinBuildOperator build = new HashJoinBuildOperator.Factory(
+                bridge,
+                new int[] { 0 },
+                new ElementType[] { ElementType.LONG },
+                new int[] { 1 },
+                new ElementType[] { ElementType.LONG },
+                WARNING_SOURCE,
+                true
+            ).get(context);
+            HashJoinProbeOperator probe = new HashJoinProbeOperator.Factory(bridge, new int[] { 0 }, WARNING_SOURCE).get(context);
+            HashJoinColumnLoadOperator load = new HashJoinColumnLoadOperator.Factory(bridge, 0, 0).get(context)
+        ) {
+            build.addInput(buildPage(factory, List.of(new BuildRow(List.of(1L), 10))));
+            build.finish();
+            Block payload = bridge.payload(0);
+            owner.close();
+            build.close();
+            probe.close();
+            assertFalse(payload.isReleased());
+            load.close();
+            assertTrue(payload.isReleased());
+            assertFalse(bridge.hasReferences());
+        }
+    }
+
     private JoinResult runJoin(List<BuildRow> buildRows, List<ProbeRow> probeRows) {
         return runJoin(buildRows, probeRows, null);
     }
 
     private JoinResult runJoin(List<BuildRow> buildRows, List<ProbeRow> probeRows, RuntimeException buildSourceFailure) {
+        return runJoin(buildRows, probeRows, buildSourceFailure, 1);
+    }
+
+    private JoinResult runJoin(List<BuildRow> buildRows, List<ProbeRow> probeRows, RuntimeException buildSourceFailure, int lanes) {
         BlockFactory buildBlockFactory = blockFactory();
-        BlockFactory probeBlockFactory = blockFactory();
         DriverContext buildContext = new DriverContext(buildBlockFactory.bigArrays(), buildBlockFactory, null);
-        DriverContext probeContext = new DriverContext(probeBlockFactory.bigArrays(), probeBlockFactory, null);
         HashJoinBridge bridge = new HashJoinBridge();
-        List<Page> outputPages = new ArrayList<>();
+        List<Page> outputPages = Collections.synchronizedList(new ArrayList<>());
 
         CannedSourceOperator buildSource;
         if (buildSourceFailure == null) {
@@ -134,7 +192,6 @@ public class HashJoinOperatorsTests extends ComputeTestCase {
                 }
             };
         }
-        List<Page> probePages = probeRows.isEmpty() ? List.of() : List.of(probePage(probeBlockFactory, probeRows));
         Driver buildDriver = TestDriverFactory.create(
             buildContext,
             buildSource,
@@ -145,29 +202,49 @@ public class HashJoinOperatorsTests extends ComputeTestCase {
                 new ElementType[] { ElementType.LONG },
                 new int[] { 1, 2 },
                 new ElementType[] { ElementType.LONG, ElementType.NULL },
-                WARNING_SOURCE
+                WARNING_SOURCE,
+                true
             ).get(buildContext)
         );
-        Driver probeDriver = TestDriverFactory.create(
-            probeContext,
-            new CannedSourceOperator(probePages.iterator()),
-            List.of(
-                new HashJoinProbeOperator.Factory(bridge, new int[] { 0 }, WARNING_SOURCE).get(probeContext),
-                new MvExpandOperator.Factory(2, 5000).get(probeContext),
-                new HashJoinColumnLoadOperator.Factory(bridge, 0, 2).get(probeContext),
-                new HashJoinColumnLoadOperator.Factory(bridge, 1, 2).get(probeContext),
-                new ProjectOperator.ProjectOperatorFactory(List.of(0, 1, 3, 4)).get(probeContext)
-            ),
-            new TestResultPageSinkOperator(outputPages::add)
-        );
-
-        try (buildDriver; probeDriver) {
-            new TestDriverRunner().numThreads(2).run(List.of(buildDriver, probeDriver));
-            return new JoinResult(readRows(outputPages), buildContext.warnings(), probeContext.warnings());
+        List<Driver> drivers = new ArrayList<>();
+        List<DriverContext> probeContexts = new ArrayList<>();
+        drivers.add(buildDriver);
+        try (Releasable owner = Releasables.releaseOnce(bridge::decRef)) {
+            for (int lane = 0; lane < lanes; lane++) {
+                BlockFactory probeBlockFactory = blockFactory();
+                DriverContext probeContext = new DriverContext(probeBlockFactory.bigArrays(), probeBlockFactory, null);
+                probeContexts.add(probeContext);
+                List<Page> probePages = probeRows.isEmpty() || (lanes > 1 && lane == 0)
+                    ? List.of()
+                    : List.of(probePage(probeBlockFactory, probeRows));
+                drivers.add(
+                    TestDriverFactory.create(
+                        probeContext,
+                        new CannedSourceOperator(probePages.iterator()),
+                        List.of(
+                            new HashJoinProbeOperator.Factory(bridge, new int[] { 0 }, WARNING_SOURCE).get(probeContext),
+                            new MvExpandOperator.Factory(2, 5000).get(probeContext),
+                            new HashJoinColumnLoadOperator.Factory(bridge, 0, 2).get(probeContext),
+                            new HashJoinColumnLoadOperator.Factory(bridge, 1, 2).get(probeContext),
+                            new ProjectOperator.ProjectOperatorFactory(List.of(0, 1, 3, 4)).get(probeContext)
+                        ),
+                        new TestResultPageSinkOperator(outputPages::add)
+                    )
+                );
+            }
+            owner.close();
+            new TestDriverRunner().numThreads(Math.min(lanes + 1, 4)).run(drivers);
+            return new JoinResult(
+                readRows(outputPages),
+                buildContext.warnings(),
+                probeContexts.stream().flatMap(context -> context.warnings().stream()).toList()
+            );
         } finally {
+            Releasables.close(drivers);
             Releasables.closeExpectNoException(
                 Releasables.wrap(outputPages.stream().<Releasable>map(page -> page::releaseBlocks).toList())
             );
+            assertFalse(bridge.hasReferences());
         }
     }
 

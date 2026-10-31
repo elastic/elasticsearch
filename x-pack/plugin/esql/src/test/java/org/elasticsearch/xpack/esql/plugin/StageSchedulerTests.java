@@ -184,6 +184,18 @@ public class StageSchedulerTests extends ESTestCase {
         );
     }
 
+    public void testWorkerBroadcastBudgetCountsNodesRatherThanLanes() {
+        StagedPlan plan = plan("""
+            FROM test
+            | STATS salary = SUM(salary) BY emp_no
+            | LEFT OUTER JOIN (FROM test | KEEP emp_no, salary | RENAME salary AS s1) ON emp_no
+            | STATS total = SUM(salary + s1)
+            | LIMIT 1000
+            """, "broadcast", true);
+        assertEquals(4, StageScheduler.budgetedPartitions(plan, nodeCounts(plan), 2, 4, 1, 22));
+        assertEquals(3, StageScheduler.budgetedPartitions(plan, nodeCounts(plan), 2, 4, 1, 21));
+    }
+
     private static CancellableTask task() {
         return new CancellableTask(1, "transport", "shuffle", "shuffle", TaskId.EMPTY_TASK_ID, Map.of());
     }
@@ -216,11 +228,16 @@ public class StageSchedulerTests extends ESTestCase {
             | STATS s1 = SUM(s1), s2 = SUM(s2) BY emp_no
             | LIMIT 1000
             """.formatted(unionBuild ? "FROM test, (FROM test | WHERE salary > 0)" : "FROM test");
+        return plan(query, strategy, false);
+    }
+
+    private static StagedPlan plan(String query, String strategy, boolean shuffleAgg) {
         QueryPragmas pragmas = new QueryPragmas(
             Settings.builder()
                 .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 4)
                 .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
                 .put(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey(), strategy)
+                .put(QueryPragmas.SHUFFLE_AGG.getKey(), shuffleAgg)
                 .build()
         );
         var configuration = configuration(pragmas, query);

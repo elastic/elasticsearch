@@ -48,7 +48,8 @@ public final class HashJoinBridge extends AbstractRefCounted {
         ready.onResponse(null);
     }
 
-    void fail(Exception failure) {
+    /** Unblocks every probe when the build cannot finish, including cancellation before the build driver starts. */
+    public void fail(Exception failure) {
         Objects.requireNonNull(failure);
         if (completed.compareAndSet(false, true)) {
             this.failure = failure;

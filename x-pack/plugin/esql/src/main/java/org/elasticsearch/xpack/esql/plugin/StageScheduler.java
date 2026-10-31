@@ -530,7 +530,8 @@ final class StageScheduler {
             }
             long pages = Math.min(cap, producerNodes * nodeCounts.get(edge.consumerStage()));
             pages = Math.min(cap, pages * bufferSize);
-            if (placements.get(edge.consumerStage()) == StagedPlanner.StagePlacement.WORKERS) {
+            if (placements.get(edge.consumerStage()) == StagedPlanner.StagePlacement.WORKERS
+                && edge.distribution() != ExchangeDistribution.BROADCAST) {
                 pagesPerPartition = Math.min(cap, pagesPerPartition + pages);
             } else {
                 fixedPages = Math.min(cap, fixedPages + pages);
@@ -592,7 +593,7 @@ final class StageScheduler {
         ActionListener<Void> listener
     ) {
         for (StagedPlanner.Edge edge : stagedPlan.edges()) {
-            int consumerLanes = stageLocation(topology, edge.consumerStage()).laneCount();
+            int consumerLanes = consumerCount(topology, edge);
             for (int producerStageId : edge.producerStages()) {
                 StageLocation producer = stageLocation(topology, producerStageId);
                 for (DiscoveryNode producerNode : sortedNodes(producer.lanesByNode().keySet())) {
@@ -934,7 +935,7 @@ final class StageScheduler {
             throw new IllegalStateException("bug: non-coordinator stage [" + stage.id() + "] has no output edge");
         }
         StagedPlanner.Edge outputEdge = stagedPlan.edge(stage.outputEdge());
-        int consumerLanes = stageLocation(topology, outputEdge.consumerStage()).laneCount();
+        int consumerLanes = consumerCount(topology, outputEdge);
         return new StageWiring(
             rootSessionId,
             stage.id(),
@@ -947,6 +948,11 @@ final class StageScheduler {
 
     private static List<String> nodeIds(Topology topology, int stageId) {
         return sortedNodes(stageLocation(topology, stageId).lanesByNode().keySet()).stream().map(DiscoveryNode::getId).toList();
+    }
+
+    private static int consumerCount(Topology topology, StagedPlanner.Edge edge) {
+        StageLocation consumer = stageLocation(topology, edge.consumerStage());
+        return edge.distribution() == ExchangeDistribution.BROADCAST ? consumer.lanesByNode().size() : consumer.laneCount();
     }
 
     private static StageLocation stageLocation(Topology topology, int stageId) {

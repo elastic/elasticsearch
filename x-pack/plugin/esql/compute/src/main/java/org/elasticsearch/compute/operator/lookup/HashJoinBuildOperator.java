@@ -28,14 +28,29 @@ import java.util.Objects;
  * Materializes a join's build side once and publishes its keys and payload columns.
  */
 public final class HashJoinBuildOperator extends SinkOperator {
+    /**
+     * Retains a stage-owned bridge when {@code retainBridge} is true; otherwise the build operator takes its initial reference.
+     */
     public record Factory(
         HashJoinBridge bridge,
         int[] keyChannels,
         ElementType[] keyTypes,
         int[] payloadChannels,
         ElementType[] payloadTypes,
-        WarningSourceLocation warningSource
+        WarningSourceLocation warningSource,
+        boolean retainBridge
     ) implements SinkOperatorFactory {
+        public Factory(
+            HashJoinBridge bridge,
+            int[] keyChannels,
+            ElementType[] keyTypes,
+            int[] payloadChannels,
+            ElementType[] payloadTypes,
+            WarningSourceLocation warningSource
+        ) {
+            this(bridge, keyChannels, keyTypes, payloadChannels, payloadTypes, warningSource, false);
+        }
+
         public Factory {
             Objects.requireNonNull(bridge);
             Objects.requireNonNull(warningSource);
@@ -53,7 +68,11 @@ public final class HashJoinBuildOperator extends SinkOperator {
 
         @Override
         public HashJoinBuildOperator get(DriverContext driverContext) {
-            return new HashJoinBuildOperator(this, driverContext);
+            HashJoinBuildOperator operator = new HashJoinBuildOperator(this, driverContext);
+            if (retainBridge) {
+                bridge.incRef();
+            }
+            return operator;
         }
 
         @Override

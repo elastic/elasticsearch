@@ -36,13 +36,41 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             .build();
     }
 
+    @Override
+    protected String defaultMapping() {
+        return """
+            {
+                "dynamic": false,
+                "properties": {
+                    "value": { "type": "keyword" },
+                    "other": { "type": "keyword" },
+                    "obj": {
+                        "properties": {
+                            "a": { "type": "keyword" },
+                            "b": { "type": "keyword" },
+                            "inner": {
+                                "properties": {
+                                    "c": { "type": "keyword" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+    }
+
     Translog.Index toIndexOp(String source) throws IOException {
+        return toIndexOp(1, source);
+    }
+
+    Translog.Index toIndexOp(long seqNo, String source) throws IOException {
         XContentParser parser = createParser(XContentType.JSON.xContent(), source);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.copyCurrentStructure(parser);
         return new Translog.Index(
             "1",
-            0,
+            seqNo,
             1,
             1,
             new BytesArray(Strings.toString(builder)),
@@ -143,5 +171,94 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             assertFalse(syntheticAsserter.assertSameIndexOperation(o1, o2));
             assertFalse(regularAsserter.assertSameIndexOperation(o1, o2));
         }
+    }
+
+    public void testObjectFieldsAreComparedRecursively() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        {
+            var o1 = toIndexOp("""
+                { "obj": { "a": "x", "b": [ "z", "y" ], "inner": { "c": [ "v" ] } } }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "a": [ "x" ], "b": [ "y", "z" ], "inner": { "c": "v" } } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+        }
+        {
+            // a difference in a deeply nested leaf is still detected
+            var o1 = toIndexOp("""
+                { "obj": { "a": "x", "inner": { "c": "v" } } }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "a": "x", "inner": { "c": "w" } } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        }
+        {
+            // a field missing from a nested object is detected
+            var o1 = toIndexOp("""
+                { "obj": { "a": "x", "b": "y" } }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "a": "x" } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        }
+    }
+
+    public void testEveryTopLevelFieldMustMatch() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        // "value" is equivalent in synthesized form, but "other" really differs
+        var o1 = toIndexOp("""
+            { "value": "value-1", "other": "x" }
+            """);
+        var o2 = toIndexOp("""
+            { "value": [ "value-1" ], "other": "y" }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+    }
+
+    public void testFieldPresentInOnlyOneOperationIsRejected() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "value": "value-1", "other": "x" }
+            """);
+        var o2 = toIndexOp("""
+            { "value": "value-1" }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        assertFalse(asserter.assertSameIndexOperation(o2, o1));
+    }
+
+    public void testDifferentArraysAreRejected() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "value": [ "value-1", "value-2" ], "obj": { "a": "x" } }
+            """);
+        var o2 = toIndexOp("""
+            { "value": [ "value-1", "value-3" ], "obj": { "a": "x" } }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+    }
+
+    public void testWithAdditionalFieldWithNullValue() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "value": "value-1", "other": null }
+            """);
+        var o2 = toIndexOp("""
+            { "value": [ "value-1" ] }
+            """);
+        assertTrue(asserter.assertSameIndexOperation(o1, o2));
+        assertTrue(asserter.assertSameIndexOperation(o1, o2));
+    }
+
+    public void testNonSourceFieldsAreStillCompared() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        String source = """
+            { "value": "value-1" }
+            """;
+        // equivalent sources must not mask a different sequence number
+        assertFalse(asserter.assertSameIndexOperation(toIndexOp(1, source), toIndexOp(2, source)));
     }
 }

@@ -279,10 +279,10 @@ public class FieldNameUtils {
                 // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
                 // wildcardJoinIndices, protectedSubqueryRefs, and projectAll accumulate across the boundary.
                 //
-                // keepRefs and dropWildcardRefs are saved by copy, not by build(): AttributeSet.Builder.build() hands back a view
-                // over the builder's own map, so the clear() below would empty the "saved" set too and the restore would put
+                // keepRefs and dropWildcardRefs are saved by copy, not by build(): AttributeSet.Builder.build() may hand back a
+                // view over the builder's own map, so the clear() below would empty the "saved" set too and the restore would put
                 // nothing back. The two Holder-based builders do not need this - they are replaced with a fresh builder rather
-                // than cleared, which leaves the built view attached to the old one.
+                // than cleared, which leaves any built view attached to the old one.
                 AttributeSet savedRefs = referencesBuilder.get().build();
                 AttributeSet savedKeepRefs = AttributeSet.builder().addAll(keepRefs).build();
                 AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();

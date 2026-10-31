@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
@@ -102,13 +103,20 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 l.onFailure(e);
             }
         });
+        final Releasable serializedPlan;
+        try {
+            serializedPlan = computeService.reserveSerializedPlan(PlannerUtils.localDataBytes(plan), "serialize cluster compute request");
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         ExchangeService.openExchange(
             transportService,
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
             searchExecutor,
-            listener.delegateFailure((l, unused) -> {
+            ActionListener.releaseBefore(serializedPlan, listener).delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
                 boolean failFast = executionInfo.shouldSkipOnFailure(clusterAlias) == false && configuration.allowPartialResults() == false;

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -287,6 +288,20 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    /**
+     * Charges the request breaker for the copy of a plan's local data that the transport layer serializes into a request to
+     * another node and holds in its outbound buffers, which no breaker tracks. Release the returned reservation once that
+     * node has responded.
+     */
+    Releasable reserveSerializedPlan(long localDataBytes, String label) {
+        if (localDataBytes == 0) {
+            return () -> {};
+        }
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(localDataBytes, label);
+        return Releasables.releaseOnce(() -> breaker.addWithoutBreaking(-localDataBytes));
     }
 
     FormatReaderRegistry formatReaderRegistry() {

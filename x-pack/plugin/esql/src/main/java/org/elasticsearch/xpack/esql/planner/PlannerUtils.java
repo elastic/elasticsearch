@@ -12,8 +12,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -63,6 +65,8 @@ import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -72,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
@@ -88,7 +93,9 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -326,6 +333,32 @@ public class PlannerUtils {
                 action.accept(r);
             }
         }));
+    }
+
+    /**
+     * Bytes held by the {@link LocalRelation}s and {@link LocalSourceExec}s of {@code plan}, which travel with every copy of the
+     * plan sent to another node. A block shared by several of them is counted once, as it is serialized once per message.
+     */
+    public static long localDataBytes(PhysicalPlan plan) {
+        Set<Block> blocks = Collections.newSetFromMap(new IdentityHashMap<>());
+        Consumer<LocalSupplier> collect = supplier -> {
+            Page page = supplier.peek();
+            for (int i = 0; i < page.getBlockCount(); i++) {
+                blocks.add(page.getBlock(i));
+            }
+        };
+        plan.forEachDown(p -> {
+            if (p instanceof LocalSourceExec local) {
+                collect.accept(local.supplier());
+            } else if (p instanceof FragmentExec fragment) {
+                fragment.fragment().forEachDown(LocalRelation.class, relation -> collect.accept(relation.supplier()));
+            }
+        });
+        long bytes = 0;
+        for (Block block : blocks) {
+            bytes += block.ramBytesUsed();
+        }
+        return bytes;
     }
 
     /**

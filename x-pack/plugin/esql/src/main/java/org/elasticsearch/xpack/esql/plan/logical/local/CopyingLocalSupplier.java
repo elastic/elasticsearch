@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import java.io.IOException;
 
 /**
- * A {@link LocalSupplier} that allways creates a new copy of the {@link Page} initially provided at creation time.
+ * A {@link LocalSupplier} whose {@link #get()} always creates a new copy of the {@link Page} initially provided at creation time.
  * This is created specifically for {@link InlineStats} usage in {@link EsqlSession} for queries that use ROW command.
  *
  * The ROW which gets replaced by {@link ReplaceRowAsLocalRelation} with a {@link LocalRelation} will have its page
@@ -76,6 +76,11 @@ public class CopyingLocalSupplier implements LocalSupplier {
             blockCopies[i] = delegate.page.getBlock(i).deepCopy(PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
         }
         return new Page(delegate.page.getPositionCount(), blockCopies);
+    }
+
+    @Override
+    public Page peek() {
+        return delegate.page;
     }
 
     @Override

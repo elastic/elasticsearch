@@ -12,6 +12,7 @@ package org.elasticsearch.gpu.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.index.IndexVersion;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
  * forcing a mix of GPU and CPU fallback paths across flush and merge calls within the same index.
  * Requires a GPU — skipped on non-GPU nodes.
  */
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public class ES97GpuHnswBBQMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
 
     static Codec codec;

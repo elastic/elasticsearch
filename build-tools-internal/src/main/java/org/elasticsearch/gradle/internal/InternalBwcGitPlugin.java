@@ -87,7 +87,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         });
 
         TaskProvider<Task> addRemoteTaskProvider = tasks.register("addRemote", addRemote -> {
-            String rootProjectName = project.getRootProject().getName();
+            String rootProjectName = project.getIsolated().getRootProject().getName();
 
             addRemote.dependsOn(findRemoteTaskProvider);
             // Must be registered before "remote exists": when DRA is active findRemote is skipped

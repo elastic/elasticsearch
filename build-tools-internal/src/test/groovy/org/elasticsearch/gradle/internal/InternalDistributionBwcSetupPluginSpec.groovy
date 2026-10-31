@@ -9,11 +9,11 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.elasticsearch.gradle.Version
+import org.gradle.api.InvalidUserDataException
 import spock.lang.Specification
 import spock.lang.TempDir
 import spock.lang.Unroll
-
-import org.gradle.api.InvalidUserDataException
 
 /**
  * Unit tests for the pure-logic helpers in {@link InternalDistributionBwcSetupPlugin}.
@@ -52,6 +52,43 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
 
         where:
         mode << ["invalid-mode", "DRA", "AUTO", "", "dra-or-gradle"]
+    }
+
+    // -------------------------------------------------------------------------
+    // stable API project wiring
+    // -------------------------------------------------------------------------
+
+    @Unroll
+    def "stableApiProjectNames returns stable API projects for version '#version'"() {
+        when:
+        def names = InternalDistributionBwcSetupPlugin.stableApiProjectNames(Version.fromString(version))
+
+        then:
+        names == ["logging", "plugin-api", "plugin-analysis-api"]
+
+        where:
+        version << ["8.7.0", "8.7.1", "9.0.0"]
+    }
+
+    @Unroll
+    def "stableApiProjectNames returns no stable API projects for version '#version'"() {
+        when:
+        def names = InternalDistributionBwcSetupPlugin.stableApiProjectNames(Version.fromString(version))
+
+        then:
+        names.isEmpty()
+
+        where:
+        version << ["8.6.9", "8.0.0", "7.17.0"]
+    }
+
+    @Unroll
+    def "stableApiProjectPath resolves '#projectName' under libs/"() {
+        expect:
+        InternalDistributionBwcSetupPlugin.stableApiProjectPath(projectName) == "libs/${projectName}"
+
+        where:
+        projectName << ["logging", "plugin-api", "plugin-analysis-api"]
     }
 
     // -------------------------------------------------------------------------

@@ -563,9 +563,6 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
-    'distribution-closure-assignment': [
-      'distribution/build.gradle::6',
-    ],
   ])
 }
 

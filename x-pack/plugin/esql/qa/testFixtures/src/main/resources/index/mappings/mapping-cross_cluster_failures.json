@@ -1,0 +1,6 @@
+{
+  "properties": {
+    "@timestamp": { "type": "date" },
+    "flattened": { "type": "flattened" }
+  }
+}

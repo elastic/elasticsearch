@@ -182,6 +182,74 @@ public record CommitPointer(
         return fromBytes(new BytesArray(bytes));
     }
 
+    /**
+     * Maximum number of pointers of older primary terms that {@link #checkPredecessorPointers} reads. Beyond it the check gives up and the
+     * caller falls back to object store discovery.
+     */
+    public static final int MAX_PREDECESSOR_POINTERS = 4;
+
+    /**
+     * Stale isolated primary check of pointer-based activation. The pointer of {@code knownPrimaryTerm} names {@code commit}. If that
+     * commit is of an older term, a primary of a term in {@code [commit term, knownPrimaryTerm - 1]} may still be alive on an isolated
+     * node and have uploaded a newer commit of its own term after the current primary recovered (hollow shards do not flush on recovery),
+     * which the current primary does not know about. Such a primary also writes the pointer of its term after each upload, so reading
+     * those pointers (usually 1 GET) finds the newer commit just like the object store LIST of the default recovery would (and with the
+     * same race: a commit uploaded after the read is not seen).
+     * <p>
+     * A commit of {@code knownPrimaryTerm} needs no check: it is newer than any commit of an older term.
+     *
+     * @return {@code null} if no pointer of an older term names a newer commit, otherwise the reason not to use {@code commit} (a newer
+     *         commit was found, a pointer of an older term is unreadable or invalid, or there are more than
+     *         {@link #MAX_PREDECESSOR_POINTERS} terms to check)
+     */
+    @Nullable
+    public static String checkPredecessorPointers(
+        BlobContainer shardContainer,
+        ShardId shardId,
+        long knownPrimaryTerm,
+        StatelessCompoundCommit commit
+    ) {
+        final PrimaryTermAndGeneration commitTermAndGen = commit.primaryTermAndGeneration();
+        final long commitTerm = commitTermAndGen.primaryTerm();
+        if (commitTerm >= knownPrimaryTerm) {
+            return null;
+        }
+        if (knownPrimaryTerm - commitTerm > MAX_PREDECESSOR_POINTERS) {
+            return "commit "
+                + commitTermAndGen
+                + " is more than "
+                + MAX_PREDECESSOR_POINTERS
+                + " terms older than term "
+                + knownPrimaryTerm;
+        }
+        for (long term = knownPrimaryTerm - 1; term >= commitTerm; term--) {
+            final CommitPointer predecessor;
+            try {
+                predecessor = read(shardContainer, term);
+            } catch (Exception e) {
+                return "commit pointer of older term [" + term + "] unreadable: " + e;
+            }
+            if (predecessor == null) {
+                continue; // no primary of that term published a pointer
+            }
+            final String invalid = predecessor.validate(shardId, term);
+            if (invalid != null) {
+                return "commit pointer of older term [" + term + "] invalid: " + invalid;
+            }
+            final PrimaryTermAndGeneration predecessorCommit = predecessor.compoundCommit().primaryTermAndGeneration();
+            if (predecessorCommit.after(commitTermAndGen)) {
+                return "commit pointer of older term ["
+                    + term
+                    + "] names commit "
+                    + predecessorCommit
+                    + " newer than "
+                    + commitTermAndGen
+                    + " (stale primary?)";
+            }
+        }
+        return null;
+    }
+
     public void write(BlobContainer shardContainer) throws IOException {
         assert writerPrimaryTerm > 0 : writerPrimaryTerm;
         shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobName(writerPrimaryTerm), toBytes(), false);

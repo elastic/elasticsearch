@@ -109,6 +109,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.CommitPointer;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
@@ -2538,7 +2540,20 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
     /// Random delays are injected around the shard-failure and register-commit responses so that both orderings
     /// of those two events are exercised.
     public void testHollowShardFailsIfSearchShardRegistersNewerCommit() throws Exception {
+        doTestHollowShardFailsIfSearchShardRegistersNewerCommit(false);
+    }
+
+    /// Same scenario with pointer-based activation of the search shard ("cheap shards" prototype, phase 3 gap 1): A's commit pointer
+    /// names the hollow commit, which does not let the search shard see B's newer commits. The search shard must still not serve the
+    /// hollow commit: it reads the pointer of B's (older) term, finds B's newer commit there and falls back to discovery and
+    /// registration, which fails A as in the default recovery.
+    public void testHollowShardFailsIfSearchShardActivatesFromPointerWithNewerCommitOfOlderTerm() throws Exception {
+        doTestHollowShardFailsIfSearchShardRegistersNewerCommit(true);
+    }
+
+    private void doTestHollowShardFailsIfSearchShardRegistersNewerCommit(boolean pointerActivation) throws Exception {
         var nodeSettings = Settings.builder()
+            .put(pointerActivation ? pointerActivationNodeSettings() : Settings.EMPTY)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
             .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
@@ -2642,6 +2657,22 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final var termGenUnhollow = commitServiceB.getLatestUploadedBcc(indexShardB.shardId())
             .lastCompoundCommit()
             .primaryTermAndGeneration();
+
+        if (pointerActivation) {
+            final var shardContainer = getObjectStoreService(indexNodeA).getProjectBlobContainer(indexShardA.shardId());
+            final long termA = findIndexShard(indexName).getOperationPrimaryTerm();
+            assertThat(termA, greaterThan(termGenUnhollow.primaryTerm()));
+            assertBusy(() -> {
+                // the pointer of A's term, which the search shard reads, names the hollow commit of B's (older) term ...
+                final CommitPointer pointerA = CommitPointer.read(shardContainer, termA);
+                assertNotNull(pointerA);
+                assertThat(pointerA.compoundCommit().primaryTermAndGeneration(), equalTo(termGenHollow));
+                // ... while B, isolated but still writing to the object store, published its newer commits in the pointer of its term
+                final CommitPointer pointerB = CommitPointer.read(shardContainer, termGenUnhollow.primaryTerm());
+                assertNotNull(pointerB);
+                assertThat(pointerB.compoundCommit().primaryTermAndGeneration(), equalTo(termGenUnhollow));
+            });
+        }
 
         // Create some random delay between the shard failure message and returning the RecoveryCommitTooNewException exception to the
         // search shard. Just so we cover both cases where one of these happens first.
@@ -3755,4 +3786,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
     }
 
+    private static Settings pointerActivationNodeSettings() {
+        return Settings.builder()
+            .put(FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING.getKey(), true)
+            .put(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING.getKey(), true)
+            .put(FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING.getKey(), "pointer")
+            .build();
+    }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -263,30 +264,82 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
             commitPointer.replicatedFileRanges().size()
         );
         ActionListener.run(listener, l -> {
+            // Stale isolated primary check (phase 3, gap 1): if the pointed commit is of an older term than the current primary's, read
+            // the pointers of the older terms (usually 1 GET) in parallel with the warming below, and do not serve the commit if one of
+            // them names a newer commit: fall back to discovery + registration with that commit, which fails the stale (hollow) primary
+            // exactly like the default recovery does (see StatelessCommitService#registerCommitForUnpromotableRecovery).
+            final SubscribableListener<String> predecessorCheck = compoundCommit.primaryTermAndGeneration().primaryTerm() < knownPrimaryTerm
+                ? SubscribableListener.newForked(
+                    l2 -> bccHeaderReadExecutor.execute(
+                        ActionRunnable.supply(
+                            l2,
+                            () -> CommitPointer.checkPredecessorPointers(
+                                blobContainer,
+                                indexShard.shardId(),
+                                knownPrimaryTerm,
+                                compoundCommit
+                            )
+                        )
+                    )
+                )
+                : SubscribableListener.newSucceeded(null);
             final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
             applyActivationFillSettings(searchDirectory);
             searchDirectory.updateLatestUploadedBcc(commitPointer.batchedCompoundCommitTermAndGeneration());
             searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), commitPointer.writerNodeId());
             searchDirectory.updateCommit(compoundCommit, commitPointer.replicatedFileRanges());
+            // Read failure after activation (phase 3, gap 3): the indexing shard does not protect the pointed commit's blobs until
+            // (and, for blobs that only this commit references, not even after) the background registration. If a query later finds
+            // one of them missing, fail the shard so that it recovers again (reading the then-current pointer, or discovering the
+            // commit) instead of failing every search on the missing range until it is relocated.
+            searchDirectory.setMissingBlobListener(e -> failShardOnMissingBlob(indexShard, e));
             registerInBackground(indexShard, commitPointer);
             final long wholeBlobThreshold = clusterService.getClusterSettings()
                 .get(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING)
                 .getBytes();
+            final Runnable afterWarming = () -> predecessorCheck.addListener(ActionListener.wrap(staleReason -> {
+                if (staleReason == null) {
+                    l.onResponse(null);
+                } else {
+                    logger.info(
+                        "{} fast activation: not using commit pointer {}: {}, discovering the commit in the object store",
+                        indexShard.shardId(),
+                        compoundCommit.primaryTermAndGeneration(),
+                        staleReason
+                    );
+                    searchDirectory.setMissingBlobListener(null);
+                    fallback.onResponse(null);
+                }
+            }, e -> {
+                logger.info(() -> format("%s fast activation: older-term pointer check failed, discovering the commit", indexShard), e);
+                searchDirectory.setMissingBlobListener(null);
+                fallback.onResponse(null);
+            }));
             warmingService.warmCacheForFastSearchActivation(
                 indexShard,
                 compoundCommit,
                 searchDirectory,
                 wholeBlobThreshold,
-                ActionListener.wrap(ignored -> l.onResponse(null), e -> {
+                ActionListener.wrap(ignored -> afterWarming.run(), e -> {
                     // e.g. a blob of the pointed commit is gone (deleted after a newer commit): discover the latest commit instead
                     logger.info(
                         () -> format("%s fast activation from commit pointer failed, discovering the commit", indexShard.shardId()),
                         e
                     );
+                    searchDirectory.setMissingBlobListener(null);
                     fallback.onResponse(null);
                 })
             );
         });
+    }
+
+    private static void failShardOnMissingBlob(IndexShard indexShard, Exception e) {
+        try {
+            indexShard.failShard(format("%s blob missing after activation from commit pointer", indexShard.shardId()), e);
+        } catch (Exception inner) {
+            e.addSuppressed(inner);
+            logger.debug(() -> format("%s failed to fail shard on missing blob", indexShard.shardId()), e);
+        }
     }
 
     /**

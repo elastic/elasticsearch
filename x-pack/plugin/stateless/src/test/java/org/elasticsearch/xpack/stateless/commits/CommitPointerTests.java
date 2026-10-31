@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -28,7 +32,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class CommitPointerTests extends ESTestCase {
 
     private static CommitPointer randomPointer(ShardId shardId, long term) {
-        final long generation = randomLongBetween(1, 1000);
+        return randomPointer(shardId, term, randomLongBetween(1, 1000));
+    }
+
+    private static CommitPointer randomPointer(ShardId shardId, long term, long generation) {
         final var termAndGen = new PrimaryTermAndGeneration(term, generation);
         final var cc = getCommitWithInternalFilesReplicatedRanges(
             shardId,
@@ -100,5 +107,69 @@ public class CommitPointerTests extends ESTestCase {
             pointer.replicatedFileRanges()
         );
         assertThat(wrongBcc.validate(shardId, term), notNullValue());
+    }
+
+    /**
+     * Phase 3 gap 1: the current primary (term {@code k}) recovered hollow from a commit of an older term and points at it; an isolated
+     * primary of an older term uploaded a newer commit afterwards and published it in the pointer of its own term.
+     */
+    public void testCheckPredecessorPointers() throws IOException {
+        final ShardId shardId = randomShardId();
+        final BlobContainer container = new FsBlobStore(4096, createTempDir(), false).blobContainer(BlobPath.EMPTY);
+        final long commitTerm = randomLongBetween(1, 5);
+        final long knownTerm = commitTerm + randomLongBetween(1, CommitPointer.MAX_PREDECESSOR_POINTERS);
+        final CommitPointer older = randomPointer(shardId, commitTerm);
+        final StatelessCompoundCommit commit = older.compoundCommit();
+        // the current primary's pointer names the older-term commit
+        recreate(older, knownTerm).write(container);
+
+        // commit of the current term: nothing to check
+        assertThat(CommitPointer.checkPredecessorPointers(container, shardId, commitTerm, commit), nullValue());
+        // no pointer of an older term: no evidence of a newer commit
+        assertThat(CommitPointer.checkPredecessorPointers(container, shardId, knownTerm, commit), nullValue());
+        // the older term's primary pointed at the same commit
+        older.write(container);
+        assertThat(CommitPointer.checkPredecessorPointers(container, shardId, knownTerm, commit), nullValue());
+
+        // the older term's primary (stale, isolated) uploaded a newer commit of its term
+        final CommitPointer newer = randomPointer(shardId, commitTerm, commit.generation() + randomLongBetween(1, 10));
+        newer.write(container);
+        assertThat(CommitPointer.checkPredecessorPointers(container, shardId, knownTerm, commit), containsString("newer than"));
+        // and so did a primary of a term between the commit's and the current one
+        if (knownTerm - commitTerm > 1) {
+            older.write(container);
+            final long middleTerm = randomLongBetween(commitTerm + 1, knownTerm - 1);
+            randomPointer(shardId, middleTerm, randomLongBetween(1, 1000)).write(container);
+            assertThat(CommitPointer.checkPredecessorPointers(container, shardId, knownTerm, commit), containsString("newer than"));
+        }
+
+        // an older term's pointer that cannot be trusted: do not use the commit
+        final BlobContainer other = new FsBlobStore(4096, createTempDir(), false).blobContainer(BlobPath.EMPTY);
+        other.writeBlobAtomic(OperationPurpose.INDICES, CommitPointer.blobName(commitTerm), new BytesArray(new byte[] { 1, 2, 3 }), false);
+        assertThat(CommitPointer.checkPredecessorPointers(other, shardId, knownTerm, commit), containsString("unreadable"));
+        // pointer stored under the older term's name but written in another term
+        other.writeBlobAtomic(
+            OperationPurpose.INDICES,
+            CommitPointer.blobName(commitTerm),
+            recreate(older, commitTerm + 100).toBytes(),
+            false
+        );
+        assertThat(CommitPointer.checkPredecessorPointers(other, shardId, knownTerm, commit), containsString("invalid"));
+
+        // too many older terms to check
+        assertThat(
+            CommitPointer.checkPredecessorPointers(container, shardId, commitTerm + CommitPointer.MAX_PREDECESSOR_POINTERS + 1, commit),
+            containsString("terms older")
+        );
+    }
+
+    private static CommitPointer recreate(CommitPointer pointer, long writerTerm) {
+        return new CommitPointer(
+            writerTerm,
+            pointer.writerNodeId(),
+            pointer.batchedCompoundCommitTermAndGeneration(),
+            pointer.compoundCommit(),
+            pointer.replicatedFileRanges()
+        );
     }
 }

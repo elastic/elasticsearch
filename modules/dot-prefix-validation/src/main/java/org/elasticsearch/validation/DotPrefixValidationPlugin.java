@@ -36,6 +36,7 @@ public class DotPrefixValidationPlugin extends Plugin implements ActionPlugin {
         actionFilters.set(
             List.of(
                 new CreateIndexDotValidator(context, clusterService, systemIndices),
+                new CreateDataStreamDotValidator(context, clusterService, systemIndices),
                 new AutoCreateDotValidator(context, clusterService, systemIndices),
                 new IndexTemplateDotValidator(context, clusterService, systemIndices)
             )

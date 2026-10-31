@@ -25,6 +25,7 @@ import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -159,6 +160,32 @@ public class HashJoinOperatorsTests extends ComputeTestCase {
             assertTrue(payload.isReleased());
             assertFalse(bridge.hasReferences());
         }
+    }
+
+    public void testCancelledSharedBuildPreservesFailureOnFinish() {
+        BlockFactory factory = blockFactory();
+        DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+        HashJoinBridge bridge = new HashJoinBridge();
+        try (
+            Releasable owner = bridge::decRef;
+            HashJoinBuildOperator build = new HashJoinBuildOperator.Factory(
+                bridge,
+                new int[] { 0 },
+                new ElementType[] { ElementType.LONG },
+                new int[] { 1 },
+                new ElementType[] { ElementType.LONG },
+                WARNING_SOURCE,
+                true
+            ).get(context)
+        ) {
+            build.addInput(buildPage(factory, List.of(new BuildRow(List.of(1L), 10))));
+            TaskCancelledException cancellation = new TaskCancelledException("cancelled shared build");
+            bridge.fail(cancellation);
+            assertSame(cancellation, expectThrows(TaskCancelledException.class, build::finish));
+            assertSame(cancellation, expectThrows(TaskCancelledException.class, bridge::lookup));
+            assertSame(cancellation, expectThrows(TaskCancelledException.class, () -> bridge.payload(0)));
+        }
+        assertFalse(bridge.hasReferences());
     }
 
     private JoinResult runJoin(List<BuildRow> buildRows, List<ProbeRow> probeRows) {

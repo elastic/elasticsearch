@@ -15,14 +15,13 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Shares the completed hash-join build side with probe and payload-loading drivers.
  */
 public final class HashJoinBridge extends AbstractRefCounted {
     private final SubscribableListener<Void> ready = new SubscribableListener<>();
-    private final AtomicBoolean completed = new AtomicBoolean();
+    private boolean completed;
 
     private volatile RowInTableLookup lookup;
     private volatile Block[] payload;
@@ -40,21 +39,29 @@ public final class HashJoinBridge extends AbstractRefCounted {
         for (Block block : publishedPayload) {
             Objects.requireNonNull(block).allowPassingToDifferentDriver();
         }
-        if (completed.compareAndSet(false, true) == false) {
-            throw new IllegalStateException("hash join build side has already completed");
+        synchronized (this) {
+            if (completed) {
+                ensureNotFailed();
+                throw new IllegalStateException("hash join build side has already completed");
+            }
+            completed = true;
+            this.lookup = lookup;
+            this.payload = publishedPayload;
         }
-        this.lookup = lookup;
-        this.payload = publishedPayload;
         ready.onResponse(null);
     }
 
     /** Unblocks every probe when the build cannot finish, including cancellation before the build driver starts. */
     public void fail(Exception failure) {
         Objects.requireNonNull(failure);
-        if (completed.compareAndSet(false, true)) {
+        synchronized (this) {
+            if (completed) {
+                return;
+            }
+            completed = true;
             this.failure = failure;
-            ready.onFailure(failure);
         }
+        ready.onFailure(failure);
     }
 
     RowInTableLookup lookup() {
@@ -71,6 +78,10 @@ public final class HashJoinBridge extends AbstractRefCounted {
         if (ready.isDone() == false) {
             throw new IllegalStateException("hash join build side is not ready");
         }
+        ensureNotFailed();
+    }
+
+    private void ensureNotFailed() {
         Exception failure = this.failure;
         if (failure != null) {
             if (failure instanceof RuntimeException runtimeException) {

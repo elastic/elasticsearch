@@ -30,8 +30,10 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -58,6 +60,8 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -359,7 +363,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 releaseResourcesOnCancel.run();
                 return;
             }
-            indexFailures.collect(index, error);
+            final ShardRestoringException restoring = TransportActions.isShardNotAvailableException(error)
+                ? restoringIndexFailure(index, projectState)
+                : null;
+            // a restoring index is reported with its restore rather than as unavailable
+            indexFailures.collect(index, restoring != null ? restoring : error);
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
             }
@@ -604,6 +612,31 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
+    /**
+     * Returns a {@link ShardRestoringException} if {@code index} is a local index being restored by a restore that reports its shards, or
+     * {@code null} otherwise, such as for an index of a remote cluster.
+     */
+    @Nullable
+    private static ShardRestoringException restoringIndexFailure(String index, ProjectState projectState) {
+        final IndexMetadata indexMetadata = projectState.metadata().index(index);
+        return indexMetadata == null
+            ? null
+            : RestoreService.reportableRestoreException(projectState.projectId(), indexMetadata.getIndex(), projectState.cluster());
+    }
+
+    /**
+     * The exception to fail the request with when no index answered: the {@link ShardRestoringException} when every failed index is being
+     * restored by a restore that reports its shards, and otherwise a failure that is not a restore, because if any index failed for another
+     * reason, waiting for the restores would not let the request succeed. Package-private for tests.
+     */
+    static Exception failureWhenNoIndexAnswered(List<FieldCapabilitiesFailure> failures) {
+        return failures.stream()
+            .map(FieldCapabilitiesFailure::getException)
+            .filter(e -> e instanceof ShardRestoringException == false)
+            .findFirst()
+            .orElse(failures.get(0).getException());
+    }
+
     private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
@@ -651,8 +684,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         .build()
                 );
             } else {
-                // throw back the first exception
-                listener.onFailure(failures.get(0).getException());
+                // throw back the first exception that is not a restore, or the restore when it is all that stopped the request
+                listener.onFailure(failureWhenNoIndexAnswered(failures));
             }
         } else {
             FieldCapabilitiesResponse.Builder builder = FieldCapabilitiesResponse.builder()

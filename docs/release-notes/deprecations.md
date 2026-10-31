@@ -16,6 +16,16 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+```{applies_to}
+stack: ga 9.5.6
+```
+## 9.5.6 [elasticsearch-9.5.6-deprecations]
+
+Packaging:
+* Deprecate running with Java 21-24 [#163427](https://github.com/elastic/elasticsearch/pull/163427)
+
+
+
 ## 9.5.5 [elasticsearch-9.5.5-deprecations]
 
 There are no deprecations associated with this release.

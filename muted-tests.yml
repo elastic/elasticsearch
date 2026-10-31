@@ -530,3 +530,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testStaleTestDirectoriesNameNoMethodOfTheSuite
   issue: https://github.com/elastic/elasticsearch/issues/164167
+- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
+  tasks:
+  - :modules:apm:test
+  method: testUpdateMaxSpansPropagatesToTracer
+  issue: https://github.com/elastic/elasticsearch/issues/164198

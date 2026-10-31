@@ -317,6 +317,34 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
+    // acquire and tryAcquire throw GPUGraphBuildException, which the writer handles by building the graph on CPU,
+    // when the estimated memory exceeds the GPU total memory, as waiting for other resources to be released can't help
+    public void testAcquireThrowsWhenEstimateExceedsTotalMemory() throws Exception {
+        var mgr = new MockPoolingCuVSResourceManager(2);
+        // NN_DESCENT estimate: 2 * 64K vectors * 1024 dims * 4 bytes = 512MB > 256MB total
+        int numVectors = 64 * 1024;
+        var e = expectThrows(
+            GPUGraphBuildException.class,
+            () -> mgr.acquire(numVectors, 1024, CuVSMatrix.DataType.FLOAT, createNnDescentParams(), "test")
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Estimated GPU memory [536870912 B] for [65536] vectors, [1024] dims is greater than the GPU total memory [268435456 B]"
+            )
+        );
+        expectThrows(
+            GPUGraphBuildException.class,
+            () -> mgr.tryAcquire(numVectors, 1024, CuVSMatrix.DataType.FLOAT, createNnDescentParams(), "test")
+        );
+        // the failed attempts don't hold on to a resource or reserve memory
+        assertThat(mgr.availableMemory(), equalTo(TOTAL_DEVICE_MEMORY_IN_BYTES));
+        var res = mgr.tryAcquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams(), "test");
+        assertNotNull(res);
+        mgr.release(res);
+        mgr.shutdown();
+    }
+
     public void testEstimateNNDescentMemoryOverflow() {
         int numVectors = 500_000;
         int dims = 1024;

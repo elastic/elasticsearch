@@ -1,0 +1,107 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Writes a manifest of what a run ACTUALLY executed, per dimension.
+ *
+ * The four precommit gates prove structural invariants -- nothing generated-unread, nothing
+ * declared-ungenerated, no exclusion pointing at nothing, no dialect lie. None of them say whether a case
+ * actually RAN, and deliberately so: execution varies with LOCAL backend availability, snapshotBuild,
+ * OS/arch and FIPS, so a gate on it would be flaky by construction and muted within a week.
+ *
+ * That leaves a real question the gates cannot answer -- "what did we actually run?" -- so this reports it
+ * instead of asserting it. It is derived from the JUnit XML the suites already emit, never maintained by
+ * hand, so it cannot drift from reality.
+ *
+ * Two properties learned the hard way. It renders NOT-OBSERVED distinctly from ZERO: reading only the
+ * csvSpecTests results once made a spec owned by another suite look like it had no coverage at all. And it
+ * records the environment, because an executed set is only comparable against another from the same
+ * environment.
+ */
+
+def manifestDir = layout.buildDirectory.dir('reports/fixture-coverage')
+
+tasks.register('fixtureRunManifest') {
+  description = 'Writes what the last run actually executed, per suite/spec/codec/backend.'
+  group = 'verification'
+  outputs.upToDateWhen { false }
+
+  // Captured at configuration time: touching Task.project during execution is deprecated and breaks the
+  // configuration cache.
+  def projectPath = project.path
+  def resultsRoot = layout.buildDirectory.dir('test-results').get().asFile
+  def outDir = manifestDir.get().asFile
+
+  doLast {
+    def rows = []
+    def parser = new groovy.xml.XmlParser()
+    def xmlFiles = []
+    if (resultsRoot.directory) {
+      resultsRoot.eachFileRecurse { f -> if (f.file && f.name.endsWith('.xml')) { xmlFiles << f } }
+    }
+    xmlFiles.each { f ->
+      def suiteXml
+      try { suiteXml = parser.parse(f) } catch (Exception ignored) { return }
+      def cls = (suiteXml.@name ?: '?').toString().tokenize('.').last()
+      suiteXml.testcase.each { tc ->
+        def name = (tc.@name ?: '').toString()
+        def m = (name =~ /test \{csv-spec:([^.]+)\.([^\s\[]+)\s*\[([^\]]*)\]\}/)
+        if (m.find() == false) {
+          return
+        }
+        def spec = m.group(1)
+        def caseName = m.group(2)
+        def parts = m.group(3).tokenize('/')
+        def codec = parts.size() > 1 ? parts[0] : 'plain'
+        def backend = parts[-1]
+        def status = tc.skipped ? 'skipped' : (tc.failure || tc.error ? 'failed' : 'ran')
+        rows << [cls, spec, caseName, codec, backend, status]
+      }
+    }
+
+    def dir = outDir
+    dir.mkdirs()
+
+    // The full fact table: one line per executed parameterisation, sorted so two runs diff cleanly.
+    def manifest = new File(dir, 'run-manifest.tsv')
+    manifest.withWriter('UTF-8') { w ->
+      w.println("# suite\tspec\tcase\tcodec\tbackend\tstatus")
+      w.println("# environment\tos=${System.getProperty('os.name')}\tarch=${System.getProperty('os.arch')}")
+      w.println("# NOT a golden file: an executed set is only comparable against one from the same environment.")
+      rows.sort { a, b -> a.join('\t') <=> b.join('\t') }.each { r -> w.println(r.join('\t')) }
+    }
+
+    // Per-dimension summary, which is the part a human reads.
+    def summary = new File(dir, 'coverage-summary.txt')
+    summary.withWriter('UTF-8') { w ->
+      w.println("what this run executed  (project ${projectPath})")
+      w.println("=" * 78)
+      if (rows.isEmpty()) {
+        w.println("NOT OBSERVED -- no csv-spec results in this project's build directory.")
+        w.println("That is not the same as zero coverage: a spec may be owned by a suite this project")
+        w.println("does not run. Run the suites before reading this as a coverage statement.")
+        return
+      }
+      def bySpec = rows.groupBy { it[1] }
+      w.println(String.format("%-38s %6s %8s %8s %5s %5s", 'spec', 'ran', 'skipped', 'failed', 'cod', 'bk'))
+      w.println('-' * 78)
+      bySpec.keySet().sort().each { spec ->
+        def g = bySpec[spec]
+        w.println(String.format("%-38s %6d %8d %8d %5d %5d", spec,
+            g.count { it[5] == 'ran' }, g.count { it[5] == 'skipped' }, g.count { it[5] == 'failed' },
+            g.collect { it[3] }.unique().size(), g.collect { it[4] }.unique().size()))
+      }
+      w.println('-' * 78)
+      w.println(String.format("%-38s %6d %8d %8d", 'TOTAL', rows.count { it[5] == 'ran' },
+          rows.count { it[5] == 'skipped' }, rows.count { it[5] == 'failed' }))
+    }
+    logger.lifecycle("fixture run manifest: ${rows.count { it[5] == 'ran' }} executed, written to ${dir}")
+  }
+}
+
+// Emitted after the suites run, so the manifest always describes the run that just happened.
+tasks.matching { it.name == 'csvSpecTests' }.configureEach { finalizedBy 'fixtureRunManifest' }

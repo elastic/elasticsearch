@@ -24,7 +24,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -352,9 +351,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return Queries.NO_DOCS_INSTANCE;
             }
 
-            final Automaton automaton = Operations.determinize(
-                new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(),
-                maxDeterminizedStates
+            final Automaton automaton = AutomatonQueries.toRegexpAutomaton(
+                new Term(name(), regexp),
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                context == null ? null : context.getCircuitBreaker()
             );
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {

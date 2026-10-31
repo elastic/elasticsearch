@@ -39,7 +39,10 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.ValueDeduplicator;
 import org.elasticsearch.search.DocValueFormat;
@@ -437,11 +440,19 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         return (int) Arrays.stream(docs).filter(d -> d != null && d.equals(NULL_SLOT) == false).count();
     }
 
+    private static IncludeExclude.StringFilter stringFilter(IncludeExclude filter) {
+        return filter.convertToStringFilter(
+            DocValueFormat.RAW,
+            IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY),
+            new NoopCircuitBreaker("test")
+        );
+    }
+
     private static boolean accepts(IncludeExclude filter, String term) {
         if (filter == null) {
             return true;
         }
-        return filter.convertToStringFilter(DocValueFormat.RAW).accept(new BytesRef(term));
+        return stringFilter(filter).accept(new BytesRef(term));
     }
 
     private static Map<String, Long> expected(Search search, IncludeExclude filter) {
@@ -474,7 +485,7 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
     private Outcome search(Search search) throws IOException {
         final CountingConsumer consumer = new CountingConsumer();
         final ColumnarOrdinalTermsCollector.OrdinalBuckets ordinalBuckets = new ColumnarOrdinalTermsCollector.OrdinalBuckets();
-        final IncludeExclude.StringFilter filter = search.filter == null ? null : search.filter.convertToStringFilter(DocValueFormat.RAW);
+        final IncludeExclude.StringFilter filter = search.filter == null ? null : stringFilter(search.filter);
         final int[] leaves = new int[2];
         final long[] escaped = new long[1];
         final Query query = search.tagged == null ? Queries.ALL_DOCS_INSTANCE : new TermQuery(new Term("tag", "yes"));

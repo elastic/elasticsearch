@@ -139,15 +139,16 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
         assertThat(automaton.run(term.bytes, term.offset, term.length), is(true));
     }
 
-    public void testCircuitBreakerTripsForHugeRepetition() {
-        CircuitBreaker tinyBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+    /** A repetition within the work limit whose predicted peak exceeds the breaker trips it before the build starts. */
+    public void testCircuitBreakerTripsForLargeRepetition() {
+        CircuitBreaker tinyBreaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         expectThrows(
             CircuitBreakingException.class,
             () -> new StringScriptFieldRegexpQuery(
                 randomScript(),
                 leafFactory,
                 "test",
-                "a{100000000}",
+                "a{300000}",
                 RegExp.ALL,
                 0,
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,

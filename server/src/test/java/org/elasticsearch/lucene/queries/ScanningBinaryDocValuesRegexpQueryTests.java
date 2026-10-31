@@ -388,11 +388,12 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
         assertFalse(calledForRejectedField[0]);
     }
 
-    public void testCircuitBreakerTripsForHugeRepetitionBeforeBuild() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+    /** A repetition within the work limit whose predicted peak exceeds the breaker trips it before the build starts. */
+    public void testCircuitBreakerTripsForLargeRepetitionBeforeBuild() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         expectThrows(
             CircuitBreakingException.class,
-            () -> new ScanningBinaryDocValuesRegexpQuery("field", "a{100000000}", RegExp.ALL, 0, 1000, SEPARATE_COUNT, breaker)
+            () -> new ScanningBinaryDocValuesRegexpQuery("field", "a{300000}", RegExp.ALL, 0, 1000, SEPARATE_COUNT, breaker)
         );
         assertEquals("no memory should remain reserved after the breaker trips", 0, breaker.getUsed());
     }

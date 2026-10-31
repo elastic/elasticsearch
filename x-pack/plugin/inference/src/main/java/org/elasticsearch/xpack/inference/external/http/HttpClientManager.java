@@ -37,13 +37,13 @@ public class HttpClientManager implements Closeable {
     /**
      * The maximum number of total connections the connection pool can lease to all routes.
      * The configuration applies to each instance of HTTPClientManager (max_total_connections=10 and instances=5 leads to 50 connections).
-     * From googling around the connection pools maxTotal value should be close to the number of available threads.
-     *
-     * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
+     * The client is asynchronous, so an open connection does not hold a thread and this value does not need to track the number of
+     * available threads. Each in-flight request leases a connection exclusively (HTTP/2 message multiplexing is not enabled), so this
+     * value bounds the number of concurrent outbound requests. Requests exceeding it are queued until a connection is released.
      */
     public static final Setting<Integer> MAX_TOTAL_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_total_connections",
-        50, // default
+        500, // default
         1, // min
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -52,10 +52,11 @@ public class HttpClientManager implements Closeable {
     /**
      * The max number of connections a single route can lease.
      * This configuration applies to each instance of HttpClientManager.
+     * As each in-flight request holds one connection, this bounds the number of concurrent requests to a single host.
      */
     public static final Setting<Integer> MAX_ROUTE_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_route_connections",
-        20, // default
+        200, // default
         1, // min
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

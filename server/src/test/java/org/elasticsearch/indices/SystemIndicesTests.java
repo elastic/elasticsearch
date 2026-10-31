@@ -296,6 +296,28 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(mappingsVersions.keySet(), not(contains("unmanaged")));
     }
 
+    public void testSystemDataStreamMatchingSystemIndexPatternIsRejected() {
+        SystemDataStreamDescriptor dataStreamDescriptor = new SystemDataStreamDescriptor(
+            ".test-ds",
+            "",
+            SystemDataStreamDescriptor.Type.EXTERNAL,
+            ComposableIndexTemplate.builder().build(),
+            Map.of(),
+            Collections.singletonList("origin"),
+            "origin",
+            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+        );
+        SystemIndices.Feature feature = new SystemIndices.Feature(
+            "test",
+            "test feature",
+            List.of(SystemIndexDescriptorUtils.createUnmanaged(".test-*", "")),
+            List.of(dataStreamDescriptor)
+        );
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new SystemIndices(List.of(feature)));
+        assertThat(e.getMessage(), containsString("overlaps with one or more data stream descriptors"));
+    }
+
     public void testSystemDataStreamPattern() {
         String dataStreamName = ".my-data-stream";
         SystemDataStreamDescriptor dataStreamDescriptor = new SystemDataStreamDescriptor(

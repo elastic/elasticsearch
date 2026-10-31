@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation.table;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -18,12 +17,10 @@ import org.elasticsearch.core.ReleasableIterator;
  * {@link RowInTableLookup} that models an increasing sequence of integers.
  */
 public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
-    private final BlockFactory blockFactory;
     private final int min;
     private final int max;
 
-    public AscendingSequenceRowInTableLookup(BlockFactory blockFactory, int min, int max) {
-        this.blockFactory = blockFactory;
+    public AscendingSequenceRowInTableLookup(int min, int max) {
         this.min = min;
         this.max = max;
     }
@@ -51,7 +48,7 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     }
 
     private IntVector lookupVectorInRange(IntVector vector) {
-        try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
+        try (IntVector.FixedBuilder builder = vector.blockFactory().newIntVectorFixedBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 builder.appendInt(i, vector.getInt(i) - min);
             }
@@ -60,7 +57,7 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     }
 
     private IntBlock lookupVectorMaybeInRange(IntVector vector) {
-        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(vector.getPositionCount())) {
+        try (IntBlock.Builder builder = vector.blockFactory().newIntBlockBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 int v = vector.getInt(i);
                 if (v < min || v >= max) {
@@ -98,7 +95,7 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
         @Override
         public IntBlock next() {
             int initialEntries = Math.min(target / Integer.BYTES / 2, block.getPositionCount() - p);
-            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(initialEntries)) {
+            try (IntBlock.Builder builder = block.blockFactory().newIntBlockBuilder(initialEntries)) {
                 if (builder.estimatedBytes() > target) {
                     throw new IllegalStateException(
                         "initial builder overshot target [" + builder.estimatedBytes() + "] vs [" + target + "]"

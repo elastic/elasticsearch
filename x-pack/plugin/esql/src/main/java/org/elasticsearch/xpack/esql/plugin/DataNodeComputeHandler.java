@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.HashJoinTables;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -970,6 +971,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
+        private final HashJoinTables hashJoinTables;
         private final PlanTimeProfile planTimeProfile;
 
         DataNodeRequestExecutor(
@@ -984,7 +986,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            AcquiredSearchContexts searchContexts
+            AcquiredSearchContexts searchContexts,
+            HashJoinTables hashJoinTables
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
@@ -1000,6 +1003,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
+            this.hashJoinTables = hashJoinTables;
             this.planTimeProfile = new PlanTimeProfile();
         }
 
@@ -1077,7 +1081,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration.newFoldContext(),
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
-                        singleNodeOptimizations
+                        singleNodeOptimizations,
+                        hashJoinTables
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1210,10 +1215,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
+        // Every batch of shards plans the same request plan, so they can share the tables it joins against. Released
+        // before responding, so the memory is back by the time the coordinator learns this node is done.
+        final HashJoinTables hashJoinTables = new HashJoinTables();
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
+                ActionListener.runBefore(
+                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
+                    hashJoinTables::close
+                )
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
@@ -1244,7 +1255,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
-                    searchContexts
+                    searchContexts,
+                    hashJoinTables
                 );
                 dataNodeRequestExecutor.start();
                 if (runNodeReduce == false) {
@@ -1265,7 +1277,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         internalExchange::exchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.singleNodeOptimizations()
+                        request.singleNodeOptimizations(),
+                        null
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,
@@ -1874,7 +1887,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration.newFoldContext(),
                     null,
                     () -> externalSink.createExchangeSink(() -> {}),
-                    false
+                    false,
+                    null
                 );
                 computeService.runCompute(
                     task,

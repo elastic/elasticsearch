@@ -31,6 +31,13 @@ public interface BytesRefHashTable extends Accountable, Releasable {
     long find(BytesRef key);
 
     /**
+     * Same as {@link #find(BytesRef)}, but safe to call from several threads at once as long as no
+     * thread adds to or clears the table meanwhile. Implementations must not write any state here,
+     * scratch buffers included.
+     */
+    long concurrentSafeFind(BytesRef key);
+
+    /**
      * Adds the given key to the table. Return its newly allocated id if
      * it wasn't in the table yet, or {@code -1-id} if it was already
      * present in the table.

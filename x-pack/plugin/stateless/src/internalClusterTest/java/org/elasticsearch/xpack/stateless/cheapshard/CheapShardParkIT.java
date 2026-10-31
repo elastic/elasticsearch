@@ -67,6 +67,11 @@ import static org.hamcrest.Matchers.nullValue;
  * {@link CheapShardParkedAllocationDecider}) and whose search copies are 0 has no {@code IndexService} on any node; it comes back by
  * clearing {@code index.cheap_shard.parked} (primary recovers from the object store with term + 1). See
  * {@code notes/phase3-both-tiers-zero.md}.
+ * <p>
+ * Parking does not reach "nothing on any node": the former primary's node keeps the shard directory under
+ * {@code indices/&lt;uuid&gt;} (a few small files; {@code IndicesStore} deletes shard data only once all copies are started, which a
+ * parked primary never is), and the data nodes keep the index's shared-cache regions until they are evicted (demoted, not freed; the
+ * tests force-evict the search node's). The {@code residue} helper logs both; nothing asserts them to be zero.
  */
 public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -458,10 +463,36 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
         assertBusy(() -> assertHitCount(client(f.searchNode).prepareSearch(f.indexName).setTrackTotalHits(true), f.docs + 1));
     }
 
+    /**
+     * An {@code _update} (here an upsert) to a parked index unparks it too: unlike index/delete it is not a bulk until it has reached the
+     * primary, so the filter must act on the update action itself.
+     */
+    public void testUpdateUnparksIndexingShard() throws Exception {
+        final Fixture f = setUpIndex();
+        park(f);
+        updateClusterSettings(Settings.builder().put(CheapShardUnparkOnWriteFilter.ENABLED_SETTING.getKey(), true));
+        final long term = primaryTerm(f);
+        final var update = client(randomFrom(f.dataNodes())).prepareUpdate(f.indexName, "updated-while-parked")
+            .setDoc("field", "v")
+            .setDocAsUpsert(true)
+            .get(TimeValue.timeValueSeconds(30));
+        assertThat(update.getId(), equalTo("updated-while-parked"));
+        assertBusy(() -> assertTrue(primary(f).started()));
+        assertThat(primaryTerm(f), equalTo(term + 1));
+        assertFalse(
+            CheapShardParkedAllocationDecider.PARKED_SETTING.get(clusterState().metadata().getProject().index(f.indexName).getSettings())
+        );
+        setReplicaCount(1, f.indexName);
+        ensureGreen(f.indexName);
+        refresh(f.indexName);
+        assertHitCount(prepareSearch(f.indexName).setTrackTotalHits(true), f.docs + 1);
+    }
+
     // ---- C5: measurements --------------------------------------------------------------------------------------------------------
 
     /**
-     * From fully parked (no primary, 0 search copies, no IndexService/IndexShard/files on any node): search activation end-to-end and
+     * From parked (no primary, 0 search copies, no IndexService/IndexShard on any node; the shard directory remains on the former primary's
+     * node and the search node's cache regions are force-evicted, see the class javadoc): search activation end-to-end and
      * node-local, then a write that unparks the indexing shard (bulk sent first, waits in ReroutePhase, then parked=false), at
      * L = 30 and 100 ms object store first-byte latency (no jitter, unlimited bandwidth). Prints {@code PARK|} lines.
      */

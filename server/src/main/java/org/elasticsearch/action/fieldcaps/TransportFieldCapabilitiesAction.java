@@ -554,26 +554,57 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private Executor buildSingleThreadedExecutor() {
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
-                }
-            }
+        return buildSingleThreadedExecutor(searchCoordinationExecutor);
+    }
 
+    /**
+     * Builds an executor that runs the submitted tasks one at a time on the given executor. Field caps uses one per request so that
+     * all the merging of responses happens sequentially. Transport response handlers are submitted as force-executed
+     * {@link AbstractRunnable}s, because every handler must be completed to release the request's resources, so this executor lets
+     * them bypass the queue-length limit of the given executor. A task that is still rejected (e.g. on shutdown) is notified via
+     * {@link AbstractRunnable#onRejection}.
+     */
+    static Executor buildSingleThreadedExecutor(Executor searchCoordinationExecutor) {
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor) {
             @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
-                } else {
-                    // should be impossible, we should always submit an AbstractRunnable
-                    logger.error("unexpected failure running " + r, e);
-                    assert false : new AssertionError("unexpected failure running " + r, e);
-                }
+            protected boolean isForceExecution(ActionListener<Releasable> task) {
+                return task instanceof ThrottledRunnable throttledRunnable
+                    && throttledRunnable.runnable() instanceof AbstractRunnable abstractRunnable
+                    && abstractRunnable.isForceExecution();
             }
-        });
+        };
+        return r -> throttledTaskRunner.enqueueTask(new ThrottledRunnable(r));
+    }
+
+    /**
+     * Adapts a {@link Runnable} to the {@link ThrottledTaskRunner} task interface.
+     */
+    private record ThrottledRunnable(Runnable runnable) implements ActionListener<Releasable> {
+        @Override
+        public void onResponse(Releasable releasable) {
+            try (releasable) {
+                runnable.run();
+            }
+        }
+
+        /**
+         * Called by the {@link ThrottledTaskRunner} when the underlying executor rejects this task.
+         */
+        @Override
+        public void onFailure(Exception e) {
+            if (runnable instanceof AbstractRunnable abstractRunnable) {
+                abstractRunnable.onRejection(e);
+            } else {
+                // should be impossible, we should always submit an AbstractRunnable
+                LOGGER.error(() -> "unexpected failure running " + runnable, e);
+                assert false : new AssertionError("unexpected failure running " + runnable, e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return runnable.toString();
+        }
     }
 
     public interface LinkedRequestExecutor<R extends ActionResponse> {

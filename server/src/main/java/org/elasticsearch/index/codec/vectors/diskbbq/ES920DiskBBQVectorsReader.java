@@ -69,18 +69,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         return new ES920DiskBBQVectorsReader(this, genericReaders);
     }
 
-    public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
-        throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
-    }
-
     @Override
     public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -133,7 +127,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                 globalCentroidDp
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        return centroidIterator;
     }
 
     @Override
@@ -609,7 +603,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                         scores
                     );
                 }
-                if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                     collectBulk(knnCollector, scores);
                 }
                 scoredDocs += docsToBulkScore;
@@ -641,7 +635,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                         qcDist
                     );
                     scoredDocs++;
-                    if (knnCollector.minCompetitiveSimilarity() < score) {
+                    if (knnCollector.minCompetitiveSimilarity() <= score) {
                         knnCollector.collect(doc, score);
                     }
                 } else {

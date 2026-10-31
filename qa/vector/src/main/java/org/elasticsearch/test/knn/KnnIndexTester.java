@@ -1064,6 +1064,8 @@ public class KnnIndexTester {
                 "index_name",
                 "index_type",
                 "num_segments",
+                "search_threads",
+                "num_searchers",
                 "visit_percentage(%)",
                 "actual_visit(%)",
                 "latency(ms)",
@@ -1112,6 +1114,8 @@ public class KnnIndexTester {
                     queryResult.indexName,
                     queryResult.indexType,
                     Integer.toString(queryResult.numSegments),
+                    Integer.toString(queryResult.searchThreads),
+                    Integer.toString(queryResult.numSearchers),
                     String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
                     String.format(Locale.ROOT, "%.3f", queryResult.actualVisitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
@@ -1232,6 +1236,8 @@ public class KnnIndexTester {
         boolean exactQuantized;
         int numCandidates;
         int topK;
+        int searchThreads;
+        int numSearchers;
         Map<String, Float> perPartitionRecall;
 
         Results(String indexName, String indexType, int numDocs) {

@@ -101,6 +101,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.IntFunction;
@@ -222,6 +223,43 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 }
             }
             return numDocs;
+        }
+    }
+
+    /**
+     * A search that splits its own work (DiskBBQ slices) may use the calling thread plus the executor's idle threads: only
+     * the caller when every thread is busy, and never more than the searcher's maximum.
+     */
+    public void testMaximumParallelSlicesFollowsIdleThreads() throws Exception {
+        int threads = randomIntBetween(2, 5);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threads);
+        CountDownLatch release = new CountDownLatch(1);
+        try (Directory directory = newDirectory()) {
+            indexDocs(directory);
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean(),
+                    executor,
+                    threads,
+                    1
+                );
+                searcher.setIdleThreads(() -> executor.getMaximumPoolSize() - executor.getActiveCount());
+                assertEquals("an idle pool: the searcher's maximum", threads, ContextIndexSearcher.maximumParallelSlices(searcher));
+                for (int i = 0; i < threads; i++) {
+                    executor.execute(() -> safeAwait(release));
+                }
+                // the pool's active count is approximate, so wait for it rather than read it once
+                assertBusy(() -> assertEquals("a busy pool: the caller alone", 1, ContextIndexSearcher.maximumParallelSlices(searcher)));
+                release.countDown();
+                assertBusy(() -> assertEquals(threads, ContextIndexSearcher.maximumParallelSlices(searcher)));
+            }
+        } finally {
+            release.countDown();
+            terminate(executor);
         }
     }
 

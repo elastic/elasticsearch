@@ -33,7 +33,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.BulkMask;
@@ -84,12 +83,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return new ES940DiskBBQVectorsReader(this, genericReaders);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
-    }
-
     private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
         throws CorruptIndexException {
         if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2
@@ -128,7 +121,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -208,7 +200,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 bulkSize
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        return centroidIterator;
     }
 
     @Override
@@ -656,12 +648,10 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, indexInput, fieldInfo, acceptDocs);
     }
 
-    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
-
     private static final int QUERY_CACHE_SIZE = 16;
 
     private static class QueryQuantizer {
-        private final LinkedHashMap<Integer, QueryQuantizerResult> cache;
+        private Map<Integer, QuantizedQuery> cache;
         private final ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding;
         private final float[] target;
         private final float[] scratch;
@@ -674,7 +664,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         private int currentCentroidOrdinal = -2;
         private int nextCentroidOrdinal = -1;
         private byte[] evictedQuantizedQuery = null;
-        private QueryQuantizerResult result = null;
+        private QuantizedQuery result = null;
 
         QueryQuantizer(
             ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding,
@@ -694,7 +684,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.queryPackedLength = quantEncoding.getQueryPackedLength(fieldInfo.getVectorDimension());
             this.cache = new LinkedHashMap<>(QUERY_CACHE_SIZE, 0.75f, true) {
                 @Override
-                protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
+                protected boolean removeEldestEntry(Map.Entry<Integer, QuantizedQuery> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
                         evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
                         return true;
@@ -706,6 +696,15 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
 
         void reset(int centroidOrdinal) {
             this.nextCentroidOrdinal = centroidOrdinal;
+        }
+
+        /**
+         * Caches quantizations in the segment's {@code shared} map instead of this visitor's own, so the parts searching the
+         * segment compute each centroid's once. That map never evicts, so no array another part reads is ever reused.
+         */
+        void share(Map<Integer, QuantizedQuery> shared) {
+            this.cache = shared;
+            this.evictedQuantizedQuery = null;
         }
 
         void quantizeQueryIfNecessary() throws IOException {
@@ -737,8 +736,11 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QueryQuantizerResult(queryCorrections, new ScoringQuery(quantizedQuery));
-                cache.put(nextCentroidOrdinal, result);
+                result = new QuantizedQuery(queryCorrections, new ScoringQuery(quantizedQuery));
+                QuantizedQuery published = cache.putIfAbsent(nextCentroidOrdinal, result);
+                if (published != null) {
+                    result = published; // another part of the segment quantized it first
+                }
             }
         }
 
@@ -809,6 +811,11 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 BULK_SIZE,
                 bitEncoding
             );
+        }
+
+        @Override
+        public void shareQuantizedQueries(Map<Integer, QuantizedQuery> shared) {
+            queryQuantizer.share(shared);
         }
 
         @Override
@@ -964,7 +971,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                         scores
                     );
                 }
-                if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                     collectBulk(knnCollector, scores, BULK_SIZE);
                 }
                 scoredDocs += docsToBulkScore;
@@ -1015,7 +1022,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                             tailSize
                         );
                     }
-                    if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                    if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                         collectBulk(knnCollector, scores, tailSize);
                     }
                     scoredDocs += docsToBulkScore;

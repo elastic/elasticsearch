@@ -57,6 +57,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -73,7 +74,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     // make sure each slice has at least 10% of the documents as a way to limit memory usage and
     // to keep the error margin of terms aggregation low
-    static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
+    public static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
@@ -81,6 +82,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /** Shared with the searchers derived by {@link #withQueryCache}; only the searcher that created it sets the breaker and closes it. */
     private final ExecutionAccounting executionAccounting;
     private final boolean ownsExecutionAccounting;
+    private boolean ivfSlicesEnabled;
+    private IntSupplier idleThreads; // the executor's idle threads right now; null when unknown
 
     private final MutableQueryTimeout cancellable;
 
@@ -204,6 +207,36 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             throw new IllegalStateException("a searcher derived with withQueryCache uses the circuit breaker of the searcher it came from");
         }
         executionAccounting.setBreaker(circuitBreaker);
+    }
+
+    public void setIvfSlicesEnabled(boolean ivfSlicesEnabled) {
+        this.ivfSlicesEnabled = ivfSlicesEnabled;
+    }
+
+    /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} slice their work across segments and within large segments. */
+    public static boolean ivfSlicesEnabled(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis && cis.ivfSlicesEnabled;
+    }
+
+    /**
+     * Tells searches that split their own work (DiskBBQ slices) how many of the executor's threads are idle when they decide
+     * how to split, so that a busy node splits less, or not at all.
+     */
+    public void setIdleThreads(IntSupplier idleThreads) {
+        this.idleThreads = idleThreads;
+    }
+
+    /**
+     * How many slices a search on {@code searcher} may run in parallel right now: its maximum number of slices (Elasticsearch
+     * sets it to the search pool's size while the pool's queue is short), and no more than the calling thread plus the
+     * executor's idle threads, when known; 1 when it has no executor.
+     */
+    public static int maximumParallelSlices(IndexSearcher searcher) {
+        if (searcher instanceof ContextIndexSearcher cis && cis.hasExecutor) {
+            int slices = Math.max(1, cis.maximumNumberOfSlices);
+            return cis.idleThreads == null ? slices : Math.min(slices, 1 + Math.max(0, cis.idleThreads.getAsInt()));
+        }
+        return 1;
     }
 
     /**

@@ -89,6 +89,14 @@ public final class SourceSchema {
     }
 
     /**
+     * Like {@link #appendNonLeaf(String, int)}, but first checks whether the field is {@code predictedIdx}, which skips the
+     * lookup by name. A wrong prediction only costs the lookup. See {@link #appendLeaf(String, int, int)}.
+     */
+    public int appendNonLeaf(String name, int parentIdx, int predictedIdx) {
+        return nonLeaves.append(name, parentIdx, predictedIdx);
+    }
+
+    /**
      * Returns the number of leaf fields (columns).
      */
     public int leafCount() {
@@ -115,6 +123,18 @@ public final class SourceSchema {
      */
     public int appendLeaf(String name, int parentIdx) {
         return leaves.append(name, parentIdx);
+    }
+
+    /**
+     * Like {@link #appendLeaf(String, int)}, but first checks whether the field is at the
+     * given {@code predictedIdx}, which skips the lookup by name. A wrong prediction only
+     * costs the lookup; the result is the same either way.
+     *
+     * <p> Rows of the same shape commonly add their fields in the order the schema first saw
+     * them, so the best guess is the index right after the field the caller resolved last.
+     */
+    public int appendLeaf(String name, int parentIdx, int predictedIdx) {
+        return leaves.append(name, parentIdx, predictedIdx);
     }
 
     /**
@@ -212,6 +232,14 @@ public final class SourceSchema {
 
         int find(String name, int parentIdx) {
             return lookup.getOrDefault(new FieldKey(parentIdx, name), MISSING);
+        }
+
+        int append(String name, int parentIdx, int predictedIdx) {
+            assert predictedIdx >= 0;
+            if (predictedIdx < names.size() && parents[predictedIdx] == parentIdx && names.get(predictedIdx).equals(name)) {
+                return predictedIdx;
+            }
+            return append(name, parentIdx);
         }
 
         int append(String name, int parentIdx) {

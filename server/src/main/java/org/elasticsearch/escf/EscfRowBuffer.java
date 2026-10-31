@@ -44,6 +44,14 @@ public final class EscfRowBuffer {
     private int parentDepth;
 
     /**
+     * The schema index each next field is predicted to have: right after the previous one, since rows of the same shape
+     * add their fields in the same order. Saves looking the field up by name. Starts from the first leaf and the first
+     * non-leaf after the root at every row.
+     */
+    private int predictedLeaf;
+    private int predictedNonLeaf;
+
+    /**
      * Whether {@link #finishRow()} has been called but {@link EscfBatchBuilder#commit} has not.
      * Package-private so {@link EscfBatchBuilder#commit} can reset it after draining.
      */
@@ -66,6 +74,8 @@ public final class EscfRowBuffer {
         Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
         columnsSet.clear();
         parentDepth = 0;
+        predictedLeaf = 0;
+        predictedNonLeaf = 1;
         rowStarted = false;
     }
 
@@ -80,7 +90,8 @@ public final class EscfRowBuffer {
 
     /** Descends into a named nested object, pushing the parent context. Pair with {@link #endObject()}. */
     public void startObject(String name) {
-        int nonLeafIdx = schema.appendNonLeaf(name, parentStack[parentDepth]);
+        int nonLeafIdx = schema.appendNonLeaf(name, parentStack[parentDepth], predictedNonLeaf);
+        predictedNonLeaf = nonLeafIdx + 1;
         parentDepth++;
         ensureParentStackCapacity();
         parentStack[parentDepth] = nonLeafIdx;
@@ -172,7 +183,8 @@ public final class EscfRowBuffer {
     }
 
     private int addLeaf(String name) {
-        int colIdx = schema.appendLeaf(name, parentStack[parentDepth]);
+        int colIdx = schema.appendLeaf(name, parentStack[parentDepth], predictedLeaf);
+        predictedLeaf = colIdx + 1;
         ensureScratchCapacity(colIdx + 1);
         if (columnsSet.getAndSet(colIdx)) {
             throw new IllegalArgumentException("Duplicate field [" + name + "]");

@@ -476,10 +476,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163819
-- class: org.elasticsearch.xpack.esql.action.NonIndexedTextSearchIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  issue: https://github.com/elastic/elasticsearch/issues/163831
 - class: org.elasticsearch.index.mapper.UnmappedFieldsTests
   tasks:
   - :server:test
@@ -509,3 +505,33 @@ tests:
   - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
   issue: https://github.com/elastic/elasticsearch/issues/164095
+- class: org.elasticsearch.xpack.security.support.CleanupRoleMappingDuplicatesMigrationIT
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testMigrationFallbackNamePreCondition
+  issue: https://github.com/elastic/elasticsearch/issues/164170
+- class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
+  tasks:
+  - :test:test-clusters:test
+  method: testNeverLosesOrDuplicatesLinesDuringRepeatedRollovers
+  issue: https://github.com/elastic/elasticsearch/issues/163277
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplierTests
+  tasks:
+  - :modules:apm:test
+  method: testUnreachableDestinationReportsFailedExportMetric
+  issue: https://github.com/elastic/elasticsearch/issues/164184
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkUnmappedTypeConflictsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos}
+  issue: https://github.com/elastic/elasticsearch/issues/164188
+- class: org.elasticsearch.xpack.esql.optimizer.GoldenGcTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testStaleTestDirectoriesNameNoMethodOfTheSuite
+  issue: https://github.com/elastic/elasticsearch/issues/164167
+- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
+  tasks:
+  - :modules:apm:test
+  method: testUpdateMaxSpansPropagatesToTracer
+  issue: https://github.com/elastic/elasticsearch/issues/164198

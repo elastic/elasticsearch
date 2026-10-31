@@ -123,10 +123,17 @@ public final class TSDBDocValuesBlockWriter {
         int numDocsWithValue = 0;
         long numValues = 0;
 
+        // Set only at flush for a single-valued numeric field; it then holds the same values getSortedNumeric would return.
+        final MaterializedNumericValues materialized = valuesSource.materialized();
+        assert materialized == null || maxOrd == AbstractTSDBDocValuesConsumer.NO_MAX_ORD : "only numeric fields are materialized";
+
         SortedNumericDocValues values;
         if (valuesSource.mergeStats.supported()) {
             numDocsWithValue = valuesSource.mergeStats.sumNumDocsWithField();
             numValues = valuesSource.mergeStats.sumNumValues();
+        } else if (materialized != null) {
+            numDocsWithValue = materialized.size();
+            numValues = materialized.size();
         } else {
             values = valuesSource.getSortedNumeric(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
@@ -201,36 +208,40 @@ public final class TSDBDocValuesBlockWriter {
                         fieldMetaWriter.write();
                     }
                     final long[] buffer = new long[blockSize];
-                    int bufferSize = 0;
-                    values = valuesSource.getSortedNumeric(field);
-                    if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
-                        disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                    }
-                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                        if (disiAccumulator != null) {
-                            disiAccumulator.addDocId(doc);
+                    if (materialized != null && docValueCountConsumer == null && sortedFieldObserver == null) {
+                        writeMaterializedBlocks(materialized, buffer, data, indexWriter, valuesDataOffset, blockEncoder);
+                    } else {
+                        int bufferSize = 0;
+                        values = valuesSource.getSortedNumeric(field);
+                        if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
+                            disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                         }
-                        final int count = values.docValueCount();
-                        if (docValueCountConsumer != null) {
-                            docValueCountConsumer.accept(count);
-                        }
-                        for (int i = 0; i < count; ++i) {
-                            final long v = values.nextValue();
-                            if (sortedFieldObserver != null) {
-                                sortedFieldObserver.onDoc(doc, v);
+                        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                            if (disiAccumulator != null) {
+                                disiAccumulator.addDocId(doc);
                             }
-                            buffer[bufferSize++] = v;
-                            if (bufferSize == blockSize) {
-                                indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                                blockEncoder.encode(buffer, data);
-                                bufferSize = 0;
+                            final int count = values.docValueCount();
+                            if (docValueCountConsumer != null) {
+                                docValueCountConsumer.accept(count);
+                            }
+                            for (int i = 0; i < count; ++i) {
+                                final long v = values.nextValue();
+                                if (sortedFieldObserver != null) {
+                                    sortedFieldObserver.onDoc(doc, v);
+                                }
+                                buffer[bufferSize++] = v;
+                                if (bufferSize == blockSize) {
+                                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                                    blockEncoder.encode(buffer, data);
+                                    bufferSize = 0;
+                                }
                             }
                         }
-                    }
-                    if (bufferSize > 0) {
-                        indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                        Arrays.fill(buffer, bufferSize, blockSize, 0L);
-                        blockEncoder.encode(buffer, data);
+                        if (bufferSize > 0) {
+                            indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                            Arrays.fill(buffer, bufferSize, blockSize, 0L);
+                            blockEncoder.encode(buffer, data);
+                        }
                     }
                 }
 
@@ -253,6 +264,36 @@ public final class TSDBDocValuesBlockWriter {
         }
 
         return new DocValueFieldCountStats(numDocsWithValue, numValues);
+    }
+
+    /**
+     * Cuts the values of a single-valued field into blocks and encodes them, with the same block boundaries, zero padding of the last
+     * block and block index entries as the loop over a doc values iterator.
+     */
+    private static void writeMaterializedBlocks(
+        final MaterializedNumericValues materialized,
+        final long[] buffer,
+        final IndexOutput data,
+        final DirectMonotonicWriter indexWriter,
+        final long valuesDataOffset,
+        final BlockEncoder blockEncoder
+    ) throws IOException {
+        final long[] values = materialized.values();
+        final int size = materialized.size();
+        final int blockSize = buffer.length;
+        int from = 0;
+        for (; size - from >= blockSize; from += blockSize) {
+            System.arraycopy(values, from, buffer, 0, blockSize);
+            indexWriter.add(data.getFilePointer() - valuesDataOffset);
+            blockEncoder.encode(buffer, data);
+        }
+        if (from < size) {
+            final int remaining = size - from;
+            System.arraycopy(values, from, buffer, 0, remaining);
+            Arrays.fill(buffer, remaining, blockSize, 0L);
+            indexWriter.add(data.getFilePointer() - valuesDataOffset);
+            blockEncoder.encode(buffer, data);
+        }
     }
 
     /**
@@ -317,6 +358,12 @@ public final class TSDBDocValuesBlockWriter {
             final short jumpTableEntryCount;
             if (maxOrd != 1 && disiAccumulator != null) {
                 jumpTableEntryCount = disiAccumulator.build(data);
+            } else if (valuesSource.materialized() != null) {
+                jumpTableEntryCount = IndexedDISI.writeBitSet(
+                    valuesSource.materialized().docIds(),
+                    data,
+                    IndexedDISI.DEFAULT_DENSE_RANK_POWER
+                );
             } else {
                 final SortedNumericDocValues values = valuesSource.getSortedNumeric(field);
                 jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);

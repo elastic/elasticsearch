@@ -10,24 +10,22 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectDeletedListener;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,6 +38,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsR
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
+import org.elasticsearch.xpack.security.action.SecurityMigrationAction;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.util.Arrays;
@@ -324,9 +323,12 @@ public class SecurityMigrations {
 
     public static class Manager {
 
-        private static final int MAX_SECURITY_MIGRATION_ATTEMPT_COUNT = 1000;
+        // Visible for testing
+        static final int MAX_SECURITY_MIGRATION_ATTEMPT_COUNT = 1000;
 
-        private final PersistentTasksService persistentTasksService;
+        private final ClusterService clusterService;
+        private final Client client;
+        private final ProjectResolver projectResolver;
         private final SecuritySystemIndices systemIndices;
 
         // Node local retry count for migration jobs that's checked only on the master node to make sure
@@ -336,23 +338,31 @@ public class SecurityMigrations {
         // It just tracks attempts to start jobs (not whether they completed successfully)
         private final Map<ProjectId, AtomicInteger> taskSubmissionAttemptCounter;
 
-        public Manager(ClusterService clusterService, PersistentTasksService persistentTasksService, SecuritySystemIndices systemIndices) {
-            this.persistentTasksService = persistentTasksService;
+        private final Set<ProjectId> migrationsInProgress;
+
+        public Manager(ClusterService clusterService, Client client, ProjectResolver projectResolver, SecuritySystemIndices systemIndices) {
+            this.clusterService = clusterService;
+            this.client = client;
+            this.projectResolver = projectResolver;
             this.systemIndices = systemIndices;
             this.taskSubmissionAttemptCounter = new ConcurrentHashMap<>();
+            this.migrationsInProgress = ConcurrentHashMap.newKeySet();
             new ProjectDeletedListener(this::projectDeleted).attach(clusterService);
-            systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
-                // Only consider applying migrations if it's the master node and the security index exists
-                if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                    applyPendingSecurityMigrations(projectId, newState);
-                }
-            });
+            systemIndices.getMainIndexManager()
+                .addStateListener((projectId, oldState, newState) -> maybeApplyPendingSecurityMigrations(projectId, newState));
+        }
+
+        private void maybeApplyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState state) {
+            // Only consider applying migrations if it's the master node and the security index exists
+            if (clusterService.state().nodes().isLocalNodeElectedMaster() && state.indexExists()) {
+                applyPendingSecurityMigrations(projectId, state);
+            }
         }
 
         private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
             // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
             if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
-                submitPersistentMigrationTask(projectId, SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
+                startMigration(projectId, SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
                 return;
             }
 
@@ -369,44 +379,51 @@ public class SecurityMigrations {
                 if (retryCount > MAX_SECURITY_MIGRATION_ATTEMPT_COUNT) {
                     logger.warn("Security migration attempted [" + retryCount + "] times, restart node to retry again.");
                 } else if (newState.isReadyForSecurityMigration(nextMigration.getValue())) {
-                    submitPersistentMigrationTask(projectId, newState.migrationsVersion);
+                    startMigration(projectId, newState.migrationsVersion, true);
                 }
             }
         }
 
-        private void submitPersistentMigrationTask(ProjectId projectId, int migrationsVersion) {
-            submitPersistentMigrationTask(projectId, migrationsVersion, true);
+        private void startMigration(ProjectId projectId, int migrationsVersion, boolean securityMigrationNeeded) {
+            if (migrationsInProgress.add(projectId) == false) {
+                logger.debug("Security migration already in progress for project [{}]", projectId);
+                return;
+            }
+            incrementAttemptCount(projectId);
+            final ActionListener<ActionResponse.Empty> listener = ActionListener.runAfter(
+                ActionListener.wrap(
+                    response -> logger.debug("Security migration completed for project [{}]", projectId),
+                    // the failure itself is already logged by the action
+                    exception -> logger.debug("Security migration failed for project [{}]", projectId)
+                ),
+                () -> onMigrationFinished(projectId)
+            );
+            // Drop any authentication or origin from the calling context, so that the internal action runs as the system user
+            try (var ignored = client.threadPool().getThreadContext().stashContext()) {
+                projectResolver.executeOnProject(
+                    projectId,
+                    () -> client.execute(
+                        SecurityMigrationAction.INSTANCE,
+                        new SecurityMigrationAction.Request(migrationsVersion, securityMigrationNeeded),
+                        listener
+                    )
+                );
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
-        private void submitPersistentMigrationTask(ProjectId projectId, int migrationsVersion, boolean securityMigrationNeeded) {
-            incrementAttemptCount(projectId);
-            persistentTasksService.sendProjectStartRequest(
-                projectId,
-                SecurityMigrationTaskParams.TASK_NAME,
-                SecurityMigrationTaskParams.TASK_NAME,
-                new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
-                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
-                ActionListener.wrap((response) -> {
-                    logger.debug("Security migration task submitted");
-                }, (exception) -> {
-                    // Do nothing if the task is already in progress
-                    if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
-                        // Do not count ResourceAlreadyExistsException as failure
-                        decrementAttemptCount(projectId);
-                    } else {
-                        logger.warn("Submit security migration task failed", exception.getCause());
-                    }
-                })
-            );
+        private void onMigrationFinished(ProjectId projectId) {
+            migrationsInProgress.remove(projectId);
+            // State changes received while this run was in flight were ignored, so re-check the latest state
+            maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
         }
 
         public PersistentTasksExecutor<?> getPersistentTasksExecutor(Client client, ThreadPool threadPool) {
             return new SecurityMigrationExecutor(
                 SecurityMigrationTaskParams.TASK_NAME,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                systemIndices.getMainIndexManager(),
-                client,
-                SecurityMigrations.MIGRATIONS_BY_VERSION
+                client
             );
         }
 
@@ -429,13 +446,5 @@ public class SecurityMigrations {
         private void incrementAttemptCount(ProjectId project) {
             taskSubmissionAttemptCounter.computeIfAbsent(project, ignore -> new AtomicInteger(0)).incrementAndGet();
         }
-
-        private void decrementAttemptCount(ProjectId project) {
-            final AtomicInteger counter = taskSubmissionAttemptCounter.get(project);
-            if (counter != null) {
-                counter.decrementAndGet();
-            }
-        }
-
     }
 }

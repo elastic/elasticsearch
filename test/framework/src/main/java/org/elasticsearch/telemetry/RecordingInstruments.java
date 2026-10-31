@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.DoubleAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -21,6 +22,7 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -198,6 +200,18 @@ public class RecordingInstruments {
         }
     }
 
+    public static class RecordingDoubleAsyncUpDownCounter extends CallbackRecordingInstrument<DoubleAsyncMeasurement>
+        implements
+            DoubleAsyncUpDownCounter {
+        public RecordingDoubleAsyncUpDownCounter(
+            String name,
+            MetricRecorder<Instrument> recorder,
+            Consumer<DoubleAsyncMeasurement> callback
+        ) {
+            super(name, recorder, callback, new DoubleMeasurement(recorder, InstrumentType.DOUBLE_ASYNC_UP_DOWN_COUNTER, name));
+        }
+    }
+
     public static class RecordingLongCounter extends RecordingInstrument implements LongCounter {
         public RecordingLongCounter(String name, MetricRecorder<Instrument> recorder) {
             super(name, recorder);
@@ -288,6 +302,14 @@ public class RecordingInstruments {
         @Override
         public void add(long inc, Map<String, Object> attributes) {
             call(inc, attributes);
+        }
+    }
+
+    public static class RecordingLongAsyncUpDownCounter extends CallbackRecordingInstrument<LongAsyncMeasurement>
+        implements
+            LongAsyncUpDownCounter {
+        public RecordingLongAsyncUpDownCounter(String name, MetricRecorder<Instrument> recorder, Consumer<LongAsyncMeasurement> callback) {
+            super(name, recorder, callback, new LongMeasurement(recorder, InstrumentType.LONG_ASYNC_UP_DOWN_COUNTER, name));
         }
     }
 }

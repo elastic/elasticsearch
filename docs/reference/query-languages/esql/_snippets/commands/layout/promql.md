@@ -183,30 +183,18 @@ expression at the end of the time range of the date picker
 ## Prometheus compatibility [esql-prometheus-compatibility]
 
 These are the same rows as on the [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md) page, which also lists the differences of the Prometheus HTTP API.
+Headings follow the Prometheus querying documentation.
+**Error** in the {{es}} column means the query is rejected.
 
-### Unsupported constructs [esql-prometheus-compatibility-unsupported-constructs]
-
-:::{include} ../../../../promql/_snippets/compatibility/unsupported-constructs.md
+:::{include} ../../../../promql/_snippets/compatibility/basics.md
 :::
 
-### Lookback and time [esql-prometheus-compatibility-lookback]
-
-:::{include} ../../../../promql/_snippets/compatibility/lookback.md
+:::{include} ../../../../promql/_snippets/compatibility/operators.md
 :::
 
-### Metric names in results [esql-prometheus-compatibility-metric-name]
+### Functions [esql-prometheus-compatibility-functions]
 
-:::{include} ../../../../promql/_snippets/compatibility/metric-names.md
-:::
-
-### Function results [esql-prometheus-compatibility-functions]
-
-:::{include} ../../../../promql/_snippets/compatibility/function-results.md
-:::
-
-### Native histograms [esql-prometheus-compatibility-native-histograms]
-
-:::{include} ../../../../promql/_snippets/compatibility/native-histograms.md
+:::{include} ../../../../promql/_snippets/compatibility/functions.md
 :::
 
 ## Examples

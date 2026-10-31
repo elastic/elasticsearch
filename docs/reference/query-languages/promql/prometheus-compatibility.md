@@ -14,46 +14,39 @@ products:
 % They are kept at the bottom of each table so they are easy to trim. Rationale: Elastic maintains only the two most
 % recent minors, so 9.4 leaves maintenance when 9.6 ships, and PromQL was only a tech preview in 9.4.
 % At the same time, consider simplifying the page frontmatter to `stack: ga 9.5+`.
-% Each section lives in _snippets/compatibility/ so other pages can include it. Rows are numbered across all
-% sections. A row without a version badge applies to every version.
+% Each section lives in _snippets/compatibility/ so other pages can include it. Sections and headings follow the
+% Prometheus querying docs (basics, operators, functions, HTTP API). Rows are numbered across all sections. A row
+% without a version badge applies to every version.
 
 PromQL in {{es}} reads metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 Most PromQL queries run unchanged and return the same results as Prometheus 3.
 This page lists the PromQL features {{es}} doesn't support yet and where its behavior differs by design, so you can tell in advance whether a query runs and what it returns.
 It applies to both the [Prometheus-compatible HTTP API](promql-http-api.md) and the {{esql}} [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source command, unless a section says otherwise.
 
+The sections follow the [Prometheus querying documentation](https://prometheus.io/docs/prometheus/latest/querying/basics/), so you can look up a difference under the same heading that documents the feature in Prometheus:
+
+- [Basics](#prometheus-compatibility-basics): data types, literals, selectors, modifiers, subqueries, and staleness.
+- [Operators](#prometheus-compatibility-operators): unary, binary, and aggregation operators, and vector matching.
+- [Functions](#prometheus-compatibility-functions).
+- [HTTP API](#prometheus-compatibility-http-api).
+
 Each row compares what {{es}} does with what Prometheus does for the same query, and links the issue that tracks the work where there is one.
+**Error** in the {{es}} column means the query is rejected.
 A row with a version badge applies only to those versions. A row without one applies to every version.
 
-- [Unsupported constructs](#prometheus-compatibility-unsupported-constructs) return an error.
-- [Lookback and time](#prometheus-compatibility-lookback), [metric names](#prometheus-compatibility-metric-name), and [function results](#prometheus-compatibility-functions) list queries that run but return a different result.
-- [Native histograms](#prometheus-compatibility-native-histograms) and the [HTTP API](#prometheus-compatibility-http-api) cover the remaining differences.
+## Basics [prometheus-compatibility-basics]
 
-Individual functions and operators can have further differences, which are listed under **Differences from Prometheus** on each [function](functions.md) and [operator](operators.md) reference entry.
-
-## Unsupported constructs [prometheus-compatibility-unsupported-constructs]
-
-:::{include} _snippets/compatibility/unsupported-constructs.md
+:::{include} _snippets/compatibility/basics.md
 :::
 
-## Lookback and time [prometheus-compatibility-lookback]
+## Operators [prometheus-compatibility-operators]
 
-:::{include} _snippets/compatibility/lookback.md
+:::{include} _snippets/compatibility/operators.md
 :::
 
-## Metric names in results [prometheus-compatibility-metric-name]
+## Functions [prometheus-compatibility-functions]
 
-:::{include} _snippets/compatibility/metric-names.md
-:::
-
-## Function results [prometheus-compatibility-functions]
-
-:::{include} _snippets/compatibility/function-results.md
-:::
-
-## Native histograms [prometheus-compatibility-native-histograms]
-
-:::{include} _snippets/compatibility/native-histograms.md
+:::{include} _snippets/compatibility/functions.md
 :::
 
 ## HTTP API [prometheus-compatibility-http-api]

@@ -84,7 +84,7 @@ The data source has more options than the ones above; for the authoritative step
 ::::{note}
 Grafana sends Prometheus queries with `POST` by default, which {{es}} accepts on authenticated HTTPS endpoints such as {{es-serverless}}.
 If TLS terminates before {{es}} and the node receives plain HTTP, set the data source **HTTP method** to `GET` instead.
-See [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-http-api).
+See [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-format-overview).
 ::::
 
 ### Add the data source with provisioning [promql-grafana-datasource-provisioning]
@@ -179,9 +179,9 @@ For metric discovery, autocompletion, or template-variable problems, check the r
   Before assuming an {{es}} problem, rule out a genuinely invalid query, which would fail against upstream Prometheus too.
   Confirm the expression is valid PromQL, for example with [PromLens](https://demo.promlens.com/).
   Then check whether the behavior is an expected difference:
-    - The expression might use a [construct that {{es}} does not evaluate yet](prometheus-compatibility.md#prometheus-compatibility-unsupported-constructs). These return a `4xx` with `errorType: bad_data`.
-    - The request might include a [query parameter {{es}} does not support yet](prometheus-compatibility.md#prometheus-compatibility-http-api), which also fails with `4xx`.
-    - [Instant queries](prometheus-compatibility.md#prometheus-compatibility-lookback) and [staleness handling](prometheus-compatibility.md#prometheus-compatibility-lookback) differ from upstream Prometheus.
+    - The expression might use a [construct that {{es}} does not evaluate yet](prometheus-compatibility.md). These return a `4xx` with `errorType: bad_data`.
+    - The request might include a [query parameter {{es}} does not support yet](prometheus-compatibility.md#prometheus-compatibility-expression-queries), which also fails with `4xx`.
+    - [Instant queries and staleness handling](prometheus-compatibility.md#prometheus-compatibility-staleness) differ from upstream Prometheus.
 
     If the query is valid and the behavior is not explained by a documented limitation, [open an {{es}} issue](https://github.com/elastic/elasticsearch/issues) with the request and the full response body.
 
@@ -189,10 +189,10 @@ For metric discovery, autocompletion, or template-variable problems, check the r
 
 | Symptom | Likely cause | What to check                                                                                                                                                                                    |
 | --- | --- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version; ensure TLS terminates at {{es}}. See [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-http-api) |
+| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version; ensure TLS terminates at {{es}}. See [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-format-overview) |
 | `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*` and `exemplars-*.prometheus-*`                              |
 | Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly                                           |
-| `bad_data` error on a specific expression | Unsupported PromQL construct | Compare the expression against [unsupported constructs](prometheus-compatibility.md#prometheus-compatibility-unsupported-constructs)                                                                         |
+| `bad_data` error on a specific expression | Unsupported PromQL construct | Compare the expression against [Prometheus compatibility](prometheus-compatibility.md)                                                                         |
 | Recurring errors related to exemplar queries | `/api/v1/query_exemplars` is not implemented | In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links                                                                                         |
 
 ## Further reading

@@ -9,6 +9,19 @@ copies:
 - The `PROMQL` command page includes every section except `http-api.md`.
 - `promql-http-api.md` includes `http-api.md`.
 
+The sections and headings mirror the Prometheus querying docs, so readers find a difference under the same heading
+that documents the feature in Prometheus:
+
+| Snippet | Prometheus page | Headings |
+|---|---|---|
+| `basics.md` | [Querying basics](https://prometheus.io/docs/prometheus/latest/querying/basics/) | Its section headings, such as `Instant vector selectors`, `@ modifier`, and `Staleness` |
+| `operators.md` | [Operators](https://prometheus.io/docs/prometheus/latest/querying/operators/) | Its section headings, such as `Comparison binary operators` and `Vector matching` |
+| `functions.md` | [Functions](https://prometheus.io/docs/prometheus/latest/querying/functions/) | None. One table, sorted by function name |
+| `http-api.md` | [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) | Its section headings, such as `Expression queries` |
+
+Put a new row under the Prometheus heading that documents its construct, and use that heading's name. Add a heading
+only when Prometheus has it. A construct that spans pages, such as dropping `__name__`, gets one row per heading.
+
 Agents rely on these rows as a concise, complete list of what to avoid. A stale row makes generated queries fail, or
 steers them away from constructs that now work.
 
@@ -19,7 +32,8 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
   from Elasticsearch tests.
 - List features that aren't supported yet and differences by design, not bugs. Bugs are tracked and fixed separately.
 - The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
-- Rows are numbered across all sections. Keep the numbers sequential when you add or remove a row.
+- Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
+- Keep rows for versions that are about to leave maintenance, such as `=9.4`, at the bottom of their table.
 - Check the version badges. A row without a badge applies to every version. A limitation that a change lifts gets
   `stack: ga <first>-<last>` for the versions that still have it. A difference that only exists from some version on
   gets `stack: ga <version>+` and `serverless: ga`.

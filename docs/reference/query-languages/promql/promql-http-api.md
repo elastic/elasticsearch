@@ -65,7 +65,7 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | PromQL expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (see [Lookback and time](prometheus-compatibility.md#prometheus-compatibility-lookback)) |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (see [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 

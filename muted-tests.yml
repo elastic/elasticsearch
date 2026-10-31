@@ -519,3 +519,8 @@ tests:
   - :test:test-clusters:test
   method: testNeverLosesOrDuplicatesLinesDuringRepeatedRollovers
   issue: https://github.com/elastic/elasticsearch/issues/163277
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplierTests
+  tasks:
+  - :modules:apm:test
+  method: testUnreachableDestinationReportsFailedExportMetric
+  issue: https://github.com/elastic/elasticsearch/issues/164184

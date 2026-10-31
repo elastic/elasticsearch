@@ -2044,6 +2044,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
 
         /**
+         * Disable ReplaceFieldWithConstantOrNull rule for time-series aggregation
+         */
+        DISABLE_REPLACE_NULL_RULE_FOR_TIME_SERIES,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,

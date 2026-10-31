@@ -21,8 +21,8 @@ export function planEntryToSkippedTest(e: PlanEntry): SkippedTest {
 //   - buildkite: `.ci/scripts/run-gradle.sh` - the BK-agent wrapper that copies init.gradle, computes
 //     MAX_WORKERS, reads the ldd version, etc. (Linux-only, expects $WORKSPACE / $GRADLEW).
 //   - local: `./gradlew` directly, suitable for a developer laptop.
-// The `runners/repeat-rest-test.sh` wrapper is portable bash and works for both targets; Java bakes the
-// `__GRADLE__` placeholder inside the `repeat-rest-test.sh <iters> __GRADLE__ <tasks>` form too, so a
+// The `runners/repeat-gradle-run.sh` wrapper is portable bash and works for both targets; Java bakes the
+// `__GRADLE__` placeholder inside the `repeat-gradle-run.sh <runs> __GRADLE__ <args>` form too, so a
 // blanket replace-all covers both plain and wrapped invocations.
 const GRADLE_TOKEN = "__GRADLE__";
 const GRADLE_BINARY: Record<"buildkite" | "local", string> = {

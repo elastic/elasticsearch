@@ -29,17 +29,21 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -53,6 +57,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -1393,6 +1398,110 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     .putNull(PlannerSettings.TS_INFO_SAMPLE_MIN_ROWS.getKey())
                     .putNull(PlannerSettings.TS_INFO_SAMPLE_LIMIT_MULTIPLIER.getKey())
             );
+        }
+    }
+
+    public void testInfoCommandsLimitTimeRange() {
+        for (String timestampType : List.of("date", "date_nanos")) {
+            String index = "info-time-range-" + timestampType;
+            long now = System.currentTimeMillis();
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("mode", "time_series")
+                        .putList("routing_path", List.of("host"))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(
+                            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                            Instant.ofEpochMilli(now - TimeValue.timeValueHours(6).millis()).toString()
+                        )
+                        .put(
+                            IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                            Instant.ofEpochMilli(now + TimeValue.timeValueHours(1).millis()).toString()
+                        )
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=" + timestampType,
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "old_metric",
+                    "type=double,time_series_metric=gauge",
+                    "new_metric",
+                    "type=double,time_series_metric=gauge"
+                )
+                .get();
+            long threeHoursAgo = now - TimeValue.timeValueHours(3).millis();
+            long tenMinutesAgo = now - TimeValue.timeValueMinutes(10).millis();
+            var bulk = client().prepareBulk();
+            bulk.add(client().prepareIndex(index).setSource("@timestamp", threeHoursAgo, "host", "h1", "old_metric", 1.0));
+            bulk.add(client().prepareIndex(index).setSource("@timestamp", tenMinutesAgo, "host", "h2", "new_metric", 2.0));
+            var bulkResponse = bulk.get();
+            assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            client().admin().indices().prepareRefresh(index).get();
+
+            assertInfo(index, null, "old_metric", "new_metric");
+
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE.getKey(), "1h"));
+            try {
+                // No time range in the request reads the last hour
+                assertInfo(index, null, "new_metric");
+                // A range wider than the cap is narrowed to its most recent hour
+                assertInfo(index, timestampRange(now - TimeValue.timeValueHours(4).millis(), now + 60_000), "new_metric");
+                assertInfo(
+                    index,
+                    timestampRange(now - TimeValue.timeValueHours(5).millis(), now - TimeValue.timeValueMinutes(150).millis()),
+                    "old_metric"
+                );
+                assertInfo(index, QueryBuilders.rangeQuery("@timestamp").gte("now-1d"), "new_metric");
+                assertInfo(index, QueryBuilders.rangeQuery("@timestamp").gte("now-1d").lte("now"), "new_metric");
+                assertInfo(index, timestampRange(now - TimeValue.timeValueMinutes(30).millis(), now + 60_000), "new_metric");
+
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("TS " + index + " | METRICS_INFO");
+                request.profile(true);
+                try (var resp = run(request)) {
+                    List<String> queries = resp.profile()
+                        .drivers()
+                        .stream()
+                        .flatMap(driver -> driver.operators().stream())
+                        .map(OperatorStatus::status)
+                        .filter(LuceneSourceOperator.Status.class::isInstance)
+                        .flatMap(status -> ((LuceneSourceOperator.Status) status).processedQueries().stream())
+                        .toList();
+                    assertThat(queries, not(empty()));
+                    assertThat(String.join(" ", queries), containsString("@timestamp"));
+                }
+            } finally {
+                updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE.getKey()));
+            }
+        }
+    }
+
+    private static QueryBuilder timestampRange(long fromMillis, long toMillis) {
+        return QueryBuilders.rangeQuery("@timestamp")
+            .gte(Instant.ofEpochMilli(fromMillis).toString())
+            .lte(Instant.ofEpochMilli(toMillis).toString());
+    }
+
+    private void assertInfo(String index, QueryBuilder filter, String... metrics) {
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("TS " + index + " | " + command);
+            if (filter != null) {
+                request.filter(filter);
+            }
+            try (var resp = run(request)) {
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                if (command.equals("METRICS_INFO")) {
+                    assertThat(rows.stream().map(row -> (String) row.get(0)).toList(), containsInAnyOrder(metrics));
+                } else {
+                    assertThat(rows, hasSize(metrics.length));
+                }
+            }
         }
     }
 

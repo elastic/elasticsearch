@@ -31,8 +31,9 @@ public interface SearchOperationListener {
     /**
      * Executed if a query phased failed.
      * @param searchContext the current search context
+     * @param e the failure
      */
-    default void onFailedQueryPhase(SearchContext searchContext) {}
+    default void onFailedQueryPhase(SearchContext searchContext, Throwable e) {}
 
     /**
      * Executed after the query phase successfully finished.
@@ -40,7 +41,7 @@ public interface SearchOperationListener {
      * @param searchContext the current search context
      * @param tookInNanos the number of nanoseconds the query execution took
      *
-     * @see #onFailedQueryPhase(SearchContext)
+     * @see #onFailedQueryPhase(SearchContext, Throwable)
      */
     default void onQueryPhase(SearchContext searchContext, long tookInNanos) {}
 
@@ -53,8 +54,9 @@ public interface SearchOperationListener {
     /**
      * Executed if a fetch phased failed.
      * @param searchContext the current search context
+     * @param e the failure
      */
-    default void onFailedFetchPhase(SearchContext searchContext) {}
+    default void onFailedFetchPhase(SearchContext searchContext, Throwable e) {}
 
     /**
      * Executed after the fetch phase successfully finished.
@@ -62,7 +64,7 @@ public interface SearchOperationListener {
      * @param searchContext the current search context
      * @param tookInNanos the number of nanoseconds the fetch execution took
      *
-     * @see #onFailedFetchPhase(SearchContext)
+     * @see #onFailedFetchPhase(SearchContext, Throwable)
      */
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
@@ -78,15 +80,16 @@ public interface SearchOperationListener {
      * @param searchContext the current search context
      * @param tookInNanos the number of nanoseconds the query execution took
      *
-     * @see #onFailedQueryPhase(SearchContext)
+     * @see #onFailedQueryPhase(SearchContext, Throwable)
      */
     default void onDfsPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
      * Executed if a dfs phased failed.
      * @param searchContext the current search context
+     * @param e the failure
      */
-    default void onFailedDfsPhase(SearchContext searchContext) {}
+    default void onFailedDfsPhase(SearchContext searchContext, Throwable e) {}
 
     /**
      * Executed after the can-match phase successfully finished.
@@ -160,12 +163,12 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFailedQueryPhase(SearchContext searchContext) {
+        public void onFailedQueryPhase(SearchContext searchContext, Throwable e) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFailedQueryPhase(searchContext);
-                } catch (Exception e) {
-                    logger.warn(() -> "onFailedQueryPhase listener [" + listener + "] failed", e);
+                    listener.onFailedQueryPhase(searchContext, e);
+                } catch (Exception ex) {
+                    logger.warn(() -> "onFailedQueryPhase listener [" + listener + "] failed", ex);
                 }
             }
         }
@@ -193,12 +196,12 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFailedFetchPhase(SearchContext searchContext) {
+        public void onFailedFetchPhase(SearchContext searchContext, Throwable e) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFailedFetchPhase(searchContext);
-                } catch (Exception e) {
-                    logger.warn(() -> "onFailedFetchPhase listener [" + listener + "] failed", e);
+                    listener.onFailedFetchPhase(searchContext, e);
+                } catch (Exception ex) {
+                    logger.warn(() -> "onFailedFetchPhase listener [" + listener + "] failed", ex);
                 }
             }
         }
@@ -226,12 +229,12 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFailedDfsPhase(SearchContext searchContext) {
+        public void onFailedDfsPhase(SearchContext searchContext, Throwable e) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFailedDfsPhase(searchContext);
-                } catch (Exception e) {
-                    logger.warn(() -> "onFailedDfsPhase listener [" + listener + "] failed", e);
+                    listener.onFailedDfsPhase(searchContext, e);
+                } catch (Exception ex) {
+                    logger.warn(() -> "onFailedDfsPhase listener [" + listener + "] failed", ex);
                 }
             }
         }

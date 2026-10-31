@@ -162,6 +162,16 @@ public abstract class NativeImageBuildTask extends DefaultTask {
                 throw new GradleException("Native-image classpath is empty");
             }
 
+            String dockerExecutable = params.getDockerExecutable().get();
+            DockerImagePullSupport.ensureImageAvailable(execOperations, dockerExecutable, imageTag, platform);
+            // Resolve the tag to its platform-specific, immutable image ID and run the container by that ID below.
+            // The x64 and aarch64 native-image tasks share the same builder tag, and the classic Docker image store
+            // holds only one platform variant per tag, so a concurrent build of the other architecture could rebind
+            // the tag between the availability check above and `docker run`. Running by image ID keeps --pull=never
+            // from failing with a platform mismatch in that race. Fall back to the tag if the ID cannot be resolved.
+            String imageId = DockerImagePullSupport.resolveLocalImageId(execOperations, dockerExecutable, imageTag);
+            String imageReference = imageId != null ? imageId : imageTag;
+
             // Build classpath string for inside the container: /cp/0:/cp/1:...
             List<String> cpPaths = new ArrayList<>();
             for (int i = 0; i < classpathFiles.size(); i++) {
@@ -173,6 +183,8 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             List<String> args = new ArrayList<>();
             args.add("run");
             args.add("--rm");
+            // The image has been made available locally above, don't let `docker run` hit the registry again
+            args.add("--pull=never");
             for (int i = 0; i < classpathFiles.size(); i++) {
                 File f = classpathFiles.get(i);
                 String path = f.getAbsolutePath();
@@ -190,7 +202,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             args.add(outPath + ":/output:z");
             args.add("--platform");
             args.add(platform);
-            args.add(imageTag);
+            args.add(imageReference);
             args.add("--no-fallback");
             args.add("--enable-monitoring=threaddump");
             if (params.getStatic().get()) {
@@ -205,7 +217,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
 
             LoggedExec.exec(execOperations, spec -> {
                 maybeConfigureDockerConfig(spec);
-                spec.executable(params.getDockerExecutable().get());
+                spec.executable(dockerExecutable);
                 spec.args(args);
             });
         }

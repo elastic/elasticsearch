@@ -776,9 +776,22 @@ public class CsvColumnarIT extends CsvIT {
 
         /**
          * Multi-value fields in columnar mode are returned in source insertion order rather than
-         * the doc-values order (sorted) that standard mode produces. Since ESQL does not guarantee
-         * multi-value ordering, we compare MV result lists as unordered sets so that the columnar
-         * variant validates value presence without being sensitive to this storage-layer difference.
+         * the sorted doc-values order that standard mode produces (the {@code .offsets} sidecar
+         * and order-preserving block loaders exist precisely to keep insertion order). ES|QL does
+         * not guarantee multi-value ordering, so this strategy compares MV cells as unordered
+         * multisets, validating value presence without sensitivity to the storage-layer difference.
+         *
+         * <p><b>Measured</b> (October 2026): flipping this to {@code false} and running the full
+         * suite failed 166 of 7,783 executing tests. Every failure was a pure in-cell permutation
+         * &mdash; each mismatched multi-value cell held exactly the same multiset of values in a
+         * different order (verified programmatically over the failure set), including the one
+         * non-obvious case, {@code stats_sparkline.sparklineInInlineStatsByMvField}, where the
+         * concatenated per-group-key sparkline buckets swap along with the MV group-key order. No
+         * value bug was hiding behind this comparison. Do not flip this back to ordered comparison
+         * without re-measuring; do not replace it with per-test {@code skip_columnar} directives,
+         * which would lose the value-set checking this comparison still performs. Note the
+         * comparison consumes matches ({@code CsvAssert#equals}), so duplicate-skewed lists such
+         * as {@code [a, a, b]} vs {@code [a, b, b]} still fail.
          */
         @Override
         public boolean ignoreValueOrder() {

@@ -165,6 +165,32 @@ public class ExcludeDocsQueryTests extends ESTestCase {
         }
     }
 
+    public void testLeafMaskAffectsScoringAndExplanation() throws IOException {
+        IndexWriterConfig cfg = new IndexWriterConfig();
+        cfg.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, cfg)) {
+            writer.addDocument(new Document());
+            writer.commit();
+            writer.addDocument(new Document());
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertEquals(2, reader.leaves().size());
+
+                ExcludeDocsQuery query = new ExcludeDocsQuery(new int[0], new boolean[] { true, false }, reader);
+                Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                LeafReaderContext selected = reader.leaves().get(0);
+                LeafReaderContext masked = reader.leaves().get(1);
+
+                assertNotNull(weight.scorerSupplier(selected));
+                assertTrue(weight.explain(selected, 0).isMatch());
+                assertNull(weight.scorerSupplier(masked));
+                assertFalse(weight.explain(masked, 0).isMatch());
+            }
+        }
+    }
+
     public void testLeafWithNoExcludedDocs() throws IOException {
         IndexWriterConfig cfg = new IndexWriterConfig();
         cfg.setMergePolicy(NoMergePolicy.INSTANCE);

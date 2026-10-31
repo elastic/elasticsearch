@@ -225,10 +225,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     /**
      * Selectivity threshold above which a filtered knn query is routed through the post-filter
      * pipeline: the vector search runs unfiltered, the filter is applied to the raw candidate set, and a
-     * single retry round runs if the candidate pool is not filled (HNSW seeds that retry from its
-     * round-0 matches; IVF just excludes the docs it already saw). Below this threshold the query stays
-     * on the pre-filter path. Applies to both HNSW and {@code bbq_disk} (IVF) fields. The default
-     * is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}; {@code 1.0} turns post-filtering off.
+     * bounded number of targeted retry rounds runs for leaves that may still hold a missing result (HNSW
+     * seeds retries from earlier matches; IVF excludes the docs it already saw). If the candidate pool cannot
+     * be proven complete, the query falls back to the pre-filter path. Below this threshold the query stays on
+     * the pre-filter path. Applies to both HNSW and {@code bbq_disk} (IVF) fields. The default is
+     * {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}; {@code 1.0} turns post-filtering off.
      */
     public static final Setting<Float> POST_FILTER_SELECTIVITY_THRESHOLD = new Setting<>(
         "index.dense_vector.post_filter_selectivity_threshold",

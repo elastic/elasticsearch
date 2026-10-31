@@ -150,10 +150,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // delegate by createPostFilterDelegate.
         int delegateK = postFilterQuery.k();
         var topDocs = searcher.search(delegate, delegateK);
+        long vectorOps = postFilterQuery.totalVectorOps();
         if (topDocs.scoreDocs.length == 0) {
+            this.totalVectorOps += vectorOps;
             return null;
         }
-        long vectorOps = postFilterQuery.totalVectorOps();
 
         FilteredCandidates filtered = applyFilter(postFilterQuery.getPostFilterCandidates(), filterWeight, leaves);
         ScoreDoc[] pool = dedupAndSelectTopK(flattenPerLeaf(filtered.matchingPerLeaf()), poolSize);

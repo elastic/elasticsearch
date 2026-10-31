@@ -78,6 +78,9 @@ class ExcludeDocsQuery extends Query {
         return new Weight(this) {
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
+                if (searchLeaves != null && (context.ord >= searchLeaves.length || searchLeaves[context.ord] == false)) {
+                    return Explanation.noMatch("leaf is not selected");
+                }
                 int globalDoc = doc + context.docBase;
                 if (Arrays.binarySearch(excludedDocs, globalDoc) >= 0) {
                     return Explanation.noMatch("excluded doc");

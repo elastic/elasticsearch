@@ -24,6 +24,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -71,7 +72,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR,
+            IndexMode.TIME_SERIES);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -273,6 +275,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         );
 
         var settings = getSettingsForParams();
+        mapping = addTimeSeriesDimensionsIfNeeded(mapping);
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
         configureRunner(runner, settings, mapping).run(expected);
@@ -337,6 +340,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
 
         var settings = getSettingsForParams();
+        mapping = addTimeSeriesDimensionsIfNeeded(mapping);
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
 
@@ -432,6 +436,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         Object expected = expected(fieldMapping, getFieldValue(runner.mapDoc(), "parent"), new TestContext(false, true));
         var settings = getSettingsForParams();
+        mapping = addTimeSeriesDimensionsIfNeeded(mapping);
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.fieldName("parent.mf");
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -442,10 +447,25 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         return getSettingsForParams(params);
     }
 
+    @SuppressWarnings("unchecked")
+    private Mapping addTimeSeriesDimensionsIfNeeded(Mapping mapping) {
+        if (params.indexMode == IndexMode.TIME_SERIES) {
+            var doc = (Map<String, Object>) mapping.raw().get("_doc");
+            var properties = (Map<String, Object>) doc.get("properties");
+            properties.put("sensor_id", Map.of("type", "keyword", "time_series_dimension", true));
+        }
+        return mapping;
+    }
+
     public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
         builder.put("index.mapping.source.mode", params.sourceMode().name());
         builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
+        if (params.indexMode() == IndexMode.TIME_SERIES) {
+            // time_series requires a routing path (or dimensions); the tests don't depend on its value
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "sensor_id");
+//            builder.put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "my_temporality_field");
+        }
         return builder;
     }
 

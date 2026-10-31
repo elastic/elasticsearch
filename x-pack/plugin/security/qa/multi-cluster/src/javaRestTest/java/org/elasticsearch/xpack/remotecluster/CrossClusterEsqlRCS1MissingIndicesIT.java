@@ -85,7 +85,8 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
     void assertExpectedClustersForMissingIndicesTests(Map<String, Object> responseMap, List<ExpectedCluster> expected) {
         boolean hasPartial = false;
         Map<String, ?> clusters = (Map<String, ?>) responseMap.get("_clusters");
-        assertThat((int) responseMap.get("took"), greaterThan(0));
+        // took is in milliseconds, so a fast query (e.g. LIMIT 0) can legitimately report 0
+        assertThat((int) responseMap.get("took"), greaterThanOrEqualTo(0));
 
         Map<String, ?> detailsMap = (Map<String, ?>) clusters.get("details");
         assertThat(detailsMap.size(), is(expected.size()));
@@ -99,7 +100,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             Map<String, ?> clusterDetails = (Map<String, ?>) detailsMap.get(expectedCluster.clusterAlias());
             String msg = expectedCluster.clusterAlias();
 
-            assertThat(msg, (int) clusterDetails.get("took"), greaterThan(0));
+            assertThat(msg, (int) clusterDetails.get("took"), greaterThanOrEqualTo(0));
             assertThat(msg, clusterDetails.get("status"), is(expectedCluster.status()));
             Map<String, ?> shards = (Map<String, ?>) clusterDetails.get("_shards");
             if (expectedCluster.totalShards() == null) {
@@ -239,7 +240,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
         {
             String q = Strings.format("FROM %s,%s:nomatch,%s:%s*", INDEX1, REMOTE_CLUSTER_ALIAS, REMOTE_CLUSTER_ALIAS, INDEX2);
 
-            String limit1 = q + " | LIMIT 1";
+            String limit1 = q + " | STATS count(*)";
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
             assertThat(e.getMessage(), containsString(Strings.format("no such index [nomatch]", REMOTE_CLUSTER_ALIAS)));
             assertThat(e.getMessage(), containsString(Strings.format("index_not_found_exception", REMOTE_CLUSTER_ALIAS)));

@@ -514,3 +514,8 @@ tests:
   - :x-pack:plugin:security:internalClusterTest
   method: testMigrationFallbackNamePreCondition
   issue: https://github.com/elastic/elasticsearch/issues/164170
+- class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
+  tasks:
+  - :test:test-clusters:test
+  method: testNeverLosesOrDuplicatesLinesDuringRepeatedRollovers
+  issue: https://github.com/elastic/elasticsearch/issues/163277

@@ -734,21 +734,22 @@ public class BooleanFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    /** Renders a doc value as the boolean it stands for; shared by the loader layers and the direct {@code columnar_stored} layer. */
+    private static void writeValue(XContentBuilder b, long value) throws IOException {
+        b.value(value == 1);
+    }
+
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (offsetsFieldName != null) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(
-                new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
-                    fullPath(),
-                    offsetsFieldName,
-                    (b, value) -> b.value(value == 1)
-                )
+                new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, BooleanFieldMapper::writeValue)
             );
             CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
-            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> b.value(value == 1)));
+            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), BooleanFieldMapper::writeValue));
             CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
@@ -807,6 +808,30 @@ public class BooleanFieldMapper extends FieldMapper {
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), BOOL_STORED_FIELD_TYPE));
             }
         }
+        if (ctx.writesSourceColumn()) {
+            // This field's part of the columnar_stored blob, read from outData. The batch path only takes scalar columns, so a
+            // document holds at most one value and the offsets rule never applies; the layer still gets told whether offsets are
+            // recorded so that it reads exactly as the loader layer the mapping selects.
+            assert supportsDirectColumnarSource();
+            ctx.addSourceColumn(
+                new SourceColumn(
+                    fullPath(),
+                    leafName(),
+                    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer.sourceLayer(
+                        outData,
+                        offsetsFieldName != null,
+                        BooleanFieldMapper::writeValue
+                    )
+                )
+            );
+        }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // Every configuration that reaches doMapColumnBatch has doc values, and its loader is one of the two sorted-numeric layers
+        // plus the fallback layers, which the batch path leaves empty.
+        return docValuesParameters.enabled();
     }
 
     private EscfColumnData booleansToLongs(EscfColumn source, Recycler<BytesRef> recycler) {

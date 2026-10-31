@@ -355,4 +355,38 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
             mapper.supportsColumnarParse(ms.getIndexSettings())
         );
     }
+
+    /**
+     * The array-order layout the batch path writes, with and without an {@code ignore_above} fallback and a {@code null_value}, has a
+     * direct {@code columnar_stored} writer: the blob must come out of it, never the loader.
+     */
+    public void testColumnarStoredSourceIsWrittenDirectly() throws IOException {
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "wildcard").endObject()),
+            columnarSettings(),
+            batch(
+                "every shape",
+                1L,
+                doc("d1", 1L, "{\"f\":\"a*b\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"b\",null,\"c\",\"b\"]}"),
+                doc("d4", 4L, "{\"f\":null}"),
+                doc("d5", 5L, "{\"f\":[]}"),
+                doc("d6", 6L, "{\"f\":[null]}"),
+                doc("d7", 7L, "{\"f\":[\"solo\"]}")
+            )
+        );
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 4).field("null_value", "NULL").endObject()),
+            columnarSettings(),
+            batch(
+                "fallback and null_value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"waytoolong\"}"),
+                doc("d2", 2L, "{\"f\":[\"ok\",\"waytoolong\",null]}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{\"f\":[null,\"ok\"]}")
+            )
+        );
+    }
 }

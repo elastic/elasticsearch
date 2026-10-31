@@ -355,4 +355,24 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         FieldMapper mapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
         assertFalse("supportsColumnarParse must be false with copy_to", mapper.supportsColumnarParse(ms.getIndexSettings()));
     }
+
+    /**
+     * The constant has a direct {@code columnar_stored} writer over its marker column, so a batch with this field does not fall back to
+     * the loader. Note that the markers are only written for synthetic source, so under {@code columnar_stored} both paths find nothing
+     * for the field; the parity check holds either way.
+     */
+    public void testColumnarStoredSourceIsWrittenDirectly() throws IOException {
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "constant_keyword").field("value", "v").endObject()),
+            columnarSettings(),
+            batch(
+                "every shape",
+                1L,
+                doc("d1", 1L, "{\"f\":\"v\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"v\",\"v\"]}"),
+                doc("d4", 4L, "{\"f\":[]}")
+            )
+        );
+    }
 }

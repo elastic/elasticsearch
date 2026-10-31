@@ -1316,6 +1316,34 @@ public final class DateFieldMapper extends FieldMapper {
         if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
             ctx.setTimestamps((EscfLongColumn) EscfColumn.from(outData));
         }
+        if (ctx.writesSourceColumn()) {
+            // This field's part of the columnar_stored blob, read from outData and formatted as the loader formats doc values. The
+            // batch path only takes scalar columns, so a document holds at most one value and the offsets rule never applies.
+            assert supportsDirectColumnarSource();
+            ctx.addSourceColumn(
+                new SourceColumn(
+                    fullPath(),
+                    leafName(),
+                    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer.sourceLayer(
+                        outData,
+                        offsetsFieldName != null,
+                        this::writeValue
+                    )
+                )
+            );
+        }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // Every configuration that reaches doMapColumnBatch has doc values, and its loader is one of the two sorted-numeric layers
+        // plus the fallback layers, which the batch path leaves empty.
+        return docValuesParameters.enabled();
+    }
+
+    /** Renders a doc value through the field's formatter; shared by the loader layers and the direct {@code columnar_stored} layer. */
+    private void writeValue(XContentBuilder b, long value) throws IOException {
+        b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
     }
 
     private EscfColumnData datesFromStrings(EscfColumn source, Recycler<BytesRef> recycler) {
@@ -1486,19 +1514,10 @@ public final class DateFieldMapper extends FieldMapper {
                 var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
                 if (offsetsFieldName != null) {
                     layers.add(
-                        new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
-                            fullPath(),
-                            offsetsFieldName,
-                            (b, value) -> b.value(fieldType().format(value, fieldType().dateTimeFormatter()))
-                        )
+                        new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, this::writeValue)
                     );
                 } else {
-                    layers.add(
-                        new SortedNumericDocValuesSyntheticFieldLoaderLayer(
-                            fullPath(),
-                            (b, value) -> b.value(fieldType().format(value, fieldType().dateTimeFormatter()))
-                        )
-                    );
+                    layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), this::writeValue));
                 }
                 CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);

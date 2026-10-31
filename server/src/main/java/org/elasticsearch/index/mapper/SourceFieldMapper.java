@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -715,8 +716,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     /**
      * Columnar counterpart of {@link #postParse}. For {@code columnar_stored} the batch path has no per-document
-     * {@link LuceneDocument} to rebuild {@code _source} from, so each row is reassembled from the columns the other mappers attached
-     * and fed through the same {@link ColumnarSourceWriter} the row path uses; the resulting blob is then attached as the
+     * {@link LuceneDocument} to rebuild {@code _source} from. When every field mapper of the batch registered a {@link SourceColumn},
+     * each blob is written straight from those, in the field order the synthetic source loader would use; otherwise each row is
+     * reassembled from the columns the other mappers attached and fed through the same {@link ColumnarSourceWriter} the row path uses,
+     * which stays the reference the direct path is measured against. Either way the blob is then attached as the
      * {@code _ignored_source} doc values column (plus its {@code .counts} companion), exactly the field the row path adds to the document.
      */
     @Override
@@ -728,7 +731,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
-            final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            final SourceColumn[] sourceColumns = directSourceColumns(context);
+            final MappedColumns.RowCursor rows = sourceColumns == null
+                ? context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter)
+                : null;
             // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
             // behind it, and the finished bytes are exposed in place (BytesRefStreamOutput.get) and handed to the column builder,
             // which copies them before the next document overwrites the buffer. This collapses the two intermediate copies that
@@ -738,13 +744,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             final byte[] blobPrefix = columnarStoredBlobPrefix();
             final BytesRefStreamOutput blobBuffer = new BytesRefStreamOutput();
             for (int d = 0; d < docCount; d++) {
-                rows.advance();
-                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
-                final LuceneDocument doc = new LuceneDocument(rows.fields());
                 blobBuffer.reset();
                 blobBuffer.writeBytes(blobPrefix, 0, blobPrefix.length);
                 try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
-                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                    if (sourceColumns != null) {
+                        // The root loader opens one object and writes its fields sorted by path, with no object nesting: columnar
+                        // modes are flat. A document without any value is "{}" on both paths.
+                        builder.startObject();
+                        for (SourceColumn column : sourceColumns) {
+                            column.write(d, builder);
+                        }
+                        builder.endObject();
+                    } else {
+                        rows.advance();
+                        // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
+                        final LuceneDocument doc = new LuceneDocument(rows.fields());
+                        columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                    }
                 }
                 blobs.setBinary(d, blobBuffer.get());
             }
@@ -765,6 +781,48 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             final EscfColumnData countsData = countsBuilder.finish(docCount);
             context.addColumn(LuceneLongColumn.counts(countsData, IgnoredSourceFieldMapper.NAME), countsData);
         }
+    }
+
+    /**
+     * The {@link SourceColumn}s to write the blobs of this batch from, sorted by field path as {@link ObjectMapper}'s loader orders its
+     * fields, or {@code null} when the batch has to take the loader path: a mapper that ran had no column to register (see
+     * {@link FieldMapper#mapColumnBatch}), the setting is off, or one of the cases below applies. Each case that this method decides is
+     * also recorded on the context, so that the reason shows in the debug log.
+     */
+    @Nullable
+    private SourceColumn[] directSourceColumns(BatchMappingContext context) {
+        if (context.directSourceUnavailableReason() == null) {
+            // The loader applies the mapping's own filter and leaves out the synthetic vector fields (blobSourceFilter); neither has a
+            // direct counterpart yet, and both are rare enough for columnar_stored to stay on the loader path for now.
+            if (sourceFilter != null) {
+                context.markDirectSourceUnavailable("_source has includes or excludes");
+            } else if (context.mappingLookup().syntheticVectorFields().isEmpty() == false) {
+                context.markDirectSourceUnavailable("mapping has synthetic vector fields");
+            } else if (context.hasColumnNamed(SourceFieldMapper::isUnreadByDirectSource)) {
+                // The loader would merge these into the blob; the direct path has no layer for them. No batch mapper writes them today,
+                // because every document that would need one is refused, so this is the check that keeps that true.
+                context.markDirectSourceUnavailable("a mapper wrote a failure or ignored-source column");
+            }
+        }
+        if (context.directSourceUnavailableReason() != null) {
+            return null;
+        }
+        final SourceColumn[] sourceColumns = context.sourceColumns().toArray(SourceColumn[]::new);
+        Arrays.sort(sourceColumns, Comparator.comparing(SourceColumn::fullPath));
+        return sourceColumns;
+    }
+
+    /**
+     * The columns of {@link #isRedundantInColumnarStoredSource} that no {@link SourceColumn} reads: the per-field {@code _ignored_source}
+     * entries and the {@code ._ignore_malformed} and {@code ._on_failure} failure columns. The {@code ._original} fallback is the one
+     * the keyword mapper's source column covers, so it is not listed.
+     */
+    private static boolean isUnreadByDirectSource(String fieldName) {
+        return isRedundantInColumnarStoredSource(fieldName)
+            && fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) == false
+            && fieldName.endsWith(
+                TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
+            ) == false;
     }
 
     /**

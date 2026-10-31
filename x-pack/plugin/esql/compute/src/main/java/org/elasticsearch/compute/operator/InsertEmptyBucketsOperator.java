@@ -167,7 +167,12 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             this.roundTo = roundTo;
             this.from = from;
             this.to = to;
-            this.alwaysExhausted = from >= to || Double.isFinite(roundTo) == false || roundTo <= 0.0;
+            this.alwaysExhausted = from >= to || Double.isFinite(roundTo) == false || roundTo <= 0.0
+            // A width below the spacing between adjacent doubles at the bounds can't produce distinct bucket keys:
+            // consecutive `roundTo * n` collapse into the same double, so there are no empty buckets to emit, only
+            // duplicates. This also keeps the bucket index within 2^53, so it always fits the long `n` and the
+            // iteration terminates (a saturated index would otherwise wrap around and never reach `to`).
+                || roundTo < Math.ulp(Math.max(Math.abs(from), Math.abs(to)));
         }
 
         @Override

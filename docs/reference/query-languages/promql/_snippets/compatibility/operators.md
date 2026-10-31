@@ -10,13 +10,20 @@ Prometheus drops the metric name (`__name__`) from arithmetic results.
 
 ### Unary operator [prometheus-compatibility-unary-operator]
 
+:::{table}
+:widths: 1-4-3-3-1
+
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
 | 20 | Unary minus: `-x` | Keeps `__name__` | Drops `__name__` | [#150318](https://github.com/elastic/elasticsearch/issues/150318) |
+:::
 
 ### Binary operators [prometheus-compatibility-binary-operators]
 
 #### Arithmetic binary operators [prometheus-compatibility-arithmetic-binary-operators]
+
+:::{table}
+:widths: 1-4-3-3-1
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
@@ -24,14 +31,22 @@ Prometheus drops the metric name (`__name__`) from arithmetic results.
 | 22 | A vector and a number: `x * 2` | Keeps `__name__` | Drops `__name__` | [#150318](https://github.com/elastic/elasticsearch/issues/150318) |
 | 23 | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `topk` or `bottomk` and a number: `topk(2, x) * 2` | Keeps `__name__` | Drops `__name__` | [#150318](https://github.com/elastic/elasticsearch/issues/150318) |
 | 24 | {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Native histogram operands: `+`, `-`, `*`, `/` | Unsupported | Supported | [#152263](https://github.com/elastic/elasticsearch/issues/152263) |
+:::
 
 #### Trigonometric binary operators [prometheus-compatibility-trigonometric-binary-operators]
+
+:::{table}
+:widths: 1-4-3-3-1
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
 | 25 | `atan2`: `x atan2 y` | Unsupported | Supported | [#164153](https://github.com/elastic/elasticsearch/issues/164153) |
+:::
 
 #### Comparison binary operators [prometheus-compatibility-comparison-binary-operators]
+
+:::{table}
+:widths: 1-4-3-3-1
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
@@ -40,8 +55,12 @@ Prometheus drops the metric name (`__name__`) from arithmetic results.
 | 28 | Two vectors, such as `x > y`, or `bool` with the scalar as the first operand, such as `100 > bool x` | Unsupported | Supported | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 29 | Comparison inside another expression: `x > 100 > 200`, `(x > 100) + 1`, `count(x > 100)` | Unsupported | Supported | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 30 | `bool` with a number: `x > bool 100` | Keeps `__name__` | Drops `__name__` | [#150318](https://github.com/elastic/elasticsearch/issues/150318) |
+:::
 
 #### Logical/set binary operators [prometheus-compatibility-logical-set-binary-operators]
+
+:::{table}
+:widths: 1-4-3-3-1
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
@@ -49,8 +68,12 @@ Prometheus drops the metric name (`__name__`) from arithmetic results.
 | 32 | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `or` with `on(...)` or `ignoring(...)` | Unsupported, except between operands without labels, such as `sum(a) or on () vector(1)`. An `or` chain takes at most 8 operands by default (`esql.query.max_branch_count_per_merge`) | Supported | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 33 | {applies_to}`stack: ga =9.5` `or` with `on(...)` or `ignoring(...)` | Unsupported, except between operands without labels, such as `sum(a) or on () vector(1)`. An `or` chain takes at most 8 operands | Supported | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 34 | {applies_to}`stack: preview =9.4` `or` | Unsupported | Supported | - |
+:::
 
 ### Vector matching [prometheus-compatibility-vector-matching]
+
+:::{table}
+:widths: 1-4-3-3-1
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
@@ -63,8 +86,12 @@ Prometheus drops the metric name (`__name__`) from arithmetic results.
 | 41 | `fill()`, `fill_left()`, and `fill_right()`: `a + fill(0) b` | Unsupported | Supported with the `promql-binop-fill-modifiers` feature flag | - |
 | 42 | {applies_to}`stack: ga =9.5` `on`, `ignoring`, `group_left`, or `group_right` between aggregations: `sum by (job) (a) / on(job) sum by (job) (b)` | Unsupported | Supported | - |
 | 43 | {applies_to}`stack: ga =9.5` Two metrics, not aggregated: `a / b` | No results | Matches series on their labels | - |
+:::
 
 ### Aggregation operators [prometheus-compatibility-aggregation-operators]
+
+:::{table}
+:widths: 1-4-3-3-1
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
@@ -77,3 +104,4 @@ Prometheus drops the metric name (`__name__`) from arithmetic results.
 | 50 | `quantile` | Approximate, using t-digest | Exact, with linear interpolation | - |
 | 51 | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `limitk`, `limit_ratio` | Selects a different, equally valid subset | `limitk`: the first series in storage order. `limit_ratio`: sampled by a hash of the labels | - |
 | 52 | {applies_to}`stack: ga =9.5` `topk`, `bottomk`, `limitk`, `limit_ratio` | Unsupported | Supported | - |
+:::

@@ -9,6 +9,9 @@ Follows [Functions](https://prometheus.io/docs/prometheus/latest/querying/functi
 Each [function reference entry](/reference/query-languages/promql/functions.md) lists further differences.
 Prometheus drops the metric name (`__name__`) from the result of most functions.
 
+:::{table}
+:widths: 1-4-3-3-1
+
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
 | 53 | Functions listed under [Not yet supported](/reference/query-languages/promql/functions.md#promql-not-supported), such as `absent`, `resets`, `info`, and `sort_by_label` | Unsupported | Supported | [#164001](https://github.com/elastic/elasticsearch/issues/164001), [#164003](https://github.com/elastic/elasticsearch/issues/164003), [#164002](https://github.com/elastic/elasticsearch/issues/164002) |
@@ -30,3 +33,4 @@ Prometheus drops the metric name (`__name__`) from the result of most functions.
 | 69 | `sort` or `sort_desc` below the top level: `sum(sort(x))` | Unsupported | Supported, with no effect | - |
 | 70 | `step()`, `range()`, `start()`, `end()` | Unsupported | Supported with the `promql-experimental-functions` feature flag | - |
 | 71 | {applies_to}`stack: ga =9.5` `sort`, `sort_desc`, `timestamp`, `changes`, `histogram_fraction`, `label_replace`, `label_join` | Unsupported | Supported | - |
+:::

@@ -369,12 +369,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     @Override
-    public ScoreDoc[][] getPostFilterCandidates() {
+    public PostFilterCandidates getPostFilterCandidates() {
         if (leaves == null) {
-            return new ScoreDoc[0][];
+            return new PostFilterCandidates(new ScoreDoc[0][], false);
         }
         if (rawPerLeafResults == null) {
-            return new ScoreDoc[leaves.size()][];
+            return new PostFilterCandidates(new ScoreDoc[leaves.size()][], false);
         }
         // rewrite() queues exactly one task per leaf, in leaf order, so entry i is leaf i's result
         assert rawPerLeafResults.length == leaves.size()
@@ -387,7 +387,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 perLeafCandidates[leafOrd] = scoreDocs.clone();
             }
         }
-        return perLeafCandidates;
+        return new PostFilterCandidates(perLeafCandidates, PostFilterableKnnQuery.hasValidScoreBounds(rawPerLeafResults));
     }
 
     @Override

@@ -81,6 +81,45 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
+    public void testPartialDelegateFallsBackBeforeUsingScoreFloors() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 8; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", (float) i);
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 4;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = new AssertingKnnQuery(
+                    vectorType(),
+                    "vector",
+                    new float[] { 0f },
+                    k,
+                    10,
+                    userFilter,
+                    1.5f,
+                    false
+                );
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                TopDocs td = searcher.search(pfq, k);
+
+                assertEquals(k, td.scoreDocs.length);
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 1, 2, 3 });
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(1, meta.postFilterDelegateCalls());
+                assertEquals("an uncertified initial round must fall back immediately", 0, meta.retryCalls());
+                assertEquals("fallback scoring must replace post-filter finalization", 0, meta.finalizeCalls());
+            }
+        }
+    }
+
     /**
      * 8 docs: docs 0-5 pass (vectors 0..5), docs 6-7 fail (vectors 10..11), so selectivity is 0.75 - inside
      * the band post-filtering actually runs in, since it only engages at selectivity >= the configured

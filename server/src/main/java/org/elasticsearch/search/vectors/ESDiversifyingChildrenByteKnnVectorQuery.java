@@ -127,7 +127,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             numCandsParam,
             parentsFilter,
             searchStrategy,
-            earlyTermination,
+            false,
             seedDocsPerLeaf,
             true
         );
@@ -137,6 +137,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
+        // Patience termination produces an incomplete candidate queue whose score floor cannot prove post-filter completeness.
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -145,16 +146,16 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             scaledNumCands,
             parentsFilter,
             searchStrategy,
-            earlyTermination,
+            false,
             null,
             true
         );
     }
 
     @Override
-    public ScoreDoc[][] getPostFilterCandidates() {
+    public PostFilterCandidates getPostFilterCandidates() {
         return rawPerLeafResults == null
-            ? leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][]
+            ? new PostFilterCandidates(leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][], false)
             : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
     }
 

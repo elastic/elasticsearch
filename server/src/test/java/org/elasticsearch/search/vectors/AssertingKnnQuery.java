@@ -134,6 +134,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     // postFilterExpectedBaseQueryDocMatches() = ceil(k * poolScale); 1.0f keeps k() == postFilterExpectedBaseQueryDocMatches(), the HNSW
     // convention.
     private final float poolScale;
+    private final boolean certifyPostFilterCandidates;
     private final PostFilterMeta postFilterMeta;
     private final BitSetProducer parentsFilter;
     // Mirrors the real queries' own flag: only a delegate/retry stashes the raw per-leaf candidates, so the
@@ -143,7 +144,33 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     private PostFilterableKnnQuery innerDelegate;
 
     AssertingKnnQuery(VectorType vectorType, String field, float[] target, int k, int numCands, Query filter, float postFilterScale) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), null, false);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, true, new PostFilterMeta(), null, false);
+    }
+
+    AssertingKnnQuery(
+        VectorType vectorType,
+        String field,
+        float[] target,
+        int k,
+        int numCands,
+        Query filter,
+        float postFilterScale,
+        boolean certifyPostFilterCandidates
+    ) {
+        this(
+            vectorType,
+            field,
+            target,
+            k,
+            numCands,
+            filter,
+            postFilterScale,
+            1.0f,
+            certifyPostFilterCandidates,
+            new PostFilterMeta(),
+            null,
+            false
+        );
     }
 
     /**
@@ -160,7 +187,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         float postFilterScale,
         float poolScale
     ) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, poolScale, new PostFilterMeta(), null, false);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, poolScale, true, new PostFilterMeta(), null, false);
     }
 
     AssertingKnnQuery(
@@ -173,7 +200,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         float postFilterScale,
         BitSetProducer parentsFilter
     ) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), parentsFilter, false);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, true, new PostFilterMeta(), parentsFilter, false);
     }
 
     private AssertingKnnQuery(
@@ -185,6 +212,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         Query filter,
         float postFilterScale,
         float poolScale,
+        boolean certifyPostFilterCandidates,
         PostFilterMeta postFilterMeta,
         BitSetProducer parentsFilter,
         boolean postFilterDelegate
@@ -197,6 +225,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         this.filter = filter;
         this.postFilterScale = postFilterScale;
         this.poolScale = poolScale;
+        this.certifyPostFilterCandidates = certifyPostFilterCandidates;
         this.postFilterMeta = postFilterMeta;
         this.parentsFilter = parentsFilter;
         this.postFilterDelegate = postFilterDelegate;
@@ -265,8 +294,11 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     @Override
-    public ScoreDoc[][] getPostFilterCandidates() {
-        return innerDelegate != null ? innerDelegate.getPostFilterCandidates() : null;
+    public PostFilterCandidates getPostFilterCandidates() {
+        PostFilterCandidates candidates = innerDelegate != null
+            ? innerDelegate.getPostFilterCandidates()
+            : PostFilterableKnnQuery.super.getPostFilterCandidates();
+        return certifyPostFilterCandidates ? candidates : new PostFilterCandidates(candidates.perLeafCandidates(), false);
     }
 
     @Override
@@ -283,6 +315,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             null,
             postFilterScale,
             poolScale,
+            certifyPostFilterCandidates,
             postFilterMeta,
             parentsFilter,
             true
@@ -306,6 +339,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             excludeFilter,
             postFilterScale,
             poolScale,
+            certifyPostFilterCandidates,
             postFilterMeta,
             parentsFilter,
             true

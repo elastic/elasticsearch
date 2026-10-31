@@ -156,7 +156,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
 
-        FilteredCandidates filtered = applyFilter(postFilterQuery.getPostFilterCandidates(), filterWeight, leaves);
+        PostFilterableKnnQuery.PostFilterCandidates initialCandidates = postFilterQuery.getPostFilterCandidates();
+        if (initialCandidates.hasValidScoreBounds() == false) {
+            this.totalVectorOps += vectorOps;
+            logger.debug("post-filter delegate returned partial results for field=[{}]; falling back to original query", field);
+            return null;
+        }
+        FilteredCandidates filtered = applyFilter(initialCandidates.perLeafCandidates(), filterWeight, leaves);
         ScoreDoc[] pool = dedupAndSelectTopK(flattenPerLeaf(filtered.matchingPerLeaf()), poolSize);
 
         if (pool.length == 0 || shouldExitEarly(pool.length, selectivity)) {
@@ -201,7 +207,17 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             PostFilterableKnnQuery retryQuery = (PostFilterableKnnQuery) retry;
             vectorOps += retryQuery.totalVectorOps();
 
-            FilteredCandidates retryFiltered = applyFilter(retryQuery.getPostFilterCandidates(), filterWeight, leaves);
+            PostFilterableKnnQuery.PostFilterCandidates retryCandidates = retryQuery.getPostFilterCandidates();
+            if (retryCandidates.hasValidScoreBounds() == false) {
+                this.totalVectorOps += vectorOps;
+                logger.debug(
+                    "post-filter retry round [{}] returned partial results for field=[{}]; falling back to original query",
+                    round,
+                    field
+                );
+                return null;
+            }
+            FilteredCandidates retryFiltered = applyFilter(retryCandidates.perLeafCandidates(), filterWeight, leaves);
             float[] retryFloor = retryFiltered.minScorePerLeaf();
             for (int leafOrd = 0; leafOrd < leafFloor.length; leafOrd++) {
                 if (exhausted[leafOrd]) {

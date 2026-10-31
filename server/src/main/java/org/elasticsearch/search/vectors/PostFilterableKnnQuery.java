@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -170,9 +171,11 @@ public interface PostFilterableKnnQuery {
      *
      * <p>The contract is deliberately narrow: collect {@link #computeScaledK}{@code (k(), filterSelectivity)}
      * instead of {@link #k()}, so that {@code k()} of them are still standing once the filter has run, and
-     * change nothing else. What an implementation does with a {@code k} - a beam width, a rescore oversample,
-     * per-segment collector budgets - is its own business and scales off the inflated {@code k} on its own.
-     * This layer must not reach into any of it.
+     * otherwise preserve the query's collection behavior. The exception is an optimization that can terminate
+     * a leaf without a valid score bound: post-filter delegates must disable it, because their per-leaf floors
+     * are used to prove the final pool complete. What an implementation does with a {@code k} - a beam width,
+     * a rescore oversample, per-segment collector budgets - is its own business and scales off the inflated
+     * {@code k} on its own. This layer must not reach into any of it.
      */
     Query createPostFilterDelegate(float filterSelectivity);
 
@@ -231,16 +234,22 @@ public interface PostFilterableKnnQuery {
     }
 
     /**
-     * Per-leaf candidate docs collected during the delegate's {@code mergeLeafResults}, indexed
-     * by leaf ordinal. Each non-null entry contains the full candidate pool for that leaf with
-     * global doc IDs and scores. The orchestrator walks each leaf to partition candidates into
-     * filter-matching and filtered-out sets without per-doc {@code subIndex} lookups.
-     * <p>
-     * Never returns {@code null}: implementations that have not run yet return an empty per-leaf
-     * array (every entry {@code null}), so the orchestrator can iterate without a null check.
+     * Per-leaf candidate docs collected during a post-filter delegate round, together with whether their
+     * score floors are valid bounds on what the round did not return. A partial or early-terminated round
+     * must set {@link PostFilterCandidates#hasValidScoreBounds()} to {@code false}; the orchestrator then falls back to the original
+     * pre-filtered query rather than use an invalid completeness proof.
+     *
+     * @param perLeafCandidates candidates indexed by leaf ordinal, with global doc IDs and scores
+     * @param hasValidScoreBounds whether each leaf's lowest score bounds its unreturned results
      */
-    default ScoreDoc[][] getPostFilterCandidates() {
-        return new ScoreDoc[0][];
+    record PostFilterCandidates(ScoreDoc[][] perLeafCandidates, boolean hasValidScoreBounds) {}
+
+    /**
+     * Returns candidates from the most recent delegate round. Never returns {@code null}: implementations
+     * that have not run yet return an empty, uncertified result.
+     */
+    default PostFilterCandidates getPostFilterCandidates() {
+        return new PostFilterCandidates(new ScoreDoc[0][], false);
     }
 
     /**
@@ -252,13 +261,23 @@ public interface PostFilterableKnnQuery {
      * Each leaf's {@link ScoreDoc} array is cloned so the orchestrator can sort it in place
      * without mutating the delegate's {@link TopDocs}.
      */
-    static ScoreDoc[][] buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
+    static PostFilterCandidates buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
         ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
         for (TopDocs td : perLeafResults) {
             if (td.scoreDocs.length == 0) continue;
             int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
             perLeafCandidates[leafOrd] = td.scoreDocs.clone();
         }
-        return perLeafCandidates;
+        return new PostFilterCandidates(perLeafCandidates, hasValidScoreBounds(perLeafResults));
+    }
+
+    /** A score floor is only valid when every leaf search completed without early termination. */
+    static boolean hasValidScoreBounds(TopDocs[] perLeafResults) {
+        for (TopDocs topDocs : perLeafResults) {
+            if (topDocs.totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
+                return false;
+            }
+        }
+        return true;
     }
 }

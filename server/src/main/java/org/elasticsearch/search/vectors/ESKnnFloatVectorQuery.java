@@ -114,7 +114,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             numCandsParam,
             filter,
             searchStrategy,
-            earlyTermination,
+            false,
             seedDocsPerLeaf,
             true
         );
@@ -124,23 +124,14 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
-        return new ESKnnFloatVectorQuery(
-            field,
-            getTargetCopy(),
-            scaledK,
-            scaledNumCands,
-            null,
-            searchStrategy,
-            earlyTermination,
-            null,
-            true
-        );
+        // Patience termination produces an incomplete candidate queue whose score floor cannot prove post-filter completeness.
+        return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, false, null, true);
     }
 
     @Override
-    public ScoreDoc[][] getPostFilterCandidates() {
+    public PostFilterCandidates getPostFilterCandidates() {
         return rawPerLeafResults == null
-            ? leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][]
+            ? new PostFilterCandidates(leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][], false)
             : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
     }
 

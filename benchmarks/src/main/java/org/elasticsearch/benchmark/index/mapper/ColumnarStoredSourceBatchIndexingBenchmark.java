@@ -79,8 +79,7 @@ import java.util.concurrent.TimeUnit;
  * <p>Each invocation processes {@code docCount} documents, so the reported average time is per {@code docCount} documents. The
  * {@code mapping} parameter chooses the field mix: {@code keyword_long} covers the types that the first stage of the direct writer
  * supports, {@code mixed} adds the types of the later stages, and {@code mixed_flattened} adds a {@code flattened} field and a
- * {@code text} field, the column group and the text family of the last stages. The {@code directSource} parameter switches the direct
- * writer off, which is the operational escape hatch, so that the loader path can be measured on the same mapping.
+ * {@code text} field, the column group and the text family of the last stages.
  *
  * <p>The setup refuses a mapping and document set that the batch path would fall back on, so that the benchmark never measures
  * the row path silently.
@@ -173,10 +172,6 @@ public class ColumnarStoredSourceBatchIndexingBenchmark {
     /** Field mix of the mapping and the generated documents. */
     @Param({ "keyword_long", "mixed", "mixed_flattened" })
     private String mapping;
-
-    /** Whether the {@code columnar_stored} blob is written from the mappers' output; {@code false} forces the loader path. */
-    @Param({ "true" })
-    private boolean directSource;
 
     /** Number of documents processed per benchmark invocation. */
     @Param({ "10000" })
@@ -347,7 +342,7 @@ public class ColumnarStoredSourceBatchIndexingBenchmark {
         ShardBatchMapper.BatchMapperResolution resolution,
         boolean verify
     ) throws IOException {
-        try (BatchMappingContext ctx = new BatchMappingContext(operationBatch, mappingLookup, indexSettings, recycler, directSource)) {
+        try (BatchMappingContext ctx = new BatchMappingContext(operationBatch, mappingLookup, indexSettings, recycler)) {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.preColumnarParse(ctx);
             }

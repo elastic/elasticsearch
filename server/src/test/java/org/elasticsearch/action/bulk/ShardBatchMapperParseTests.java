@@ -102,17 +102,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             return null;
         }
         return releaseAfterTest(
-            ShardBatchMapper.mapColumnBatch(
-                items,
-                batch,
-                shard,
-                0,
-                items.length,
-                resolution,
-                Engine.Operation.Origin.PRIMARY,
-                recycler,
-                true
-            )
+            ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution, Engine.Operation.Origin.PRIMARY, recycler)
         );
     }
 
@@ -488,17 +478,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
                 // First chunk [0, 2).
                 EngineBatch chunk1 = releaseAfterTest(
-                    ShardBatchMapper.mapColumnBatch(
-                        items,
-                        fullBatch,
-                        shard,
-                        0,
-                        2,
-                        resolution,
-                        Engine.Operation.Origin.PRIMARY,
-                        recycler,
-                        true
-                    )
+                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 0, 2, resolution, Engine.Operation.Origin.PRIMARY, recycler)
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -514,17 +494,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
                 // Second chunk [2, 4).
                 EngineBatch chunk2 = releaseAfterTest(
-                    ShardBatchMapper.mapColumnBatch(
-                        items,
-                        fullBatch,
-                        shard,
-                        2,
-                        4,
-                        resolution,
-                        Engine.Operation.Origin.PRIMARY,
-                        recycler,
-                        true
-                    )
+                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 2, 4, resolution, Engine.Operation.Origin.PRIMARY, recycler)
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);

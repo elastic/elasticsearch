@@ -47,7 +47,7 @@ import java.util.function.IntPredicate;
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
  *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
- *     Engine.Operation.Origin, Recycler, boolean)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
+ *     Engine.Operation.Origin, Recycler)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
  *     column per batch-wide value (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles
  *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
@@ -460,8 +460,7 @@ public final class ShardBatchMapper {
         int chunkEnd,
         BatchMapperResolution resolution,
         Engine.Operation.Origin origin,
-        Recycler<BytesRef> recycler,
-        boolean directColumnarSourceEnabled
+        Recycler<BytesRef> recycler
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -475,13 +474,7 @@ public final class ShardBatchMapper {
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos()
         );
-        final BatchMappingContext context = new BatchMappingContext(
-            indexBatch,
-            mappingLookup,
-            shard.indexSettings(),
-            recycler,
-            directColumnarSourceEnabled
-        );
+        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {

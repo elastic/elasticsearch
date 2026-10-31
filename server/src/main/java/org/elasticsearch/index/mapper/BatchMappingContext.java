@@ -87,30 +87,11 @@ public final class BatchMappingContext implements Releasable {
         IndexSettings indexSettings,
         Recycler<BytesRef> recycler
     ) {
-        this(batch, mappingLookup, indexSettings, recycler, true);
-    }
-
-    /**
-     * @param directColumnarSourceEnabled whether the {@code columnar_stored} blob may be written from the {@link SourceColumn}s the
-     *                                    mappers register ({@link #addSourceColumn}); {@code false} keeps every batch on the loader
-     *                                    path, which is the operational escape hatch
-     *                                    ({@code BatchIndexingEnabled#DIRECT_COLUMNAR_SOURCE}).
-     */
-    public BatchMappingContext(
-        IndexOperationBatch batch,
-        MappingLookup mappingLookup,
-        IndexSettings indexSettings,
-        Recycler<BytesRef> recycler,
-        boolean directColumnarSourceEnabled
-    ) {
         this.batch = batch;
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
         this.recycler = recycler;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
-        if (directColumnarSourceEnabled == false && isSourceColumnarStored()) {
-            markDirectSourceUnavailable("disabled by setting");
-        }
     }
 
     public IndexSettings indexSettings() {

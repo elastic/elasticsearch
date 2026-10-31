@@ -47,9 +47,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
         }
         Settings s = Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), enabled).build();
         return new ShardBatchIndexer(
-            new BatchIndexingEnabled(
-                new ClusterSettings(s, Set.of(BatchIndexingEnabled.BATCH_INDEXING, BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE))
-            ),
+            new BatchIndexingEnabled(new ClusterSettings(s, Set.of(BatchIndexingEnabled.BATCH_INDEXING))),
             BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
     }
@@ -158,7 +156,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
     public void testDynamicSettingUpdate() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build(),
-            Set.of(BatchIndexingEnabled.BATCH_INDEXING, BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE)
+            Set.of(BatchIndexingEnabled.BATCH_INDEXING)
         );
         BatchIndexingEnabled gate = new BatchIndexingEnabled(clusterSettings);
         ShardBatchIndexer batchIndexer = new ShardBatchIndexer(gate, BytesRefRecycler.NON_RECYCLING_INSTANCE);

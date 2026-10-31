@@ -361,14 +361,13 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * {@code columnar_stored} source written straight from the mapped keyword and long columns, the way a mapping of only those field
-     * types lets the batch path do it, and then once more through the synthetic source loader with the direct path switched off by
-     * {@link BatchIndexingEnabled#DIRECT_COLUMNAR_SOURCE}. The documents mix scalars, arrays with duplicates, empty arrays, nulls, an
+     * {@code columnar_stored} source written straight from the mapped columns, the way a mapping of only field types that support it
+     * lets the batch path do it. The documents mix scalars, arrays with duplicates, empty arrays, nulls, an
      * over-long keyword that lands in the {@code ignore_above} fallback, a single-valued keyword with a fallback of its own, booleans,
      * dates, ip addresses alone and in arrays, and absent fields; what comes back from get and search,
-     * with and without a source filter, must be the source each document was indexed with however the blob was produced.
+     * with and without a source filter, must be the source each document was indexed with.
      */
-    public void testColumnarStoredSourceDirectAndLoaderPaths() throws IOException {
+    public void testColumnarStoredSourceDirectPath() throws IOException {
         String index = "test-columnar-stored-source-direct";
 
         XContentBuilder mapping = JsonXContent.contentBuilder();
@@ -418,7 +417,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         final Level origLevel = contextLogger.getLevel();
         Loggers.setLevel(contextLogger, Level.DEBUG);
         try {
-            // First bulk: the direct path, which must not report a fallback.
+            // The direct path must not report a fallback.
             try (var mockLog = MockLog.capture(BatchMappingContext.class)) {
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
@@ -431,23 +430,6 @@ public class BatchBulkIT extends ESIntegTestCase {
                 indexColumnarStoredDocs(coordinatingNode, index, 0, numDocs, expectedSources);
                 mockLog.assertAllExpectationsMatched();
             }
-
-            // Second bulk: the same shapes through the loader, with the direct path switched off.
-            updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE.getKey(), false));
-            try (var mockLog = MockLog.capture(BatchMappingContext.class)) {
-                mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "loader path forced",
-                        BatchMappingContext.class.getName(),
-                        Level.DEBUG,
-                        "columnar_stored source of batch takes the loader path: disabled by setting"
-                    )
-                );
-                indexColumnarStoredDocs(coordinatingNode, index, numDocs, 2 * numDocs, expectedSources);
-                mockLog.assertAllExpectationsMatched();
-            } finally {
-                updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE.getKey()));
-            }
         } finally {
             Loggers.setLevel(contextLogger, origLevel);
         }
@@ -459,14 +441,14 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertTrue(expected.getKey(), getResponse.isExists());
             assertThat(expected.getKey(), getResponse.getSourceAsMap(), equalTo(expected.getValue()));
         }
-        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(2 * numDocs), searchResponse -> {
-            assertThat(searchResponse.getHits().getHits().length, equalTo(2 * numDocs));
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs), searchResponse -> {
+            assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 assertThat(hit.getId(), hit.getSourceAsMap(), equalTo(expectedSources.get(hit.getId())));
             }
         });
         assertResponse(
-            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(2 * numDocs).setFetchSource("tags", null),
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).setFetchSource("tags", null),
             searchResponse -> {
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     Map<String, Object> expected = expectedSources.get(hit.getId());
@@ -478,7 +460,7 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * Indexes documents {@code [from, to)} of {@link #testColumnarStoredSourceDirectAndLoaderPaths} in one bulk and records the source
+     * Indexes documents {@code [from, to)} of {@link #testColumnarStoredSourceDirectPath} in one bulk and records the source
      * each one must read back as. {@code count} stays a scalar and {@code values} stays an array in every document, as the number
      * mapper refuses a column that mixes the two shapes, and {@code flag} and {@code seen} stay scalars for the same reason; the
      * keyword and ip fields take every shape, and {@code attrs} holds nested keys, arrays and a null.

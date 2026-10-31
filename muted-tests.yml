@@ -580,3 +580,8 @@ tests:
   - :x-pack:plugin:encryption:internalClusterTest
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/164186
+- class: org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListenerIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testLastSearcherAcquiredTimeIsSetWhenAddingReplica
+  issue: https://github.com/elastic/elasticsearch/issues/164193

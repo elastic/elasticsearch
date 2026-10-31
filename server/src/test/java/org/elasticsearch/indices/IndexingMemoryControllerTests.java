@@ -203,7 +203,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
                     .source(new BytesArray("{\"payload\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}"), XContentType.JSON)
             );
         }
-        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
     }
 
     public void testShardAdditionAndRemoval() throws IOException {

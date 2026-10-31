@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.io.IOException;
@@ -43,10 +44,16 @@ public final class ShardBatchIndexer {
 
     private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> recycler;
+    private final DocumentParsingProvider documentParsingProvider;
 
-    ShardBatchIndexer(BatchIndexingEnabled batchIndexingEnabled, Recycler<BytesRef> recycler) {
+    ShardBatchIndexer(
+        BatchIndexingEnabled batchIndexingEnabled,
+        Recycler<BytesRef> recycler,
+        DocumentParsingProvider documentParsingProvider
+    ) {
         this.batchIndexingEnabled = batchIndexingEnabled;
         this.recycler = recycler;
+        this.documentParsingProvider = documentParsingProvider;
     }
 
     public static boolean isBatchIndexingSupported(BatchIndexingEnabled batchIndexingEnabled, ClusterService clusterService) {
@@ -130,7 +137,8 @@ public final class ShardBatchIndexer {
                     chunkEnd,
                     resolution,
                     Engine.Operation.Origin.PRIMARY,
-                    recycler
+                    recycler,
+                    documentParsingProvider
                 )
             ) {
                 if (engineBatch == null) {
@@ -200,7 +208,9 @@ public final class ShardBatchIndexer {
                         validEnd,
                         resolution,
                         Engine.Operation.Origin.REPLICA,
-                        recycler
+                        recycler,
+                        // mirrors the NOOP decorator of the sequential replica path
+                        DocumentParsingProvider.EMPTY_INSTANCE
                     )
                 ) {
                     if (engineBatch == null) {

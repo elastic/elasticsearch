@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
@@ -26,9 +27,15 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.IntPredicate;
@@ -47,9 +54,10 @@ import java.util.function.IntPredicate;
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
  *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
- *     Engine.Operation.Origin, Recycler)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
- *     column per batch-wide value (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles
- *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
+ *     Engine.Operation.Origin, Recycler, DocumentParsingProvider)} runs per chunk. It meters every row through the request's
+ *     metering decorator, then invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
+ *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index}
+ *     operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
  * </ol>
  */
@@ -460,19 +468,29 @@ public final class ShardBatchMapper {
         int chunkEnd,
         BatchMapperResolution resolution,
         Engine.Operation.Origin origin,
-        Recycler<BytesRef> recycler
+        Recycler<BytesRef> recycler,
+        DocumentParsingProvider documentParsingProvider
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
+        final SourceBatch chunkSource = batch.slice(chunkStart, chunkEnd);
+        final long[] normalizedSizes;
+        try {
+            normalizedSizes = meterRows(documentParsingProvider, chunkSource, mappingLookup);
+        } catch (Exception e) {
+            logger.warn("metering columnar batch failed on [{}], falling back", origin, e);
+            return null;
+        }
         final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
             items,
             chunkStart,
             chunkEnd,
-            batch.slice(chunkStart, chunkEnd),
+            chunkSource,
             origin,
             shard.getOperationPrimaryTerm(),
-            shard.getRelativeTimeInNanos()
+            shard.getRelativeTimeInNanos(),
+            normalizedSizes
         );
         final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
@@ -538,6 +556,8 @@ public final class ShardBatchMapper {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.postColumnarParse(context);
             }
+            // the engine's DocumentSizeReporter sees the metered sizes while columns can still be attached; a no-op outside serverless
+            shard.onBatchParsingCompleted(context);
         } catch (Exception e) {
             logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
             context.close();
@@ -545,5 +565,110 @@ public final class ShardBatchMapper {
         }
 
         return new EngineBatch(indexBatch, context.columns(), context);
+    }
+
+    /**
+     * Meters every row of {@code chunkSource} the way {@link DocumentParser} meters a row-parsed document: each row is
+     * streamed through the request's {@link XContentMeteringParserDecorator} and uses the {@link SourceRowXContentParser}
+     * to avoid materializing the rows. Dotted names are expanded where the sequential path expands them, see
+     * {@link #innerParseObject}.
+     * TODO: Remove the per row metering and do it in a column aware manner. This will need changes to the decorator.
+     *  A column-aware version needs a new batch-level hook on DocumentParsingProvider.
+     */
+    @Nullable
+    private static long[] meterRows(DocumentParsingProvider documentParsingProvider, SourceBatch chunkSource, MappingLookup mappingLookup)
+        throws IOException {
+        long[] normalizedSizes = null;
+        SourceRowXContentParser.SchemaNode schemaTree = null;
+        final Mapping mapping = mappingLookup.getMapping();
+        final boolean expandDots = mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED;
+        for (int d = 0; d < chunkSource.docCount(); d++) {
+            final XContentMeteringParserDecorator decorator = documentParsingProvider.newMeteringParserDecorator();
+            if (decorator == XContentMeteringParserDecorator.NOOP) {
+                continue;
+            }
+            if (normalizedSizes == null) {
+                normalizedSizes = new long[chunkSource.docCount()];
+                Arrays.fill(normalizedSizes, XContentMeteringParserDecorator.UNKNOWN_SIZE);
+                schemaTree = SourceRowXContentParser.buildSchemaTree(chunkSource.schema());
+            }
+            XContentParser rowParser = new SourceRowXContentParser(schemaTree, chunkSource.row(d));
+            final ContentPath path = new ContentPath();
+            if (expandDots) {
+                rowParser = DotExpandingXContentParser.expandDots(rowParser, path);
+            }
+            try (XContentParser metered = decorator.decorate(rowParser, mapping)) {
+                final XContentParser.Token root = metered.nextToken();
+                assert root == XContentParser.Token.START_OBJECT : root;
+                if (expandDots) {
+                    innerParseObject(metered, path, mappingLookup);
+                } else {
+                    while (metered.nextToken() != null) {
+                        // the decorator observes every token; production decorators publish the total on close
+                    }
+                }
+            }
+            normalizedSizes[d] = decorator.meteredDocumentSize();
+        }
+        return normalizedSizes;
+    }
+
+    /**
+     * Consumes one object the way {@code DocumentParser#innerParseObject} does, setting {@link ContentPath#setWithinLeafObject}
+     * where {@link DocumentParser} sets it so that the {@link DotExpandingXContentParser} below the decorator splits the same
+     * names on both paths. Enters on the object's {@code START_OBJECT} and returns on its {@code END_OBJECT}.
+     */
+    private static void innerParseObject(XContentParser parser, ContentPath path, MappingLookup lookup) throws IOException {
+        String name = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == null) {
+                throw new IllegalStateException("unexpected end of row while metering");
+            }
+            switch (token) {
+                case FIELD_NAME -> name = parser.currentName();
+                case START_OBJECT -> parseObject(parser, path, lookup, name);
+                case START_ARRAY -> parseArray(parser, path, lookup, name);
+                case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT -> {
+                    // values need no bookkeeping
+                }
+                default -> throw new IllegalStateException("unexpected token [" + token + "] while metering");
+            }
+        }
+    }
+
+    private static void parseArray(XContentParser parser, ContentPath path, MappingLookup lookup, String name) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == null) {
+                throw new IllegalStateException("unexpected end of row while metering");
+            }
+            switch (token) {
+                case START_OBJECT -> parseObject(parser, path, lookup, name);
+                case START_ARRAY -> parseArray(parser, path, lookup, name);
+                case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT -> {
+                    // values need no bookkeeping
+                }
+                default -> throw new IllegalStateException("unexpected token [" + token + "] while metering");
+            }
+        }
+    }
+
+    private static void parseObject(XContentParser parser, ContentPath path, MappingLookup lookup, String name) throws IOException {
+        assert name != null : "object without a field name";
+        if (path.isWithinLeafObject()) {
+            innerParseObject(parser, path, lookup);
+            return;
+        }
+        // only an enabled object mapper with subobjects enabled keeps expanding dots below itself, see DocumentParser#doParseObject
+        final ObjectMapper objectMapper = lookup.objectMappers().get(path.pathAsText(name));
+        final boolean leaf = objectMapper == null
+            || objectMapper.isEnabled() == false
+            || objectMapper.subobjects() != ObjectMapper.Subobjects.ENABLED;
+        path.add(name);
+        path.setWithinLeafObject(leaf);
+        innerParseObject(parser, path, lookup);
+        path.setWithinLeafObject(false);
+        path.remove();
     }
 }

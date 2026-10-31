@@ -76,6 +76,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -2537,6 +2538,13 @@ public abstract class Engine implements Closeable {
     public XContentMeteringParserDecorator newMeteringParserDecorator() {
         return XContentMeteringParserDecorator.NOOP;
     }
+
+    /**
+     * Called once per columnar batch chunk before its columns are frozen, see
+     * {@link org.elasticsearch.plugins.internal.DocumentSizeReporter#onBatchParsingCompleted}. Engines that meter documents override this
+     * to hand the chunk to their reporter.
+     */
+    public void onBatchParsingCompleted(BatchMappingContext context) {}
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

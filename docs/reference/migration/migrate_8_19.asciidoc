@@ -126,6 +126,13 @@ Adapt your configuration to the new SDK functionality. This includes, but may no
   `http://` or `https://`.
 
 * If applicable, discontinue use of the `log-delivery-write` canned ACL.
+
+* If your S3-compatible storage service requires a `Content-MD5` header on
+  `DeleteObjects` requests, which AWS S3 and AWS SDK v2 no longer need, you can
+  set `s3.client.${CLIENT_NAME}.legacy_content_md5` to `true` from 8.19.24 as a
+  temporary workaround. This setting is deprecated and will be removed in 10.x.
+  It is not recognized by versions 9.0 to 9.4 or 9.5.0 to 9.5.5, so remove it
+  before upgrading to any of these versions.
 ====
 
 [discrete]

@@ -12,9 +12,9 @@ package org.elasticsearch.windows.service;
 /**
  * Starts the Elasticsearch Windows service.
  */
-class WindowsServiceStartCommand extends ProcrunCommand {
+class WindowsServiceStartCommand extends ScCommand {
     WindowsServiceStartCommand() {
-        super("Starts the Elasticsearch Windows Service", "ES");
+        super("Starts the Elasticsearch Windows Service", "start");
     }
 
     @Override

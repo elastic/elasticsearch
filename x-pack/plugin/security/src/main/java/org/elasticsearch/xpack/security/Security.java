@@ -78,6 +78,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -1845,35 +1846,44 @@ public class Security extends Plugin
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 assert dlsBitsetCache.get() != null;
-                module.setReaderWrapper(indexService -> new SecurityIndexReaderWrapper(shardId -> {
-                    var context = indexService.newSearchExecutionContext(
-                        shardId.id(),
-                        0,
-                        // we pass a null index reader, which is legal and will disable rewrite optimizations
-                        // based on index statistics, which is probably safer...
-                        null,
-                        () -> {
-                            throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+                SetOnce<IndexService> indexServiceHolder = new SetOnce<>();
+                module.setReaderWrapper(indexService -> {
+                    indexServiceHolder.set(indexService);
+                    return new SecurityIndexReaderWrapper(shardId -> {
+                        var context = indexService.newSearchExecutionContext(
+                            shardId.id(),
+                            0,
+                            // we pass a null index reader, which is legal and will disable rewrite optimizations
+                            // based on index statistics, which is probably safer...
+                            null,
+                            () -> {
+                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                        },
-                        null,
-                        // Don't use runtime mappings in the security query
-                        emptyMap(),
-                        null,
-                        null
-                    );
-                    // DLS role queries are authorization rules and must be evaluated against the
-                    // complete mapping, independently of the user's field-level permissions.
-                    context.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
-                    return context;
-                }, dlsBitsetCache.get(), securityContext.get(), getLicenseState(), indexService.getScriptService()));
+                            },
+                            null,
+                            // Don't use runtime mappings in the security query
+                            emptyMap(),
+                            null,
+                            null
+                        );
+                        // DLS role queries are authorization rules and must be evaluated against the
+                        // complete mapping, independently of the user's field-level permissions.
+                        context.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
+                        return context;
+                    }, dlsBitsetCache.get(), securityContext.get(), getLicenseState(), indexService.getScriptService());
+                });
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
                 module.forceQueryCacheProvider(
-                    (indexSettings, cache) -> new OptOutQueryCache(indexSettings.getIndex(), cache, threadContext.get())
+                    (indexSettings, cache) -> new OptOutQueryCache(
+                        indexSettings.getIndex(),
+                        cache,
+                        threadContext.get(),
+                        () -> indexServiceHolder.get().mapperService().mappingLookup().flattenedFields()
+                    )
                 );
             }
 

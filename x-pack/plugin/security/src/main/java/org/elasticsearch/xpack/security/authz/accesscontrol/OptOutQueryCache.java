@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
@@ -27,10 +29,20 @@ public final class OptOutQueryCache extends IndexQueryCache {
 
     private static final Logger logger = LogManager.getLogger(IndexQueryCache.class);
     private final ThreadContext context;
+    private final Supplier<Set<String>> flattenedFields;
 
-    public OptOutQueryCache(final Index index, final IndicesQueryCache indicesQueryCache, final ThreadContext context) {
+    /**
+     * @param flattenedFields supplies the full paths of the index's flattened fields
+     */
+    public OptOutQueryCache(
+        final Index index,
+        final IndicesQueryCache indicesQueryCache,
+        final ThreadContext context,
+        final Supplier<Set<String>> flattenedFields
+    ) {
         super(index, indicesQueryCache);
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
+        this.flattenedFields = flattenedFields;
     }
 
     @Override
@@ -43,7 +55,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index.getName());
         if (indexAccessControl != null && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
-            if (cachingIsSafe(weight, indexAccessControl)) {
+            if (cachingIsSafe(weight, indexAccessControl, flattenedFields.get())) {
                 logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", index);
                 return super.doCache(weight, policy);
             } else {
@@ -59,9 +71,9 @@ public final class OptOutQueryCache extends IndexQueryCache {
     /**
      * Returns true if it's safe to use the query cache for this query. Queries with leaves that do not report a field are not cacheable.
      */
-    static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
+    static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions, Set<String> flattenedFields) {
         // support caching for common queries, by inspecting the field
-        FieldCheckingVisitor visitor = new FieldCheckingVisitor(permissions);
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(permissions, flattenedFields);
         weight.getQuery().visit(visitor);
         return visitor.isCacheable();
     }

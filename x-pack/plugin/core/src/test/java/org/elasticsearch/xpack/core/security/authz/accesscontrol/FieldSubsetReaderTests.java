@@ -34,6 +34,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -70,6 +71,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -119,10 +121,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -2990,6 +2994,273 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 Terms terms = leaf.terms("title.source_geometry");
                 assertNotNull(terms);
                 assertTrue(terms.iterator().seekExact(new BytesRef("visible")));
+            }
+        }
+    }
+
+    /**
+     * A flattened field keeps every key under a few Lucene field names: the keyless root, the keyed storage and its companions. Full
+     * access (every key granted) leaves them as the role grants them; partial access (some but not every path at or below the field
+     * granted) hides them all, since they cannot be filtered by key. Patterns keep their object-like meaning, so granting the field's
+     * name alone grants no key. A mapped sub-field has its own Lucene field and is filtered by its own path either way. The stored
+     * {@code _source} is filtered per key throughout, so hiding the storage keeps granted keys named like it ({@code counts}).
+     */
+    public void testFlattenedLuceneFieldsFollowKeyVisibility() throws Exception {
+        String root = randomAlphaOfLength(5);
+        String subField = root + ".response_time";
+        List<String> storage = List.of(
+            root,
+            root + ".counts",
+            root + "._keyed",
+            root + "._keyed.counts",
+            root + "._keyed._ignored",
+            root + ".offsets",
+            root + ".offsets.counts"
+        );
+        record Case(String[] grant, String[] except, boolean storageVisible, boolean subFieldVisible, Map<String, Object> source) {}
+        Map<String, Object> storageNamedKeys = Map.of(
+            "counts",
+            randomAlphaOfLength(5),
+            "offsets",
+            randomAlphaOfLength(5),
+            "_keyed",
+            randomAlphaOfLength(5)
+        );
+        Map<String, Object> fullLabels = new HashMap<>(storageNamedKeys);
+        fullLabels.putAll(Map.of("env", "prod", "secret", "hunter2"));
+        Map<String, Object> exceptSecretLabels = new HashMap<>(storageNamedKeys);
+        exceptSecretLabels.put("env", "prod");
+        Map<String, Object> fullSource = Map.of("name", "A", root, fullLabels);
+        Map<String, Object> exceptSecretSource = Map.of("name", "A", root, exceptSecretLabels);
+        Map<String, Object> envSource = Map.of("name", "A", root, Map.of("env", "prod"));
+        Map<String, Object> noLabelsSource = Map.of("name", "A");
+        List<Case> cases = List.of(
+            new Case(new String[] { "name", root, root + ".*" }, null, true, true, fullSource),
+            new Case(new String[] { "*" }, new String[] { root + ".secret" }, false, true, exceptSecretSource),
+            new Case(new String[] { "name", root + ".env" }, null, false, false, envSource),
+            new Case(new String[] { "name", root }, null, false, false, noLabelsSource)
+        );
+
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            Document doc = new Document();
+            doc.add(new StringField(root, "prod", Field.Store.NO));
+            doc.add(new NumericDocValuesField(root + ".counts", 1));
+            doc.add(new StringField(root + "._keyed", "env\0prod", Field.Store.NO));
+            doc.add(new SortedSetDocValuesField(root + "._keyed", new BytesRef("env\0prod")));
+            doc.add(new NumericDocValuesField(root + "._keyed.counts", 1));
+            doc.add(new BinaryDocValuesField(root + "._keyed._ignored", new BytesRef("v")));
+            doc.add(new BinaryDocValuesField(root + ".offsets", new BytesRef("secret\0v")));
+            doc.add(new NumericDocValuesField(root + ".offsets.counts", 1));
+            doc.add(new NumericDocValuesField(subField, 1));
+            doc.add(new StringField("name", "A", Field.Store.NO));
+            doc.add(new StoredField(SourceFieldMapper.NAME, new BytesRef(Strings.toString(JsonXContent.contentBuilder().map(fullSource)))));
+            iw.addDocument(doc);
+
+            IndexSettings indexSettings = createIndexSettings(IndexVersion.current(), Settings.EMPTY);
+            for (Case c : cases) {
+                FieldPermissions permissions = new FieldPermissions(new FieldPermissionsDefinition(c.grant(), c.except()));
+                try (
+                    DirectoryReader ir = permissions.filter(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                        indexSettings,
+                        (fieldName) -> true,
+                        Set.of(root)
+                    )
+                ) {
+                    LeafReader leaf = ir.leaves().get(0).reader();
+                    FieldInfos fieldInfos = leaf.getFieldInfos();
+                    for (String name : storage) {
+                        assertThat(c + " " + name, fieldInfos.fieldInfo(name) != null, equalTo(c.storageVisible()));
+                    }
+                    assertThat(c.toString(), fieldInfos.fieldInfo(subField) != null, equalTo(c.subFieldVisible()));
+                    assertNotNull(fieldInfos.fieldInfo("name"));
+                    BytesRef source = leaf.storedFields().document(0).getBinaryValue(SourceFieldMapper.NAME);
+                    assertThat(c.toString(), XContentHelper.convertToMap(new BytesArray(source), true).v2(), equalTo(c.source()));
+                }
+            }
+        }
+    }
+
+    /** Under partial access the keyed storage is hidden, but a value kept in {@code _ignored_source} is still filtered per key. */
+    public void testFlattenedPartialAccessFiltersIgnoredSourcePerKey() throws Exception {
+        Settings mapperSettings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        IndexSettings indexSettings = createIndexSettings(IndexVersion.current(), mapperSettings);
+        DocumentMapper mapper = createMapperService(IndexVersion.current(), mapperSettings, mapping(b -> {
+            b.startObject("name").field("type", "keyword").endObject();
+            b.startObject("labels").field("type", "flattened").field("synthetic_source_keep", "all").endObject();
+        })).documentMapper();
+        Set<String> flattenedFields = mapper.mappers().flattenedFields();
+        assertThat(flattenedFields, equalTo(Set.of("labels")));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("name", "A");
+                b.startObject("labels").field("env", "prod").field("secret", "hunter2").endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            record Case(String[] grant, String[] except, boolean keyedVisible, Map<String, Object> source) {}
+            List<Case> cases = List.of(
+                new Case(
+                    new String[] { "*" },
+                    new String[] { "labels.secret" },
+                    false,
+                    Map.of("name", "A", "labels", Map.of("env", "prod"))
+                ),
+                new Case(
+                    new String[] { "name", "labels", "labels.*" },
+                    null,
+                    true,
+                    Map.of("name", "A", "labels", Map.of("env", "prod", "secret", "hunter2"))
+                )
+            );
+            for (Case c : cases) {
+                FieldPermissions permissions = new FieldPermissions(new FieldPermissionsDefinition(c.grant(), c.except()));
+                try (
+                    DirectoryReader reader = permissions.filter(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        indexSettings,
+                        (fieldName) -> mapper.mappers().getFieldType(fieldName) != null,
+                        flattenedFields
+                    )
+                ) {
+                    LeafReader leaf = reader.leaves().get(0).reader();
+                    assertThat(c.toString(), leaf.getSortedSetDocValues("labels._keyed") != null, equalTo(c.keyedVisible()));
+                    String syntheticSource = syntheticSource(mapper, reader, doc.docs().size() - 1);
+                    assertThat(c.toString(), XContentHelper.convertToMap(new BytesArray(syntheticSource), true).v2(), equalTo(c.source()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Partial access must hide every Lucene field a flattened field writes, in every storage layout, since none can be filtered by key: the
+     * root and keyed values with their {@code .counts} companions under binary doc values, the values over {@code ignore_above}, and the
+     * {@code labels.offsets} field that records each array key's name and length when arrays are kept for synthetic source (left visible,
+     * it makes synthetic source rebuild every array key, hidden ones included, as an array of nulls). The fields come from a document
+     * parsed by the real mapper, so a companion added later is covered too. The real mapping lookup is used because it reports companions
+     * such as {@code labels.offsets} as mapped keys, which keeps the reader from tying them to their parent's visibility.
+     */
+    public void testFlattenedPartialAccessHidesEveryStorageField() throws Exception {
+        for (boolean binaryDocValues : new boolean[] { false, true }) {
+            Settings mapperSettings = Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), binaryDocValues)
+                .build();
+            IndexSettings indexSettings = createIndexSettings(IndexVersion.current(), mapperSettings);
+            DocumentMapper mapper = createMapperService(IndexVersion.current(), mapperSettings, mapping(b -> {
+                b.startObject("name").field("type", "keyword").endObject();
+                b.startObject("labels").field("type", "flattened").field("ignore_above", 10).endObject();
+            })).documentMapper();
+            String name = randomAlphaOfLength(5);
+            Map<String, Object> labels = Map.of(
+                "env",
+                randomList(2, 4, () -> randomAlphaOfLength(5)),
+                "secret",
+                randomList(2, 4, () -> randomAlphaOfLength(5)),
+                "note",
+                randomAlphaOfLength(20)
+            );
+
+            try (Directory directory = newDirectory()) {
+                RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+                ParsedDocument doc = mapper.parse(source(b -> b.field("name", name).field("labels", labels)));
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+                iw.close();
+                Set<String> storage = doc.rootDoc()
+                    .getFields()
+                    .stream()
+                    .map(IndexableField::name)
+                    .filter(field -> field.equals("labels") || field.startsWith("labels."))
+                    .collect(Collectors.toSet());
+                assertThat(storage, hasItems("labels._keyed", "labels.offsets", "labels._keyed._ignored"));
+                if (binaryDocValues) {
+                    assertThat(storage, hasItems("labels.counts", "labels._keyed.counts"));
+                }
+
+                record Case(String[] grant, String[] except, boolean storageVisible, Map<String, Object> source) {}
+                List<Case> cases = List.of(
+                    new Case(new String[] { "*" }, new String[] { "labels.secret" }, false, Map.of("name", name)),
+                    new Case(new String[] { "name", "labels", "labels.*" }, null, true, Map.of("name", name, "labels", labels))
+                );
+                for (Case c : cases) {
+                    FieldPermissions permissions = new FieldPermissions(new FieldPermissionsDefinition(c.grant(), c.except()));
+                    try (
+                        DirectoryReader reader = permissions.filter(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                            indexSettings,
+                            (fieldName) -> mapper.mappers().getFieldType(fieldName) != null,
+                            mapper.mappers().flattenedFields()
+                        )
+                    ) {
+                        FieldInfos fieldInfos = reader.leaves().get(0).reader().getFieldInfos();
+                        for (String field : storage) {
+                            assertThat(c + " " + field, fieldInfos.fieldInfo(field) != null, equalTo(c.storageVisible()));
+                        }
+                        String syntheticSource = syntheticSource(mapper, reader, doc.docs().size() - 1);
+                        assertThat(
+                            c.toString(),
+                            XContentHelper.convertToMap(new BytesArray(syntheticSource), true).v2(),
+                            equalTo(c.source())
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A mapped sub-field named like a storage field ({@code labels.counts}) has the same Lucene name, so partial access hides it with the
+     * storage, failing closed, while full access leaves it visible.
+     */
+    public void testFlattenedPartialAccessHidesSubFieldNamedLikeStorage() throws Exception {
+        Settings mapperSettings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        IndexSettings indexSettings = createIndexSettings(IndexVersion.current(), mapperSettings);
+        DocumentMapper mapper = createMapperService(IndexVersion.current(), mapperSettings, mapping(b -> {
+            b.startObject("labels").field("type", "flattened");
+            b.startObject("properties").startObject("counts").field("type", "long").endObject().endObject();
+            b.endObject();
+        })).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(
+                source(
+                    b -> b.startObject("labels")
+                        .field("counts", randomNonNegativeLong())
+                        .field("secret", randomAlphaOfLength(5))
+                        .endObject()
+                )
+            );
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            for (boolean partial : new boolean[] { true, false }) {
+                FieldPermissions permissions = new FieldPermissions(
+                    partial
+                        ? new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "labels.secret" })
+                        : new FieldPermissionsDefinition(new String[] { "labels", "labels.*" }, null)
+                );
+                try (
+                    DirectoryReader reader = permissions.filter(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        indexSettings,
+                        (fieldName) -> mapper.mappers().getFieldType(fieldName) != null,
+                        mapper.mappers().flattenedFields()
+                    )
+                ) {
+                    FieldInfos fieldInfos = reader.leaves().get(0).reader().getFieldInfos();
+                    assertThat("partial=" + partial, fieldInfos.fieldInfo("labels.counts") != null, equalTo(partial == false));
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +25,6 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -72,8 +72,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR,
-            IndexMode.TIME_SERIES);
+        List<IndexMode> modes = List.of(
+            IndexMode.STANDARD,
+            IndexMode.COLUMNAR,
+            IndexMode.LOGSDB,
+            IndexMode.LOGSDB_COLUMNAR,
+            IndexMode.TIME_SERIES
+        );
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -464,7 +469,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         if (params.indexMode() == IndexMode.TIME_SERIES) {
             // time_series requires a routing path (or dimensions); the tests don't depend on its value
             builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "sensor_id");
-//            builder.put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "my_temporality_field");
+            // builder.put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "my_temporality_field");
         }
         return builder;
     }

@@ -143,8 +143,12 @@ public class BlockLoaderTestRunner {
         if (mapperService == null) {
             throw new IllegalStateException("need to set mapperService");
         }
-        final Map<String, Object> emptyPayloadDoc = Map.of("@timestamp", ESTestCase.randomMillisUpToYear9999(),
-            "sensor_id", "empty_sensor_id");
+        final Map<String, Object> emptyPayloadDoc = Map.of(
+            "@timestamp",
+            ESTestCase.randomMillisUpToYear9999(),
+            "sensor_id",
+            "empty_sensor_id"
+        );
         return parseDocument(emptyPayloadDoc);
     }
 
@@ -169,14 +173,14 @@ public class BlockLoaderTestRunner {
         try {
             var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(docToParse);
             var source = new SourceToParse(
-//                    "1",
+                // "1",
                 // In Time series the _id is derived from document
                 params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
                 new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
-//                    null,
-//                    params.indexMode() == IndexMode.TIME_SERIES ? "temp_sensor_1" : null,
+                // null,
+                // params.indexMode() == IndexMode.TIME_SERIES ? "temp_sensor_1" : null,
                 params.indexMode() == IndexMode.TIME_SERIES ? (String) docToParse.get("sensor_id") : null,
-//                    params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE : null,
+                // params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE : null,
                 Map.of(),
                 Map.of(),
                 XContentMeteringParserDecorator.NOOP,
@@ -214,7 +218,7 @@ public class BlockLoaderTestRunner {
         if (indexMode == IndexMode.TIME_SERIES) {
             document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
             document.putIfAbsent("sensor_id", ESTestCase.randomAlphanumericOfLength(10));
-//            document.putIfAbsent("my_temporality_field", "cumulative");
+            // document.putIfAbsent("my_temporality_field", "cumulative");
         }
         return document;
     }
@@ -329,7 +333,7 @@ public class BlockLoaderTestRunner {
             )
         );
 
-//                Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+        // Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
         indexWriterConfig.setCodec(codec);
         indexWriterConfig.setMergePolicy(unwrapSyntheticIdOnMerge(newLogMergePolicy()));
         // The random test config may install a SimpleMergedSegmentWarmer, which reads every stored field of the merged

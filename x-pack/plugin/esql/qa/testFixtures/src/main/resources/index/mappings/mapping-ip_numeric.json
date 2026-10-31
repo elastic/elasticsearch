@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "ip_as_int": {
+      "type": "integer"
+    },
+    "ip_as_long": {
+      "type": "long"
+    },
+    "ip_as_ul": {
+      "type": "unsigned_long"
+    }
+  }
+}

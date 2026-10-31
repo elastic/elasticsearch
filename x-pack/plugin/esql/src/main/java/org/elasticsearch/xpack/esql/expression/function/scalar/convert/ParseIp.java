@@ -15,6 +15,8 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.net.InetAddress;
 
@@ -34,9 +36,16 @@ import java.net.InetAddress;
  *     as 7-bit ascii. Anything that isn't in the range is an invalid ip anyway. Much love
  *     for the designers of utf-8 for making it this way.
  * </p>
+ * <p>
+ *     It also converts ipv4 addresses stored as numbers, with the first octet in the most
+ *     significant byte, so {@code 3232235777} ({@code 0xC0A80101}) becomes {@code 192.168.1.1}.
+ *     See {@link #fromInteger}, {@link #fromLong}, and {@link #fromUnsignedLong}. These write
+ *     into the same scratch space as the string parsers so they don't allocate either.
+ * </p>
  */
 public class ParseIp {
     private static final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };
+    private static final long MAX_IPV4 = 0xFFFFFFFFL;
 
     static final AbstractConvertFunction.BuildFactory FROM_KEYWORD_LEADING_ZEROS_REJECTED = (source, field) -> {
         return new ParseIpLeadingZerosRejectedEvaluator.Factory(source, field, driverContext -> buildScratch(driverContext.breaker()));
@@ -49,6 +58,24 @@ public class ParseIp {
     static final AbstractConvertFunction.BuildFactory FROM_KEYWORD_LEADING_ZEROS_OCTAL = (source, field) -> {
         return new ParseIpLeadingZerosAreOctalEvaluator.Factory(source, field, driverContext -> buildScratch(driverContext.breaker()));
     };
+
+    static final AbstractConvertFunction.BuildFactory FROM_INTEGER = (source, field) -> new ParseIpIntegerEvaluator.Factory(
+        source,
+        field,
+        driverContext -> buildScratch(driverContext.breaker())
+    );
+
+    static final AbstractConvertFunction.BuildFactory FROM_LONG = (source, field) -> new ParseIpLongEvaluator.Factory(
+        source,
+        field,
+        driverContext -> buildScratch(driverContext.breaker())
+    );
+
+    static final AbstractConvertFunction.BuildFactory FROM_UNSIGNED_LONG = (source, field) -> new ParseIpUnsignedLongEvaluator.Factory(
+        source,
+        field,
+        driverContext -> buildScratch(driverContext.breaker())
+    );
 
     public static BreakingBytesRefBuilder buildScratch(CircuitBreaker breaker) {
         BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(breaker, "to_ip", 16);
@@ -212,6 +239,63 @@ public class ParseIp {
             scratch.bytes()[dest] = (byte) v;
         }
         return scratch.bytesRefView();
+    }
+
+    /// Convert an ipv4 address stored as a 32-bit integer, first octet in the most significant
+    /// byte. Every `int` is an address: negative values are the addresses from
+    /// `128.0.0.0` up, which is how they look when stored in a signed 32-bit column.
+    ///
+    /// - 167772161 : 10.0.0.1
+    /// - -1062731519 : 192.168.1.1
+    /// - -1 : 255.255.255.255
+    ///
+    /// @param scratch A "scratch" memory space built by [#buildScratch]
+    @ConvertEvaluator(extraName = "Integer")
+    public static BytesRef fromInteger(
+        int i,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) BreakingBytesRefBuilder scratch
+    ) {
+        System.arraycopy(IPV4_PREFIX, 0, scratch.bytes(), 0, IPV4_PREFIX.length);
+
+        scratch.bytes()[12] = (byte) (i >>> 24);
+        scratch.bytes()[13] = (byte) (i >>> 16);
+        scratch.bytes()[14] = (byte) (i >>> 8);
+        scratch.bytes()[15] = (byte) i;
+
+        return scratch.bytesRefView();
+    }
+
+    /// Convert an ipv4 address stored as a `long`. Accepts `[-2147483648, 4294967295]`:
+    /// either the unsigned 32-bit address or a signed 32-bit integer widened to `long`, so this
+    /// agrees with [#fromInteger] for every `int`. Anything else isn't an address and becomes `null` with a warning.
+    ///
+    /// - 3232235777 : 192.168.1.1
+    /// - -1062731519 : 192.168.1.1
+    /// - 4294967296 : invalid
+    ///
+    /// @param scratch A "scratch" memory space built by [#buildScratch]
+    @ConvertEvaluator(extraName = "Long", warnExceptions = { InvalidArgumentException.class })
+    static BytesRef fromLong(long l, @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) BreakingBytesRefBuilder scratch) {
+        if (l < Integer.MIN_VALUE || l > MAX_IPV4) {
+            throw new InvalidArgumentException("[{}] out of IPv4 range [-2147483648, 4294967295]", l);
+        }
+
+        return fromInteger((int) l, scratch);
+    }
+
+    /// Convert an ipv4 address stored as an `unsigned_long`. Accepts `[0, 4294967295]`;
+    /// anything larger isn't an address and becomes `null` with a warning.
+    /// @param scratch A "scratch" memory space built by [#buildScratch]
+    @ConvertEvaluator(extraName = "UnsignedLong", warnExceptions = { InvalidArgumentException.class })
+    static BytesRef fromUnsignedLong(
+        long ul,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) BreakingBytesRefBuilder scratch
+    ) {
+        if (ul <= Long.MIN_VALUE + MAX_IPV4) {
+            return fromInteger((int) ul, scratch);
+        }
+
+        throw new InvalidArgumentException("[{}] out of IPv4 range [0, 4294967295]", NumericUtils.unsignedLongAsNumber(ul));
     }
 
     private static int digit(BytesRef string, int offset) {

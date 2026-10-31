@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -36,6 +38,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ToIpTests extends AbstractScalarFunctionTestCase {
+    private static final long MAX_IPV4 = 0xFFFFFFFFL;
+
     public ToIpTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -69,6 +73,10 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
                 bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
                 emptyList()
             );
+
+            supplyUnaryInteger(suppliers);
+            supplyUnaryLong(suppliers);
+            supplyUnaryUnsignedLong(suppliers);
 
             // Inject the options param
             if (leadingZeros != null) {
@@ -209,6 +217,83 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
             case DECIMAL -> "ParseIpLeadingZerosAreDecimalEvaluator";
             case OCTAL -> "ParseIpLeadingZerosAreOctalEvaluator";
         } + "[string=" + readEvaluator() + "]";
+    }
+
+    private static void supplyUnaryInteger(List<TestCaseSupplier> suppliers) {
+        TestCaseSupplier.unary()
+            .ints()
+            .evaluatorToString("ParseIpIntegerEvaluator[i=" + readEvaluator() + "]")
+            .expectedOutputType(DataType.IP)
+            .expectedFromInt(i -> expectedIp(Integer.toUnsignedLong(i)))
+            .build(suppliers);
+    }
+
+    private static void supplyUnaryLong(List<TestCaseSupplier> suppliers) {
+        UnaryTestCaseHelper longs = TestCaseSupplier.unary()
+            .expectedOutputType(DataType.IP)
+            .evaluatorToString("ParseIpLongEvaluator[l=" + readEvaluator() + "]");
+        UnaryTestCaseHelper invalid = longs.expectNullAndWarnings(
+            l -> List.of(
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
+                    + l
+                    + "] out of IPv4 range [-2147483648, 4294967295]"
+            )
+        );
+
+        // valid range
+        longs.longs(Integer.MIN_VALUE, MAX_IPV4).expectedFromLong(ToIpTests::expectedIp).build(suppliers);
+        longs.testCases(
+            List.of(
+                new TestCaseSupplier.TypedDataSupplier("<-1 long>", () -> -1L, DataType.LONG),
+                new TestCaseSupplier.TypedDataSupplier("<0xFFFFFFFF long>", () -> MAX_IPV4, DataType.LONG),
+                new TestCaseSupplier.TypedDataSupplier("<-0x80000000 long>", () -> (long) Integer.MIN_VALUE, DataType.LONG)
+            )
+        ).expectedFromLong(ToIpTests::expectedIp).build(suppliers);
+
+        invalid.longs(Long.MIN_VALUE, Integer.MIN_VALUE - 1L)
+            .longs(MAX_IPV4 + 1, Long.MAX_VALUE)
+            .testCases(
+                List.of(
+                    new TestCaseSupplier.TypedDataSupplier("<0x100000000 long>", () -> MAX_IPV4 + 1, DataType.LONG),
+                    new TestCaseSupplier.TypedDataSupplier("<-0x80000001 long>", () -> Integer.MIN_VALUE - 1L, DataType.LONG)
+                )
+            )
+            .build(suppliers);
+    }
+
+    private static void supplyUnaryUnsignedLong(List<TestCaseSupplier> suppliers) {
+        UnaryTestCaseHelper unsignedLongs = TestCaseSupplier.unary()
+            .expectedOutputType(DataType.IP)
+            .evaluatorToString("ParseIpUnsignedLongEvaluator[ul=" + readEvaluator() + "]");
+        UnaryTestCaseHelper invalid = unsignedLongs.expectNullAndWarnings(
+            l -> List.of(
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of IPv4 range [0, 4294967295]"
+            )
+        );
+
+        // valid range
+        unsignedLongs.unsignedLongs(BigInteger.ZERO, BigInteger.valueOf(MAX_IPV4))
+            .expectedFromBigInteger(ul -> expectedIp(ul.longValue()))
+            .build(suppliers);
+        unsignedLongs.testCases(
+            new TestCaseSupplier.TypedDataSupplier("<0xFFFFFFFF unsigned long>", () -> BigInteger.valueOf(MAX_IPV4), DataType.UNSIGNED_LONG)
+        ).expected(l -> parseIP("255.255.255.255")).build(suppliers);
+
+        invalid.unsignedLongs(BigInteger.valueOf(MAX_IPV4 + 1), UNSIGNED_LONG_MAX)
+            .testCases(
+                new TestCaseSupplier.TypedDataSupplier(
+                    "<0x100000000 unsigned long>",
+                    () -> BigInteger.valueOf(MAX_IPV4 + 1),
+                    DataType.UNSIGNED_LONG
+                )
+            )
+            .build(suppliers);
+    }
+
+    private static BytesRef expectedIp(long value) {
+        return parseIP(
+            String.format(Locale.ROOT, "%d.%d.%d.%d", (value >>> 24) & 0xFF, (value >>> 16) & 0xFF, (value >>> 8) & 0xFF, value & 0xFF)
+        );
     }
 
     @Override

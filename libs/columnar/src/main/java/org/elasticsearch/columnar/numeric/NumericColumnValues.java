@@ -26,4 +26,15 @@ public abstract class NumericColumnValues extends DocIdSetIterator {
 
     /** The next value of the current document; call exactly {@link #valueCount()} times per document. */
     public abstract long nextValue() throws IOException;
+
+    /**
+     * Reads the values of the documents after the current one into {@code dst}, as many as fit or are left, and
+     * answers how many, leaving the cursor on the last of them; zero once none are left. Only a cursor whose every
+     * document holds one value, with ids following one another, can: any other answers -1 without moving, and is read a
+     * document at a time. A column of that shape has nothing to learn from each document but its value, so a cursor
+     * that knows it is spared being stepped through value by value.
+     */
+    public int nextValuesOfConsecutiveDocuments(long[] dst) {
+        return -1;
+    }
 }

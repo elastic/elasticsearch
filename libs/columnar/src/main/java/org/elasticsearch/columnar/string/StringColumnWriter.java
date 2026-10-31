@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
@@ -64,6 +65,9 @@ public final class StringColumnWriter {
     /** How much of what packing them costs compressing them has to save before the larger block is worth it. */
     private static final double ORDINAL_TRIAL_GAIN = 0.5;
 
+    /** Ordinals of an {@link OrdinalRun} read at a time; a read stops at the end of a source block anyway. */
+    private static final int RUN_ORDINALS = 512;
+
     /** Terms to a block in the dictionary, so the stream records an offset for every term. */
     private static final int TERMS_PER_BLOCK = 1;
 
@@ -72,6 +76,9 @@ public final class StringColumnWriter {
      * so nothing decompresses a chunk to reach one and only the size of the chunk index is at stake.
      */
     private static final ChunkBounds DICTIONARY_CHUNKS = ChunkBounds.ofBytes(32 * 1024);
+
+    /** The {@link InfoStream} component the writer reports copied chunks under. */
+    public static final String INFO_STREAM_COMPONENT = "COLUMNAR";
 
     private StringColumnWriter() {}
 
@@ -110,6 +117,28 @@ public final class StringColumnWriter {
         IOContext context,
         ColumnOutputs outputs,
         IndexOutput skipIndex
+    ) throws IOException {
+        return write(maxDoc, totals, cursors, options, precomputedVocabulary, directory, context, outputs, skipIndex, InfoStream.NO_OUTPUT);
+    }
+
+    /**
+     * As {@link #write(int, StringColumnValues.Totals, IOSupplier, StringColumnOptions, Vocabulary.Terms, Directory,
+     * IOContext, ColumnOutputs, IndexOutput)}, reporting to {@code infoStream} under {@link #INFO_STREAM_COMPONENT}
+     * each run of slots whose chunks a plain column copied as they were stored ({@link StringColumnValues#plainRun()}),
+     * and, once for a dictionary column, how many of its slots it took in runs of ordinals
+     * ({@link StringColumnValues#ordinalRun()}).
+     */
+    public static StringColumnMetadata write(
+        int maxDoc,
+        StringColumnValues.Totals totals,
+        IOSupplier<StringColumnValues> cursors,
+        StringColumnOptions options,
+        Vocabulary.Terms precomputedVocabulary,
+        Directory directory,
+        IOContext context,
+        ColumnOutputs outputs,
+        IndexOutput skipIndex,
+        InfoStream infoStream
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -173,7 +202,8 @@ public final class StringColumnWriter {
                         directory,
                         context,
                         outputs,
-                        options.enableSkipIndex() ? skipIndex : null
+                        options.enableSkipIndex() ? skipIndex : null,
+                        infoStream
                     ),
                     vocabulary,
                     summaryPolicy,
@@ -214,14 +244,75 @@ public final class StringColumnWriter {
         long nulls = 0;
         long valueAddress = 0;
         final StringColumnValues values = cursors.get();
-        if (values.streamsValues() && values.mayBeSorted() == false) {
-            // No value is held whole: the length marks a null, the cursor marks repeats, and the bytes are copied a
-            // piece at a time.
+        // No value is held whole when every input can hand its values over a piece at a time and none of them is in
+        // term order: the length marks a null, the cursor marks repeats, and the bytes are copied a piece at a time.
+        final boolean streamed = values.streamsValues() && values.mayBeSorted() == false;
+        if (streamed) {
             sorted = false;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                slots.startDocument(valueAddress);
-                for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    values.nextValue();
+        }
+        // Whether the values arrive in term order, which lets a search bisect them instead of comparing
+        // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+        // The first value out of order settles it, and the rest are written without being compared: what
+        // the comparison decides cannot be restored, and the value it would compare against is not kept.
+        final BytesRefBuilder previous = new BytesRefBuilder();
+        boolean hasPrevious = false;
+        // A run of slots whose chunks were copied ends at the first of these; a run the stream turned down ends at
+        // the second, and none is asked for before it: a run is as long as it can be, so one starting inside it
+        // would only be shorter.
+        long copiedUntil = 0;
+        long decidedUntil = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+            slots.startDocument(valueAddress);
+            if (valueAddress < copiedUntil) {
+                // Its slots are already written; only where they begin is recorded.
+                valueAddress += values.valueCount();
+                continue;
+            }
+            if (valueAddress >= decidedUntil) {
+                final PlainRun run = values.plainRun();
+                if (run != null) {
+                    decidedUntil = valueAddress + run.slots();
+                    final PlainValues.Copied copied = stream.copy(run.source(), run.from(), run.to());
+                    if (copied != null) {
+                        copiedUntil = decidedUntil;
+                        nulls += copied.nulls();
+                        if (sorted) {
+                            // A column in term order holds no null, so the run's first slot is its smallest value
+                            // and its last the largest; only where it meets the values before it is compared.
+                            if (run.sourceSorted() == false || copied.nulls() > 0) {
+                                sorted = false;
+                            } else {
+                                run.source().get(run.from(), scratch);
+                                if (hasPrevious && previous.get().compareTo(scratch) > 0) {
+                                    sorted = false;
+                                } else {
+                                    run.source().get(run.to() - 1, scratch);
+                                    previous.copyBytes(scratch);
+                                    hasPrevious = true;
+                                }
+                            }
+                        }
+                        if (infoStream.isEnabled(INFO_STREAM_COMPONENT)) {
+                            infoStream.message(
+                                INFO_STREAM_COMPONENT,
+                                "copied ["
+                                    + copied.slots()
+                                    + "] plain slots, ["
+                                    + copied.chunks()
+                                    + "] chunks of ["
+                                    + copied.bytes()
+                                    + "] bytes as stored"
+                            );
+                        }
+                        valueAddress += values.valueCount();
+                        continue;
+                    }
+                }
+            }
+            for (int i = 0, count = values.valueCount(); i < count; i++) {
+                values.nextValue();
+                if (streamed) {
                     final int length = values.valueLength();
                     if (length < 0) {
                         nulls++;
@@ -229,20 +320,7 @@ public final class StringColumnWriter {
                     } else {
                         stream.transfer(length, values.repeatsPrevious(), values);
                     }
-                    valueAddress++;
-                }
-            }
-        } else {
-            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
-            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
-            // The first value out of order settles it, and the rest are written without being compared: what
-            // the comparison decides cannot be restored, and the value it would compare against is not kept.
-            final BytesRefBuilder previous = new BytesRefBuilder();
-            boolean hasPrevious = false;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                slots.startDocument(valueAddress);
-                for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    values.nextValue();
+                } else {
                     final BytesRef value = values.value();
                     if (value == null) {
                         // A null takes an address like any other and stores no bytes; its length is what tells it
@@ -262,8 +340,8 @@ public final class StringColumnWriter {
                         }
                         stream.add(value);
                     }
-                    valueAddress++;
                 }
+                valueAddress++;
             }
         }
         written = stream.finish();
@@ -361,7 +439,8 @@ public final class StringColumnWriter {
         Directory directory,
         IOContext context,
         ColumnOutputs outputs,
-        IndexOutput skipIndex
+        IndexOutput skipIndex,
+        InfoStream infoStream
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -399,6 +478,8 @@ public final class StringColumnWriter {
         }
         dictionary = dictionaryWriter.finish();
 
+        // Document i holds slot i, so the documents of a run are known without stopping on them.
+        final boolean slotIsDocument = iterator.isDense() && totals.oneSlotADocument();
         // The escapes' temporary file, once the first value escapes; null until then, and for the common
         // column that none does, so that column creates and deletes no file at all.
         IndexOutput escapeTemp = null;
@@ -439,9 +520,74 @@ public final class StringColumnWriter {
             final BytesRefBuilder previous = new BytesRefBuilder();
             int previousOrdinal = Vocabulary.DROPPED;
             boolean hasPrevious = false;
+            // A run of slots whose ordinals are read a block at a time ends here. None is asked for before it ends: a
+            // run is as long as it can be, so one starting inside it would only be shorter.
+            OrdinalRun run = null;
+            long runUntil = 0;
+            // Whether the run's documents were skipped rather than stepped through, document d then holding slot d.
+            boolean runSkipped = false;
+            final int[] runOrdinals = new int[RUN_ORDINALS];
+            int runRead = 0;
+            int runAt = 0;
+            long runs = 0;
+            long runSlots = 0;
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                assert slotIsDocument == false || doc == index : "document [" + doc + "] holds slot [" + index + "]";
                 slots.startDocument(index);
+                if (index >= runUntil) {
+                    run = values.ordinalRun();
+                    if (run != null) {
+                        runUntil = index + run.slots();
+                        runRead = 0;
+                        runAt = 0;
+                        runs++;
+                        runSlots += run.slots();
+                        // A slot a document of a dense column makes the run's slots its documents, so there is nothing
+                        // left to learn from stopping on the rest of them.
+                        final long rest = run.slots() - 1;
+                        runSkipped = slotIsDocument && rest > 0 && values.skipDocuments(Math.toIntExact(rest));
+                        if (runSkipped) {
+                            slots.startDocuments(index + 1, Math.toIntExact(rest));
+                        }
+                    }
+                }
                 final int count = values.valueCount();
+                if (index < runUntil) {
+                    final long until = runSkipped ? runUntil : index + count;
+                    if (runSkipped == false) {
+                        ordinalStream.startDoc(doc, count);
+                    }
+                    for (; index < until; index++) {
+                        if (runSkipped) {
+                            ordinalStream.startDoc(Math.toIntExact(index), 1);
+                        }
+                        // Nothing in a run escapes, so the ranks it crosses all record the same count.
+                        if (index % escapeRankBlockSize == 0) {
+                            ranks.add(escapes);
+                        }
+                        if (runAt == runRead) {
+                            runRead = run.read(runOrdinals);
+                            runAt = 0;
+                            assert runRead > 0 : "run ended at slot [" + index + "] before [" + runUntil + "]";
+                        }
+                        // Every slot of a run is a term's or a null, as the per-value path below finds a carried-over
+                        // ordinal or a null value to be.
+                        final int ordinal = runOrdinals[runAt++];
+                        if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                            sorted = false;
+                        } else {
+                            if (ordinal < previousOrdinalSeen) {
+                                sorted = false;
+                            }
+                            previousOrdinalSeen = ordinal;
+                            final int length = termLengths[ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+                            minLength = Math.min(minLength, length);
+                            maxLength = Math.max(maxLength, length);
+                        }
+                        ordinalStream.add(ordinal);
+                    }
+                    continue;
+                }
                 ordinalStream.startDoc(doc, count);
                 for (int i = 0; i < count; i++) {
                     if (index % escapeRankBlockSize == 0) {
@@ -522,6 +668,12 @@ public final class StringColumnWriter {
             }
             // One past the end, so the escapes in the last block can be counted like any other.
             ranks.add(escapes);
+            if (runs > 0 && infoStream.isEnabled(INFO_STREAM_COMPONENT)) {
+                infoStream.message(
+                    INFO_STREAM_COMPONENT,
+                    "took [" + runSlots + "] of [" + numValues + "] dictionary slots in [" + runs + "] ordinal runs"
+                );
+            }
             if (escapeTemp != null) {
                 escapeTemp.close();
                 escapeTemp = null;

@@ -27,6 +27,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.InfoStream;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
@@ -38,6 +40,8 @@ import org.elasticsearch.columnar.string.BestCoverage;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.OrdinalRun;
+import org.elasticsearch.columnar.string.PlainRun;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
@@ -54,8 +58,8 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.TreeSet;
 
 /**
  * Writes tagged columns onto the binary substrate; numeric types decode their {@code NumericBinaryPayload}
@@ -64,6 +68,10 @@ import java.util.TreeSet;
  * <p><b>Merge contract.</b> {@link #mergeBinaryField} re-encodes all source segments through the
  * current writer's pipeline. There is no version-preserving merge and no mixed-version output
  * segment: a force-merge is a silent format upgrade.
+ *
+ * <p>The one exception is a plain string column's chunks. Where a source segment's documents land next to one
+ * another in the merged segment ({@link MergeStretches}), the chunks holding their bytes are copied as they
+ * are stored rather than decompressed and compressed again; the lengths around them are still re-encoded.
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
@@ -82,6 +90,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
+    private final InfoStream infoStream;
+    private final boolean copyChunksOnMerge;
 
     private boolean closed = false;
 
@@ -92,7 +102,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         NumericPipelineSelector pipelineSelector,
         ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        StringColumnOptionsSelector stringSelector
+        StringColumnOptionsSelector stringSelector,
+        boolean copyChunksOnMerge
     ) throws IOException {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
@@ -101,6 +112,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
+        this.infoStream = state.infoStream;
+        this.copyChunksOnMerge = copyChunksOnMerge;
         boolean success = false;
         try {
             data = createOutput(state, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC);
@@ -163,8 +176,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
-                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                writeStringColumn(field, type, options, () -> stringMergeCursor(field, mergeState, vocabulary, options), vocabulary);
+                final MergedVocabulary merged = mergedVocabulary(field, mergeState, options.dictionary(), options.summary());
+                // Worked out once for the whole merge: every pass over the values builds a cursor of its own.
+                final int[][] ordinalMaps = ordinalMaps(field, mergeState, merged);
+                writeStringColumn(
+                    field,
+                    type,
+                    options,
+                    () -> stringMergeCursor(field, mergeState, ordinalMaps, options, copyChunksOnMerge),
+                    merged.terms()
+                );
             }
         }
     }
@@ -245,10 +266,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      */
     private static final class ColumnMergeSub<T extends DocIdSetIterator> extends DocIDMerger.Sub {
         private final T values;
+        /** Where the segment's documents land next to one another, for a column that copies what it can; or null. */
+        private final MergeStretches stretches;
 
         ColumnMergeSub(MergeState.DocMap docMap, T values) {
+            this(docMap, values, null);
+        }
+
+        ColumnMergeSub(MergeState.DocMap docMap, T values, MergeStretches stretches) {
             super(docMap);
             this.values = values;
+            this.stretches = stretches;
         }
 
         @Override
@@ -257,8 +285,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
     }
 
-    /** Where a merged column's terms came from, and what they were. */
-    record MergedVocabulary(Source source, Vocabulary.Terms terms) {
+    /**
+     * Where a merged column's terms came from, and what they were.
+     *
+     * @param ordinalMaps what each input's ordinals become in the merged column, as {@link #ordinalMap} answers it,
+     *                    when the terms are the union of the inputs' dictionaries and so mapping them fell out of
+     *                    building it; indexed like the inputs the vocabulary was worked out from, or null
+     */
+    record MergedVocabulary(Source source, Vocabulary.Terms terms, int[][] ordinalMaps) {
+        MergedVocabulary(Source source, Vocabulary.Terms terms) {
+            this(source, terms, null);
+        }
+
         /** The ways of knowing a merged column's terms, in the order they are tried. */
         enum Source {
             /** Taken from the segments' own dictionaries, which name every value between them. */
@@ -294,11 +332,48 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (dictionaryPolicy.enabled() == false) {
             return SURVEYED;
         }
-        final List<StringColumnReader> inputColumns = inputColumns(field, mergeState);
+        final List<Integer> segments = new ArrayList<>();
+        final List<StringColumnReader> inputColumns = inputColumns(field, mergeState, segments);
         if (inputColumns == null) {
             return SURVEYED;
         }
-        return vocabularyFrom(inputColumns, hasDeletions(mergeState), dictionaryPolicy, summaryPolicy);
+        final MergedVocabulary merged = vocabularyFrom(inputColumns, hasDeletions(mergeState), dictionaryPolicy, summaryPolicy);
+        if (merged.ordinalMaps() == null) {
+            return merged;
+        }
+        // Indexed by the segment each input is, as the merge cursor finds them.
+        final int[][] bySegment = new int[mergeState.docValuesProducers.length][];
+        for (int i = 0; i < segments.size(); i++) {
+            bySegment[segments.get(i)] = merged.ordinalMaps()[i];
+        }
+        return new MergedVocabulary(merged.source(), merged.terms(), bySegment);
+    }
+
+    /**
+     * What each segment's dictionary ordinals become in the merged column, indexed by segment: taken from the
+     * vocabulary where building it mapped them, and otherwise looked up term by term. Null when the merged column has
+     * no vocabulary to map onto.
+     */
+    private static int[][] ordinalMaps(FieldInfo field, MergeState mergeState, MergedVocabulary merged) throws IOException {
+        if (merged.ordinalMaps() != null) {
+            return merged.ordinalMaps();
+        }
+        if (merged.terms() == null) {
+            return null;
+        }
+        final int[][] maps = new int[mergeState.docValuesProducers.length][];
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            final DocValuesProducer producer = mergeState.docValuesProducers[i];
+            if (producer == null) {
+                continue;
+            }
+            final FieldInfo readerField = mergeState.fieldInfos[i].fieldInfo(field.name);
+            if (readerField == null || readerField.getDocValuesType() != DocValuesType.BINARY) {
+                continue;
+            }
+            maps[i] = ordinalMap(producer.getBinary(readerField), merged.terms());
+        }
+        return maps;
     }
 
     /**
@@ -314,9 +389,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         DictionaryPolicy dictionaryPolicy,
         SummaryPolicy summaryPolicy
     ) throws IOException {
-        final Vocabulary.Terms union = unionOfDictionaries(inputColumns, dictionaryPolicy);
+        final MergedVocabulary union = unionOfDictionaries(inputColumns, dictionaryPolicy);
         if (union != null) {
-            return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
+            return union;
         }
         // NOTE: asked before the summaries are opened. A deleted value is still counted in what its segment
         // summarised, so nothing read here could be used, and reading it would allocate every term only to
@@ -334,9 +409,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     /**
      * The columns the inputs hold for {@code field}, skipping segments the field never appeared in, or null
-     * where any input is not a column this codec wrote and so describes nothing a merge can reuse.
+     * where any input is not a column this codec wrote and so describes nothing a merge can reuse. The segment
+     * each column belongs to is added to {@code segments}, in the same order.
      */
-    private static List<StringColumnReader> inputColumns(FieldInfo field, MergeState mergeState) throws IOException {
+    private static List<StringColumnReader> inputColumns(FieldInfo field, MergeState mergeState, List<Integer> segments)
+        throws IOException {
         final List<StringColumnReader> columns = new ArrayList<>(mergeState.docValuesProducers.length);
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             final DocValuesProducer producer = mergeState.docValuesProducers[i];
@@ -356,6 +433,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             // it must not decide the shape of the merged column.
             if (reader.numValues() > 0) {
                 columns.add(reader);
+                segments.add(i);
             }
         }
         return columns;
@@ -365,50 +443,170 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
      * segment without a dictionary, or one that let values escape, holds values the union would not name.
      * It is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
+     *
+     * <p>Every dictionary is in term order, so the union is had by merging them as sorted lists, and what each
+     * input's ordinals become in it is known as each term is placed; no input's terms are looked up afterwards.
      */
-    private static Vocabulary.Terms unionOfDictionaries(List<StringColumnReader> inputColumns, DictionaryPolicy dictionaryPolicy)
+    private static MergedVocabulary unionOfDictionaries(List<StringColumnReader> inputColumns, DictionaryPolicy dictionaryPolicy)
         throws IOException {
         // NOTE: asked of every input before the first term is copied. One input without a dictionary, or
         // with values that escaped it, holds values the union would not name, and finding that out on the
         // last input means having allocated every earlier input's terms for nothing.
-        for (StringColumnReader reader : inputColumns) {
-            if ((reader instanceof DictionaryStringColumnReader) == false || reader.escapeCount() > 0) {
-                return null;
-            }
-        }
-        final TreeSet<BytesRef> union = new TreeSet<>();
-        long unionBytes = 0;
+        final DictionaryStringColumnReader[] dictionaries = new DictionaryStringColumnReader[inputColumns.size()];
         long columnBytes = 0;
         long numValues = 0;
-        final BytesRef term = new BytesRef();
-        for (StringColumnReader reader : inputColumns) {
-            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
-            for (int t = 0; t < dictionary.dictionarySize(); t++) {
-                dictionary.termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, term);
-                if (union.add(BytesRef.deepCopyOf(term))) {
-                    unionBytes += term.length;
-                    if (unionBytes > dictionaryPolicy.maxBytes()) {
-                        return null;
-                    }
-                }
+        for (int i = 0; i < dictionaries.length; i++) {
+            final StringColumnReader reader = inputColumns.get(i);
+            if (reader instanceof DictionaryStringColumnReader dictionary && reader.escapeCount() == 0) {
+                dictionaries[i] = dictionary;
+            } else {
+                return null;
             }
             columnBytes += reader.valueBytes();
             numValues += reader.numValues();
         }
-        if (union.isEmpty()) {
+        if (dictionaries.length == 0) {
+            return null;
+        }
+        final List<BytesRef> union = new ArrayList<>();
+        final int[][] ordinalMaps = sameDictionaries(dictionaries)
+            ? identicalUnion(dictionaries, union, dictionaryPolicy)
+            : mergedUnion(dictionaries, union, dictionaryPolicy);
+        if (ordinalMaps == null || union.isEmpty()) {
             return null;
         }
         // How often each term is used is not recorded in a dictionary column, so the union carries no
         // counts. It does not need them: it names every value, and a merge of these segments always
         // prefers it to a survey.
-        return Vocabulary.known(
-            new ArrayList<>(union),
+        final Vocabulary.Terms terms = Vocabulary.known(
+            union,
             columnBytes,
             1.0,
             numValues,
             BestCoverage.of(numValues, numValues, dictionaryPolicy.maxBytes()),
             null
         );
+        return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, terms, ordinalMaps);
+    }
+
+    /**
+     * Whether every dictionary holds the same terms, which is what a merge of segments drawn from one small
+     * vocabulary mostly finds. Each is compared with the first, and a difference ends it at the first term that shows
+     * it, so the dictionaries that differ, which mostly differ in size, cost little to tell apart.
+     */
+    private static boolean sameDictionaries(DictionaryStringColumnReader[] dictionaries) throws IOException {
+        final DictionaryStringColumnReader first = dictionaries[0];
+        for (int i = 1; i < dictionaries.length; i++) {
+            if (dictionaries[i].dictionarySize() != first.dictionarySize()) {
+                return false;
+            }
+        }
+        final BytesRef term = new BytesRef();
+        final BytesRef other = new BytesRef();
+        for (int t = 0; t < first.dictionarySize(); t++) {
+            first.termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, term);
+            for (int i = 1; i < dictionaries.length; i++) {
+                if (term.bytesEquals(dictionaries[i].termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, other)) == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The union of dictionaries that all hold the same terms: the first one's terms, added to {@code union}, with every
+     * input's ordinals staying as they are; or null once the terms exceed the policy.
+     */
+    private static int[][] identicalUnion(DictionaryStringColumnReader[] dictionaries, List<BytesRef> union, DictionaryPolicy policy)
+        throws IOException {
+        final DictionaryStringColumnReader first = dictionaries[0];
+        final BytesRef term = new BytesRef();
+        long unionBytes = 0;
+        for (int t = 0; t < first.dictionarySize(); t++) {
+            first.termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, term);
+            unionBytes += term.length;
+            if (unionBytes > policy.maxBytes()) {
+                return null;
+            }
+            union.add(BytesRef.deepCopyOf(term));
+        }
+        // One map serves every input; nothing writes to it.
+        final int[] identity = new int[first.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+        for (int ordinal = 0; ordinal < identity.length; ordinal++) {
+            identity[ordinal] = ordinal;
+        }
+        final int[][] ordinalMaps = new int[dictionaries.length][];
+        Arrays.fill(ordinalMaps, identity);
+        return ordinalMaps;
+    }
+
+    /**
+     * The union of dictionaries that differ, merged as the sorted lists they are into {@code union}, with what each
+     * input's ordinals become in it; or null once the terms exceed the policy.
+     */
+    private static int[][] mergedUnion(DictionaryStringColumnReader[] dictionaries, List<BytesRef> union, DictionaryPolicy policy)
+        throws IOException {
+        final int[][] ordinalMaps = new int[dictionaries.length][];
+        final PriorityQueue<DictionaryCursor> queue = new PriorityQueue<>(dictionaries.length) {
+            @Override
+            protected boolean lessThan(DictionaryCursor a, DictionaryCursor b) {
+                return a.term.compareTo(b.term) < 0;
+            }
+        };
+        for (int i = 0; i < dictionaries.length; i++) {
+            final int[] map = new int[dictionaries[i].dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+            map[StringColumnMetadata.Dictionary.NULL_ORDINAL] = StringColumnMetadata.Dictionary.NULL_ORDINAL;
+            ordinalMaps[i] = map;
+            final DictionaryCursor cursor = new DictionaryCursor(dictionaries[i], map);
+            if (cursor.next()) {
+                queue.add(cursor);
+            }
+        }
+        long unionBytes = 0;
+        while (queue.size() > 0) {
+            final BytesRef term = BytesRef.deepCopyOf(queue.top().term);
+            unionBytes += term.length;
+            if (unionBytes > policy.maxBytes()) {
+                return null;
+            }
+            final int ordinal = union.size() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+            union.add(term);
+            // Every input holding the term is at it now: each holds a term once, in order.
+            while (queue.size() > 0 && queue.top().term.bytesEquals(term)) {
+                final DictionaryCursor cursor = queue.top();
+                cursor.map[cursor.ordinal] = ordinal;
+                if (cursor.next()) {
+                    queue.updateTop();
+                } else {
+                    queue.pop();
+                }
+            }
+        }
+        return ordinalMaps;
+    }
+
+    /** One input's dictionary, read a term at a time in term order, and where its ordinals land in the union. */
+    private static final class DictionaryCursor {
+        private final DictionaryStringColumnReader dictionary;
+        private final int[] map;
+        /** Points at the dictionary's own bytes, valid until the next term is read. */
+        private final BytesRef term = new BytesRef();
+        private int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL - 1;
+
+        DictionaryCursor(DictionaryStringColumnReader dictionary, int[] map) {
+            this.dictionary = dictionary;
+            this.map = map;
+        }
+
+        /** Moves to the next term, or answers false once the dictionary is read. */
+        boolean next() throws IOException {
+            if (++ordinal == dictionary.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL) {
+                return false;
+            }
+            dictionary.termAt(ordinal, term);
+            return true;
+        }
     }
 
     private static boolean hasDeletions(MergeState mergeState) {
@@ -468,8 +666,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
         final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
         // Long enough for the term ordinals and no longer, so the escape marker indexes off the end and is
-        // turned away without a test of its own. The reserved null's entry is never read.
+        // turned away without a test of its own. The reserved null maps to itself, for a caller that translates
+        // a run of ordinals without telling the null apart first.
         final int[] map = new int[dictionary.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+        map[StringColumnMetadata.Dictionary.NULL_ORDINAL] = StringColumnMetadata.Dictionary.NULL_ORDINAL;
         // That "off the end" is the escape marker's own ordinal, and the two are only equal by construction.
         // Pinned here so a reserved-ordinal space that ever grew would fail rather than let an escape index a
         // real term's entry and be remapped as though the dictionary named it.
@@ -498,8 +698,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private static StringColumnValues stringMergeCursor(
         FieldInfo field,
         MergeState mergeState,
-        Vocabulary.Terms vocabulary,
-        StringColumnOptions options
+        int[][] ordinalMaps,
+        StringColumnOptions options,
+        boolean copyChunks
     ) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
@@ -535,7 +736,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
             final StringColumnValues values;
             if (binary instanceof ColumnarStringBinaryDocValues columnar) {
-                values = columnar.directValues(ordinalMap(binary, vocabulary));
+                values = columnar.directValues(ordinalMaps == null ? null : ordinalMaps[i]);
                 final StringColumnReader reader = columnar.reader();
                 numDocsWithField += reader.numDocsWithField();
                 numValues += reader.numValues();
@@ -554,7 +755,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 recorded = false;
             }
             cost += values.cost();
-            subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
+            subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values, copyChunks ? new MergeStretches(mergeState, i) : null));
         }
 
         // Values are streamed only when every input streams. One unsorted input marks the merged column unsorted, even if
@@ -646,6 +847,47 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             @Override
             public int valueLength() throws IOException {
                 return current.values.valueLength();
+            }
+
+            @Override
+            public PlainRun plainRun() throws IOException {
+                // Only our own column's cursor knows where its slots are stored; anything else is written value
+                // by value.
+                if (current.stretches != null && current.values instanceof ColumnarStringBinaryDocValues.DirectValues direct) {
+                    final PlainRun run = direct.plainRun(current.stretches.contiguousEnd(direct.docID()));
+                    if (run != null) {
+                        // A run copied is not stepped through value by value, so the value written before the next
+                        // one stepped through is not known to be this input's previous.
+                        previousValueFrom = null;
+                    }
+                    return run;
+                }
+                return null;
+            }
+
+            @Override
+            public OrdinalRun ordinalRun() throws IOException {
+                if (current.stretches != null && current.values instanceof ColumnarStringBinaryDocValues.DirectValues direct) {
+                    final OrdinalRun run = direct.ordinalRun(current.stretches.contiguousEnd(direct.docID()));
+                    if (run != null) {
+                        // As for a plain run: the values it covers are not stepped through.
+                        previousValueFrom = null;
+                    }
+                    return run;
+                }
+                return null;
+            }
+
+            @Override
+            public boolean skipDocuments(int count) throws IOException {
+                // The documents a run covers sit in one stretch, where no other input's document lands among them, so
+                // the merger would hand back this input for each of them and the input is moved on without it.
+                if (current.stretches == null || current.values.skipDocuments(count) == false) {
+                    return false;
+                }
+                current.mappedDocID = current.docMap.get(current.values.docID());
+                docID = current.mappedDocID;
+                return true;
             }
 
             @Override
@@ -767,7 +1009,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             directory,
             context,
             outputs,
-            skipIndex
+            skipIndex,
+            infoStream
         );
         fields.add(new FieldEntry(field.number, type, options.singleValued(), metadata));
     }

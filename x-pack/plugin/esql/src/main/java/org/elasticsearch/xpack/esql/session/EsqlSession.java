@@ -116,9 +116,14 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.cbo.CboContext;
 import org.elasticsearch.xpack.esql.optimizer.cbo.CostBasedOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.cbo.DecisionTrace;
+import org.elasticsearch.xpack.esql.optimizer.cbo.DecisionKind;
+import org.elasticsearch.xpack.esql.optimizer.cbo.ExplainLevel;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinKey;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinStrategyDecisionKind;
 import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisions;
 import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.RunReport;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.Trigger;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -149,11 +154,11 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.JoinStrategySelector;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -1137,7 +1142,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        updateCboDecisions(optimizedPlan, configuration, physicalPlanOptimizer.context().minimumVersion());
+        updateCboDecisions(optimizedPlan, configuration, physicalPlanOptimizer.context().minimumVersion(), Trigger.INITIAL);
         queryMapper = (configuration.pragmas().shuffleJoin() || configuration.pragmas().cbo())
             && ShuffleGate.allowed(configuration, optimizedPlan) ? new Mapper(configuration.pragmas(), planDecisions) : mapper;
         Set<LocalRelation> subPlansResults = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -1167,6 +1172,7 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            observeCboDecisions(physicalPlan, null, executionInfo);
             if (explainContext != null) {
                 recordExplainCoordinatorPlan(physicalPlan);
             }
@@ -1357,6 +1363,7 @@ public class EsqlSession {
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
      * @param maxCollectedBytes limit enforced while the subplan runs, or {@code null} to only check the complete result
+     * @param materializedJoin the subquery join whose right side the subplan materializes, or {@code null}
      */
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
@@ -1364,7 +1371,8 @@ public class EsqlSession {
         Runnable cleanup,
         boolean isSubqueryJoinSubPlan,
         boolean isApproximationCalibration,
-        ByteSizeValue maxCollectedBytes
+        ByteSizeValue maxCollectedBytes,
+        @Nullable SubqueryLookupJoin materializedJoin
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1408,7 +1416,8 @@ public class EsqlSession {
                 true,
                 false,
                 // A JOIN subquery materializes raw rows, so fail as soon as they exceed the local relation limit.
-                subPlanJoin instanceof SubqueryLookupJoin ? plannerSettings.intermediateLocalRelationMaxSize() : null
+                subPlanJoin instanceof SubqueryLookupJoin ? plannerSettings.intermediateLocalRelationMaxSize() : null,
+                subPlanJoin instanceof SubqueryLookupJoin subqueryLookupJoin ? subqueryLookupJoin : null
             );
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1419,7 +1428,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, null);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, null, null);
             }
         }
 
@@ -1436,6 +1445,7 @@ public class EsqlSession {
                     () -> {},
                     false,
                     true,
+                    null,
                     null
                 );
             }
@@ -1523,6 +1533,16 @@ public class EsqlSession {
         if (subPlan.isSubqueryJoinSubPlan()) {
             physicalSubPlan = Mapper.ensureExchangeForSubPlan(physicalSubPlan);
         }
+        String subPlanLabel = "subplan " + planDecisions.startSubPlan();
+        if (subPlan.materializedJoin() != null) {
+            SubqueryLookupJoin join = subPlan.materializedJoin();
+            planDecisions.observeExternal(
+                JoinStrategyDecisionKind.INSTANCE,
+                JoinKey.of(join),
+                new DecisionKind.Observation(JoinStrategySelector.JoinStrategy.MATERIALIZED.name(), join.nodeString(), subPlanLabel)
+            );
+        }
+        observeCboDecisions(physicalSubPlan, subPlanLabel, executionInfo);
 
         if (explainContext != null) {
             recordExplainSubPlan(subPlan.subPlan, physicalSubPlan);
@@ -1548,7 +1568,7 @@ public class EsqlSession {
                     var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                     LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
                     LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
-                    updateCboDecisions(newMainPlan, configuration, physicalPlanOptimizer.context().minimumVersion());
+                    updateCboDecisions(newMainPlan, configuration, physicalPlanOptimizer.context().minimumVersion(), Trigger.AFTER_SUBPLAN);
 
                     // Pins for this subplan are only consumed at the final reconcile. Collect after
                     // execution so they are not live through this subplan's discovery.
@@ -1561,6 +1581,7 @@ public class EsqlSession {
                     if (newSubPlan == null) {
                         executionInfo.finishSubPlans();
                         var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                        observeCboDecisions(newPhysicalPlan, null, executionInfo);
                         if (explainContext != null) {
                             // Capture the post-substitution physical plan — the one that actually runs. For
                             // InlineJoin and similar the plan is only meaningful after all subplans have resolved
@@ -3347,7 +3368,7 @@ public class EsqlSession {
         }
         Mapper currentMapper = queryMapper;
         if (currentMapper == null) {
-            updateCboDecisions(logicalPlan, configuration, optimizedPlan.minimumVersion());
+            updateCboDecisions(logicalPlan, configuration, optimizedPlan.minimumVersion(), Trigger.INITIAL);
             currentMapper = (configuration.pragmas().shuffleJoin() || configuration.pragmas().cbo())
                 && ShuffleGate.allowed(configuration, logicalPlan) ? new Mapper(configuration.pragmas(), planDecisions) : mapper;
             queryMapper = currentMapper;
@@ -3357,13 +3378,15 @@ public class EsqlSession {
         return plan;
     }
 
-    private void updateCboDecisions(LogicalPlan plan, Configuration configuration, TransportVersion minimumVersion) {
-        if (configuration.pragmas().cbo() == false
-            || ShuffleGate.allowed(configuration, plan) == false
-            || minimumVersion.supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
-            planDecisions.set(PlanDecisions.EMPTY);
+    private void updateCboDecisions(LogicalPlan plan, Configuration configuration, TransportVersion minimumVersion, Trigger trigger) {
+        if (configuration.pragmas().cbo() == false) {
+            planDecisions.startRun(PlanDecisions.EMPTY);
             return;
         }
+        boolean trace = configuration.pragmas().cboTrace();
+        ExplainLevel level = configuration.profile() || trace ? ExplainLevel.FULL
+            : LOGGER.isDebugEnabled() ? ExplainLevel.BASIC
+            : ExplainLevel.NONE;
         PlanDecisions decisions = new CostBasedOptimizer().optimize(
             plan,
             new CboContext(
@@ -3371,16 +3394,30 @@ public class EsqlSession {
                 minimumVersion,
                 clusterService.state().nodes().getDataNodes().size(),
                 plannerSettings.intermediateLocalRelationMaxSize().getBytes()
-            )
+            ),
+            level,
+            planDecisions.nextRun(trigger)
         );
-        planDecisions.set(decisions);
-        for (DecisionTrace trace : decisions.traces()) {
-            if (configuration.pragmas().cboTrace()) {
-                LOGGER.info("CBO decision: {}", trace);
+        planDecisions.startRun(decisions);
+        RunReport report = decisions.report();
+        if (report != null && report.explain() != null) {
+            if (trace) {
+                LOGGER.info("Cost-based optimizer run:\n{}", report.explain());
             } else {
-                LOGGER.debug("CBO decision: {}", trace);
+                LOGGER.debug(() -> "Cost-based optimizer run:\n" + report.explain());
             }
         }
+    }
+
+    /**
+     * Matches the decisions of the current cost-based optimizer run against a physical plan that is about to run, and refreshes
+     * the optimizer section of the profile.
+     *
+     * @param where the subplan the physical plan belongs to, or {@code null} for the main plan
+     */
+    private void observeCboDecisions(PhysicalPlan physicalPlan, @Nullable String where, EsqlExecutionInfo executionInfo) {
+        planDecisions.observe(physicalPlan, where);
+        executionInfo.optimizerProfile(planDecisions.snapshot());
     }
 
     private PhysicalPlan optimizedPhysicalPlan(

@@ -413,7 +413,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         new EsqlQueryResponse.Profile(
                             result.completionInfo().driverProfiles(),
                             result.completionInfo().planProfiles(),
-                            versionedResult.minimumVersion()
+                            versionedResult.minimumVersion(),
+                            executionInfo.optimizerProfile()
                         ),
                         executionInfo
                     )

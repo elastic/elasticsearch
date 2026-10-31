@@ -7,15 +7,26 @@
 
 package org.elasticsearch.xpack.esql.optimizer.cbo;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.CostTerm;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.CostVector;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.DecisionMode;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.EstimateView;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.Exclusion;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.ExclusionCode;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.FitCheck;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.FitMethod;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.Side;
 import org.elasticsearch.xpack.esql.optimizer.cbo.stats.ColumnStats;
 import org.elasticsearch.xpack.esql.optimizer.cbo.stats.Estimate;
 import org.elasticsearch.xpack.esql.optimizer.cbo.stats.PlanStats;
+import org.elasticsearch.xpack.esql.optimizer.cbo.stats.Provenance;
 import org.elasticsearch.xpack.esql.optimizer.cbo.stats.StatsDeriver;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ShuffleRuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -60,50 +71,131 @@ import java.util.Set;
  * Keeps physical distribution choices separate from logical plans so downstream planners can consume decisions without mutating plan nodes.
  */
 public final class CostBasedOptimizer {
+    /** Decision kinds the search reports on, in lookup order. */
+    static final List<DecisionKind> KINDS = List.of(JoinStrategyDecisionKind.INSTANCE, AggregateDistributionDecisionKind.INSTANCE);
+
     /**
      * Searches the logical tree for eligible physical choices while keeping optimizer decisions out of plan nodes.
      */
     public PlanDecisions optimize(LogicalPlan plan, CboContext context) {
+        return optimize(plan, context, ExplainLevel.NONE, RunInfo.INITIAL);
+    }
+
+    /**
+     * Searches like {@link #optimize(LogicalPlan, CboContext)} and, unless {@code level} is {@link ExplainLevel#NONE}, attaches a
+     * report that explains each decision. The decisions themselves never depend on {@code level}.
+     */
+    public PlanDecisions optimize(LogicalPlan plan, CboContext context, ExplainLevel level, RunInfo run) {
         Objects.requireNonNull(plan);
         Objects.requireNonNull(context);
-
-        if (eligible(plan, context) == false) {
+        if (context.configuration().pragmas().cbo() == false) {
             return PlanDecisions.EMPTY;
         }
-
+        String ineligible = ineligibleReason(plan, context);
+        if (ineligible != null) {
+            return ExplainBuilder.ineligible(level, run, ineligible);
+        }
+        long start = System.nanoTime();
         Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>(new StatsDeriver().derive(plan));
-        return search(plan, context, statistics);
+        return search(plan, context, statistics, level, run, start);
     }
 
     /** Runs the same search against supplied estimates so distribution choices can be tested independently. */
     PlanDecisions optimizeWithStatistics(LogicalPlan plan, CboContext context, Map<LogicalPlan, PlanStats> statistics) {
+        return optimizeWithStatistics(plan, context, statistics, ExplainLevel.NONE, RunInfo.INITIAL);
+    }
+
+    /** Runs the same search against supplied estimates, with a report at the requested level. */
+    PlanDecisions optimizeWithStatistics(
+        LogicalPlan plan,
+        CboContext context,
+        Map<LogicalPlan, PlanStats> statistics,
+        ExplainLevel level,
+        RunInfo run
+    ) {
         Objects.requireNonNull(plan);
         Objects.requireNonNull(context);
         Objects.requireNonNull(statistics);
-        if (eligible(plan, context) == false) {
+        if (context.configuration().pragmas().cbo() == false) {
             return PlanDecisions.EMPTY;
         }
-        return search(plan, context, new IdentityHashMap<>(statistics));
+        String ineligible = ineligibleReason(plan, context);
+        if (ineligible != null) {
+            return ExplainBuilder.ineligible(level, run, ineligible);
+        }
+        return search(plan, context, new IdentityHashMap<>(statistics), level, run, System.nanoTime());
     }
 
-    private static PlanDecisions search(LogicalPlan plan, CboContext context, Map<LogicalPlan, PlanStats> statistics) {
+    private static PlanDecisions search(
+        LogicalPlan plan,
+        CboContext context,
+        Map<LogicalPlan, PlanStats> statistics,
+        ExplainLevel level,
+        RunInfo run,
+        long startNanos
+    ) {
+        Search search = new Search(plan, context, statistics, null, null);
+        Winner best;
         try {
-            return new Search(plan, context, statistics).run();
+            best = search.solve();
         } catch (SearchAborted e) {
-            return PlanDecisions.EMPTY;
+            return ExplainBuilder.aborted(
+                level,
+                run,
+                search,
+                "candidate budget [" + CostConstants.MAX_CANDIDATES + "] exceeded; rule-based planning applies",
+                startNanos
+            );
         }
+        if (best == null) {
+            return ExplainBuilder.aborted(level, run, search, "no complete plan was found; rule-based planning applies", startNanos);
+        }
+        Decided decided = search.decisions(best);
+        if (level == ExplainLevel.NONE) {
+            return decided.joins().isEmpty() && decided.aggregates().isEmpty()
+                ? PlanDecisions.EMPTY
+                : new PlanDecisions(decided.joins(), decided.aggregates(), null, List.of());
+        }
+        return new ExplainBuilder(search, best, decided, level, run, startNanos).build();
     }
 
-    private static boolean eligible(LogicalPlan plan, CboContext context) {
+    /** Returns why the search cannot run for this plan, or {@code null} when it can. */
+    private static String ineligibleReason(LogicalPlan plan, CboContext context) {
         Configuration configuration = context.configuration();
-        QueryPragmas pragmas = configuration.pragmas();
-        return pragmas.cbo()
-            && pragmas.shuffleEnabled()
-            && ShuffleGate.allowed(configuration, plan)
-            && context.minimumVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
+        if (configuration.pragmas().shuffleEnabled() == false) {
+            return "shuffle execution is disabled";
+        }
+        if (ShuffleGate.allowed(configuration, plan) == false) {
+            return "the shuffle gate rejects this query";
+        }
+        if (context.minimumVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
+            return "the minimum transport version does not support shuffle execution";
+        }
+        return null;
     }
 
-    private static final class Search {
+    /** Returns the decision kind that applies to {@code plan}, or {@code null} if the node is not a decision point. */
+    static DecisionKind kindOf(LogicalPlan plan) {
+        for (DecisionKind kind : KINDS) {
+            if (kind.appliesTo(plan)) {
+                return kind;
+            }
+        }
+        return null;
+    }
+
+    /** The physical choices of one solved plan, plus keys that two decision points chose differently. */
+    record Decided(
+        Map<JoinKey, JoinStrategySelector.JoinStrategy> joins,
+        Map<AggKey, AggMode> aggregates,
+        Set<JoinKey> conflictingJoins,
+        Set<AggKey> conflictingAggregates
+    ) {}
+
+    static final class Search {
+        private static final String BUILD_BYTES_UNKNOWN = "build-side bytes are unknown";
+        private static final String SHUFFLE_UNAVAILABLE = "shuffle execution is unavailable for this query";
+
         private final CboContext context;
         private final Configuration configuration;
         private final QueryPragmas pragmas;
@@ -111,14 +203,27 @@ public final class CostBasedOptimizer {
         private final IdentityHashMap<LogicalPlan, Group> memo = new IdentityHashMap<>();
         private final int workerLanes;
         private final boolean shuffleAllowed;
+        private final LogicalPlan plan;
         private final Group root;
+        /** Logical node whose alternatives are restricted to {@link #constrainedLabel}; it also skips fit pruning. */
+        private final LogicalPlan constrainedPlan;
+        private final String constrainedLabel;
         private int evaluatedCandidates;
 
-        private Search(LogicalPlan plan, CboContext context, Map<LogicalPlan, PlanStats> statistics) {
+        private Search(
+            LogicalPlan plan,
+            CboContext context,
+            Map<LogicalPlan, PlanStats> statistics,
+            LogicalPlan constrainedPlan,
+            String constrainedLabel
+        ) {
             this.context = context;
             this.configuration = context.configuration();
             this.pragmas = configuration.pragmas();
             this.statistics = statistics;
+            this.plan = plan;
+            this.constrainedPlan = constrainedPlan;
+            this.constrainedLabel = constrainedLabel;
             this.workerLanes = positiveProduct(context.workerNodes(), Math.max(1, pragmas.shufflePartitionsPerNode()));
             this.root = build(plan);
             this.shuffleAllowed = pragmas.shuffleEnabled()
@@ -126,10 +231,33 @@ public final class CostBasedOptimizer {
                 && context.minimumVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
         }
 
-        private PlanDecisions run() {
-            List<Winner> winners = optimize(root, SingleRequirement.INSTANCE);
-            Winner best = cheapest(winners);
-            return best == null ? PlanDecisions.EMPTY : decisions(best);
+        /**
+         * Creates a search over the same plan and statistics in which {@code group} may only use the alternative labeled
+         * {@code label}. Used to cost counterfactual plans.
+         */
+        Search constrained(Group group, String label) {
+            return new Search(plan, context, statistics, group.plan, label);
+        }
+
+        /** Returns the cheapest complete plan, or {@code null} if no plan satisfies the root requirement. */
+        Winner solve() {
+            return cheapest(optimize(root, SingleRequirement.INSTANCE));
+        }
+
+        CboContext context() {
+            return context;
+        }
+
+        int groupCount() {
+            return memo.size();
+        }
+
+        int evaluatedCandidates() {
+            return evaluatedCandidates;
+        }
+
+        PlanStats stats(LogicalPlan node) {
+            return statistics.get(node);
         }
 
         private Group build(LogicalPlan plan) {
@@ -157,21 +285,20 @@ public final class CostBasedOptimizer {
             List<Winner> rejectedForRisk = new ArrayList<>();
             for (Winner candidate : nativeCandidates) {
                 Winner enforced = enforce(candidate, required);
-                if (fitRisk(enforced) == null) {
-                    feasible.add(enforced);
-                } else {
+                if (prunedByFit(enforced)) {
                     rejectedForRisk.add(enforced);
+                } else {
+                    feasible.add(enforced);
                 }
             }
 
             if (feasible.isEmpty() && rejectedForRisk.isEmpty() == false) {
-                List<Winner> fallback = safeFallback(group, rejectedForRisk);
-                for (Winner winner : fallback) {
-                    feasible.add(withReason(winner, "safe fallback after fit-risk pruning"));
+                for (Winner winner : safeFallback(group, rejectedForRisk)) {
+                    feasible.add(winner.asFitFallback());
                 }
             }
 
-            List<Winner> winners = cheapestPerDelivered(feasible);
+            List<Winner> winners = cheapestPerProperties(feasible);
             List<Winner> result = List.copyOf(winners);
             group.winners.put(required, result);
             return result;
@@ -187,7 +314,10 @@ public final class CostBasedOptimizer {
             group.building = true;
             try {
                 List<Winner> result = new ArrayList<>();
-                for (Alternative alternative : alternatives(group)) {
+                for (Alternative alternative : enumeration(group).alternatives()) {
+                    if (group.plan == constrainedPlan && alternative.label().equals(constrainedLabel) == false) {
+                        continue;
+                    }
                     List<List<Winner>> childOptions = new ArrayList<>(group.children.size());
                     boolean hasEmptyChild = false;
                     for (int i = 0; i < group.children.size(); i++) {
@@ -227,7 +357,7 @@ public final class CostBasedOptimizer {
                 if (evaluation == null) {
                     return;
                 }
-                Cost cost = childCost(group, alternative, chosenChildren).plus(evaluation.localCost());
+                Cost cost = childCost(group, alternative, chosenChildren).plus(evaluation.local().total());
                 int shuffleEdges = evaluation.shuffleEdges();
                 for (Winner child : chosenChildren) {
                     shuffleEdges += child.shuffleEdges();
@@ -238,12 +368,16 @@ public final class CostBasedOptimizer {
                         alternative,
                         chosenChildren,
                         evaluation.delivered(),
+                        evaluation.scanFragment(),
                         evaluation.delivered(),
                         evaluation.lanes(),
+                        evaluation.local(),
+                        null,
+                        Cost.ZERO,
                         cost,
                         shuffleEdges,
                         evaluation.decisionApplicable(),
-                        evaluation.reason()
+                        false
                     )
                 );
                 return;
@@ -270,13 +404,21 @@ public final class CostBasedOptimizer {
             return result;
         }
 
-        private List<Alternative> alternatives(Group group) {
+        /** Returns the alternatives this group may use, with the mode and exclusions that explain the list. */
+        Enumeration enumeration(Group group) {
+            if (group.enumeration == null) {
+                group.enumeration = enumerate(group);
+            }
+            return group.enumeration;
+        }
+
+        private Enumeration enumerate(Group group) {
             LogicalPlan plan = group.plan;
             if (plan instanceof EsRelation || plan instanceof ExternalRelation) {
-                return List.of(alternative(OperatorKind.SOURCE, List.of(), "SOURCE"));
+                return Enumeration.only(alternative(OperatorKind.SOURCE, List.of(), "SOURCE"));
             }
             if (plan instanceof LocalRelation) {
-                return List.of(alternative(OperatorKind.SINGLE, List.of(), "SINGLE"));
+                return Enumeration.only(alternative(OperatorKind.SINGLE, List.of(), "SINGLE"));
             }
             if (plan instanceof Join join) {
                 return joinAlternatives(group, join);
@@ -285,40 +427,51 @@ public final class CostBasedOptimizer {
                 if (supportedAggregate(aggregate)) {
                     return aggregateAlternatives(group, aggregate);
                 }
-                return List.of(opaque(group));
+                return Enumeration.only(opaque(group));
             }
             if (plan.children().isEmpty()) {
-                return List.of(alternative(OperatorKind.SINGLE, List.of(), "SINGLE"));
+                return Enumeration.only(alternative(OperatorKind.SINGLE, List.of(), "SINGLE"));
             }
             if (plan instanceof UnaryPlan unary) {
                 if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                    return List.of(opaque(group));
+                    return Enumeration.only(opaque(group));
                 }
                 if (unary instanceof Limit || unary instanceof TopN) {
-                    return List.of(alternative(OperatorKind.STREAMING_UNARY, anyRequirements(group), "UNARY"));
+                    return Enumeration.only(alternative(OperatorKind.STREAMING_UNARY, anyRequirements(group), "UNARY"));
                 }
                 if (unary instanceof PipelineBreaker) {
-                    return List.of(opaque(group));
+                    return Enumeration.only(opaque(group));
                 }
-                return List.of(alternative(OperatorKind.STREAMING_UNARY, anyRequirements(group), "UNARY"));
+                return Enumeration.only(alternative(OperatorKind.STREAMING_UNARY, anyRequirements(group), "UNARY"));
             }
-            return List.of(opaque(group));
+            return Enumeration.only(opaque(group));
         }
 
-        private List<Alternative> joinAlternatives(Group group, Join join) {
+        private Enumeration joinAlternatives(Group group, Join join) {
             if (join instanceof SubqueryLookupJoin) {
                 return subqueryJoinAlternatives(group, join);
             }
             if (Mapper.isIndexModeLookup(join.right())) {
                 return lookupJoinAlternatives(group, join);
             }
-            return List.of(joinAlternative(join, JoinStrategySelector.JoinStrategy.LOCAL, false, List.of("LOCAL"), "incumbent strategy"));
+            return Enumeration.only(joinAlternative(join, JoinStrategySelector.JoinStrategy.LOCAL, false));
         }
 
-        private List<Alternative> subqueryJoinAlternatives(Group group, Join join) {
-            JoinStrategySelector.JoinStrategy incumbent = JoinStrategySelector.JoinStrategy.MATERIALIZED;
+        private Enumeration subqueryJoinAlternatives(Group group, Join join) {
+            JoinStrategySelector.JoinStrategy materialized = JoinStrategySelector.JoinStrategy.MATERIALIZED;
+            JoinStrategySelector.JoinStrategy broadcast = JoinStrategySelector.JoinStrategy.BROADCAST;
+            JoinStrategySelector.JoinStrategy partitioned = JoinStrategySelector.JoinStrategy.PARTITIONED;
             if (pragmas.shuffleJoinExplicit() && pragmas.shuffleJoin() == false) {
-                return List.of(joinAlternative(join, incumbent, true, List.of("MATERIALIZED"), "shuffle_join explicitly disables shuffle"));
+                String pragma = "shuffle_join=false";
+                return new Enumeration(
+                    List.of(joinAlternative(join, materialized, true)),
+                    List.of(
+                        excluded(broadcast, ExclusionCode.PRAGMA_DISABLED, pragma),
+                        excluded(partitioned, ExclusionCode.PRAGMA_DISABLED, pragma)
+                    ),
+                    DecisionMode.FORCED,
+                    pragma
+                );
             }
 
             boolean eligible = shuffleJoinEligible(join);
@@ -326,147 +479,197 @@ public final class CostBasedOptimizer {
             if (pragmas.shuffleJoinStrategyExplicit()) {
                 JoinStrategySelector.JoinStrategy requested = requestedShuffleStrategy();
                 if (eligible && requested != null) {
-                    return List.of(joinAlternative(join, requested, true, List.of(requested.name()), "forced by shuffle_join_strategy"));
+                    String pragma = "shuffle_join_strategy=" + pragmas.shuffleJoinStrategy();
+                    List<Exclusion> excluded = new ArrayList<>();
+                    for (JoinStrategySelector.JoinStrategy other : List.of(materialized, broadcast, partitioned)) {
+                        if (other != requested) {
+                            excluded.add(excluded(other, ExclusionCode.PRAGMA_FORCED, pragma));
+                        }
+                    }
+                    return new Enumeration(List.of(joinAlternative(join, requested, true)), excluded, DecisionMode.FORCED, pragma);
                 }
-                return List.of(joinAlternative(join, incumbent, false, List.of(incumbent.name()), "shuffle strategy is not eligible"));
+                return shuffleJoinUnavailable(join, materialized, List.of(broadcast, partitioned));
             }
 
             if (eligible == false) {
-                return List.of(joinAlternative(join, incumbent, false, List.of(incumbent.name()), "shuffle strategy is not eligible"));
+                return shuffleJoinUnavailable(join, materialized, List.of(broadcast, partitioned));
             }
             if (pragmas.shuffleJoinExplicit()) {
+                String pragma = "shuffle_join=true";
                 if (buildKnown == false) {
-                    return List.of(
-                        joinAlternative(
-                            join,
-                            JoinStrategySelector.JoinStrategy.PARTITIONED,
-                            false,
-                            List.of("PARTITIONED"),
-                            "gated: unknown build-side bytes; partitioned is the safe shuffle choice"
-                        )
+                    return new Enumeration(
+                        List.of(joinAlternative(join, partitioned, false)),
+                        List.of(
+                            excluded(materialized, ExclusionCode.PRAGMA_FORCED, pragma),
+                            excluded(broadcast, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)
+                        ),
+                        DecisionMode.GATED,
+                        BUILD_BYTES_UNKNOWN
                     );
                 }
-                List<String> choices = List.of("BROADCAST", "PARTITIONED");
-                return List.of(
-                    joinAlternative(join, JoinStrategySelector.JoinStrategy.BROADCAST, false, choices, "cost-based shuffle choice"),
-                    joinAlternative(join, JoinStrategySelector.JoinStrategy.PARTITIONED, false, choices, "cost-based shuffle choice")
+                return new Enumeration(
+                    List.of(joinAlternative(join, broadcast, false), joinAlternative(join, partitioned, false)),
+                    List.of(excluded(materialized, ExclusionCode.PRAGMA_FORCED, pragma)),
+                    DecisionMode.COST_BASED,
+                    null
                 );
             }
             if (buildKnown == false) {
-                return List.of(joinAlternative(join, incumbent, false, List.of(incumbent.name()), "gated: unknown build-side bytes"));
+                return new Enumeration(
+                    List.of(joinAlternative(join, materialized, false)),
+                    List.of(
+                        excluded(broadcast, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN),
+                        excluded(partitioned, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)
+                    ),
+                    DecisionMode.GATED,
+                    BUILD_BYTES_UNKNOWN
+                );
             }
-            List<String> choices = List.of("MATERIALIZED", "BROADCAST", "PARTITIONED");
-            return List.of(
-                joinAlternative(join, incumbent, false, choices, "cost-based choice"),
-                joinAlternative(join, JoinStrategySelector.JoinStrategy.BROADCAST, false, choices, "cost-based choice"),
-                joinAlternative(join, JoinStrategySelector.JoinStrategy.PARTITIONED, false, choices, "cost-based choice")
+            return new Enumeration(
+                List.of(
+                    joinAlternative(join, materialized, false),
+                    joinAlternative(join, broadcast, false),
+                    joinAlternative(join, partitioned, false)
+                ),
+                List.of(),
+                DecisionMode.COST_BASED,
+                null
             );
         }
 
-        private List<Alternative> lookupJoinAlternatives(Group group, Join join) {
-            JoinStrategySelector.JoinStrategy incumbent = JoinStrategySelector.JoinStrategy.LOOKUP;
+        private Enumeration lookupJoinAlternatives(Group group, Join join) {
+            JoinStrategySelector.JoinStrategy lookup = JoinStrategySelector.JoinStrategy.LOOKUP;
+            JoinStrategySelector.JoinStrategy partitioned = JoinStrategySelector.JoinStrategy.PARTITIONED;
             if (pragmas.shuffleJoinExplicit() && pragmas.shuffleJoin() == false) {
-                return List.of(joinAlternative(join, incumbent, true, List.of("LOOKUP"), "shuffle_join explicitly disables shuffle"));
+                String pragma = "shuffle_join=false";
+                return new Enumeration(
+                    List.of(joinAlternative(join, lookup, true)),
+                    List.of(excluded(partitioned, ExclusionCode.PRAGMA_DISABLED, pragma)),
+                    DecisionMode.FORCED,
+                    pragma
+                );
             }
 
             boolean eligible = shuffleJoinEligible(join);
             if (pragmas.shuffleJoinExplicit()) {
                 if (eligible) {
-                    return List.of(
-                        joinAlternative(
-                            join,
-                            JoinStrategySelector.JoinStrategy.PARTITIONED,
-                            true,
-                            List.of("PARTITIONED", "LOOKUP"),
-                            "shuffle_join selects partitioned lookup"
-                        ),
-                        lookupFallbackAlternative(join)
+                    return new Enumeration(
+                        List.of(joinAlternative(join, partitioned, true), lookupFallbackAlternative()),
+                        List.of(),
+                        DecisionMode.FORCED,
+                        "shuffle_join=true"
                     );
                 }
-                return List.of(
-                    joinAlternative(join, incumbent, false, List.of("LOOKUP"), "requested shuffle strategy is unavailable for lookup joins")
-                );
+                return shuffleJoinUnavailable(join, lookup, List.of(partitioned));
             }
             if (pragmas.shuffleJoinStrategyExplicit()) {
                 JoinStrategySelector.JoinStrategy requested = requestedShuffleStrategy();
-                if (eligible && requested == JoinStrategySelector.JoinStrategy.PARTITIONED) {
-                    return List.of(
-                        joinAlternative(
-                            join,
-                            JoinStrategySelector.JoinStrategy.PARTITIONED,
-                            true,
-                            List.of("PARTITIONED", "LOOKUP"),
-                            "forced by shuffle_join_strategy"
-                        ),
-                        lookupFallbackAlternative(join)
+                if (eligible && requested == partitioned) {
+                    return new Enumeration(
+                        List.of(joinAlternative(join, partitioned, true), lookupFallbackAlternative()),
+                        List.of(),
+                        DecisionMode.FORCED,
+                        "shuffle_join_strategy=" + pragmas.shuffleJoinStrategy()
                     );
                 }
-                return List.of(
-                    joinAlternative(join, incumbent, false, List.of("LOOKUP"), "requested shuffle strategy is unavailable for lookup joins")
-                );
+                if (requested == JoinStrategySelector.JoinStrategy.BROADCAST) {
+                    String reason = "shuffle_join_strategy=broadcast does not apply to lookup joins";
+                    return new Enumeration(
+                        List.of(joinAlternative(join, lookup, false)),
+                        List.of(excluded(partitioned, ExclusionCode.NOT_ELIGIBLE, reason)),
+                        DecisionMode.INELIGIBLE,
+                        reason
+                    );
+                }
+                return shuffleJoinUnavailable(join, lookup, List.of(partitioned));
             }
 
             if (eligible == false) {
-                return List.of(joinAlternative(join, incumbent, false, List.of("LOOKUP"), "shuffle strategy is not eligible"));
+                return shuffleJoinUnavailable(join, lookup, List.of(partitioned));
             }
             boolean buildKnown = estimateBytes(group.children.get(1).stats).isUnknown() == false;
             if (buildKnown == false) {
-                return List.of(joinAlternative(join, incumbent, false, List.of("LOOKUP"), "gated: unknown build-side bytes"));
+                return new Enumeration(
+                    List.of(joinAlternative(join, lookup, false)),
+                    List.of(excluded(partitioned, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)),
+                    DecisionMode.GATED,
+                    BUILD_BYTES_UNKNOWN
+                );
             }
-            List<String> choices = List.of("LOOKUP", "PARTITIONED");
-            return List.of(
-                joinAlternative(join, incumbent, false, choices, "cost-based choice"),
-                joinAlternative(join, JoinStrategySelector.JoinStrategy.PARTITIONED, false, choices, "cost-based choice")
+            return new Enumeration(
+                List.of(joinAlternative(join, lookup, false), joinAlternative(join, partitioned, false)),
+                List.of(),
+                DecisionMode.COST_BASED,
+                null
             );
         }
 
-        private List<Alternative> aggregateAlternatives(Group group, Aggregate aggregate) {
+        /** Keeps the incumbent when no shuffle strategy can run this join. */
+        private Enumeration shuffleJoinUnavailable(
+            Join join,
+            JoinStrategySelector.JoinStrategy incumbent,
+            List<JoinStrategySelector.JoinStrategy> shuffleStrategies
+        ) {
+            ExclusionCode code = shuffleAllowed ? ExclusionCode.NOT_ELIGIBLE : ExclusionCode.SHUFFLE_UNAVAILABLE;
+            String reason = shuffleAllowed ? "the join shape does not support a distributed hash join" : SHUFFLE_UNAVAILABLE;
+            List<Exclusion> excluded = new ArrayList<>(shuffleStrategies.size());
+            for (JoinStrategySelector.JoinStrategy strategy : shuffleStrategies) {
+                excluded.add(excluded(strategy, code, reason));
+            }
+            return new Enumeration(List.of(joinAlternative(join, incumbent, false)), excluded, DecisionMode.INELIGIBLE, reason);
+        }
+
+        private Enumeration aggregateAlternatives(Group group, Aggregate aggregate) {
+            boolean eligible = aggregateShuffleEligible(aggregate);
+            ExclusionCode unavailableCode = shuffleAllowed ? ExclusionCode.NOT_ELIGIBLE : ExclusionCode.SHUFFLE_UNAVAILABLE;
+            String unavailableReason = shuffleAllowed ? "the aggregate does not support distributed execution" : SHUFFLE_UNAVAILABLE;
             if (pragmas.shuffleAggExplicit()) {
                 AggMode forced = pragmas.shuffleAgg() ? AggMode.DISTRIBUTED : AggMode.COORDINATOR;
-                if (forced == AggMode.DISTRIBUTED && aggregateShuffleEligible(aggregate) == false) {
-                    return List.of(
-                        aggregateAlternative(
-                            aggregate,
-                            AggMode.COORDINATOR,
-                            false,
-                            List.of("COORDINATOR"),
-                            "distributed aggregation is not eligible"
-                        )
+                if (forced == AggMode.DISTRIBUTED && eligible == false) {
+                    return new Enumeration(
+                        List.of(aggregateAlternative(AggMode.COORDINATOR, false)),
+                        List.of(new Exclusion(AggMode.DISTRIBUTED.name(), unavailableCode, unavailableReason)),
+                        DecisionMode.INELIGIBLE,
+                        unavailableReason
                     );
                 }
-                return List.of(aggregateAlternative(aggregate, forced, true, List.of(forced.name()), "forced by shuffle_agg"));
+                String pragma = "shuffle_agg=" + pragmas.shuffleAgg();
+                Exclusion other = forced == AggMode.DISTRIBUTED
+                    ? new Exclusion(AggMode.COORDINATOR.name(), ExclusionCode.PRAGMA_FORCED, pragma)
+                    : new Exclusion(AggMode.DISTRIBUTED.name(), ExclusionCode.PRAGMA_DISABLED, pragma);
+                return new Enumeration(List.of(aggregateAlternative(forced, true)), List.of(other), DecisionMode.FORCED, pragma);
             }
 
-            if (aggregateShuffleEligible(aggregate) == false) {
-                return List.of(
-                    aggregateAlternative(
-                        aggregate,
-                        AggMode.COORDINATOR,
-                        false,
-                        List.of("COORDINATOR"),
-                        "distributed aggregation is not eligible"
-                    )
+            if (eligible == false) {
+                return new Enumeration(
+                    List.of(aggregateAlternative(AggMode.COORDINATOR, false)),
+                    List.of(new Exclusion(AggMode.DISTRIBUTED.name(), unavailableCode, unavailableReason)),
+                    DecisionMode.INELIGIBLE,
+                    unavailableReason
                 );
             }
             if (aggregateEvidenceKnown(group, aggregate) == false) {
-                return List.of(
-                    aggregateAlternative(
-                        aggregate,
-                        AggMode.COORDINATOR,
-                        false,
-                        List.of("COORDINATOR"),
-                        "gated: unknown input rows or grouping NDV"
-                    )
+                String reason = "input rows or grouping NDV are unknown";
+                return new Enumeration(
+                    List.of(aggregateAlternative(AggMode.COORDINATOR, false)),
+                    List.of(new Exclusion(AggMode.DISTRIBUTED.name(), ExclusionCode.UNKNOWN_STATISTICS, reason)),
+                    DecisionMode.GATED,
+                    reason
                 );
             }
-            List<String> choices = List.of("COORDINATOR", "DISTRIBUTED");
-            return List.of(
-                aggregateAlternative(aggregate, AggMode.COORDINATOR, false, choices, "cost-based choice"),
-                aggregateAlternative(aggregate, AggMode.DISTRIBUTED, false, choices, "cost-based choice")
+            return new Enumeration(
+                List.of(aggregateAlternative(AggMode.COORDINATOR, false), aggregateAlternative(AggMode.DISTRIBUTED, false)),
+                List.of(),
+                DecisionMode.COST_BASED,
+                null
             );
         }
 
-        private boolean supportedAggregate(Aggregate aggregate) {
+        private static Exclusion excluded(JoinStrategySelector.JoinStrategy strategy, ExclusionCode code, String reason) {
+            return new Exclusion(strategy.name(), code, reason);
+        }
+
+        static boolean supportedAggregate(Aggregate aggregate) {
             return aggregate.getClass() == Aggregate.class
                 && aggregate.groupings().isEmpty() == false
                 && ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings())
@@ -519,16 +722,10 @@ public final class CostBasedOptimizer {
         }
 
         private Alternative alternative(OperatorKind kind, List<Requirement> requirements, String label) {
-            return new Alternative(kind, label, requirements, null, null, false, false, List.of(label), "property-preserving operator");
+            return new Alternative(kind, label, requirements, null, null, false, false);
         }
 
-        private Alternative joinAlternative(
-            Join join,
-            JoinStrategySelector.JoinStrategy strategy,
-            boolean forced,
-            List<String> choices,
-            String reason
-        ) {
+        private Alternative joinAlternative(Join join, JoinStrategySelector.JoinStrategy strategy, boolean forced) {
             Requirement leftRequirement = AnyRequirement.INSTANCE;
             Requirement rightRequirement = AnyRequirement.INSTANCE;
             switch (strategy) {
@@ -550,13 +747,12 @@ public final class CostBasedOptimizer {
                 strategy,
                 null,
                 forced,
-                false,
-                choices,
-                reason
+                false
             );
         }
 
-        private Alternative lookupFallbackAlternative(Join join) {
+        /** Lookup stays available when a forced partitioned lookup join has no scan fragment on its left side. */
+        private Alternative lookupFallbackAlternative() {
             return new Alternative(
                 OperatorKind.JOIN,
                 JoinStrategySelector.JoinStrategy.LOOKUP.name(),
@@ -564,38 +760,18 @@ public final class CostBasedOptimizer {
                 JoinStrategySelector.JoinStrategy.LOOKUP,
                 null,
                 true,
-                true,
-                List.of("PARTITIONED", "LOOKUP"),
-                "lookup remains the fallback when the left side is not a fragment"
+                true
             );
         }
 
-        private Alternative aggregateAlternative(Aggregate aggregate, AggMode mode, boolean forced, List<String> choices, String reason) {
-            return new Alternative(
-                OperatorKind.AGGREGATE,
-                mode.name(),
-                List.of(AnyRequirement.INSTANCE),
-                null,
-                mode,
-                forced,
-                false,
-                choices,
-                reason
-            );
+        private Alternative aggregateAlternative(AggMode mode, boolean forced) {
+            return new Alternative(OperatorKind.AGGREGATE, mode.name(), List.of(AnyRequirement.INSTANCE), null, mode, forced, false);
         }
 
         private Evaluation evaluate(Group group, Alternative alternative, List<Winner> children) {
             return switch (alternative.kind()) {
-                case SOURCE -> new Evaluation(
-                    SourcePartitioning.INSTANCE,
-                    context.workerNodes(),
-                    Cost.ZERO,
-                    0,
-                    false,
-                    alternative.reason()
-                );
-                case SINGLE -> new Evaluation(SinglePartitioning.INSTANCE, 1, Cost.ZERO, 0, false, alternative.reason());
-                case OPAQUE -> new Evaluation(SinglePartitioning.INSTANCE, 1, Cost.ZERO, 0, false, alternative.reason());
+                case SOURCE -> new Evaluation(SourcePartitioning.INSTANCE, context.workerNodes(), CostBreakdown.EMPTY, 0, false, true);
+                case SINGLE, OPAQUE -> new Evaluation(SinglePartitioning.INSTANCE, 1, CostBreakdown.EMPTY, 0, false);
                 case STREAMING_UNARY -> evaluateUnary(group, (UnaryPlan) group.plan, children.get(0));
                 case JOIN -> evaluateJoin(group, (Join) group.plan, alternative, children);
                 case AGGREGATE -> evaluateAggregate(group, (Aggregate) group.plan, alternative, children.get(0));
@@ -605,60 +781,32 @@ public final class CostBasedOptimizer {
         private Evaluation evaluateUnary(Group group, UnaryPlan unary, Winner child) {
             if (unary instanceof Limit limit) {
                 if (limit.local() && child.delivered() instanceof SourcePartitioning) {
-                    return new Evaluation(
-                        SourcePartitioning.INSTANCE,
-                        child.lanes(),
-                        Cost.ZERO,
-                        0,
-                        false,
-                        "local limit remains in the source fragment"
-                    );
+                    return new Evaluation(SourcePartitioning.INSTANCE, child.lanes(), CostBreakdown.EMPTY, 0, false, child.scanFragment());
                 }
-                return makeSingle(group.children.get(0), child, "limit requires single distribution");
+                return makeSingle(group.children.get(0), child);
             }
             if (unary instanceof TopN topN) {
                 if (topN.local() && child.delivered() instanceof SourcePartitioning) {
-                    return new Evaluation(
-                        SourcePartitioning.INSTANCE,
-                        child.lanes(),
-                        Cost.ZERO,
-                        0,
-                        false,
-                        "local top-n remains in the source fragment"
-                    );
+                    return new Evaluation(SourcePartitioning.INSTANCE, child.lanes(), CostBreakdown.EMPTY, 0, false, child.scanFragment());
                 }
-                return makeSingle(group.children.get(0), child, "top-n requires single distribution");
+                return makeSingle(group.children.get(0), child);
             }
             if (child.delivered() instanceof SourcePartitioning) {
-                return new Evaluation(
-                    SourcePartitioning.INSTANCE,
-                    child.lanes(),
-                    Cost.ZERO,
-                    0,
-                    false,
-                    "operator remains in the source fragment"
-                );
+                return new Evaluation(SourcePartitioning.INSTANCE, child.lanes(), CostBreakdown.EMPTY, 0, false, child.scanFragment());
             }
             if (streamingOutsideFragment(unary)) {
                 Delivered delivered = translateUp(child.delivered(), unary);
-                return new Evaluation(
-                    delivered,
-                    lanes(delivered, child.lanes()),
-                    Cost.ZERO,
-                    0,
-                    false,
-                    "streaming operator preserves child distribution"
-                );
+                return new Evaluation(delivered, lanes(delivered, child.lanes()), CostBreakdown.EMPTY, 0, false);
             }
-            return makeSingle(group.children.get(0), child, "opaque unary operator requires single distribution");
+            return makeSingle(group.children.get(0), child);
         }
 
-        private Evaluation makeSingle(Group childGroup, Winner child, String reason) {
+        private Evaluation makeSingle(Group childGroup, Winner child) {
             if (child.delivered() instanceof SinglePartitioning) {
-                return new Evaluation(SinglePartitioning.INSTANCE, 1, Cost.ZERO, 0, false, reason);
+                return new Evaluation(SinglePartitioning.INSTANCE, 1, CostBreakdown.EMPTY, 0, false);
             }
-            Cost gather = gatherCost(childGroup.stats, child.lanes());
-            return new Evaluation(SinglePartitioning.INSTANCE, 1, gather, 0, false, reason);
+            Part gather = new Part(CostTerm.EXCHANGE_GATHER, Side.INPUT, gatherCost(childGroup.stats, child.lanes()), 0);
+            return new Evaluation(SinglePartitioning.INSTANCE, 1, CostBreakdown.of(gather), 0, false);
         }
 
         private Evaluation evaluateJoin(Group group, Join join, Alternative alternative, List<Winner> children) {
@@ -668,22 +816,22 @@ public final class CostBasedOptimizer {
             PlanStats leftStats = group.children.get(0).stats;
             PlanStats rightStats = group.children.get(1).stats;
             Delivered output;
-            Cost localCost;
+            CostBreakdown local;
             long outputLanes;
 
             switch (strategy) {
                 case MATERIALIZED -> {
                     output = keepIfPresent(left.delivered(), join.output());
                     outputLanes = lanes(output, left.lanes());
-                    localCost = materializedJoinCost(leftStats, rightStats);
+                    local = materializedJoinCost(leftStats, rightStats);
                 }
                 case BROADCAST -> {
                     output = keepIfPresent(left.delivered(), join.output());
                     outputLanes = lanes(output, left.lanes());
-                    localCost = broadcastJoinCost(leftStats, rightStats);
+                    local = broadcastJoinCost(leftStats, rightStats);
                 }
                 case PARTITIONED -> {
-                    if (Mapper.isIndexModeLookup(join.right()) && left.nativeDelivered() instanceof SourcePartitioning == false) {
+                    if (Mapper.isIndexModeLookup(join.right()) && left.scanFragment() == false) {
                         return null;
                     }
                     if ((left.delivered() instanceof HashPartitioning) == false) {
@@ -696,33 +844,41 @@ public final class CostBasedOptimizer {
                     List<NameId> keys = ids(join.config().leftFields());
                     output = keepIfPresent(new HashPartitioning(keys, leftHash.exact()), join.output());
                     outputLanes = workerLanes;
-                    localCost = partitionedJoinCost(leftStats, rightStats);
+                    local = partitionedJoinCost(leftStats, rightStats);
                 }
                 case LOOKUP -> {
-                    if (alternative.lookupFallback() && left.nativeDelivered() instanceof SourcePartitioning) {
+                    if (alternative.lookupFallback() && left.scanFragment()) {
                         return null;
                     }
                     output = localJoinOutput(join, left);
                     outputLanes = lanes(output, left.lanes());
-                    localCost = lookupJoinCost(leftStats);
-                    if (left.delivered() instanceof SinglePartitioning == false && join.executesOn() == ExecuteLocation.COORDINATOR) {
-                        localCost = localCost.plus(gatherCost(leftStats, left.lanes()));
-                    }
+                    local = withCoordinatorGather(join, left, leftStats, lookupJoinCost(leftStats));
                 }
                 case LOCAL -> {
                     output = localJoinOutput(join, left);
                     outputLanes = lanes(output, left.lanes());
-                    localCost = localJoinCost(leftStats, rightStats);
-                    if (left.delivered() instanceof SinglePartitioning == false && join.executesOn() == ExecuteLocation.COORDINATOR) {
-                        localCost = localCost.plus(gatherCost(leftStats, left.lanes()));
-                    }
+                    local = withCoordinatorGather(join, left, leftStats, localJoinCost(leftStats, rightStats));
                 }
                 default -> throw new IllegalStateException("Unsupported join strategy [" + strategy + "]");
             }
+            return new Evaluation(output, outputLanes, local, 0, true, foldsIntoFragment(join, strategy, left));
+        }
 
-            boolean decisionApplicable = true;
-            String reason = alternative.reason();
-            return new Evaluation(output, outputLanes, localCost, 0, decisionApplicable, reason);
+        /** Mirrors {@link Mapper}: a non-distributed join over a scan fragment runs inside it, unless it executes on the coordinator. */
+        private static boolean foldsIntoFragment(Join join, JoinStrategySelector.JoinStrategy strategy, Winner left) {
+            return switch (strategy) {
+                case MATERIALIZED, LOOKUP, LOCAL -> join.executesOn() == ExecuteLocation.REMOTE
+                    || (left.scanFragment() && join.executesOn() != ExecuteLocation.COORDINATOR);
+                case BROADCAST, PARTITIONED -> false;
+            };
+        }
+
+        /** Adds the gather of the left input when a coordinator-only join receives distributed rows. */
+        private CostBreakdown withCoordinatorGather(Join join, Winner left, PlanStats leftStats, Part joinPart) {
+            if (left.delivered() instanceof SinglePartitioning == false && join.executesOn() == ExecuteLocation.COORDINATOR) {
+                return CostBreakdown.of(joinPart, new Part(CostTerm.EXCHANGE_GATHER, Side.LEFT, gatherCost(leftStats, left.lanes()), 0));
+            }
+            return CostBreakdown.of(joinPart);
         }
 
         private Delivered localJoinOutput(Join join, Winner left) {
@@ -739,10 +895,9 @@ public final class CostBasedOptimizer {
                 return new Evaluation(
                     SinglePartitioning.INSTANCE,
                     1,
-                    aggregateInPlaceCost(inputStats, child.lanes(), aggregate),
+                    CostBreakdown.of(aggregateInPlaceCost(inputStats, child.lanes(), aggregate)),
                     0,
-                    false,
-                    "aggregate input is already single"
+                    false
                 );
             }
             if (child.delivered() instanceof HashPartitioning hash
@@ -753,57 +908,36 @@ public final class CostBasedOptimizer {
                 return new Evaluation(
                     output,
                     lanes(output, child.lanes()),
-                    aggregateInPlaceCost(inputStats, child.lanes(), aggregate),
+                    CostBreakdown.of(aggregateInPlaceCost(inputStats, child.lanes(), aggregate)),
                     0,
-                    false,
-                    "exact input hash is covered by the grouping keys"
+                    false
                 );
             }
 
             if (alternative.aggregateMode() == AggMode.DISTRIBUTED
                 && groupAttributes == null
                 && child.delivered() instanceof SourcePartitioning == false) {
-                return new Evaluation(
-                    SinglePartitioning.INSTANCE,
-                    1,
-                    aggregateCoordinatorCost(inputStats, child, aggregate),
-                    0,
-                    false,
-                    "grouping attributes are unavailable for a distributed exchange"
-                );
+                return new Evaluation(SinglePartitioning.INSTANCE, 1, aggregateCoordinatorCost(inputStats, child, aggregate), 0, false);
             }
 
             if (alternative.aggregateMode() == AggMode.COORDINATOR) {
-                return new Evaluation(
-                    SinglePartitioning.INSTANCE,
-                    1,
-                    aggregateCoordinatorCost(inputStats, child, aggregate),
-                    0,
-                    true,
-                    alternative.reason()
-                );
+                return new Evaluation(SinglePartitioning.INSTANCE, 1, aggregateCoordinatorCost(inputStats, child, aggregate), 0, true);
             }
 
             Delivered output = aggregateHash(aggregate, groupAttributes);
-            return new Evaluation(
-                output,
-                workerLanes,
-                aggregateDistributedCost(inputStats, child, aggregate),
-                1,
-                true,
-                alternative.reason()
-            );
+            return new Evaluation(output, workerLanes, aggregateDistributedCost(inputStats, child, aggregate), 1, true);
         }
 
-        private Cost aggregateInPlaceCost(PlanStats inputStats, long lanes, Aggregate aggregate) {
+        private Part aggregateInPlaceCost(PlanStats inputStats, long lanes, Aggregate aggregate) {
             double rows = estimateValue(estimateRows(inputStats), CostConstants.UNKNOWN_ROWS);
             GroupEstimate groups = groupEstimate(aggregate, inputStats);
             double work = rows * CostConstants.AGGREGATE_WORK_PER_ROW;
             double states = groups.unknown() ? 0 : groups.value() * CostConstants.AGGREGATE_STATE_BYTES;
-            return executionCost(work, lanes, 0, 0, 0, states / Math.max(1, context.workerNodes()), states);
+            Cost cost = executionCost(work, lanes, 0, 0, 0, states / Math.max(1, context.workerNodes()), states);
+            return new Part(CostTerm.FINAL_AGGREGATE, null, cost, -1);
         }
 
-        private Cost aggregateCoordinatorCost(PlanStats inputStats, Winner child, Aggregate aggregate) {
+        private CostBreakdown aggregateCoordinatorCost(PlanStats inputStats, Winner child, Aggregate aggregate) {
             AggregateEstimate estimate = aggregateEstimate(inputStats, child, aggregate);
             double initialWork = estimate.inputRows() * CostConstants.AGGREGATE_WORK_PER_ROW;
             double finalWork = estimate.partialRows() * CostConstants.AGGREGATE_WORK_PER_ROW;
@@ -812,10 +946,14 @@ public final class CostBasedOptimizer {
             double stateBytes = estimate.groups().unknown() ? 0 : estimate.groups().value() * CostConstants.AGGREGATE_STATE_BYTES;
             Cost initial = executionCost(initialWork, child.lanes(), 0, 0, 0, 0, 0);
             Cost finalCost = executionCost(finalWork, 1, 0, 0, 0, stateBytes, stateBytes);
-            return initial.plus(gather).plus(finalCost);
+            return CostBreakdown.of(
+                new Part(CostTerm.PARTIAL_AGGREGATE, null, initial, -1),
+                new Part(CostTerm.EXCHANGE_GATHER, Side.INTERMEDIATE, gather, -1),
+                new Part(CostTerm.FINAL_AGGREGATE, null, finalCost, -1)
+            );
         }
 
-        private Cost aggregateDistributedCost(PlanStats inputStats, Winner child, Aggregate aggregate) {
+        private CostBreakdown aggregateDistributedCost(PlanStats inputStats, Winner child, Aggregate aggregate) {
             AggregateEstimate estimate = aggregateEstimate(inputStats, child, aggregate);
             double initialWork = estimate.inputRows() * CostConstants.AGGREGATE_WORK_PER_ROW;
             double finalWork = estimate.partialRows() * CostConstants.AGGREGATE_WORK_PER_ROW;
@@ -832,7 +970,11 @@ public final class CostBasedOptimizer {
                 stateBytes / Math.max(1, workerLanes),
                 stateBytes / Math.max(1, workerLanes)
             );
-            return initial.plus(exchange).plus(finalCost);
+            return CostBreakdown.of(
+                new Part(CostTerm.PARTIAL_AGGREGATE, null, initial, -1),
+                new Part(CostTerm.EXCHANGE_HASH, Side.INTERMEDIATE, exchange, -1),
+                new Part(CostTerm.FINAL_AGGREGATE, null, finalCost, -1)
+            );
         }
 
         private AggregateEstimate aggregateEstimate(PlanStats inputStats, Winner child, Aggregate aggregate) {
@@ -848,57 +990,98 @@ public final class CostBasedOptimizer {
             return new AggregateEstimate(inputRows, partialRows, intermediateRowBytes, groups);
         }
 
-        private Cost materializedJoinCost(PlanStats leftStats, PlanStats rightStats) {
+        private CostBreakdown materializedJoinCost(PlanStats leftStats, PlanStats rightStats) {
             double rows = estimateValue(estimateRows(rightStats), CostConstants.UNKNOWN_ROWS);
             double bytes = estimateValue(estimateBytes(rightStats), CostConstants.UNKNOWN_BYTES);
             double probeRows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
             long copies = context.workerNodes();
-            double networkBytes = bytes * copies;
-            double coordinatorBytes = bytes * copies;
-            double work = rows * CostConstants.BUILD_WORK_PER_ROW * copies + probeRows * CostConstants.PROBE_WORK_PER_ROW;
-            return executionCost(
-                work,
-                Math.max(1, workerLanes),
-                CostConstants.REPLAN_SECONDS,
-                networkBytes,
-                coordinatorBytes,
-                bytes * CostConstants.HASH_TABLE_OVERHEAD,
-                bytes * CostConstants.HASH_TABLE_OVERHEAD
+            int parallelism = Math.max(1, workerLanes);
+            double copiedBytes = bytes * copies;
+            double tableBytes = bytes * CostConstants.HASH_TABLE_OVERHEAD;
+            return CostBreakdown.of(
+                new Part(CostTerm.REPLAN, null, executionCost(0, parallelism, CostConstants.REPLAN_SECONDS, 0, 0, 0, 0), -1),
+                new Part(CostTerm.MATERIALIZE, Side.RIGHT, executionCost(0, parallelism, 0, copiedBytes, copiedBytes, 0, 0), -1),
+                new Part(
+                    CostTerm.HASH_BUILD,
+                    Side.RIGHT,
+                    executionCost(rows * CostConstants.BUILD_WORK_PER_ROW * copies, parallelism, 0, 0, 0, tableBytes, tableBytes),
+                    -1
+                ),
+                new Part(
+                    CostTerm.HASH_PROBE,
+                    Side.LEFT,
+                    executionCost(probeRows * CostConstants.PROBE_WORK_PER_ROW, parallelism, 0, 0, 0, 0, 0),
+                    -1
+                )
             );
         }
 
-        private Cost broadcastJoinCost(PlanStats leftStats, PlanStats rightStats) {
+        private CostBreakdown broadcastJoinCost(PlanStats leftStats, PlanStats rightStats) {
             double rows = estimateValue(estimateRows(rightStats), CostConstants.UNKNOWN_ROWS);
             double probeRows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
-            double work = rows * CostConstants.BUILD_WORK_PER_ROW * context.workerNodes() + probeRows * CostConstants.PROBE_WORK_PER_ROW;
+            int parallelism = Math.max(1, workerLanes);
+            double buildWork = rows * CostConstants.BUILD_WORK_PER_ROW * context.workerNodes();
             // All lanes on a node probe one shared hash table, so the node holds a single copy regardless of lanes per node.
             double tableBytes = estimateValue(estimateBytes(rightStats), CostConstants.UNKNOWN_BYTES) * CostConstants.HASH_TABLE_OVERHEAD;
-            return executionCost(work, Math.max(1, workerLanes), CostConstants.STAGE_STARTUP_SECONDS, 0, 0, tableBytes, tableBytes);
+            return CostBreakdown.of(
+                new Part(
+                    CostTerm.HASH_BUILD,
+                    Side.RIGHT,
+                    executionCost(buildWork, parallelism, CostConstants.STAGE_STARTUP_SECONDS, 0, 0, tableBytes, tableBytes),
+                    -1
+                ),
+                new Part(
+                    CostTerm.HASH_PROBE,
+                    Side.LEFT,
+                    executionCost(probeRows * CostConstants.PROBE_WORK_PER_ROW, parallelism, 0, 0, 0, 0, 0),
+                    -1
+                )
+            );
         }
 
-        private Cost partitionedJoinCost(PlanStats leftStats, PlanStats rightStats) {
+        private CostBreakdown partitionedJoinCost(PlanStats leftStats, PlanStats rightStats) {
             double buildRows = estimateValue(estimateRows(rightStats), CostConstants.UNKNOWN_ROWS);
             double probeRows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
             int lanes = Math.max(1, workerLanes);
-            double work = buildRows * CostConstants.BUILD_WORK_PER_ROW + probeRows * CostConstants.PROBE_WORK_PER_ROW;
             double skewedLaneFraction = Math.max(1.0 / lanes, CostConstants.HOT_PARTITION_FRACTION);
             double laneMemory = estimateValue(estimateBytes(rightStats), CostConstants.UNKNOWN_BYTES) * CostConstants.HASH_TABLE_OVERHEAD
                 * skewedLaneFraction;
             double nodeMemory = laneMemory * Math.max(1, pragmas.shufflePartitionsPerNode());
-            return executionCost(work, lanes, CostConstants.STAGE_STARTUP_SECONDS, 0, 0, nodeMemory, laneMemory);
+            return CostBreakdown.of(
+                new Part(
+                    CostTerm.HASH_BUILD,
+                    Side.RIGHT,
+                    executionCost(
+                        buildRows * CostConstants.BUILD_WORK_PER_ROW,
+                        lanes,
+                        CostConstants.STAGE_STARTUP_SECONDS,
+                        0,
+                        0,
+                        nodeMemory,
+                        laneMemory
+                    ),
+                    -1
+                ),
+                new Part(
+                    CostTerm.HASH_PROBE,
+                    Side.LEFT,
+                    executionCost(probeRows * CostConstants.PROBE_WORK_PER_ROW, lanes, 0, 0, 0, 0, 0),
+                    -1
+                )
+            );
         }
 
-        private Cost lookupJoinCost(PlanStats leftStats) {
+        private Part lookupJoinCost(PlanStats leftStats) {
             double rows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
             double work = rows * CostConstants.LOOKUP_WORK_PER_ROW;
-            return executionCost(work, context.workerNodes(), 0, 0, 0, 0, 0);
+            return new Part(CostTerm.LOOKUP, Side.RIGHT, executionCost(work, context.workerNodes(), 0, 0, 0, 0, 0), -1);
         }
 
-        private Cost localJoinCost(PlanStats leftStats, PlanStats rightStats) {
+        private Part localJoinCost(PlanStats leftStats, PlanStats rightStats) {
             double leftRows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
             double rightRows = estimateValue(estimateRows(rightStats), CostConstants.UNKNOWN_ROWS);
             double work = leftRows * CostConstants.PROBE_WORK_PER_ROW + rightRows * CostConstants.BUILD_WORK_PER_ROW;
-            return executionCost(work, 1, 0, 0, 0, 0, 0);
+            return new Part(CostTerm.LOCAL_JOIN, null, executionCost(work, 1, 0, 0, 0, 0, 0), -1);
         }
 
         private Cost executionCost(
@@ -1014,46 +1197,92 @@ public final class CostBasedOptimizer {
                 winner.alternative(),
                 winner.children(),
                 winner.nativeDelivered(),
+                winner.scanFragment(),
                 delivered,
                 lanes,
+                winner.local(),
+                enforcer,
+                cost,
                 winner.cost().plus(cost),
                 shuffleEdges,
                 winner.decisionApplicable(),
-                winner.reason()
+                winner.fitFallback()
             );
         }
 
-        private String fitRisk(Winner winner) {
+        /**
+         * Returns whether a cost-based decision must drop this candidate because a memory fit check failed. Forced alternatives,
+         * decisions with a single legal alternative, and the constrained group of a counterfactual search are never pruned.
+         */
+        private boolean prunedByFit(Winner winner) {
             Alternative alternative = winner.alternative();
             if (alternative.forced() || winner.decisionApplicable() == false) {
-                return null;
+                return false;
             }
+            Group group = winner.group();
+            if (group.plan == constrainedPlan || enumeration(group).mode() != DecisionMode.COST_BASED) {
+                return false;
+            }
+            for (FitCheck check : fitChecks(group, alternative)) {
+                if (check.passed() == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Evaluates the memory fit checks that apply to {@code alternative}, whether or not they pass. */
+        List<FitCheck> fitChecks(Group group, Alternative alternative) {
             if (alternative.kind() == OperatorKind.JOIN) {
                 if (alternative.joinStrategy() == JoinStrategySelector.JoinStrategy.MATERIALIZED) {
-                    Estimate bytes = estimateBytes(winner.group().children.get(1).stats);
-                    if (bytes.probabilityAtMost(context.materializeLimitBytes()) < CostConstants.MIN_FIT_PROBABILITY) {
-                        return "materialized build side does not meet the fit threshold";
-                    }
+                    Estimate bytes = estimateBytes(group.children.get(1).stats);
+                    return List.of(probabilityCheck("materialize_build_bytes", bytes, context.materializeLimitBytes()));
                 }
                 if (alternative.joinStrategy() == JoinStrategySelector.JoinStrategy.BROADCAST) {
-                    Estimate bytes = estimateBytes(winner.group().children.get(1).stats);
+                    Estimate bytes = estimateBytes(group.children.get(1).stats);
                     // The build is shared by all lanes on a node, so the whole node budget applies to one table.
                     double buildBudget = CostConstants.BROADCAST_MEMORY_BYTES / CostConstants.HASH_TABLE_OVERHEAD;
-                    if (bytes.probabilityAtMost(buildBudget) < CostConstants.MIN_FIT_PROBABILITY) {
-                        return "broadcast build side does not meet the memory fit threshold";
-                    }
+                    return List.of(probabilityCheck("broadcast_build_per_node", bytes, buildBudget));
                 }
             }
             if (alternative.kind() == OperatorKind.AGGREGATE && alternative.aggregateMode() == AggMode.COORDINATOR) {
-                Aggregate aggregate = (Aggregate) winner.group().plan;
-                PlanStats input = winner.group().children.get(0).stats;
-                GroupEstimate groups = groupEstimate(aggregate, input);
-                if (groups.unknown() == false
-                    && groups.upperBound() * CostConstants.AGGREGATE_STATE_BYTES > CostConstants.COORDINATOR_MEMORY_BYTES) {
-                    return "coordinator aggregate state exceeds the memory fit threshold";
-                }
+                Aggregate aggregate = (Aggregate) group.plan;
+                GroupEstimate groups = groupEstimate(aggregate, group.children.get(0).stats);
+                EstimateView demand = groups.unknown()
+                    ? EstimateView.of(Estimate.UNKNOWN)
+                    : new EstimateView(
+                        groups.value() * CostConstants.AGGREGATE_STATE_BYTES,
+                        groups.upperBound() * CostConstants.AGGREGATE_STATE_BYTES,
+                        groups.provenance()
+                    );
+                boolean passed = groups.unknown()
+                    || (groups.upperBound() * CostConstants.AGGREGATE_STATE_BYTES > CostConstants.COORDINATOR_MEMORY_BYTES) == false;
+                return List.of(
+                    new FitCheck(
+                        "coordinator_aggregate_state",
+                        FitMethod.UPPER_BOUND,
+                        demand,
+                        (long) CostConstants.COORDINATOR_MEMORY_BYTES,
+                        null,
+                        null,
+                        passed
+                    )
+                );
             }
-            return null;
+            return List.of();
+        }
+
+        private static FitCheck probabilityCheck(String name, Estimate demand, double budgetBytes) {
+            double probability = demand.probabilityAtMost(budgetBytes);
+            return new FitCheck(
+                name,
+                FitMethod.PROBABILITY,
+                EstimateView.of(demand),
+                (long) budgetBytes,
+                probability,
+                CostConstants.MIN_FIT_PROBABILITY,
+                (probability < CostConstants.MIN_FIT_PROBABILITY) == false
+            );
         }
 
         private List<Winner> safeFallback(Group group, List<Winner> rejected) {
@@ -1098,42 +1327,87 @@ public final class CostBasedOptimizer {
             }
         }
 
-        private List<Winner> cheapestPerDelivered(List<Winner> candidates) {
-            Map<Delivered, Winner> winners = new LinkedHashMap<>();
+        /**
+         * Keeps, per set of physical properties a parent can observe, the candidate with the lowest score and the one the tie-break
+         * rules prefer, if different. Pruning on fewer properties would drop the only candidate some parent alternative accepts.
+         * Keeping the lowest one makes every group's lowest score exact, since a parent's lowest plan is built from its children's
+         * lowest plans; keeping only the preferred one would let tie margins compound up the tree.
+         */
+        private List<Winner> cheapestPerProperties(List<Winner> candidates) {
+            Map<Properties, List<Winner>> byProperties = new LinkedHashMap<>();
             for (Winner candidate : candidates) {
-                Winner current = winners.get(candidate.delivered());
-                if (current == null || cheaper(candidate, current)) {
-                    winners.put(candidate.delivered(), candidate);
+                byProperties.computeIfAbsent(new Properties(candidate.delivered(), candidate.scanFragment()), k -> new ArrayList<>())
+                    .add(candidate);
+            }
+            List<Winner> winners = new ArrayList<>(byProperties.size());
+            for (List<Winner> sameProperties : byProperties.values()) {
+                Winner lowest = lowest(sameProperties);
+                Winner preferred = preferred(sameProperties, lowest);
+                winners.add(preferred);
+                if (lowest != preferred) {
+                    winners.add(lowest);
                 }
             }
-            return new ArrayList<>(winners.values());
+            return winners;
         }
 
+        private record Properties(Delivered delivered, boolean scanFragment) {}
+
         private Winner cheapest(List<Winner> candidates) {
+            return candidates.isEmpty() ? null : preferred(candidates, lowest(candidates));
+        }
+
+        private static Winner lowest(List<Winner> candidates) {
+            Winner lowest = null;
+            for (Winner candidate : candidates) {
+                if (lowest == null
+                    || candidate.cost().objective(CostConstants.WORK_WEIGHT) < lowest.cost().objective(CostConstants.WORK_WEIGHT)) {
+                    lowest = candidate;
+                }
+            }
+            return lowest;
+        }
+
+        /**
+         * Returns the candidate that {@link #cheaper}'s secondary rules prefer among those whose score ties {@code lowest}'s. A
+         * pairwise scan would depend on the candidates' order, because ties are not transitive: two candidates can each tie a third
+         * while one beats the other. Candidates that tie the lowest score also tie each other, so only the secondary rules decide
+         * among them, and the choice never loses to another candidate by more than the tie margin.
+         */
+        private Winner preferred(List<Winner> candidates, Winner lowest) {
             Winner best = null;
             for (Winner candidate : candidates) {
-                if (best == null || cheaper(candidate, best)) {
+                if (compareScores(candidate.cost(), lowest.cost()) == 0 && (best == null || cheaper(candidate, best))) {
                     best = candidate;
                 }
             }
             return best;
         }
 
-        private boolean cheaper(Winner left, Winner right) {
-            double leftCost = left.cost().objective(CostConstants.WORK_WEIGHT);
-            double rightCost = right.cost().objective(CostConstants.WORK_WEIGHT);
+        /**
+         * Compares two costs by score. Scores within {@link CostConstants#TIE_EPSILON} of each other, relative to the larger one,
+         * are a tie and compare as {@code 0}; ties are broken by {@link #cheaper}'s secondary rules.
+         */
+        static int compareScores(Cost left, Cost right) {
+            double leftCost = left.objective(CostConstants.WORK_WEIGHT);
+            double rightCost = right.objective(CostConstants.WORK_WEIGHT);
             if (Double.isFinite(leftCost) == false || Double.isFinite(rightCost) == false) {
                 if (leftCost != rightCost) {
-                    return leftCost < rightCost;
+                    return leftCost < rightCost ? -1 : 1;
                 }
-            } else {
-                double relativeDifference = Math.abs(leftCost - rightCost) / Math.max(
-                    Math.max(Math.abs(leftCost), Math.abs(rightCost)),
-                    1e-12
-                );
-                if (relativeDifference > CostConstants.TIE_EPSILON) {
-                    return leftCost < rightCost;
-                }
+                return 0;
+            }
+            double relativeDifference = Math.abs(leftCost - rightCost) / Math.max(Math.max(Math.abs(leftCost), Math.abs(rightCost)), 1e-12);
+            if (relativeDifference > CostConstants.TIE_EPSILON) {
+                return leftCost < rightCost ? -1 : 1;
+            }
+            return 0;
+        }
+
+        private boolean cheaper(Winner left, Winner right) {
+            int byScore = compareScores(left.cost(), right.cost());
+            if (byScore != 0) {
+                return byScore < 0;
             }
             boolean leftIncumbent = incumbent(left);
             boolean rightIncumbent = incumbent(right);
@@ -1159,7 +1433,8 @@ public final class CostBasedOptimizer {
             return JoinStrategySelector.JoinStrategy.LOCAL;
         }
 
-        private boolean incumbent(Winner winner) {
+        /** Returns whether {@code winner} uses the strategy that rule-based planning would pick for its group. */
+        boolean incumbent(Winner winner) {
             Alternative alternative = winner.alternative();
             if (alternative.kind() == OperatorKind.JOIN) {
                 return alternative.joinStrategy() == incumbent((Join) winner.group().plan);
@@ -1167,32 +1442,15 @@ public final class CostBasedOptimizer {
             return alternative.kind() == OperatorKind.AGGREGATE && alternative.aggregateMode() == AggMode.COORDINATOR;
         }
 
-        private Winner withReason(Winner winner, String reason) {
-            return new Winner(
-                winner.group(),
-                winner.alternative(),
-                winner.children(),
-                winner.nativeDelivered(),
-                winner.delivered(),
-                winner.lanes(),
-                winner.cost(),
-                winner.shuffleEdges(),
-                winner.decisionApplicable(),
-                reason
-            );
-        }
-
-        private PlanDecisions decisions(Winner rootWinner) {
+        /** Collects the published choices of a solved plan and the keys that two decision points chose differently. */
+        Decided decisions(Winner rootWinner) {
             Map<JoinKey, JoinStrategySelector.JoinStrategy> joins = new HashMap<>();
             Map<AggKey, AggMode> aggregates = new HashMap<>();
             Set<JoinKey> conflictingJoins = new LinkedHashSet<>();
             Set<AggKey> conflictingAggregates = new LinkedHashSet<>();
-            List<DecisionTrace> traces = new ArrayList<>();
             Set<Winner> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-            collectDecisions(rootWinner, visited, joins, aggregates, conflictingJoins, conflictingAggregates, traces);
-            return joins.isEmpty() && aggregates.isEmpty() && traces.isEmpty()
-                ? PlanDecisions.EMPTY
-                : new PlanDecisions(joins, aggregates, traces);
+            collectDecisions(rootWinner, visited, joins, aggregates, conflictingJoins, conflictingAggregates);
+            return new Decided(joins, aggregates, conflictingJoins, conflictingAggregates);
         }
 
         private void collectDecisions(
@@ -1201,81 +1459,49 @@ public final class CostBasedOptimizer {
             Map<JoinKey, JoinStrategySelector.JoinStrategy> joins,
             Map<AggKey, AggMode> aggregates,
             Set<JoinKey> conflictingJoins,
-            Set<AggKey> conflictingAggregates,
-            List<DecisionTrace> traces
+            Set<AggKey> conflictingAggregates
         ) {
             if (visited.add(winner) == false) {
                 return;
             }
             Alternative alternative = winner.alternative();
             if (winner.decisionApplicable() && alternative.kind() == OperatorKind.JOIN) {
-                Join join = (Join) winner.group().plan;
-                JoinKey key = JoinKey.of(join);
+                JoinKey key = JoinKey.of((Join) winner.group().plan);
                 if (conflictingJoins.contains(key) == false) {
                     JoinStrategySelector.JoinStrategy previous = joins.putIfAbsent(key, alternative.joinStrategy());
                     if (previous != null && previous != alternative.joinStrategy()) {
                         joins.remove(key);
                         conflictingJoins.add(key);
-                        traces.add(
-                            new DecisionTrace(
-                                join.getClass().getSimpleName(),
-                                "omitted",
-                                List.of(),
-                                "conflicting decisions share the same join key"
-                            )
-                        );
-                    } else {
-                        traces.add(
-                            new DecisionTrace(
-                                join.getClass().getSimpleName(),
-                                alternative.joinStrategy().name(),
-                                alternative.alternatives(),
-                                winner.reason()
-                            )
-                        );
                     }
                 }
             }
             if (winner.decisionApplicable() && alternative.kind() == OperatorKind.AGGREGATE) {
-                Aggregate aggregate = (Aggregate) winner.group().plan;
-                AggKey key = AggKey.of(aggregate.aggregates());
+                AggKey key = AggKey.of(((Aggregate) winner.group().plan).aggregates());
                 if (conflictingAggregates.contains(key) == false) {
                     AggMode previous = aggregates.putIfAbsent(key, alternative.aggregateMode());
                     if (previous != null && previous != alternative.aggregateMode()) {
                         aggregates.remove(key);
                         conflictingAggregates.add(key);
-                        traces.add(
-                            new DecisionTrace(
-                                aggregate.getClass().getSimpleName(),
-                                "omitted",
-                                List.of(),
-                                "conflicting decisions share the same aggregate key"
-                            )
-                        );
-                    } else {
-                        traces.add(
-                            new DecisionTrace(
-                                aggregate.getClass().getSimpleName(),
-                                alternative.aggregateMode().name(),
-                                alternative.alternatives(),
-                                winner.reason()
-                            )
-                        );
                     }
                 }
             }
             for (Winner child : winner.children()) {
-                collectDecisions(child, visited, joins, aggregates, conflictingJoins, conflictingAggregates, traces);
+                collectDecisions(child, visited, joins, aggregates, conflictingJoins, conflictingAggregates);
             }
         }
 
-        private GroupEstimate groupEstimate(Aggregate aggregate, PlanStats inputStats) {
+        /**
+         * Estimates the number of groups of {@code aggregate} as the product of the grouping columns' NDVs, capped by the input rows.
+         * Its provenance is the weakest of the inputs, and at least {@link Provenance#DERIVED} when several columns are combined.
+         */
+        static GroupEstimate groupEstimate(Aggregate aggregate, PlanStats inputStats) {
             Estimate rowsEstimate = estimateRows(inputStats);
             if (rowsEstimate.isUnknown()) {
                 return GroupEstimate.UNKNOWN;
             }
             double rows = estimateValue(rowsEstimate, CostConstants.UNKNOWN_ROWS);
             double rowsUpper = estimateUpperBound(rowsEstimate, CostConstants.UNKNOWN_ROWS);
+            Provenance provenance = rowsEstimate.provenance();
             double value = 1;
             double upperBound = 1;
             Set<NameId> grouped = new LinkedHashSet<>();
@@ -1292,13 +1518,21 @@ public final class CostBasedOptimizer {
                 if (ndv.isUnknown()) {
                     return GroupEstimate.UNKNOWN;
                 }
+                provenance = weaker(provenance, ndv.provenance());
                 value = safeMultiply(value, Math.max(1, estimateValue(ndv, 1)));
                 upperBound = safeMultiply(upperBound, Math.max(1, estimateUpperBound(ndv, 1)));
             }
-            return new GroupEstimate(Math.min(rows, value), Math.min(rowsUpper, upperBound), false);
+            if (grouped.size() > 1) {
+                provenance = weaker(provenance, Provenance.DERIVED);
+            }
+            return new GroupEstimate(Math.min(rows, value), Math.min(rowsUpper, upperBound), provenance);
         }
 
-        private List<Attribute> groupAttributes(Aggregate aggregate) {
+        static Provenance weaker(Provenance left, Provenance right) {
+            return left.ordinal() >= right.ordinal() ? left : right;
+        }
+
+        static List<Attribute> groupAttributes(Aggregate aggregate) {
             List<Attribute> attributes = new ArrayList<>(aggregate.groupings().size());
             for (Expression grouping : aggregate.groupings()) {
                 Attribute attribute = Expressions.attribute(grouping);
@@ -1477,7 +1711,7 @@ public final class CostBasedOptimizer {
         }
     }
 
-    private enum OperatorKind {
+    enum OperatorKind {
         SOURCE,
         SINGLE,
         STREAMING_UNARY,
@@ -1486,58 +1720,59 @@ public final class CostBasedOptimizer {
         AGGREGATE
     }
 
-    private enum Enforcer {
+    enum Enforcer {
         GATHER,
         HASH,
         BROADCAST
     }
 
-    private sealed interface Requirement permits AnyRequirement, SingleRequirement, HashRequirement, BroadcastRequirement {}
+    sealed interface Requirement permits AnyRequirement, SingleRequirement, HashRequirement, BroadcastRequirement {}
 
-    private enum AnyRequirement implements Requirement {
+    enum AnyRequirement implements Requirement {
         INSTANCE
     }
 
-    private enum SingleRequirement implements Requirement {
+    enum SingleRequirement implements Requirement {
         INSTANCE
     }
 
-    private enum BroadcastRequirement implements Requirement {
+    enum BroadcastRequirement implements Requirement {
         INSTANCE
     }
 
-    private record HashRequirement(List<NameId> keys) implements Requirement {
-        private HashRequirement {
+    record HashRequirement(List<NameId> keys) implements Requirement {
+        HashRequirement {
             keys = List.copyOf(keys);
         }
     }
 
-    private sealed interface Delivered permits SourcePartitioning, SinglePartitioning, HashPartitioning, ArbitraryPartitioning {}
+    sealed interface Delivered permits SourcePartitioning, SinglePartitioning, HashPartitioning, ArbitraryPartitioning {}
 
-    private enum SourcePartitioning implements Delivered {
+    enum SourcePartitioning implements Delivered {
         INSTANCE
     }
 
-    private enum SinglePartitioning implements Delivered {
+    enum SinglePartitioning implements Delivered {
         INSTANCE
     }
 
-    private enum ArbitraryPartitioning implements Delivered {
+    enum ArbitraryPartitioning implements Delivered {
         INSTANCE
     }
 
-    private record HashPartitioning(List<NameId> keys, boolean exact) implements Delivered {
-        private HashPartitioning {
+    record HashPartitioning(List<NameId> keys, boolean exact) implements Delivered {
+        HashPartitioning {
             keys = List.copyOf(keys);
         }
     }
 
-    private static final class Group {
-        private final LogicalPlan plan;
-        private final List<Group> children;
-        private final PlanStats stats;
+    static final class Group {
+        final LogicalPlan plan;
+        final List<Group> children;
+        final PlanStats stats;
         private final Map<Requirement, List<Winner>> winners = new HashMap<>();
         private List<Winner> nativeCandidates;
+        private Enumeration enumeration;
         private boolean building;
 
         private Group(LogicalPlan plan, List<Group> children, PlanStats stats) {
@@ -1547,67 +1782,139 @@ public final class CostBasedOptimizer {
         }
     }
 
-    private record Alternative(
+    /**
+     * The legal alternatives of a group, the strategies that were considered and dropped before costing, and how the choice among
+     * the remaining alternatives is made.
+     */
+    record Enumeration(List<Alternative> alternatives, List<Exclusion> excluded, DecisionMode mode, @Nullable String reason) {
+        Enumeration {
+            alternatives = List.copyOf(alternatives);
+            excluded = List.copyOf(excluded);
+        }
+
+        static Enumeration only(Alternative alternative) {
+            return new Enumeration(List.of(alternative), List.of(), DecisionMode.INELIGIBLE, null);
+        }
+    }
+
+    record Alternative(
         OperatorKind kind,
         String label,
         List<Requirement> childRequirements,
         JoinStrategySelector.JoinStrategy joinStrategy,
         AggMode aggregateMode,
         boolean forced,
-        boolean lookupFallback,
-        List<String> alternatives,
-        String reason
+        boolean lookupFallback
     ) {
-        private Alternative {
+        Alternative {
             childRequirements = List.copyOf(childRequirements);
-            alternatives = List.copyOf(alternatives);
         }
-
     }
 
-    private record Evaluation(
+    /**
+     * One labelled term of an operator's local cost. {@code edge} is the index of the child whose output the part moves, or
+     * {@code -1} when the part runs inside the operator.
+     */
+    record Part(CostTerm term, @Nullable Side side, Cost cost, int edge) {}
+
+    /** The local cost of an operator as an ordered list of parts; its total is the sum of the parts. */
+    record CostBreakdown(List<Part> parts) {
+        static final CostBreakdown EMPTY = new CostBreakdown(List.of());
+
+        CostBreakdown {
+            parts = List.copyOf(parts);
+        }
+
+        static CostBreakdown of(Part... parts) {
+            return new CostBreakdown(List.of(parts));
+        }
+
+        Cost total() {
+            Cost total = Cost.ZERO;
+            for (Part part : parts) {
+                total = total.plus(part.cost());
+            }
+            return total;
+        }
+    }
+
+    /**
+     * The native properties and local cost of one alternative over chosen children. {@code scanFragment} mirrors whether {@link Mapper}
+     * folds the subtree into one {@code FragmentExec}: a partitioned lookup join requires that of its left side, and the delivered
+     * partitioning alone cannot tell, because a broadcast join keeps its probe's source partitioning without being a fragment.
+     */
+    record Evaluation(
         Delivered delivered,
         long lanes,
-        Cost localCost,
+        CostBreakdown local,
         int shuffleEdges,
         boolean decisionApplicable,
-        String reason
-    ) {}
+        boolean scanFragment
+    ) {
+        Evaluation(Delivered delivered, long lanes, CostBreakdown local, int shuffleEdges, boolean decisionApplicable) {
+            this(delivered, lanes, local, shuffleEdges, decisionApplicable, false);
+        }
+    }
 
-    private record Winner(
+    /**
+     * The cheapest plan found for a group under one set of physical properties. {@code local} is the operator's own cost, {@code enforcer}
+     * the exchange added on top to meet a parent's requirement, and {@code cost} the total of the subtree including both.
+     * {@code scanFragment} is whether the native plan maps to a single data-node scan fragment, see {@link Evaluation}.
+     */
+    record Winner(
         Group group,
         Alternative alternative,
         List<Winner> children,
         Delivered nativeDelivered,
+        boolean scanFragment,
         Delivered delivered,
         long lanes,
+        CostBreakdown local,
+        @Nullable Enforcer enforcer,
+        Cost enforcerCost,
         Cost cost,
         int shuffleEdges,
         boolean decisionApplicable,
-        String reason
+        boolean fitFallback
     ) {
-        private Winner {
+        Winner {
             children = List.copyOf(children);
+        }
+
+        Winner asFitFallback() {
+            return new Winner(
+                group,
+                alternative,
+                children,
+                nativeDelivered,
+                scanFragment,
+                delivered,
+                lanes,
+                local,
+                enforcer,
+                enforcerCost,
+                cost,
+                shuffleEdges,
+                decisionApplicable,
+                true
+            );
         }
     }
 
     private record AggregateEstimate(double inputRows, double partialRows, double intermediateRowBytes, GroupEstimate groups) {}
 
-    private record GroupEstimate(double value, double upperBound, boolean unknown) {
-        private static final GroupEstimate UNKNOWN = new GroupEstimate(0, 0, true);
+    record GroupEstimate(double value, double upperBound, Provenance provenance) {
+        static final GroupEstimate UNKNOWN = new GroupEstimate(0, 0, Provenance.UNKNOWN);
+
+        boolean unknown() {
+            return provenance == Provenance.UNKNOWN;
+        }
     }
 
-    private record Cost(
-        double latency,
-        double work,
-        double networkBytes,
-        double coordinatorBytes,
-        double peakNodeBytes,
-        double peakLaneBytes
-    ) {
-        private static final Cost ZERO = new Cost(0, 0, 0, 0, 0, 0);
+    record Cost(double latency, double work, double networkBytes, double coordinatorBytes, double peakNodeBytes, double peakLaneBytes) {
+        static final Cost ZERO = new Cost(0, 0, 0, 0, 0, 0);
 
-        private Cost plus(Cost other) {
+        Cost plus(Cost other) {
             return new Cost(
                 latency + other.latency,
                 work + other.work,
@@ -1618,39 +1925,45 @@ public final class CostBasedOptimizer {
             );
         }
 
-        private double objective(double workWeight) {
+        double objective(double workWeight) {
             return latency + workWeight * work;
+        }
+
+        CostVector toVector() {
+            return new CostVector(latency * 1e9, work, networkBytes, coordinatorBytes, peakNodeBytes, peakLaneBytes);
         }
     }
 
-    private static final class CostConstants {
-        private static final int MAX_CANDIDATES = 10_000;
-        private static final double TIE_EPSILON = 0.05;
-        private static final double MIN_FIT_PROBABILITY = 0.99;
-        private static final double WORK_WEIGHT = 1e-9;
-        private static final double CPU_SECONDS_PER_WORK_UNIT = 1e-6;
-        private static final double BUILD_WORK_PER_ROW = 2;
-        private static final double PROBE_WORK_PER_ROW = 1;
-        private static final double LOOKUP_WORK_PER_ROW = 4;
-        private static final double AGGREGATE_WORK_PER_ROW = 3;
-        private static final double SERIALIZATION_WORK_PER_BYTE = 0.01;
-        private static final double NETWORK_BYTES_PER_SECOND = 256d * 1024 * 1024;
-        private static final double COORDINATOR_BYTES_PER_SECOND = 512d * 1024 * 1024;
-        private static final double STAGE_STARTUP_SECONDS = 0.01;
-        private static final double REPLAN_SECONDS = 0.005;
-        private static final double HASH_TABLE_OVERHEAD = 2;
-        private static final double HOT_PARTITION_FRACTION = 0.1;
-        private static final double BROADCAST_MEMORY_BYTES = 128d * 1024 * 1024;
-        private static final double COORDINATOR_MEMORY_BYTES = 512d * 1024 * 1024;
-        private static final double AGGREGATE_STATE_BYTES = 64;
-        private static final double UNKNOWN_ROWS = 100_000;
-        private static final double UNKNOWN_BYTES = 64d * 1024 * 1024;
-        private static final double DEFAULT_ROW_BYTES = 32;
-        private static final double MIN_INTERMEDIATE_ROW_BYTES = 16;
+    static final class CostConstants {
+        static final int MAX_CANDIDATES = 10_000;
+        static final double TIE_EPSILON = 0.05;
+        static final double MIN_FIT_PROBABILITY = 0.99;
+        static final double WORK_WEIGHT = CostVector.WORK_WEIGHT;
+        static final double CPU_SECONDS_PER_WORK_UNIT = 1e-6;
+        static final double BUILD_WORK_PER_ROW = 2;
+        static final double PROBE_WORK_PER_ROW = 1;
+        static final double LOOKUP_WORK_PER_ROW = 4;
+        static final double AGGREGATE_WORK_PER_ROW = 3;
+        static final double SERIALIZATION_WORK_PER_BYTE = 0.01;
+        static final double NETWORK_BYTES_PER_SECOND = 256d * 1024 * 1024;
+        static final double COORDINATOR_BYTES_PER_SECOND = 512d * 1024 * 1024;
+        static final double STAGE_STARTUP_SECONDS = 0.01;
+        static final double REPLAN_SECONDS = 0.005;
+        static final double HASH_TABLE_OVERHEAD = 2;
+        static final double HOT_PARTITION_FRACTION = 0.1;
+        static final double BROADCAST_MEMORY_BYTES = 128d * 1024 * 1024;
+        static final double COORDINATOR_MEMORY_BYTES = 512d * 1024 * 1024;
+        static final double AGGREGATE_STATE_BYTES = 64;
+        static final double UNKNOWN_ROWS = 100_000;
+        static final double UNKNOWN_BYTES = 64d * 1024 * 1024;
+        static final double DEFAULT_ROW_BYTES = 32;
+        static final double MIN_INTERMEDIATE_ROW_BYTES = 16;
+
+        private CostConstants() {}
     }
 
-    private static final class SearchAborted extends RuntimeException {
-        private SearchAborted() {
+    static final class SearchAborted extends RuntimeException {
+        SearchAborted() {
             super(null, null, false, false);
         }
     }

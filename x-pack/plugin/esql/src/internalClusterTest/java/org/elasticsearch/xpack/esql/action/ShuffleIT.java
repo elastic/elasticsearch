@@ -17,6 +17,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
@@ -28,6 +29,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.optimizer.cbo.AggregateDistributionDecisionKind;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinStrategyDecisionKind;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.DecisionReport;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OptimizerProfile;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OutcomeStatus;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.RunReport;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.RunStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -311,6 +319,49 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
             | SORT user_id, segment, bytes
             | LIMIT 500
             """, randomIntBetween(1, 4), false);
+    }
+
+    public void testCostBasedOptimizerProfile() throws Exception {
+        setupJoinIndices();
+        Settings pragmas = Settings.builder()
+            .put(shuffleJoinPragmas(randomIntBetween(1, 4), true))
+            .put(QueryPragmas.CBO.getKey(), true)
+            .build();
+        String query = "FROM events | LOOKUP JOIN users_lookup ON user_id | STATS c = COUNT(*) BY segment | SORT segment";
+        try (
+            EsqlQueryResponse response = run(
+                syncEsqlQueryRequest(query).acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmas)).profile(true)
+            )
+        ) {
+            OptimizerProfile optimizer = response.profile().optimizer();
+            assertNotNull("profile is missing the optimizer section", optimizer);
+            RunReport run = optimizer.runs().getLast();
+            assertEquals(RunStatus.OK, run.status());
+            assertEquals(
+                Set.of(JoinStrategyDecisionKind.NAME, AggregateDistributionDecisionKind.NAME),
+                run.decisions().stream().map(DecisionReport::kind).collect(Collectors.toSet())
+            );
+            String plans = response.profile().plans().stream().map(PlanProfile::planTree).collect(Collectors.joining("\n"));
+            for (DecisionReport decision : run.decisions()) {
+                assertEquals(decision.summary(), OutcomeStatus.APPLIED, decision.outcome().status());
+                for (String attribute : decision.anchor()) {
+                    assertThat(plans, containsString(attribute));
+                }
+            }
+        }
+    }
+
+    public void testProfileHasNoOptimizerSectionWithoutCostBasedOptimizer() throws Exception {
+        setupJoinIndices();
+        Settings pragmas = shuffleJoinPragmas(randomIntBetween(1, 4), true);
+        String query = "FROM events | LOOKUP JOIN users_lookup ON user_id | STATS c = COUNT(*) BY segment | SORT segment";
+        try (
+            EsqlQueryResponse response = run(
+                syncEsqlQueryRequest(query).acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmas)).profile(true)
+            )
+        ) {
+            assertNull(response.profile().optimizer());
+        }
     }
 
     public void testSubqueryJoinShuffle() throws Exception {

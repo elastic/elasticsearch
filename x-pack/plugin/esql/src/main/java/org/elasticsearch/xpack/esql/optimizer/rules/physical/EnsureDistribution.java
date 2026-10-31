@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.cbo.AggKey;
 import org.elasticsearch.xpack.esql.optimizer.cbo.AggMode;
+import org.elasticsearch.xpack.esql.optimizer.cbo.AggregateDistributionDecisionKind;
+import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
@@ -50,13 +54,23 @@ import java.util.function.Predicate;
  * Places exchanges where physical operators need a particular distribution instead of assigning exchanges to individual features.
  */
 public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
+    private static final String GATE_REJECTED = "the shuffle gate rejected the physical plan";
+    private static final String UNSUPPORTED_GROUPINGS = "the group keys are not attributes of types that can be hash distributed";
+    private static final String MISSING_GROUP_KEYS = "the partial aggregate output does not lead with the group keys";
+    private static final String SINGLE_NODE_INPUT = "the input is already on one node, so the aggregate runs there";
+    private static final String NO_INTERMEDIATE_EXCHANGE = "the aggregate has no exchange between its partial and final phases";
+    private static final String HASH_PARTITIONED_INPUT =
+        "the input is already hash partitioned by the group keys, so the aggregate runs in place";
+
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
         boolean hasDistributedJoin = plan.anyMatch(DistributedHashJoinExec.class::isInstance);
+        PlanDecisionsHolder decisions = context.decisions();
         if (ShuffleGate.allowed(context.configuration(), plan) == false) {
             if (hasDistributedJoin) {
                 throw new IllegalStateException("bug: distributed join in a plan the shuffle gate rejects");
             }
+            plan.forEachDown(AggregateExec.class, aggregate -> record(decisions, aggregate, AggMode.COORDINATOR, GATE_REJECTED));
             return plan;
         }
         if (plan.anyMatch(ShuffleExchangeExec.class::isInstance)) {
@@ -64,8 +78,7 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
         }
 
         boolean shuffleAgg = context.configuration().pragmas().shuffleAgg();
-        Predicate<AggregateExec> distributeAggregate = aggregate -> context.decisions()
-            .get()
+        Predicate<AggregateExec> distributeAggregate = aggregate -> decisions.get()
             .aggregate(aggregate.aggregates())
             .map(mode -> mode == AggMode.DISTRIBUTED)
             .orElse(shuffleAgg);
@@ -74,7 +87,7 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             return plan;
         }
 
-        PhysicalPlan rewritten = new Walker(distributeAggregate).ensure(plan, SingleRequirement.INSTANCE).plan();
+        PhysicalPlan rewritten = new Walker(distributeAggregate, decisions).ensure(plan, SingleRequirement.INSTANCE).plan();
         return hasShuffleExchange(rewritten) ? rewritten : plan;
     }
 
@@ -122,9 +135,11 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
 
     private static final class Walker {
         private final Predicate<AggregateExec> distributeAggregate;
+        private final PlanDecisionsHolder decisions;
 
-        private Walker(Predicate<AggregateExec> distributeAggregate) {
+        private Walker(Predicate<AggregateExec> distributeAggregate, PlanDecisionsHolder decisions) {
             this.distributeAggregate = distributeAggregate;
+            this.decisions = decisions;
         }
 
         private Result ensure(PhysicalPlan node, Requirement requirement) {
@@ -241,25 +256,29 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             if (aggregate.child() instanceof ExchangeExec exchange && exchange.inBetweenAggs()) {
                 Result child = visit(exchange.child(), AnyRequirement.INSTANCE);
                 int groupCount = aggregate.groupings().size();
-                if (distributeAggregate.test(aggregate)
-                    && ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings())
-                    && exchange.output().size() >= groupCount) {
+                boolean supportedGroupings = ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings());
+                if (distributeAggregate.test(aggregate) && supportedGroupings && exchange.output().size() >= groupCount) {
                     List<Attribute> keys = exchange.output().subList(0, groupCount);
                     PhysicalPlan exchanged = hash(child.plan(), keys, true, exchange.output());
                     AggregateExec finalAggregate = aggregate.replaceChild(exchanged);
+                    record(decisions, aggregate, AggMode.DISTRIBUTED, null);
                     return new Result(finalAggregate, groupPartitioning(finalAggregate));
                 }
+                record(decisions, aggregate, AggMode.COORDINATOR, supportedGroupings ? MISSING_GROUP_KEYS : UNSUPPORTED_GROUPINGS);
                 return new Result(aggregate.replaceChild(gather(child.plan(), true, exchange.output())), SinglePartitioning.INSTANCE);
             }
             if (aggregate.child() instanceof AggregateExec initial && initial.getMode() == AggregatorMode.INITIAL) {
                 Result child = visit(initial.child(), AnyRequirement.INSTANCE);
                 PhysicalPlan rewrittenInitial = initial.replaceChild(child.plan());
                 if (child.partitioning() instanceof SinglePartitioning) {
+                    record(decisions, aggregate, AggMode.COORDINATOR, SINGLE_NODE_INPUT);
                     return new Result(aggregate.replaceChild(rewrittenInitial), SinglePartitioning.INSTANCE);
                 }
+                record(decisions, aggregate, AggMode.COORDINATOR, NO_INTERMEDIATE_EXCHANGE);
                 return new Result(aggregate.replaceChild(gather(rewrittenInitial, true, initial.output())), SinglePartitioning.INSTANCE);
             }
             Result child = ensure(aggregate.child(), SingleRequirement.INSTANCE);
+            record(decisions, aggregate, AggMode.COORDINATOR, NO_INTERMEDIATE_EXCHANGE);
             return new Result(aggregate.replaceChild(child.plan()), SinglePartitioning.INSTANCE);
         }
 
@@ -273,15 +292,18 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             Result child = visit(aggregate.child(), childRequirement);
 
             if (child.partitioning() instanceof SinglePartitioning) {
+                record(decisions, aggregate, AggMode.COORDINATOR, SINGLE_NODE_INPUT);
                 return new Result(aggregate.replaceChild(child.plan()), SinglePartitioning.INSTANCE);
             }
             if (child.partitioning() instanceof HashPartitioning hash
                 && hash.exact()
                 && groups != null
                 && containsIds(groups, hash.keys())) {
+                record(decisions, aggregate, AggMode.DISTRIBUTED, HASH_PARTITIONED_INPUT);
                 return new Result(aggregate.replaceChild(child.plan()), keepIfPresent(hash, aggregate.output()));
             }
             if (ShuffleRuleUtils.hasSupportedGroupKeyTypes(aggregate.groupings()) == false) {
+                record(decisions, aggregate, AggMode.COORDINATOR, UNSUPPORTED_GROUPINGS);
                 return new Result(aggregate.replaceChild(gather(child.plan(), false, List.of())), SinglePartitioning.INSTANCE);
             }
 
@@ -300,9 +322,11 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             if (canHash && intermediate.size() >= groups.size()) {
                 exchange = hash(initial, intermediate.subList(0, groups.size()), true, intermediate);
                 exact = true;
+                record(decisions, aggregate, AggMode.DISTRIBUTED, null);
             } else {
                 exchange = gather(initial, true, intermediate);
                 exact = false;
+                record(decisions, aggregate, AggMode.COORDINATOR, canHash ? MISSING_GROUP_KEYS : UNSUPPORTED_GROUPINGS);
             }
             AggregateExec finalAggregate = new AggregateExec(
                 aggregate.source(),
@@ -482,6 +506,24 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             return ArbitraryPartitioning.INSTANCE;
         }
         return partitioning;
+    }
+
+    /**
+     * Records how this rule executed an aggregate the cost-based optimizer decided, so the profile can tell an override from
+     * a bug. {@code reason} explains the path taken and is kept only when it differs from the decision.
+     */
+    private static void record(PlanDecisionsHolder decisions, AggregateExec aggregate, AggMode effective, @Nullable String reason) {
+        decisions.get()
+            .aggregate(aggregate.aggregates())
+            .ifPresent(
+                decided -> decisions.record(
+                    AggregateDistributionDecisionKind.INSTANCE,
+                    AggKey.of(aggregate.aggregates()),
+                    decided.name(),
+                    effective.name(),
+                    decided == effective ? null : reason
+                )
+            );
     }
 
     private static List<Attribute> groupAttributes(AggregateExec aggregate) {

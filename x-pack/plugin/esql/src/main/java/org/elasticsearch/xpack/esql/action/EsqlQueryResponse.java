@@ -28,6 +28,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OptimizerProfile;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -646,6 +648,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }),
             ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
             ChunkedToXContentHelper.array("plans", profile.plans.iterator()),
+            Iterators.single((b, p) -> profile.optimizer == null ? b : b.field("optimizer", profile.optimizer)),
             Iterators.single((b, p) -> {
                 TransportVersion minimumVersion = profile.minimumVersion();
                 b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
@@ -655,7 +658,20 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         );
     }
 
-    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {
+    /**
+     * @param optimizer the cost-based optimizer's decisions and their outcomes, or {@code null} if the optimizer did not run or
+     *                  the profile came from a node that does not send them
+     */
+    public record Profile(
+        List<DriverProfile> drivers,
+        List<PlanProfile> plans,
+        TransportVersion minimumVersion,
+        @Nullable OptimizerProfile optimizer
+    ) implements Writeable {
+
+        public Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) {
+            this(drivers, plans, minimumVersion, null);
+        }
 
         public static Profile readFrom(StreamInput in) throws IOException {
             return new Profile(
@@ -663,7 +679,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
                     ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
                     : List.of(),
-                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null
+                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null,
+                in.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)
+                    ? in.readOptionalWriteable(OptimizerProfile::new)
+                    : null
             );
         }
 
@@ -677,6 +696,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 // When retrieving the profile from an older node, there might be no minimum version attached.
                 // When writing the profile somewhere else, we need to handle the case that the minimum version is null.
                 writeOptionalTransportVersion(minimumVersion, out);
+            }
+            if (out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
+                out.writeOptionalWriteable(optimizer);
             }
         }
 

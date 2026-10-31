@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinKey;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinStrategyDecisionKind;
 import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -94,6 +97,9 @@ public class Mapper {
         DataType.IP,
         DataType.BOOLEAN
     );
+
+    private static final String NOT_DISTRIBUTABLE =
+        "the join cannot be distributed: it has a non-equality condition or mismatched or unsupported key types";
 
     private final QueryPragmas pragmas;
     private final PlanDecisionsHolder decisions;
@@ -495,23 +501,36 @@ public class Mapper {
             && JoinStrategySelector.isLookupIndexJoin(join);
         boolean leftIsScan = canCheckLeftScan && mapInner(join.left()) instanceof FragmentExec;
         var decided = decisions.get().join(join);
-        if (decided.isPresent()) {
-            if (isLegalDecision(join, decided.get(), leftIsScan)) {
-                return decided.get();
-            }
-            logger.debug("Ignoring cost-based join decision [{}] for join [{}] because it is not legal", decided.get(), join);
+        if (decided.isEmpty()) {
+            return JoinStrategySelector.select(join, pragmas, leftIsScan);
         }
-        return JoinStrategySelector.select(join, pragmas, leftIsScan);
+        JoinStrategySelector.JoinStrategy strategy = decided.get();
+        String illegal = illegalDecisionReason(join, strategy, leftIsScan);
+        JoinStrategySelector.JoinStrategy effective = strategy;
+        if (illegal != null) {
+            logger.debug("Ignoring cost-based join decision [{}] for join [{}] because {}", strategy, join, illegal);
+            effective = JoinStrategySelector.select(join, pragmas, leftIsScan);
+        }
+        decisions.record(JoinStrategyDecisionKind.INSTANCE, JoinKey.of(join), strategy.name(), effective.name(), illegal);
+        return effective;
     }
 
-    private static boolean isLegalDecision(Join join, JoinStrategySelector.JoinStrategy strategy, boolean leftIsScan) {
+    /** Returns why {@code strategy} cannot execute {@code join}, or {@code null} if it can. */
+    @Nullable
+    private static String illegalDecisionReason(Join join, JoinStrategySelector.JoinStrategy strategy, boolean leftIsScan) {
+        boolean subquery = join instanceof SubqueryLookupJoin;
+        boolean lookupIndex = JoinStrategySelector.isLookupIndexJoin(join);
         return switch (strategy) {
-            case MATERIALIZED -> join instanceof SubqueryLookupJoin;
-            case BROADCAST -> join instanceof SubqueryLookupJoin && distributedJoinEligible(join);
-            case PARTITIONED -> distributedJoinEligible(join)
-                && (join instanceof SubqueryLookupJoin || JoinStrategySelector.isLookupIndexJoin(join) && leftIsScan);
-            case LOOKUP -> JoinStrategySelector.isLookupIndexJoin(join);
-            case LOCAL -> join instanceof SubqueryLookupJoin == false && JoinStrategySelector.isLookupIndexJoin(join) == false;
+            case MATERIALIZED -> subquery ? null : "MATERIALIZED applies only to subquery joins";
+            case BROADCAST -> subquery == false ? "BROADCAST applies only to subquery joins"
+                : distributedJoinEligible(join) ? null
+                : NOT_DISTRIBUTABLE;
+            case PARTITIONED -> distributedJoinEligible(join) == false ? NOT_DISTRIBUTABLE
+                : subquery || lookupIndex && leftIsScan ? null
+                : lookupIndex ? "PARTITIONED lookup requires a scan fragment on the left side"
+                : "PARTITIONED applies only to subquery and lookup-index joins";
+            case LOOKUP -> lookupIndex ? null : "LOOKUP applies only to lookup-index joins";
+            case LOCAL -> subquery || lookupIndex ? "LOCAL does not apply to subquery or lookup-index joins" : null;
         };
     }
 

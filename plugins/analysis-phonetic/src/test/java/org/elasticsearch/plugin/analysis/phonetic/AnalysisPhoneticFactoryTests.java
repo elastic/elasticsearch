@@ -65,7 +65,10 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
                 .affects("replace", "false")
                 .alsoWith(settings(Map.of("encoder", "double_metaphone")).affects("max_code_len", 6))
                 .alsoWith(settings(Map.of("encoder", "koelnerphonetik")).affects("max_variations", 8))
-                .alsoWith(settings(Map.of("encoder", "haasephonetik")).affects("max_variations", 8))
+                .alsoWith(
+                    settings(Map.of("encoder", "haasephonetik")).affects("max_variations", 8)
+                        .gatedAt(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS)
+                )
         );
     }
 

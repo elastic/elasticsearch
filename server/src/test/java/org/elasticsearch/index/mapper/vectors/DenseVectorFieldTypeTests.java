@@ -109,6 +109,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
                 -1,
                 randomBoolean()
+            ),
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 3199),
+                randomBoolean(),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                -1,
+                randomBoolean()
             )
         );
     }

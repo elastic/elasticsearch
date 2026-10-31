@@ -35,6 +35,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -338,7 +340,7 @@ public class ReindexerTests extends ESTestCase {
         final Reindexer reindexer = reindexerWithRelocation();
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         // do NOT call task.requestRelocation()
 
         final ActionListener<BulkByPaginatedSearchResponse> original = spy(ActionListener.noop());
@@ -361,7 +363,7 @@ public class ReindexerTests extends ESTestCase {
         final Reindexer reindexer = reindexerWithRelocation();
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
 
         final ActionListener<BulkByPaginatedSearchResponse> original = spy(ActionListener.noop());
@@ -382,28 +384,18 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsTriggersRelocationWhenResumeInfoPresent() {
-        final ClusterService clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
-        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.localNode()).thenReturn(sourceNode);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
-
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
             TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
             handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
-            .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
+            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
-        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
 
         final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(new TaskId("source-node", 987), randomNonNegativeLong());
@@ -526,16 +518,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsSendsSourceTaskResultInResumeRequest() {
-        final ClusterService clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
-        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.localNode()).thenReturn(sourceNode);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
-
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
             ResumeBulkByPaginatedSearchRequest resumeRequest = invocation.getArgument(2);
@@ -548,12 +530,12 @@ public class ReindexerTests extends ESTestCase {
             handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
-            .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
+            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
-        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
 
         final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
@@ -568,7 +550,7 @@ public class ReindexerTests extends ESTestCase {
 
         assertTrue(future.isDone());
         verify(transportService).sendRequest(
-            eq(targetNode),
+            eq(RELOCATION_TARGET_NODE),
             eq(ResumeReindexAction.NAME),
             any(ResumeBulkByPaginatedSearchRequest.class),
             any()
@@ -584,7 +566,7 @@ public class ReindexerTests extends ESTestCase {
         final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(workerRps, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
 
         final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
@@ -611,7 +593,7 @@ public class ReindexerTests extends ESTestCase {
         final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorkerCount(totalSlices, leaderRps);
-        task.getLeaderState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getLeaderState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
 
         final Map<Integer, ResumeInfo.SliceStatus> slices = new LinkedHashMap<>();
@@ -715,20 +697,10 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testRelocationsSetsHandoffFlag() {
-        final ClusterService clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
-        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.localNode()).thenReturn(sourceNode);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
-
-        final Reindexer reindexer = reindexerWithRelocation(clusterService, mock(TransportService.class));
+        final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), mock(TransportService.class));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
 
         assertFalse("handoff flag should not be set before relocation", task.useCreateSemanticsForResultStorage());
@@ -751,21 +723,11 @@ public class ReindexerTests extends ESTestCase {
      * cancellation (no resumed task is created on the destination node).
      */
     public void testRelocationAbortedWhenCancellationWonTheRace() {
-        final ClusterService clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
-        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.localNode()).thenReturn(sourceNode);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
-
         final TransportService transportService = mock(TransportService.class);
-        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
-        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
         task.requestRelocation();
         // Simulate cancellation winning the race: flip the state to CANCELLED before the handoff can fire.
         task.ensureCancellable();
@@ -796,6 +758,128 @@ public class ReindexerTests extends ESTestCase {
         Exception onRelocationException = expectThrows(Exception.class, onRelocationFuture::actionGet);
         assertThat(onRelocationException, instanceOf(TaskCancelledException.class));
         assertThat(onRelocationException.getMessage(), containsString("task cancelled before relocation handoff could begin"));
+    }
+
+    /**
+     * The destination is picked when the hand-off request is sent, not when the slices decided to stop. If no node is
+     * available at that point the relocation fails without claiming the handoff or sending anything.
+     */
+    public void testListenerWithRelocationsFailsWhenNoNodeAvailableAtSendTime() {
+        final TransportService transportService = mock(TransportService.class);
+        final Reindexer reindexer = reindexerWithRelocation(
+            relocationClusterService(),
+            transportService,
+            (nodes, nodeShutdowns) -> Optional.empty()
+        );
+        final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
+        task.requestRelocation();
+
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<ResumeBulkByPaginatedSearchResponse> onRelocationFuture = new PlainActionFuture<>();
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            onRelocationFuture,
+            future
+        );
+        wrapped.onResponse(reindexResponseWithResumeInfo());
+
+        assertFalse("handoff flag must not be set when no node is available", task.useCreateSemanticsForResultStorage());
+        verify(transportService, never()).sendRequest(
+            any(DiscoveryNode.class),
+            any(String.class),
+            any(TransportRequest.class),
+            Mockito.<org.elasticsearch.transport.TransportResponseHandler<?>>any()
+        );
+        final String expectedMessage = "no node available to relocate reindex task [" + task.getId() + "] to";
+        final Exception exception = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(exception.getMessage(), equalTo(expectedMessage));
+        final Exception onRelocationException = expectThrows(IllegalStateException.class, onRelocationFuture::actionGet);
+        assertThat(onRelocationException.getMessage(), equalTo(expectedMessage));
+    }
+
+    /**
+     * When every eligible node is marked for shutdown at send time, the relocation falls back to a pick that ignores shutdown
+     * markers and sends to a marked node rather than failing outright.
+     */
+    public void testListenerWithRelocationsFallsBackToNodeMarkedForShutdownAtSendTime() {
+        final NodesShutdownMetadata targetMarkedForShutdown = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(RELOCATION_TARGET_NODE.getId())
+                .setStartedAtMillis(randomMillisUpToYear9999())
+                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                .setReason(randomAlphaOfLengthBetween(5, 20))
+                .setGracePeriod(randomPositiveTimeValue())
+                .build()
+        );
+        final AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest = new AtomicReference<>();
+        final Reindexer reindexer = reindexerWithRelocation(
+            relocationClusterService(targetMarkedForShutdown),
+            relocationTransportService(capturedRequest),
+            // only yields a node when shutdown markers are ignored
+            (nodes, nodeShutdowns) -> nodeShutdowns == NodesShutdownMetadata.EMPTY
+                ? Optional.of(RELOCATION_TARGET_NODE.getId())
+                : Optional.empty()
+        );
+        final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setHasNodeToRelocateToSupplier(() -> true);
+        task.requestRelocation();
+
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> relocationListener = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            relocationListener,
+            future
+        );
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "fallback warning",
+                    Reindexer.class.getCanonicalName(),
+                    WARN,
+                    "no node available to relocate reindex task [" + task.getId() + "] to, trying nodes marked for shutdown"
+                )
+            );
+            wrapped.onResponse(reindexResponseWithResumeInfo());
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertTrue(future.isDone());
+        assertNotNull("resume request should have been sent to the node marked for shutdown", capturedRequest.get());
+        verify(relocationListener).onResponse(any());
+        expectThrows(TaskRelocatedException.class, future::actionGet);
+    }
+
+    /**
+     * Once a node to relocate to has been seen the decision sticks, so every slice reaches the same stop decision even if the
+     * cluster changes afterwards. An empty pick does not stick, so the next batch retries.
+     */
+    public void testHasNodeToRelocateToSupplierLatchesOnFirstNode() {
+        final AtomicReference<Optional<String>> pickedNode = new AtomicReference<>(Optional.empty());
+        final Reindexer reindexer = reindexerWithRelocation(
+            relocationClusterService(),
+            mock(TransportService.class),
+            (nodes, nodeShutdowns) -> pickedNode.get()
+        );
+        final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+
+        final PlainActionFuture<Void> initFuture = new PlainActionFuture<>();
+        reindexer.initTask(task, reindexRequest(), initFuture);
+        initFuture.actionGet();
+
+        assertFalse(task.getWorkerState().hasNodeToRelocateTo());
+        assertFalse("empty pick must not stick", task.getWorkerState().hasNodeToRelocateTo());
+
+        pickedNode.set(Optional.of(randomAlphaOfLength(10)));
+        assertTrue(task.getWorkerState().hasNodeToRelocateTo());
+
+        pickedNode.set(Optional.empty());
+        assertTrue("non-empty pick must stick", task.getWorkerState().hasNodeToRelocateTo());
     }
 
     public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {
@@ -3278,6 +3362,30 @@ public class ReindexerTests extends ESTestCase {
         TaskResultsService taskResultsService,
         Client searchClient
     ) {
+        return reindexerWithRelocation(clusterService, transportService, taskResultsService, searchClient, relocationNodePicker());
+    }
+
+    private static Reindexer reindexerWithRelocation(
+        ClusterService clusterService,
+        TransportService transportService,
+        ReindexRelocationNodePicker relocationNodePicker
+    ) {
+        return reindexerWithRelocation(
+            clusterService,
+            transportService,
+            mock(TaskResultsService.class),
+            mock(Client.class),
+            relocationNodePicker
+        );
+    }
+
+    private static Reindexer reindexerWithRelocation(
+        ClusterService clusterService,
+        TransportService transportService,
+        TaskResultsService taskResultsService,
+        Client searchClient,
+        ReindexRelocationNodePicker relocationNodePicker
+    ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
@@ -3293,7 +3401,7 @@ public class ReindexerTests extends ESTestCase {
             null,
             null,
             transportService,
-            mock(ReindexRelocationNodePicker.class),
+            relocationNodePicker,
             // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class),
             taskResultsService,
@@ -3303,15 +3411,26 @@ public class ReindexerTests extends ESTestCase {
 
     private static final DiscoveryNode RELOCATION_TARGET_NODE = DiscoveryNodeUtils.builder("target-node").build();
 
+    private static ReindexRelocationNodePicker relocationNodePicker() {
+        return (nodes, nodeShutdowns) -> Optional.of(RELOCATION_TARGET_NODE.getId());
+    }
+
     private static ClusterService relocationClusterService() {
+        return relocationClusterService(NodesShutdownMetadata.EMPTY);
+    }
+
+    private static ClusterService relocationClusterService(NodesShutdownMetadata nodeShutdowns) {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final Metadata metadata = mock(Metadata.class);
         final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.localNode()).thenReturn(sourceNode);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.get("target-node")).thenReturn(RELOCATION_TARGET_NODE);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.nodeShutdowns()).thenReturn(nodeShutdowns);
+        when(discoveryNodes.get(RELOCATION_TARGET_NODE.getId())).thenReturn(RELOCATION_TARGET_NODE);
         return clusterService;
     }
 

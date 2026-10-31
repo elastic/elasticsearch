@@ -2733,6 +2733,121 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
     }
 
+    /**
+     * A source shard that has moved to DONE but never heard back about it (the response is lost) retries its workflow from the start. If
+     * it was the last source of the split, the resharding metadata is gone by then, which means there is nothing left for it to do. It
+     * must recognize that and finish, not be left monitoring a split that no longer exists.
+     */
+    public void testSourceFinishesWhenItsDoneResponseIsLostAndTheSplitIsGone() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        var lostResponses = new AtomicInteger();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportUpdateSplitSourceShardStateAction.TYPE.name(), (handler, request, channel, task) -> {
+                var actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                    && sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.DONE
+                    && lostResponses.get() == 0) {
+                    // The master applies the change, but the source only hears that it failed
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            lostResponses.incrementAndGet();
+                            channel.sendResponse(new ElasticsearchException("simulated lost response"));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> indexMetadata(state, index).getReshardingMetadata() == null);
+        assertBusy(() -> assertEquals(1, lostResponses.get()));
+
+        // The source's retry has nothing to do, so its state machine must have been dropped
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        assertBusy(() -> assertThat("source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty()));
+    }
+
+    /**
+     * The state machine that a source shard left behind after a split whose last DONE response it never heard about would be found by
+     * the next split of the same shard (state machines are tracked per shard, and one that exists is reused), and so the next split would
+     * never get its source shard through the cleanup. The source shard stays open, so nothing would ever remove it.
+     */
+    public void testNextSplitCompletesAfterSourceLostItsDoneResponse() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        var lostResponses = new AtomicInteger();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportUpdateSplitSourceShardStateAction.TYPE.name(), (handler, request, channel, task) -> {
+                var actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                    && sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.DONE
+                    && lostResponses.get() == 0) {
+                    // The master applies the change, but the source only hears that it failed
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            lostResponses.incrementAndGet();
+                            channel.sendResponse(new ElasticsearchException("simulated lost response"));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> indexMetadata(state, index).getReshardingMetadata() == null);
+        assertBusy(() -> assertEquals(1, lostResponses.get()));
+        ensureGreen(indexName);
+
+        // Split the two shards again. The shard that lost its response is a source again.
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> {
+            var metadata = indexMetadata(state, index);
+            return metadata.getReshardingMetadata() == null && metadata.getNumberOfShards() == 4;
+        });
+        ensureGreen(indexName);
+    }
+
     public void testSourceWillHandleHandoffFailure() throws Exception {
         String masterNode = startMasterOnlyNode();
         String sourceNode = startIndexNode();

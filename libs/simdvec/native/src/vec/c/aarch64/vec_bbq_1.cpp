@@ -320,14 +320,72 @@ EXPORT void vec_dotd2q2_bulk_sparse(
     dotd2q2_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
+// 2-bit doc x 4-bit query, both doc bit planes in one pass. The doc is two contiguous planes of
+// length/2 bytes (low bit, then high bit), the query four planes of length/2 bytes. UDOT applies
+// 2^(query bit + doc bit) as a weight, so the eight plane pairs share two accumulators and one reduction.
+static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* q, const int32_t length) {
+    constexpr int query_bits = 4;
+    const int32_t bit_length = length / 2;
+    const int8_t* a_hi = a + bit_length;
+    int64_t sum = 0;
+
+    const uint8_t* query[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        query[I] = (const uint8_t*)q + I * bit_length;
+    });
+
+    int r = 0;
+    constexpr int chunk_size = sizeof(uint8x16_t);
+    if (bit_length >= chunk_size) {
+        uint32x4_t acc_lo = vdupq_n_u32(0);
+        uint32x4_t acc_hi = vdupq_n_u32(0);
+        // 2^(query bit + doc bit): the low doc plane uses weight[0..3], the high plane weight[1..4]
+        uint8x16_t weight[query_bits + 1];
+        apply_indexed<query_bits + 1>([&](auto I) {
+            weight[I] = vdupq_n_u8(1 << I);
+        });
+
+        for (; r + chunk_size <= bit_length; r += chunk_size) {
+            const uint8x16_t lo = vld1q_u8((const uint8_t*)a + r);
+            const uint8x16_t hi = vld1q_u8((const uint8_t*)a_hi + r);
+            apply_indexed<query_bits>([&](auto I) {
+                const uint8x16_t qv = vld1q_u8(query[I] + r);
+                acc_lo = dot_bit_weighted_neon(acc_lo, lo, qv, weight[I]);
+                acc_hi = dot_bit_weighted_neon(acc_hi, hi, qv, weight[I + 1]);
+            });
+        }
+        sum += vaddvq_u32(acc_lo) + (int64_t)vaddvq_u32(acc_hi);
+    }
+
+    // switch to single 64-bit ops
+    int upperBound = bit_length & ~(sizeof(int64_t) - 1);
+    for (; r < upperBound; r += sizeof(int64_t)) {
+        const int64_t value_lo = *((int64_t*)(a + r));
+        const int64_t value_hi = *((int64_t*)(a_hi + r));
+        apply_indexed<query_bits>([&](auto I) {
+            const int64_t bits = *((int64_t*)(query[I] + r));
+            sum += (int64_t)(__builtin_popcountll(bits & value_lo) + (__builtin_popcountll(bits & value_hi) << 1)) << I;
+        });
+    }
+
+    // then single bytes
+    for (; r < bit_length; r++) {
+        const uint8_t value_lo = a[r];
+        const uint8_t value_hi = a_hi[r];
+        apply_indexed<query_bits>([&](auto I) {
+            const uint8_t bits = query[I][r];
+            sum += (int64_t)(__builtin_popcount(bits & value_lo) + (__builtin_popcount(bits & value_hi) << 1)) << I;
+        });
+    }
+    return sum;
+}
+
 EXPORT int64_t vec_dotd2q4(
     const int8_t* a,
     const int8_t* query,
     const int32_t length
 ) {
-    int64_t lower = dotd1qN_inner<4>(a, query, length/2);
-    int64_t upper = dotd1qN_inner<4>(a + length/2, query, length/2);
-    return lower + (upper << 1);
+    return dotd2q4_inner(a, query, length);
 }
 
 template <
@@ -336,20 +394,111 @@ template <
     int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
 static inline void dotd2q4_inner_bulk(
     const TData* a,
-    const int8_t* query,
+    const int8_t* q,
     const int32_t length,
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
     f32_t* results
 ) {
+    // Four vectors per batch, each with one accumulator per doc bit plane so the UDOT chains stay
+    // independent; the accumulators, the query planes, the weights and the loaded planes of a batch fit
+    // in the 32 NEON registers.
+    constexpr int batches = 4;
+    constexpr int query_bits = 4;
+    constexpr int chunk_size = sizeof(uint8x16_t);
+    constexpr int word_size = sizeof(uint64_t);
+    const int32_t bit_length = length / 2;
+
+    const uint8_t* query[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        query[I] = (const uint8_t*)q + I * bit_length;
+    });
+    // 2^(query bit + doc bit): the low doc plane uses weight[0..3], the high plane weight[1..4]
+    uint8x16_t weight[query_bits + 1];
+    apply_indexed<query_bits + 1>([&](auto I) {
+        weight[I] = vdupq_n_u8(1 << I);
+    });
+
+    const int blk = bit_length & ~(chunk_size - 1);
+
     int c = 0;
-    const int bit_length = length/2;
+
+    for (; c + batches - 1 < count; c += batches) {
+        const uint8_t* as[batches];
+        apply_indexed<batches>([&](auto I) {
+            as[I] = (const uint8_t*)mapper(a, c + I, offsets, pitch);
+        });
+
+        uint32x4_t acc_lo[batches];
+        uint32x4_t acc_hi[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc_lo[I] = vdupq_n_u32(0);
+            acc_hi[I] = vdupq_n_u32(0);
+        });
+
+        for (int r = 0; r < blk; r += chunk_size) {
+            uint8x16_t qv[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                qv[I] = vld1q_u8(query[I] + r);
+            });
+
+            apply_indexed<batches>([&](auto B) {
+                const uint8x16_t lo = vld1q_u8(as[B] + r);
+                const uint8x16_t hi = vld1q_u8(as[B] + bit_length + r);
+                apply_indexed<query_bits>([&](auto Q) {
+                    acc_lo[B] = dot_bit_weighted_neon(acc_lo[B], lo, qv[Q], weight[Q]);
+                    acc_hi[B] = dot_bit_weighted_neon(acc_hi[B], hi, qv[Q], weight[Q + 1]);
+                });
+            });
+        }
+
+        int64_t res[batches];
+        apply_indexed<batches>([&](auto B) {
+            res[B] = vaddvq_u32(acc_lo[B]) + (int64_t)vaddvq_u32(acc_hi[B]);
+        });
+
+        // Tail of fewer than 16 bytes: at most one 8-byte step, then single bytes. Every load stays within
+        // its plane, so none reads past the end of a vector (with sparse addresses, a vector can end right
+        // before an unmapped page).
+        int r = blk;
+        if (bit_length - r >= word_size) {
+            uint64_t qs[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                qs[I] = *((const uint64_t*)(query[I] + r));
+            });
+
+            apply_indexed<batches>([&](auto B) {
+                const uint64_t lo = *((const uint64_t*)(as[B] + r));
+                const uint64_t hi = *((const uint64_t*)(as[B] + bit_length + r));
+                apply_indexed<query_bits>([&](auto Q) {
+                    res[B] += (int64_t)(__builtin_popcountll(qs[Q] & lo) + (__builtin_popcountll(qs[Q] & hi) << 1)) << Q;
+                });
+            });
+            r += word_size;
+        }
+        for (; r < bit_length; r++) {
+            uint8_t qs[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                qs[I] = query[I][r];
+            });
+
+            apply_indexed<batches>([&](auto B) {
+                const uint8_t lo = as[B][r];
+                const uint8_t hi = as[B][bit_length + r];
+                apply_indexed<query_bits>([&](auto Q) {
+                    res[B] += (__builtin_popcount(qs[Q] & lo) + (__builtin_popcount(qs[Q] & hi) << 1)) << Q;
+                });
+            });
+        }
+        apply_indexed<batches>([&](auto B) {
+            results[out_mapper(offsets, c + B)] = (f32_t)res[B];
+        });
+    }
+
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        int64_t lower = dotd1qN_inner<4>(a0, query, bit_length);
-        int64_t upper = dotd1qN_inner<4>(a0 + bit_length, query, bit_length);
-        results[out_mapper(offsets, c)] = (f32_t)(lower + (upper << 1));
+        results[out_mapper(offsets, c)] = (f32_t)dotd2q4_inner(a0, q, length);
     }
 }
 

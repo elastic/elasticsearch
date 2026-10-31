@@ -52,6 +52,25 @@ abstract class AbstractFixed64Column extends EscfColumn {
         return data.getLongLE(row * 8);
     }
 
+    @Override
+    public final int sizeInBytes(int row) {
+        return isAbsent(row) ? 0 : Long.BYTES;
+    }
+
+    @Override
+    public final void addSizesInBytes(int[] sizes) {
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += Long.BYTES;
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += Long.BYTES;
+        }
+    }
+
     /**
      * Returns a new {@link LongTupleCursor} positioned before the first row of this column's window.
      * Absent rows (tracked by the {@link #validity} bitset) are skipped; present rows are yielded in

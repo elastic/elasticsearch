@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -231,7 +232,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
                 if (engine == null) {
                     return null;
                 }
-                try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
+                try (var searcher = engine.acquireSearcher("assert_seq_no_count", SplitShardCountSummary.IRRELEVANT)) {
                     long nbDocsWithSeqNo = 0;
                     for (var leaf : searcher.getLeafContexts()) {
                         NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);

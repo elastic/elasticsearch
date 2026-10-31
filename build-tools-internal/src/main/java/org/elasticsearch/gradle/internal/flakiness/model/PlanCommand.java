@@ -16,7 +16,7 @@ import java.util.List;
  *
  * <p><b>Target neutrality:</b> {@link #command} contains the literal token {@value #GRADLE_PLACEHOLDER}
  * wherever the gradle binary belongs (both plain invocations and inside the
- * {@code repeat-rest-test.sh <iters> __GRADLE__ <tasks>} form). The thin runner layer replaces it
+ * {@code repeat-gradle-run.sh <runs> __GRADLE__ <args>} form). The thin runner layer replaces it
  * with the target-appropriate wrapper ({@code .ci/scripts/run-gradle.sh} on CI, {@code ./gradlew} locally),
  * so the plan itself is not tied to either environment.
  *

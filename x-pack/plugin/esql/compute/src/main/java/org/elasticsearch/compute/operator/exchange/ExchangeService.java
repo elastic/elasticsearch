@@ -68,6 +68,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
     private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
+    private static final String CLOSE_EXCHANGE_ACTION_NAME = "internal:data/read/esql/close_exchange";
+
     public static final String BATCH_EXCHANGE_STATUS_ACTION_NAME = "internal:data/read/esql/batch_exchange_status";
 
     /**
@@ -107,6 +109,15 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.executor,
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            CLOSE_EXCHANGE_ACTION_NAME,
+            this.executor,
+            ExchangeRequest::new,
+            (request, channel, task) -> {
+                finishSinkHandler(request.exchangeId(), new TaskCancelledException("shuffle exchange closed"));
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
+            }
         );
 
         // This allows the system user access this action when executed over CCS and the API key based security model is in use
@@ -228,6 +239,26 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             connection,
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
+        );
+    }
+
+    /**
+     * Removes a pre-opened exchange after its query has failed, including exchanges whose producer task never started.
+     * Unlike ordinary source completion, this also removes the handler from the registry.
+     */
+    public static void closeExchange(
+        TransportService transportService,
+        Transport.Connection connection,
+        String exchangeId,
+        Executor responseExecutor,
+        ActionListener<Void> listener
+    ) {
+        transportService.sendRequest(
+            connection,
+            CLOSE_EXCHANGE_ACTION_NAME,
+            new ExchangeRequest(exchangeId, true),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );

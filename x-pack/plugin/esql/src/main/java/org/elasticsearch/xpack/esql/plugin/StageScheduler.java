@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -42,11 +44,13 @@ import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.planner.ExchangeWiring;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -64,6 +68,8 @@ import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -112,6 +118,7 @@ final class StageScheduler {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
+        List<OpenExchange> exchangesToClose = new ArrayList<>();
         BoundedPageCollector pageCollector = new BoundedPageCollector(maxCollectedBytes);
         List<Page> collectedPages = pageCollector.pages();
         ActionListener<Result> resultListener = ActionListener.notifyOnce(listener.delegateResponse((l, e) -> {
@@ -122,7 +129,20 @@ final class StageScheduler {
             ComputeService.updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, true);
             return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
         });
-        ComputeListener computeListener = new ComputeListener(computeService.cancelQueryOnFailure(rootTask), completionListener);
+        ComputeListener computeListener = new ComputeListener(
+            computeService.cancelQueryOnFailure(rootTask),
+            completionListener.delegateResponse(
+                (l, failure) -> closeExchangeSinks(
+                    exchangesToClose,
+                    ActionListener.wrap(ignored -> l.onFailure(failure), cleanupFailure -> {
+                        if (cleanupFailure != failure) {
+                            failure.addSuppressed(cleanupFailure);
+                        }
+                        l.onFailure(failure);
+                    })
+                )
+            )
+        );
         ActionListener<Void> scheduleListener = ActionListener.notifyOnce(
             ActionListener.runAfter(computeListener.acquireAvoid(), computeListener::close)
         );
@@ -158,7 +178,7 @@ final class StageScheduler {
                         configuration
                     );
                     logTopology(stagedPlan, topology);
-                    openExchangeSinks(stagedPlan, topology, rootSessionId, configuration, ActionListener.wrap(ignored -> {
+                    openExchangeSinks(stagedPlan, topology, rootSessionId, configuration, exchangesToClose, ActionListener.wrap(ignored -> {
                         try {
                             startStages(
                                 rootSessionId,
@@ -414,10 +434,28 @@ final class StageScheduler {
             .stream()
             .sorted(Comparator.comparing(DiscoveryNode::getId))
             .toList();
-        int partitionsPerNode = configuration.pragmas().shufflePartitionsPerNode();
-        if (partitionsPerNode < 1) {
-            throw new IllegalStateException("shuffle partitions per node must be positive");
+        Map<Integer, Integer> nodeCounts = new HashMap<>();
+        for (StagedPlanner.Stage stage : stagedPlan.stages()) {
+            int nodes = switch (stage.placement()) {
+                case COORDINATOR, SINGLE -> 1;
+                case WORKERS -> workers.size();
+                case SHARDS -> externalSplitsByStage.containsKey(stage.id())
+                    ? externalSplitsByStage.get(stage.id()).size()
+                    : resolvedShards.getOrDefault(stage.id(), Map.of()).size();
+            };
+            if (stage.placement() == StagedPlanner.StagePlacement.WORKERS && nodes == 0) {
+                throw new IllegalStateException("shuffle worker stages require at least one data node");
+            }
+            nodeCounts.put(stage.id(), nodes);
         }
+        int partitionsPerNode = budgetedPartitions(
+            stagedPlan,
+            nodeCounts,
+            workers.size(),
+            configuration.pragmas().shufflePartitionsPerNode(),
+            configuration.pragmas().exchangeBufferSize(),
+            configuration.pragmas().shuffleMaxBufferedPages()
+        );
         int partitionCount = Math.multiplyExact(workers.size(), partitionsPerNode);
         Map<Integer, StageLocation> stageLocations = new LinkedHashMap<>();
         DiscoveryNode localNode = clusterService.localNode();
@@ -467,6 +505,55 @@ final class StageScheduler {
         return topology;
     }
 
+    /** Fits a common partition count to per-producer-node, per-consumer-lane output queues before allocating the topology. */
+    static int budgetedPartitions(
+        StagedPlanner.StagedPlan plan,
+        Map<Integer, Integer> nodeCounts,
+        int workers,
+        int requested,
+        int bufferSize,
+        int budget
+    ) {
+        if (requested < 1 || bufferSize < 1 || budget < 1) {
+            throw new IllegalArgumentException("shuffle partitions, exchange buffer size, and buffer budget must be positive");
+        }
+        Map<Integer, StagedPlanner.StagePlacement> placements = new HashMap<>();
+        plan.stages().forEach(stage -> placements.put(stage.id(), stage.placement()));
+        long fixedPages = 0;
+        long pagesPerPartition = 0;
+        // Saturate before multiplying by requested parallelism, which can exceed the budget by many orders of magnitude.
+        long cap = (long) budget + 1;
+        for (StagedPlanner.Edge edge : plan.edges()) {
+            long producerNodes = 0;
+            for (int producer : edge.producerStages()) {
+                producerNodes = Math.min(cap, producerNodes + nodeCounts.get(producer));
+            }
+            long pages = Math.min(cap, producerNodes * nodeCounts.get(edge.consumerStage()));
+            pages = Math.min(cap, pages * bufferSize);
+            if (placements.get(edge.consumerStage()) == StagedPlanner.StagePlacement.WORKERS) {
+                pagesPerPartition = Math.min(cap, pagesPerPartition + pages);
+            } else {
+                fixedPages = Math.min(cap, fixedPages + pages);
+            }
+        }
+        long minimum = fixedPages + pagesPerPartition;
+        if (minimum > budget) {
+            throw new IllegalArgumentException(
+                "shuffle requires at least ["
+                    + minimum
+                    + "] buffered exchange pages with one partition per data node, exceeding ["
+                    + QueryPragmas.SHUFFLE_MAX_BUFFERED_PAGES.getKey()
+                    + "]=["
+                    + budget
+                    + "]; reduce ["
+                    + QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey()
+                    + "] or increase the budget"
+            );
+        }
+        int partitions = Math.min(requested, Integer.MAX_VALUE / Math.max(1, workers));
+        return pagesPerPartition == 0 ? partitions : (int) Math.min(partitions, (budget - fixedPages) / pagesPerPartition);
+    }
+
     private static void validateWorkerHashInputs(StagedPlanner.StagedPlan stagedPlan, Topology topology) {
         for (StagedPlanner.Stage stage : stagedPlan.stages()) {
             if (stage.placement() != StagedPlanner.StagePlacement.WORKERS) {
@@ -501,9 +588,9 @@ final class StageScheduler {
         Topology topology,
         String rootSessionId,
         Configuration configuration,
+        List<OpenExchange> exchangesToOpen,
         ActionListener<Void> listener
     ) {
-        List<OpenExchange> exchangesToOpen = new ArrayList<>();
         for (StagedPlanner.Edge edge : stagedPlan.edges()) {
             int consumerLanes = stageLocation(topology, edge.consumerStage()).laneCount();
             for (int producerStageId : edge.producerStages()) {
@@ -520,39 +607,35 @@ final class StageScheduler {
                 }
             }
         }
-        if (exchangesToOpen.isEmpty()) {
-            listener.onResponse(null);
-            return;
-        }
-
-        AtomicInteger remainingExchanges = new AtomicInteger(exchangesToOpen.size());
-        AtomicBoolean completed = new AtomicBoolean();
-        for (OpenExchange exchange : exchangesToOpen) {
-            if (completed.get()) {
-                break;
-            }
-            try {
-                Transport.Connection connection = transportService.getConnection(exchange.producerNode());
-                ExchangeService.openExchange(
-                    transportService,
-                    connection,
-                    exchange.exchangeId(),
-                    configuration.pragmas().exchangeBufferSize(),
-                    searchExecutor,
-                    ActionListener.wrap(ignored -> {
-                        if (remainingExchanges.decrementAndGet() == 0 && completed.compareAndSet(false, true)) {
-                            listener.onResponse(null);
-                        }
-                    }, e -> {
-                        if (completed.compareAndSet(false, true)) {
-                            listener.onFailure(e);
-                        }
-                    })
+        // Wait for every open response so cleanup cannot race a late successful open.
+        try (RefCountingListener opens = new RefCountingListener(listener)) {
+            for (OpenExchange exchange : exchangesToOpen) {
+                ActionListener.run(
+                    opens.acquire(),
+                    l -> ExchangeService.openExchange(
+                        transportService,
+                        transportService.getConnection(exchange.producerNode()),
+                        exchange.exchangeId(),
+                        configuration.pragmas().exchangeBufferSize(),
+                        searchExecutor,
+                        l
+                    )
                 );
-            } catch (Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    listener.onFailure(e);
-                }
+            }
+        }
+    }
+
+    private void closeExchangeSinks(List<OpenExchange> exchanges, ActionListener<Void> listener) {
+        try (RefCountingListener closes = new RefCountingListener(listener)) {
+            for (OpenExchange exchange : exchanges) {
+                ActionListener.run(closes.acquire(), l -> {
+                    Transport.Connection connection = transportService.getConnection(exchange.producerNode());
+                    if (connection.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
+                        ExchangeService.closeExchange(transportService, connection, exchange.exchangeId(), searchExecutor, l);
+                    } else {
+                        l.onResponse(null);
+                    }
+                });
             }
         }
     }
@@ -612,10 +695,47 @@ final class StageScheduler {
             coordinatorListener.onFailure(e);
         }
 
-        for (StagedPlanner.Stage stage : stagedPlan.stages()) {
-            if (stage.placement() == StagedPlanner.StagePlacement.COORDINATOR) {
-                continue;
+        scheduleStages(stagedPlan, rootTask, searchExecutor, threadContext, (stage, stageListener) -> {
+            ActionListener<DriverCompletionInfo> completion = computeListener.acquireCompute();
+            try (
+                ComputeListener stageComputes = new ComputeListener(
+                    computeService.cancelQueryOnFailure(rootTask),
+                    ActionListener.wrap(info -> {
+                        completion.onResponse(info);
+                        stageListener.onResponse(null);
+                    }, failure -> {
+                        completion.onFailure(failure);
+                        stageListener.onFailure(failure);
+                    })
+                )
+            ) {
+                startStage(
+                    rootSessionId,
+                    rootTask,
+                    stagedPlan,
+                    topology,
+                    shardStageInfos,
+                    externalSplitsByStage,
+                    configuration,
+                    stage,
+                    stageComputes
+                );
             }
+        }, computeListener.acquireAvoid());
+    }
+
+    private void startStage(
+        String rootSessionId,
+        CancellableTask rootTask,
+        StagedPlanner.StagedPlan stagedPlan,
+        Topology topology,
+        Map<Integer, ShardStageInfo> shardStageInfos,
+        Map<Integer, Map<DiscoveryNode, List<ExternalSplit>>> externalSplitsByStage,
+        Configuration configuration,
+        StagedPlanner.Stage stage,
+        ComputeListener computeListener
+    ) {
+        try {
             StageLocation location = stageLocation(topology, stage.id());
             for (Map.Entry<DiscoveryNode, List<Integer>> entry : sortedLaneEntries(location)) {
                 DiscoveryNode node = entry.getKey();
@@ -676,6 +796,71 @@ final class StageScheduler {
                     );
                 } catch (Exception e) {
                     stageListener.onFailure(e);
+                }
+            }
+        } catch (Exception e) {
+            computeListener.acquireAvoid().onFailure(e);
+        }
+    }
+
+    /**
+     * Keeps build consumers runnable while delaying the producers feeding their probes. Completion includes draining output exchanges.
+     */
+    static void scheduleStages(
+        StagedPlanner.StagedPlan plan,
+        CancellableTask task,
+        Executor executor,
+        ThreadContext threadContext,
+        BiConsumer<StagedPlanner.Stage, ActionListener<Void>> start,
+        ActionListener<Void> listener
+    ) {
+        Map<Integer, Set<Integer>> dependencies = new HashMap<>();
+        Map<Integer, SubscribableListener<Void>> ready = new LinkedHashMap<>();
+        Map<Integer, SubscribableListener<Void>> completed = new LinkedHashMap<>();
+        for (StagedPlanner.Stage stage : plan.stages()) {
+            if (stage.placement() != StagedPlanner.StagePlacement.COORDINATOR) {
+                ready.put(stage.id(), new SubscribableListener<>());
+                completed.put(stage.id(), new SubscribableListener<>());
+            }
+            for (DistributedHashJoinExec join : stage.plan().collect(DistributedHashJoinExec.class)) {
+                Set<Integer> builds = new HashSet<>();
+                for (StageSourceExec source : join.right().collect(StageSourceExec.class)) {
+                    builds.addAll(plan.edge(source.edgeKey()).producerStages());
+                }
+                for (StageSourceExec source : join.left().collect(StageSourceExec.class)) {
+                    for (int probe : plan.edge(source.edgeKey()).producerStages()) {
+                        dependencies.computeIfAbsent(probe, ignored -> new HashSet<>()).addAll(builds);
+                    }
+                }
+            }
+        }
+        AtomicBoolean aborted = new AtomicBoolean();
+        Consumer<Exception> abort = failure -> {
+            if (aborted.compareAndSet(false, true)) {
+                ready.values().forEach(stage -> stage.onFailure(failure));
+            }
+        };
+        task.addListener(() -> abort.accept(task.getTaskCancelledException()));
+        try (RefCountingListener all = new RefCountingListener(listener)) {
+            for (StagedPlanner.Stage stage : plan.stages()) {
+                if (stage.placement() == StagedPlanner.StagePlacement.COORDINATOR) {
+                    continue;
+                }
+                SubscribableListener<Void> completion = completed.get(stage.id());
+                completion.addListener(all.acquire().delegateResponse((l, e) -> {
+                    abort.accept(e);
+                    l.onFailure(e);
+                }));
+                ready.get(stage.id()).addListener(ActionListener.wrap(ignored -> ActionListener.run(completion, l -> {
+                    task.ensureNotCancelled();
+                    start.accept(stage, l);
+                }), completion::onFailure), executor, threadContext);
+            }
+            for (var entry : ready.entrySet()) {
+                try (RefCountingListener prerequisites = new RefCountingListener(entry.getValue())) {
+                    for (int dependency : dependencies.getOrDefault(entry.getKey(), Set.of())) {
+                        completed.get(dependency).addListener(prerequisites.acquire());
+                    }
                 }
             }
         }

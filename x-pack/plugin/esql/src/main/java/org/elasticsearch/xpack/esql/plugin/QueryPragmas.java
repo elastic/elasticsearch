@@ -117,6 +117,9 @@ public final class QueryPragmas implements Writeable {
     /** Number of hash-shuffle partitions per data node; zero disables shuffle planning. */
     public static final Setting<Integer> SHUFFLE_PARTITIONS_PER_NODE = Setting.intSetting("shuffle_partitions_per_node", 0, 0);
 
+    /** Bounds queued output-exchange pages across a query, independently of operator memory and circuit breakers. */
+    public static final Setting<Integer> SHUFFLE_MAX_BUFFERED_PAGES = Setting.intSetting("shuffle_max_buffered_pages", 4096, 1);
+
     /** Enables hash-shuffle aggregation when shuffle planning is enabled. */
     public static final Setting<Boolean> SHUFFLE_AGG = Setting.boolSetting("shuffle_agg", false);
 
@@ -274,6 +277,7 @@ public final class QueryPragmas implements Writeable {
         MAX_KEYWORD_SORT_FIELDS,
         EXTERNAL_DISTRIBUTION,
         SHUFFLE_PARTITIONS_PER_NODE,
+        SHUFFLE_MAX_BUFFERED_PAGES,
         SHUFFLE_AGG,
         SHUFFLE_JOIN,
         SHUFFLE_JOIN_STRATEGY,
@@ -436,6 +440,10 @@ public final class QueryPragmas implements Writeable {
 
     public int shufflePartitionsPerNode() {
         return SHUFFLE_PARTITIONS_PER_NODE.get(settings);
+    }
+
+    public int shuffleMaxBufferedPages() {
+        return SHUFFLE_MAX_BUFFERED_PAGES.get(settings);
     }
 
     public boolean shuffleAgg() {

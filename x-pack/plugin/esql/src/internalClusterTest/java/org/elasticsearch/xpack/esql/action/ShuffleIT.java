@@ -512,6 +512,91 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
         assertThat(EsqlTestUtils.unwrapIfWrappedInRemoteException(failure).getMessage(), containsString("Failing query"));
     }
 
+    public void testShuffleBufferBudgetReducesPartitions() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setupJoinIndices();
+        String query = """
+            FROM events
+            | LEFT OUTER JOIN (FROM salaries | RENAME amount AS amount1) ON user_id
+            | EVAL other_id = user_id + 10000
+            | LEFT OUTER JOIN (
+                FROM salaries | EVAL other_id = user_id + 10000 | KEEP other_id, amount | RENAME amount AS amount2
+            ) ON other_id
+            | STATS total = SUM(amount1 + amount2) BY dept
+            | SORT dept
+            """;
+        int workers = clusterService().state().nodes().getDataNodes().size();
+        int requested = randomIntBetween(4, 8);
+        Settings pragmas = Settings.builder()
+            .put(shuffleJoinPragmas(requested, false))
+            .put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), 1)
+            .put(QueryPragmas.SHUFFLE_MAX_BUFFERED_PAGES.getKey(), workers * (4 * workers + 1))
+            .build();
+        QueryResult baseline = runWithWarnings(query, Settings.EMPTY);
+        QueryResult shuffled = runWithWarnings(query, pragmas);
+        assertEquals(baseline.columns(), shuffled.columns());
+        assertEquals(baseline.rows(), shuffled.rows());
+        assertEquals(baseline.warnings(), shuffled.warnings());
+        List<Long> laneCounts = new ArrayList<>();
+        for (int stage : List.of(1, 2)) {
+            long lanes = shuffled.profile()
+                .drivers()
+                .stream()
+                .map(driver -> driver.description())
+                .filter(description -> description.startsWith("stage" + stage + ".lane"))
+                .distinct()
+                .count();
+            assertTrue("worker lanes=" + lanes, lanes >= workers);
+            assertTrue("worker lanes=" + lanes, lanes < (long) requested * workers);
+            laneCounts.add(lanes);
+        }
+        assertEquals(laneCounts.getFirst(), laneCounts.getLast());
+    }
+
+    public void testShuffleBufferBudgetRejectsMinimumTopology() {
+        Settings pragmas = Settings.builder()
+            .put(shufflePragmas(4))
+            .put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), 1)
+            .put(QueryPragmas.SHUFFLE_MAX_BUFFERED_PAGES.getKey(), 1)
+            .build();
+        Exception failure = expectThrows(Exception.class, () -> runSorted("FROM events | STATS c = COUNT(*) BY user_id", pragmas));
+        assertThat(
+            EsqlTestUtils.unwrapIfWrappedInRemoteException(failure).getMessage(),
+            containsString("[shuffle_max_buffered_pages]=[1]")
+        );
+    }
+
+    public void testShuffleBuildFailureReleasesWaitingProducers() throws Exception {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        addFailingRuntimeField();
+        for (String strategy : List.of("partitioned", "broadcast")) {
+            FailingPauseFieldPlugin.resetPlugin();
+            String query = """
+                FROM events
+                | KEEP user_id
+                | LEFT OUTER JOIN (
+                    FROM events | KEEP user_id, fail_me | RENAME fail_me AS build_value
+                ) ON user_id
+                | STATS total = SUM(build_value)
+                """;
+            Settings pragmas = Settings.builder()
+                .put(shuffleJoinPragmas(2, false, strategy))
+                .put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), 1)
+                .build();
+            ActionFuture<EsqlQueryResponse> future = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest(query).acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmas))
+            );
+            try {
+                assertTrue(FailingPauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+            } finally {
+                FailingPauseFieldPlugin.release();
+            }
+            Exception failure = expectThrows(Exception.class, () -> future.actionGet(60, TimeUnit.SECONDS).close());
+            assertThat(EsqlTestUtils.unwrapIfWrappedInRemoteException(failure).getMessage(), containsString("Failing query"));
+        }
+    }
+
     private void addFailingRuntimeField() throws IOException {
         try (XContentBuilder mapping = JsonXContent.contentBuilder()) {
             mapping.startObject()

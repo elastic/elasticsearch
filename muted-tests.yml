@@ -156,6 +156,11 @@ tests:
   tasks:
   - :modules:repository-s3:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164044
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.16.6#mixedClusterTest
+  method: test {yaml=logsdb/10_settings/missing hostname field}
+  issue: https://github.com/elastic/elasticsearch/issues/164178
 
 # Examples:
 #

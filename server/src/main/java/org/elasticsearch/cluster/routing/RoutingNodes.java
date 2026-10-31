@@ -222,7 +222,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         updateRecoveryCounts(routing, true, initialPrimaryShard);
     }
 
-    private void updateRecoveryCounts(final ShardRouting routing, final boolean increment, @Nullable final ShardRouting primary) {
+    private void updateRecoveryCounts(final ShardRouting routing, final boolean increment, @Nullable ShardRouting primary) {
+        if (routing.isPromotableToPrimary() == false && primary != null && primary.active() == false) {
+            // Cheap shards prototype: an unpromotable copy can only be initializing next to an inactive primary if it was allocated
+            // without one (ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING); it recovers from
+            // the object store, not from that primary. Without the setting the primary of an initializing unpromotable copy is active.
+            primary = null;
+        }
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
@@ -232,6 +238,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
+            if (primary == null && routing.isPromotableToPrimary() == false) {
+                // Cheap shards prototype: an unpromotable copy allocated without an active primary (only possible with
+                // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING) recovers from the object
+                // store: there is no outgoing recovery to count.
+                return;
+            }
             if (primary == null) {
                 throw new IllegalStateException("shard [" + routing + "] is peer recovering but primary is unassigned");
             }
@@ -492,6 +504,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
         if (unassignedShard.primary()) {
             // Assigning a primary, no need to check.
+            return true;
+        }
+        if (unassignedShard.isPromotableToPrimary() == false) {
+            // Cheap shards prototype: unpromotable copies may be assigned without an active primary when
+            // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING is on (the deciders enforce it)
             return true;
         }
 

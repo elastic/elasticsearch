@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -178,6 +179,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
     private volatile boolean localRecoveryRetryEnabled;
+    // cheap shards prototype, see ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING
+    private volatile boolean unpromotableWithoutPrimary;
 
     private final Executor shardCloseExecutor;
 
@@ -256,6 +259,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // setting only registered in tests today
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_LOCAL_RETRY_SETTING, b -> localRecoveryRetryEnabled = b);
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING,
+                b -> unpromotableWithoutPrimary = b
+            );
     }
 
     @Override
@@ -944,7 +952,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final DiscoveryNode sourceNode;
             if (shardRouting.recoverySource().getType() == Type.PEER) {
-                sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
+                final DiscoveryNode peerSourceNode = findSourceNodeForPeerRecovery(
+                    state.routingTable(project.id()),
+                    state.nodes(),
+                    shardRouting
+                );
+                if (peerSourceNode == null && unpromotableWithoutPrimary && shardRouting.isPromotableToPrimary() == false) {
+                    // Cheap shards prototype (default off): an unpromotable (stateless search) copy recovers from the object store and
+                    // never from the primary, so it may start while the primary is unassigned. The recovery code requires a source node
+                    // (RecoveryState, PeerRecoveryTargetService) but the unpromotable path only uses it for logging: use the local node.
+                    sourceNode = state.nodes().getLocalNode();
+                } else {
+                    sourceNode = peerSourceNode;
+                }
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
                     return;

@@ -501,7 +501,7 @@ public class ClusterModule extends AbstractModule {
         Map<Class<?>, AllocationDecider> deciders = new LinkedHashMap<>();
         addAllocationDecider(deciders, new MaxRetryAllocationDecider());
         addAllocationDecider(deciders, new ResizeAllocationDecider());
-        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
+        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider());
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(clusterSettings));

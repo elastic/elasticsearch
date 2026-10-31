@@ -669,7 +669,9 @@ public class IndexShardRoutingTable {
                         if (shard.active()) {
                             return true;
                         }
-                    } else {
+                    } else if (shard.isPromotableToPrimary()) {
+                        // cheap shards prototype: unpromotable copies may be assigned without an active primary, see
+                        // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING
                         seenAssignedReplica = true;
                     }
                 }

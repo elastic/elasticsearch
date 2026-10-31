@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -56,7 +57,9 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
                 bytesRef -> null,
                 bytesRef -> List.of(
                     "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.IllegalArgumentException: '" + bytesRef.utf8ToString() + "' is not an IP string literal."
+                    "Line 1:1: java.lang.IllegalArgumentException: '"
+                        + Strings.truncateForError(bytesRef.utf8ToString())
+                        + "' is not an IP string literal."
                 )
             );
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarF
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
@@ -313,6 +314,11 @@ public final class ExemplarsRewriter {
      * for {@code IS NULL} or {@code IS NOT NULL} (looking through conversion functions). Any other reference to a metric would select
      * exemplars by their own value rather than by the series they belong to, and a condition on a value computed by an {@code EVAL}
      * cannot be evaluated on exemplars, so such conjuncts are dropped.
+     * <p>
+     * A field the metrics indices do not map is treated as a dimension: the series do not have it, so a condition on it selects the
+     * series the way a condition on a dimension would. Prometheus behaves the same, matching a label the series do not have against
+     * the empty string. The metrics query runs with {@code unmapped_fields="nullify"} (see {@code EsqlSession}), so such a field reaches
+     * this point as a nullified field rather than failing analysis.
      */
     private static List<Expression> exemplarConjuncts(Expression condition) {
         List<Expression> conjuncts = new ArrayList<>();
@@ -331,7 +337,9 @@ public final class ExemplarsRewriter {
                 return false;
             }
             FieldAttribute field = (FieldAttribute) reference;
-            if (field.isDimension() == false && field.fieldName().string().equals(MetadataAttribute.TIMESTAMP_FIELD) == false) {
+            if (field.isDimension() == false
+                && field.field() instanceof MissingEsField == false
+                && field.fieldName().string().equals(MetadataAttribute.TIMESTAMP_FIELD) == false) {
                 return false;
             }
         }

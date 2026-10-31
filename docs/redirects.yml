@@ -836,7 +836,6 @@ redirects:
   'reference/query-languages/promql/promql-limitations.md':
     to: 'reference/query-languages/promql/prometheus-compatibility.md'
     anchors:
-      'promql-limitations': 'prometheus-compatibility'
       'promql-limitations-exemplars': 'prometheus-compatibility-exemplars'
       'promql-limitations-form-post': 'prometheus-compatibility-form-post'
       'promql-limitations-functions': 'prometheus-compatibility-functions'

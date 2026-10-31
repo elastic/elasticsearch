@@ -107,6 +107,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
@@ -850,8 +851,24 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         return ProjectId.DEFAULT;
     }
 
-    public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
-        enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, l));
+    /**
+     * Uploads a translog file to the object store. Since the upload is first queued in the {@code uploadTranslogTaskRunner} before
+     * executing on its thread pool, {@code onBeforeUpload} is called right before the upload actually starts (i.e., after the queueing).
+     * At that same point {@code isAlreadyUploaded} is checked first: if the file was already uploaded by a parallel upload while this
+     * one was queued, then the upload is skipped.
+     */
+    public void uploadTranslogFile(
+        String fileName,
+        BytesReference reference,
+        BooleanSupplier isAlreadyUploaded,
+        Runnable onBeforeUpload,
+        ActionListener<Void> listener
+    ) {
+        enqueueTask(
+            listener,
+            uploadTranslogTaskRunner,
+            l -> new TranslogFileUploadTask(fileName, reference, isAlreadyUploaded, onBeforeUpload, l)
+        );
     }
 
     public void uploadBatchedCompoundCommitFile(
@@ -1573,11 +1590,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         private final String fileName;
         private final BytesReference reference;
+        private final BooleanSupplier isAlreadyUploaded;
+        private final Runnable onBeforeUpload;
         private final ActionListener<Void> listener;
 
-        TranslogFileUploadTask(String fileName, BytesReference reference, ActionListener<Void> listener) {
+        TranslogFileUploadTask(
+            String fileName,
+            BytesReference reference,
+            BooleanSupplier isAlreadyUploaded,
+            Runnable onBeforeUpload,
+            ActionListener<Void> listener
+        ) {
             this.fileName = Objects.requireNonNull(fileName);
             this.reference = Objects.requireNonNull(reference);
+            this.isAlreadyUploaded = Objects.requireNonNull(isAlreadyUploaded);
+            this.onBeforeUpload = Objects.requireNonNull(onBeforeUpload);
             this.listener = Objects.requireNonNull(listener);
         }
 
@@ -1589,6 +1616,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         protected void doRun() throws Exception {
             final BlobContainer blobContainer = getTranslogBlobContainer();
+            if (isAlreadyUploaded.getAsBoolean()) {
+                listener.onResponse(null);
+                return;
+            }
+            onBeforeUpload.run();
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);

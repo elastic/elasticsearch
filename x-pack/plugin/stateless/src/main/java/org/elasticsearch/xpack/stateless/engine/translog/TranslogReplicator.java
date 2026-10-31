@@ -45,8 +45,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.OperationListener;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -62,6 +64,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -76,6 +79,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public static final String TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM = "es.stateless.translog.upload.attempts.histogram";
     public static final String TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM = "es.stateless.translog.upload.total_duration.histogram";
+    public static final String TRANSLOG_UPLOAD_HEDGES_TOTAL = "es.stateless.translog.upload.hedges.total";
+    public static final String TRANSLOG_UPLOAD_HEDGES_WON_TOTAL = "es.stateless.translog.upload.hedges_won.total";
 
     public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.flush.retry.initial_delay",
@@ -99,6 +104,19 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    /// Time to wait for the first translog-upload try to complete before firing the exact same translog upload (i.e., hedge upload)
+    /// request in parallel to the first. The delay is measured from the moment the first upload's blob write actually starts (i.e., after
+    /// any time the upload spent queued behind other translog uploads in the object store service) so that the hedge covers a slow object
+    /// store write rather than queueing. For a specific translog upload, we only fire at most one hedge upload (irrespectively of the
+    /// total tries needed for the translog to be uploaded).
+    /// If it is set to a negative value, hedge uploads are disabled.
+    public static final Setting<TimeValue> UPLOAD_HEDGE_DELAY_SETTING = Setting.timeSetting(
+        "stateless.translog.upload.hedge_delay",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope
+    );
+
     private volatile BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     private final ObjectStoreService objectStoreService;
     private final StatelessClusterConsistencyService consistencyService;
@@ -114,8 +132,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final TimeValue flushRetryInitialDelay;
     private final TimeValue flushInterval;
     private final ByteSizeValue flushSizeThreshold;
+    private final TimeValue uploadHedgeDelay;
     private final LongHistogram translogUploadAttemptsHistogram;
     private final LongHistogram translogUploadTotalDurationHistogram;
+    private final LongCounter translogUploadHedgesCounter;
+    private final LongCounter translogUploadHedgesWonCounter;
 
     public TranslogReplicator(
         final ThreadPool threadPool,
@@ -179,12 +200,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.flushRetryInitialDelay = FLUSH_RETRY_INITIAL_DELAY_SETTING.get(settings);
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
         this.flushSizeThreshold = FLUSH_SIZE_SETTING.get(settings);
+        this.uploadHedgeDelay = UPLOAD_HEDGE_DELAY_SETTING.get(settings);
         this.consistencyService = consistencyService;
         this.supportsMultipleProjects = supportsMultipleProjects;
         this.currentPrimaryTerm = currentPrimaryTerm;
         this.translogUploadAttemptsHistogram = meterRegistry.registerLongHistogram(
             TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM,
-            "number of attempts it took to upload the translog to the object store",
+            "number of attempts (including a potential hedge) it took to upload the translog to the object store",
             "count"
         );
         this.translogUploadTotalDurationHistogram = meterRegistry.registerLongHistogram(
@@ -192,6 +214,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             "total time (includes time spent on failed attempts) until the translog is uploaded to the object store",
             "milliseconds",
             ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
+        this.translogUploadHedgesCounter = meterRegistry.registerLongCounter(
+            TRANSLOG_UPLOAD_HEDGES_TOTAL,
+            "number of translog-upload hedges that were started",
+            "count"
+        );
+        this.translogUploadHedgesWonCounter = meterRegistry.registerLongCounter(
+            TRANSLOG_UPLOAD_HEDGES_WON_TOTAL,
+            "translog uploads completed by the hedge upload rather than the normal upload",
+            "count"
         );
     }
 
@@ -450,11 +482,20 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final CompoundTranslog translog;
         private final BlobTranslogFileImpl translogFile;
-        private final RefCounted bytesToClose;
-        private int uploadTryNumber = 0;
+        private final RefCounted uploadRefs;
+        private final AtomicInteger uploadTryNumber = new AtomicInteger(0);
         private static final long UNSET = -1L;
-        private long firstAttemptStartMillis;
+        private long firstAttemptStartMillis = UNSET;
         private volatile boolean isUploaded = false;
+
+        private enum UploadState {
+            NOT_UPLOADED,
+            UPLOADED_BY_NORMAL,
+            UPLOADED_BY_HEDGE
+        }
+
+        private final AtomicReference<UploadState> uploadState = new AtomicReference<>(UploadState.NOT_UPLOADED);
+        private volatile Scheduler.ScheduledCancellable hedgeTimer;
 
         private UploadTranslogTask(CompoundTranslog translog, ActionListener<UploadTranslogTask> listener) {
             super(
@@ -468,31 +509,95 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             );
             this.translog = translog;
             this.translogFile = new BlobTranslogFileImpl(translog.metadata());
-            this.bytesToClose = new AbstractRefCounted() {
+            // Increment the ref of the translog file to prevent the following scenario: we end up with 2 uploads (one due to hedge),
+            // one upload goes through, then we end up GCing the translog file, and afterwards the second upload also goes through.
+            // In such a scenario we end up with a non-GCed translog file. Test in `testTranslogFileIsDeletedOnlyAfterBothUploadsComplete`.
+            this.translogFile.incRef();
+            this.uploadRefs = new AbstractRefCounted() {
                 @Override
                 protected void closeInternal() {
-                    translog.bytes().close();
+                    // also retain the bytes to ensure that a cancel call does not corrupt them before upload
+                    Releasables.close(translog.bytes(), translogFile::decRef);
                 }
             };
         }
 
+        // used to keep track of the successful hedges and to guarantee we only complete the `listener` once in case of 2 parallel uploads
+        private void uploaded(UploadState uploadedBy, ActionListener<UploadTranslogTask> listener) {
+            assert uploadedBy != UploadState.NOT_UPLOADED;
+            if (uploadState.compareAndSet(UploadState.NOT_UPLOADED, uploadedBy)) {
+                listener.onResponse(this);
+            }
+        }
+
+        // Checked before we are about to upload a translog file. If another parallel upload has already uploaded while waiting
+        // queued behind other translog uploads, then we see that the translog is uploaded and do not upload the same translog again.
+        private boolean alreadyUploaded() {
+            return uploadState.get() != UploadState.NOT_UPLOADED;
+        }
+
+        // A translog-upload might be slow or might even hang, so once the first try of an `UploadTranslogTask` actually starts its blob
+        // write (see `tryAction`), we schedule a hedge upload that will be fired after `UPLOAD_HEDGE_DELAY_SETTING` seconds.
+        // - If the hedge upload completes first, then `isDone` is set in the `RetryableAction` of the `UploadTranslogTask`, so we will
+        // stop retrying this `UploadTranslogTask`.
+        // - If the normal (i.e., non-hedge) upload completes first (e.g., in less than `UPLOAD_HEDGE_DELAY_SETTING` seconds),
+        // then `onFinished` is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
+        private void hedge(ActionListener<UploadTranslogTask> listener) {
+            if (alreadyUploaded() || uploadRefs.tryIncRef() == false) {
+                return;
+            }
+            uploadTryNumber.incrementAndGet();
+            objectStoreService.uploadTranslogFile(
+                translog.metadata().name(),
+                translog.bytes().data(),
+                this::alreadyUploaded,
+                // only count the hedge if we are actually about to start uploading
+                translogUploadHedgesCounter::increment,
+                ActionListener.releaseAfter(
+                    ActionListener.wrap(
+                        unused -> uploaded(UploadState.UPLOADED_BY_HEDGE, listener),
+                        e -> logger.info(() -> format("failed hedged upload of translog file [%s]", translog.metadata().name()), e)
+                    ),
+                    uploadRefs::decRef
+                )
+            );
+        }
+
         @Override
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
-            if (++uploadTryNumber == 1) {
+            final boolean firstTry = uploadTryNumber.get() == 0;
+            Runnable onBeforeUpload = () -> {};
+            if (firstTry) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
             }
-            // Retain the bytes to ensure that a cancel call does not corrupt them before upload
-            if (bytesToClose.tryIncRef()) {
+
+            if (firstTry && uploadHedgeDelay.getMillis() >= 0L) {
+                // Only the first try starts a hedge upload, and this happens only when this first try is about to actually start the
+                // translog upload (i.e., after any time the upload spent queued behind other translog uploads in the object store service).
+                // By doing this we start the hedge only when the other upload is indeed slow and not just waiting in a queue, something
+                // that would have exacerbated the situation.
+                // Also note that `hedge` receives the listener from `tryAction`. If the `hedge` completes the upload first,
+                // `RetryingListener.onResponse` sets `isDone` on the `RetryableAction`. An upcoming retry attempt (i.e., `tryAction`)
+                // checks `isDone` is not set before executing, so the successful `hedge` stops all subsequent retries.
+                onBeforeUpload = () -> hedgeTimer = threadPool.schedule(
+                    () -> hedge(listener),
+                    uploadHedgeDelay,
+                    // ultimately the translog upload from the `hedge` (through `uploadTranslogFile`)
+                    // dispatches the upload into the `stateless_translog` thread pool
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
+            }
+            if (uploadRefs.tryIncRef()) {
+                uploadTryNumber.incrementAndGet();
                 logger.trace(() -> format("attempt [%s] to upload translog file [%s]", uploadTryNumber, translog.metadata().name()));
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
                     translog.bytes().data(),
+                    this::alreadyUploaded,
+                    onBeforeUpload,
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
-                        assert uploadTryNumber >= 1 && firstAttemptStartMillis != UNSET; // just have an assert in case of a bug
-                        translogUploadAttemptsHistogram.record(uploadTryNumber);
-                        translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - firstAttemptStartMillis);
-                        listener.onResponse(this);
+                        uploaded(UploadState.UPLOADED_BY_NORMAL, listener);
 
                     }, e -> {
                         org.apache.logging.log4j.util.Supplier<Object> messageSupplier = () -> format(
@@ -500,14 +605,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                             uploadTryNumber,
                             translog.metadata().name()
                         );
-                        if (uploadTryNumber == 5) {
+                        if (uploadTryNumber.get() == 5) {
                             logger.warn(messageSupplier, e);
                         } else {
                             logger.info(messageSupplier, e);
                         }
                         listener.onFailure(e);
 
-                    }), bytesToClose::decRef)
+                    }), uploadRefs::decRef)
                 );
             } else {
                 listener.onFailure(new ElasticsearchException("Cannot acquire upload lock."));
@@ -527,8 +632,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void onFinished() {
-            bytesToClose.decRef();
+            if (hedgeTimer != null) {
+                hedgeTimer.cancel();
+            }
+            uploadRefs.decRef();
             super.onFinished();
+        }
+
+        // visible for testing
+        protected boolean isUploaded() {
+            return isUploaded;
         }
 
         @Override
@@ -542,10 +655,19 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
-    private UploadTranslogTask createUploadTask(CompoundTranslog translog) {
+    // protected for testing
+    protected UploadTranslogTask createUploadTask(CompoundTranslog translog) {
         UploadTranslogTask uploadTranslogTask = new UploadTranslogTask(translog, new ActionListener<>() {
             @Override
             public void onResponse(UploadTranslogTask task) {
+                // just have an assert in case of a bug
+                assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET;
+                assert task.uploadState.get() != UploadTranslogTask.UploadState.NOT_UPLOADED;
+                translogUploadAttemptsHistogram.record(task.uploadTryNumber.get());
+                translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
+                if (task.uploadState.get() == UploadTranslogTask.UploadState.UPLOADED_BY_HEDGE) {
+                    translogUploadHedgesWonCounter.increment();
+                }
                 nodeState.markUploadFinished(task);
             }
 

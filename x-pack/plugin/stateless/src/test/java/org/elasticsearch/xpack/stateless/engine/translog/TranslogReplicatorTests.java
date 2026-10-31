@@ -47,6 +47,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,11 +65,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.zip.CRC32;
 
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
@@ -88,6 +91,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TranslogReplicatorTests extends ESTestCase {
@@ -680,13 +685,13 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             if (attempt.incrementAndGet() < 3) {
-                invocation.<ActionListener<Void>>getArgument(2).onFailure(new IOException("test"));
+                invocation.<ActionListener<Void>>getArgument(4).onFailure(new IOException("test"));
             } else {
                 compoundFiles.add(getBytes(invocation.getArgument(1)));
-                invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+                invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             }
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> {
@@ -770,12 +775,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             time.addAndGet(attemptMillis);
             if (attempt.incrementAndGet() <= failedAttempts) {
-                invocation.<ActionListener<Void>>getArgument(2).onFailure(new IOException("test"));
+                invocation.<ActionListener<Void>>getArgument(4).onFailure(new IOException("test"));
             } else {
-                invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+                invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             }
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -873,9 +878,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             syncStartedFuture.onResponse(null);
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -923,16 +928,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             var metadata = CompoundTranslogHeader.readFromStore("test", invocation.<BytesReference>getArgument(1).streamInput()).metadata();
             if (metadata.get(shardId).operations().maxSeqNo() == 1L) {
-                firstSyncCompleter.set(invocation.getArgument(2));
+                firstSyncCompleter.set(invocation.getArgument(4));
                 intermediateStartedLatch.countDown();
                 return null;
             }
             if (metadata.get(shardId).operations().maxSeqNo() == 3L) {
                 finalSyncStartedLatch.countDown();
             }
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1207,9 +1212,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             safeAwait(latch);
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1515,6 +1520,260 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("marked for deletion"));
     }
 
+    public void testSlowTranslogUploadIsHedged() throws Exception {
+        CountDownLatch firstUploadHangs = new CountDownLatch(1);
+        AtomicInteger uploads = new AtomicInteger();
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
+            if (uploads.incrementAndGet() == 1) {
+                safeAwait(firstUploadHangs); // hang the first upload so that the hedge completes the upload
+            }
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
+
+        // hedge uploads are disabled by default, so enable them explicitly
+        TimeValue hedgeDelay = TimeValue.timeValueSeconds(2);
+        // capture the hedge instead of scheduling it at an arbitrary point in time, so we can fire the hedge when we want it to
+        AtomicReference<Runnable> hedge = new AtomicReference<>();
+
+        // we build a new thread pool so we terminate the previously-constructed one
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+        Settings nodeSettings = Settings.builder()
+            .put("node.name", TranslogReplicatorTests.class.getSimpleName())
+            .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
+            .build();
+        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.millis() == hedgeDelay.millis()) {
+                    assertTrue("only one hedge upload per translog upload", hedge.compareAndSet(null, command));
+                    return mock(Scheduler.ScheduledCancellable.class);
+                }
+                return super.schedule(command, delay, executor);
+            }
+        };
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try {
+            AtomicReference<TranslogReplicator.UploadTranslogTask> uploadTranslogTask = new AtomicReference<>();
+            PlainActionFuture<Void> future = syncOneOperation(
+                nodeSettings,
+                objectStoreService,
+                meterRegistry,
+                task -> assertTrue("only one upload task expected", uploadTranslogTask.compareAndSet(null, task)),
+                unused -> {}
+            );
+            assertFalse(future.isDone()); // first upload is hanging
+            assertBusy(() -> assertNotNull(hedge.get()), 10L, TimeUnit.SECONDS); // make sure we scheduled the hedge
+            assertFalse(uploadTranslogTask.get().isUploaded()); // upload task is still ongoing
+            hedge.get().run(); // run the hedge, which will complete the sync
+            safeGet(future);
+            assertThat(uploads.get(), equalTo(2)); // both uploads were attempted
+
+            // hedge completed the upload, and now the single upload task has completed and because the task is set to uploaded in
+            // `markUploadFinished` after the task has completed, we can indirectly deduce that we have NO more retries
+            assertTrue(uploadTranslogTask.get().isUploaded());
+
+            // hedge was fired
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .reduce(0L, Long::sum),
+                equalTo(1L)
+            );
+
+            // hedge won
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_WON_TOTAL)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .reduce(0L, Long::sum),
+                equalTo(1L)
+            );
+
+        } finally {
+            firstUploadHangs.countDown();
+        }
+    }
+
+    public void testFastTranslogUploadIsNotHedged() throws Exception {
+        AtomicInteger uploads = new AtomicInteger();
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
+            uploads.incrementAndGet();
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
+
+        // hedge uploads are disabled by default, so enable them explicitly
+        TimeValue hedgeDelay = TimeValue.timeValueSeconds(2);
+        // capture the hedge instead of scheduling it, so we can fire the hedge when we want it to
+        AtomicReference<Runnable> hedge = new AtomicReference<>();
+
+        // we build a new thread pool so we terminate the previously-constructed one
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+        Settings nodeSettings = Settings.builder()
+            .put("node.name", TranslogReplicatorTests.class.getSimpleName())
+            .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
+            .build();
+        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.millis() == hedgeDelay.millis()) {
+                    assertTrue("only one hedge upload per translog upload", hedge.compareAndSet(null, command));
+                    return mock(Scheduler.ScheduledCancellable.class);
+                }
+                return super.schedule(command, delay, executor);
+            }
+        };
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        PlainActionFuture<Void> future = syncOneOperation(nodeSettings, objectStoreService, meterRegistry, unused -> {}, unused -> {});
+        safeGet(future);
+        assertThat(uploads.get(), equalTo(1)); // only the first upload
+
+        assertBusy(() -> assertNotNull(hedge.get()), 10L, TimeUnit.SECONDS); // make sure we scheduled the hedge
+        hedge.get().run(); // a hedge firing after the upload completed is a no-op
+
+        // hedge did not win
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_WON_TOTAL)
+                .stream()
+                .map(Measurement::getLong)
+                .reduce(0L, Long::sum),
+            equalTo(0L)
+        );
+
+        // hedge did not issue an upload
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
+                .stream()
+                .map(Measurement::getLong)
+                .reduce(0L, Long::sum),
+            equalTo(0L)
+        );
+
+        assertThat(uploads.get(), equalTo(1));
+    }
+
+    // test that when one of the two uploads (normal or hedge) has completed the upload the translog file is not yet deleted while the other
+    // upload is still ongoing, but is deleted once both have finished
+    public void testTranslogFileIsDeletedOnlyAfterBothUploadsComplete() throws Exception {
+        CountDownLatch firstUploadHangs = new CountDownLatch(1);
+        CountDownLatch hedgeUploadHangs = new CountDownLatch(1);
+        AtomicInteger uploads = new AtomicInteger();
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
+            safeAwait(uploads.incrementAndGet() == 1 ? firstUploadHangs : hedgeUploadHangs);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
+
+        // hedge uploads are disabled by default, so enable them explicitly
+        TimeValue hedgeDelay = TimeValue.timeValueSeconds(2);
+        // capture the hedge instead of scheduling it, so we can fire the hedge when we want it to
+        AtomicReference<Runnable> hedge = new AtomicReference<>();
+
+        // we build a new thread pool so we terminate the previously-constructed one
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+        Settings nodeSettings = Settings.builder()
+            .put("node.name", TranslogReplicatorTests.class.getSimpleName())
+            .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
+            .build();
+        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.millis() == hedgeDelay.millis()) {
+                    assertTrue("only one hedge upload per translog upload", hedge.compareAndSet(null, command));
+                    return mock(Scheduler.ScheduledCancellable.class);
+                }
+                return super.schedule(command, delay, executor);
+            }
+        };
+        try {
+            AtomicReference<TranslogReplicator> translogReplicator = new AtomicReference<>();
+            PlainActionFuture<Void> future = syncOneOperation(
+                nodeSettings,
+                objectStoreService,
+                new RecordingMeterRegistry(),
+                unused -> {},
+                translogReplicator::set
+            );
+            assertBusy(() -> assertNotNull(hedge.get()), 10L, TimeUnit.SECONDS); // make sure we scheduled the hedge
+            // fire the hedge on another thread as its upload hangs as well; now both uploads are in flight
+            threadPool.generic().execute(hedge.get());
+            assertBusy(() -> assertThat(uploads.get(), equalTo(2)), 10L, TimeUnit.SECONDS);
+
+            boolean hedgeWins = randomBoolean();
+            (hedgeWins ? hedgeUploadHangs : firstUploadHangs).countDown(); // the winner completes the upload
+            safeGet(future);
+
+            // the shard releases the translog file, as if it committed past it
+            long translogStartFile = translogReplicator.get().getMaxUploadedFile() + 1;
+            translogReplicator.get().markShardCommitUploaded(new ShardId(new Index("name", "uuid"), 0), translogStartFile);
+            // but the losing upload is still in flight and references the translog file, so the file must not be deleted yet
+            assertThat(translogReplicator.get().getActiveTranslogFiles().size(), equalTo(1));
+            verify(objectStoreService, never()).asyncDeleteTranslogFile(any());
+
+            // the losing upload completes, releasing the last reference to the translog file, which gets deleted
+            (hedgeWins ? firstUploadHangs : hedgeUploadHangs).countDown();
+            assertBusy(() -> {
+                assertThat(translogReplicator.get().getActiveTranslogFiles().size(), equalTo(0));
+                verify(objectStoreService).asyncDeleteTranslogFile(any());
+            });
+        } finally {
+            firstUploadHangs.countDown();
+            hedgeUploadHangs.countDown();
+        }
+    }
+
+    private PlainActionFuture<Void> syncOneOperation(
+        Settings settings,
+        ObjectStoreService objectStoreService,
+        RecordingMeterRegistry meterRegistry,
+        Consumer<TranslogReplicator.UploadTranslogTask> onUploadTranslogTaskCreated,
+        Consumer<TranslogReplicator> onTranslogReplicatorCreated
+    ) throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            settings,
+            objectStoreService,
+            mockConsistencyService(),
+            false,
+            (sId) -> primaryTerm,
+            meterRegistry
+        ) {
+            @Override
+            protected UploadTranslogTask createUploadTask(CompoundTranslog translog) {
+                UploadTranslogTask task = super.createUploadTask(translog);
+                onUploadTranslogTaskCreated.accept(task);
+                return task;
+            }
+        };
+        onTranslogReplicatorCreated.accept(translogReplicator);
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Serialized[] serialized = serializeOperations(generateRandomOperations(1));
+        Translog.Location location = new Translog.Location(0, 0, serialized[0].length());
+        translogReplicator.add(shardId, serialized[0], 0, location);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.sync(shardId, location, future);
+        return future;
+    }
+
     private static ClusterState buildClusterStateWithProjectMarkedForDeletion(Index index, long primaryTerm) {
         ProjectId projectId = ProjectId.fromId("test-project");
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
@@ -1607,9 +1866,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             uploadBlocker.get().await();
             compoundFiles.add(getBytes(invocation.getArgument(1)));
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> {

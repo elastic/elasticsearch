@@ -11,7 +11,10 @@ plugins {
   id 'elasticsearch.internal-yaml-rest-test'
   id 'elasticsearch.internal-java-rest-test'
   id 'elasticsearch.internal-cluster-test'
-  id('com.google.protobuf') version '0.9.6'
+  // Resolved from JitPack (see pluginManagement in the root settings.gradle), pinned to
+  // google/protobuf-gradle-plugin commit 4d68bdd6c0d5608b00338702f3af8c765b46c150
+  // (JitPack identifies the commit by its short hash).
+  id('com.google.protobuf') version '4d68bdd6c0'
 }
 
 esplugin {

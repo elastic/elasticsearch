@@ -42,9 +42,8 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_index
-        _slice: _all
         keep_alive: 5m
-  - set: { id: point_in_time_all_id }
+  - set: { id: point_in_time_unscoped_id }
 
   - do:
       search:
@@ -53,26 +52,14 @@ setup:
           query:
             match_all: {}
           pit:
-            id: "$point_in_time_all_id"
+            id: "$point_in_time_unscoped_id"
             keep_alive: 1m
-  - match: { hits.total.value: 2 }
-
-  - do:
-      search:
-        body:
-          size: 10
-          query:
-            match_all: {}
-          pit:
-            id: "$point_in_time_all_id"
-            keep_alive: 1m
-            _slice: _all
   - match: { hits.total.value: 2 }
 
   - do:
       close_point_in_time:
         body:
-          id: "$point_in_time_all_id"
+          id: "$point_in_time_unscoped_id"
 
   - do:
       open_point_in_time:
@@ -188,12 +175,20 @@ setup:
   - do:
       open_point_in_time:
         index: slice_pit_open_index
-        _slice: _all
         keep_alive: 5m
   - match: { _shards.total: 2 }
-  - set: { id: slice_all_pit_id }
+  - set: { id: slice_unscoped_pit_id }
 
   - do:
       close_point_in_time:
         body:
-          id: "$slice_all_pit_id"
+          id: "$slice_unscoped_pit_id"
+
+---
+"PIT open with slice _all is rejected":
+  - do:
+      catch: bad_request
+      open_point_in_time:
+        index: slice_pit_index
+        _slice: _all
+        keep_alive: 5m

@@ -490,6 +490,22 @@ ROW deg = [90.0, 180.0, 270.0]
 // end::to_radians-result[]
 ;
 
+toDegreesAndToRadiansOfDoubleField
+required_capability: fn_to_degrees_fix_double_field
+required_capability: fn_to_radians_fix_double_field
+
+FROM employees
+| WHERE emp_no < 10003
+| EVAL deg = ROUND(TO_DEGREES(height), 2), rad = ROUND(TO_RADIANS(height), 4)
+| KEEP emp_no, height, deg, rad
+| SORT emp_no
+;
+
+emp_no:integer | height:double | deg:double | rad:double
+10001          | 2.03          | 116.31     | 0.0354
+10002          | 2.08          | 119.18     | 0.0363
+;
+
 mvSort
 required_capability: mv_sort
 

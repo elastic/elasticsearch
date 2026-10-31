@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.cbo.AggMode;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Places exchanges where physical operators need a particular distribution instead of assigning exchanges to individual features.
@@ -64,11 +66,17 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
         }
 
         boolean shuffleAgg = context.configuration().pragmas().shuffleAgg();
-        if (hasDistributedJoin == false && (shuffleAgg == false || plan.anyMatch(AggregateExec.class::isInstance) == false)) {
+        Predicate<AggregateExec> distributeAggregate = aggregate -> context.decisions()
+            .get()
+            .aggregate(aggregate.aggregates())
+            .map(mode -> mode == AggMode.DISTRIBUTED)
+            .orElse(shuffleAgg);
+        if (hasDistributedJoin == false
+            && plan.anyMatch(node -> node instanceof AggregateExec aggregate && distributeAggregate.test(aggregate)) == false) {
             return plan;
         }
 
-        PhysicalPlan rewritten = new Walker(shuffleAgg).ensure(plan, SingleRequirement.INSTANCE).plan();
+        PhysicalPlan rewritten = new Walker(distributeAggregate).ensure(plan, SingleRequirement.INSTANCE).plan();
         return hasShuffleExchange(rewritten) ? rewritten : plan;
     }
 
@@ -115,10 +123,10 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
     private record Result(PhysicalPlan plan, Partitioning partitioning) {}
 
     private static final class Walker {
-        private final boolean shuffleAgg;
+        private final Predicate<AggregateExec> distributeAggregate;
 
-        private Walker(boolean shuffleAgg) {
-            this.shuffleAgg = shuffleAgg;
+        private Walker(Predicate<AggregateExec> distributeAggregate) {
+            this.distributeAggregate = distributeAggregate;
         }
 
         private Result ensure(PhysicalPlan node, Requirement requirement) {
@@ -239,7 +247,9 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             if (aggregate.child() instanceof ExchangeExec exchange && exchange.inBetweenAggs()) {
                 Result child = visit(exchange.child(), AnyRequirement.INSTANCE);
                 int groupCount = aggregate.groupings().size();
-                if (shuffleAgg && ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings()) && exchange.output().size() >= groupCount) {
+                if (distributeAggregate.test(aggregate)
+                    && ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings())
+                    && exchange.output().size() >= groupCount) {
                     List<Attribute> keys = exchange.output().subList(0, groupCount);
                     PhysicalPlan exchanged = hash(child.plan(), keys, true, exchange.output());
                     AggregateExec finalAggregate = aggregate.replaceChild(exchanged);
@@ -261,7 +271,9 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
 
         private Result singleAggregate(AggregateExec aggregate) {
             List<Attribute> groups = groupAttributes(aggregate);
-            boolean canHash = shuffleAgg && groups != null && ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings());
+            boolean canHash = distributeAggregate.test(aggregate)
+                && groups != null
+                && ShuffleRuleUtils.hasSupportedGroupings(aggregate.groupings());
             Requirement pushedRequirement = canHash ? new HashRequirement(groups) : SingleRequirement.INSTANCE;
             Requirement childRequirement = reachesUnion(aggregate.child()) ? pushedRequirement : AnyRequirement.INSTANCE;
             Result child = visit(aggregate.child(), childRequirement);

@@ -89,6 +89,33 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey()));
     }
 
+    public void testCboPragmas() {
+        QueryPragmas defaults = QueryPragmas.EMPTY;
+        assertFalse(defaults.cbo());
+        assertFalse(defaults.cboTrace());
+        assertFalse(defaults.shuffleAggExplicit());
+        assertFalse(defaults.shuffleJoinExplicit());
+        assertFalse(defaults.shuffleJoinStrategyExplicit());
+
+        QueryPragmas pragmas = new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.CBO.getKey(), true)
+                .put(QueryPragmas.CBO_TRACE.getKey(), true)
+                .put(QueryPragmas.SHUFFLE_AGG.getKey(), false)
+                .put(QueryPragmas.SHUFFLE_JOIN.getKey(), false)
+                .put(QueryPragmas.SHUFFLE_JOIN_STRATEGY.getKey(), "broadcast")
+                .build()
+        );
+        assertTrue(pragmas.cbo());
+        assertTrue(pragmas.cboTrace());
+        assertTrue(pragmas.shuffleAggExplicit());
+        assertTrue(pragmas.shuffleJoinExplicit());
+        assertTrue(pragmas.shuffleJoinStrategyExplicit());
+        assertThat(pragmas.shuffleJoinStrategy(), equalTo("broadcast"));
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.CBO.getKey()));
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.CBO_TRACE.getKey()));
+    }
+
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {
         // Only the regular pragma is set: it reaches the regular accessor and leaves the time-series one at its default.
         QueryPragmas regularOnly = new QueryPragmas(

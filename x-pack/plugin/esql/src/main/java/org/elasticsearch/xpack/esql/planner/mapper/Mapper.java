@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -81,6 +84,8 @@ import java.util.Set;
  */
 public class Mapper {
 
+    private static final Logger logger = LogManager.getLogger(Mapper.class);
+
     private static final Set<DataType> DISTRIBUTED_JOIN_KEY_TYPES = Set.of(
         DataType.KEYWORD,
         DataType.LONG,
@@ -91,6 +96,7 @@ public class Mapper {
     );
 
     private final QueryPragmas pragmas;
+    private final PlanDecisionsHolder decisions;
 
     /* Used to add inner join semantics atop of left join operator. */
     public static final String JOIN_MARKER_PREFIX = Attribute.rawTemporaryName("_join_marker");
@@ -108,7 +114,13 @@ public class Mapper {
 
     /** Creates a mapper using the query's planner pragmas. */
     public Mapper(QueryPragmas pragmas) {
+        this(pragmas, new PlanDecisionsHolder());
+    }
+
+    /** Creates a mapper that reads decisions from the query's shared planning state. */
+    public Mapper(QueryPragmas pragmas, PlanDecisionsHolder decisions) {
         this.pragmas = pragmas;
+        this.decisions = decisions;
     }
 
     /**
@@ -118,7 +130,8 @@ public class Mapper {
         return isDistributedJoinStrategy(selectJoinStrategy(join));
     }
 
-    static boolean distributedJoinEligible(Join join) {
+    /** Checks whether both join sides can be distributed without changing join semantics. */
+    public static boolean distributedJoinEligible(Join join) {
         JoinConfig config = join.config();
         if (config.joinOnConditions() != null || config.leftFields().size() != config.rightFields().size()) {
             return false;
@@ -468,7 +481,8 @@ public class Mapper {
         return isIndexModeLookup(fragment.fragment());
     }
 
-    static boolean isIndexModeLookup(LogicalPlan plan) {
+    /** Finds lookup-mode index sources through the filter shape supported by lookup joins. */
+    public static boolean isIndexModeLookup(LogicalPlan plan) {
         if (plan instanceof EsRelation relation) {
             return relation.indexMode() == IndexMode.LOOKUP;
         }
@@ -476,11 +490,29 @@ public class Mapper {
     }
 
     private JoinStrategySelector.JoinStrategy selectJoinStrategy(Join join) {
-        boolean leftIsScan = pragmas.shuffleJoin()
+        boolean canCheckLeftScan = (pragmas.shuffleJoin() || pragmas.cbo())
             && distributedJoinEligible(join)
-            && JoinStrategySelector.isLookupIndexJoin(join)
-            && mapInner(join.left()) instanceof FragmentExec;
+            && JoinStrategySelector.isLookupIndexJoin(join);
+        boolean leftIsScan = canCheckLeftScan && mapInner(join.left()) instanceof FragmentExec;
+        var decided = decisions.get().join(join);
+        if (decided.isPresent()) {
+            if (isLegalDecision(join, decided.get(), leftIsScan)) {
+                return decided.get();
+            }
+            logger.debug("Ignoring cost-based join decision [{}] for join [{}] because it is not legal", decided.get(), join);
+        }
         return JoinStrategySelector.select(join, pragmas, leftIsScan);
+    }
+
+    private static boolean isLegalDecision(Join join, JoinStrategySelector.JoinStrategy strategy, boolean leftIsScan) {
+        return switch (strategy) {
+            case MATERIALIZED -> join instanceof SubqueryLookupJoin;
+            case BROADCAST -> join instanceof SubqueryLookupJoin && distributedJoinEligible(join);
+            case PARTITIONED -> distributedJoinEligible(join)
+                && (join instanceof SubqueryLookupJoin || JoinStrategySelector.isLookupIndexJoin(join) && leftIsScan);
+            case LOOKUP -> JoinStrategySelector.isLookupIndexJoin(join);
+            case LOCAL -> join instanceof SubqueryLookupJoin == false && JoinStrategySelector.isLookupIndexJoin(join) == false;
+        };
     }
 
     private static boolean isDistributedJoinStrategy(JoinStrategySelector.JoinStrategy strategy) {

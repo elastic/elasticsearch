@@ -16,7 +16,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.List;
 import java.util.Set;
 
-final class ShuffleRuleUtils {
+/** Shared eligibility checks for hash-shuffle aggregation and cost-based alternatives. */
+public final class ShuffleRuleUtils {
     private static final Set<ElementType> HASH_KEY_TYPES = Set.of(
         ElementType.INT,
         ElementType.LONG,
@@ -28,11 +29,13 @@ final class ShuffleRuleUtils {
 
     private ShuffleRuleUtils() {}
 
-    static boolean hasSupportedGroupings(List<? extends Expression> groupings) {
+    /** Checks that groupings are non-empty and can be used as shuffle keys. */
+    public static boolean hasSupportedGroupings(List<? extends Expression> groupings) {
         return groupings.isEmpty() == false && hasSupportedGroupKeyTypes(groupings);
     }
 
-    static boolean hasSupportedGroupKeyTypes(List<? extends Expression> groupings) {
+    /** Checks whether each grouping expression can be represented by the hash exchange. */
+    public static boolean hasSupportedGroupKeyTypes(List<? extends Expression> groupings) {
         for (Expression grouping : groupings) {
             if (grouping.anyMatch(GroupingFunction.NonEvaluatableGroupingFunction.class::isInstance)) {
                 return false;

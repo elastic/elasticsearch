@@ -112,6 +112,11 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.cbo.CboContext;
+import org.elasticsearch.xpack.esql.optimizer.cbo.CostBasedOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.cbo.DecisionTrace;
+import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisions;
+import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -142,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -272,6 +278,7 @@ public class EsqlSession {
 
     private final Mapper mapper;
     private volatile Mapper queryMapper;
+    private final PlanDecisionsHolder planDecisions = new PlanDecisionsHolder();
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -634,7 +641,7 @@ public class EsqlSession {
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags)
                     );
                     var physicalPlanOptimizer = new PhysicalPlanOptimizer(
-                        new PhysicalOptimizerContext(configuration, minimumVersion, flags)
+                        new PhysicalOptimizerContext(configuration, minimumVersion, flags, planDecisions)
                     );
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
@@ -1037,9 +1044,9 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        queryMapper = configuration.pragmas().shuffleJoin() && ShuffleGate.allowed(configuration, optimizedPlan)
-            ? new Mapper(configuration.pragmas())
-            : mapper;
+        updateCboDecisions(optimizedPlan, configuration, physicalPlanOptimizer.context().minimumVersion());
+        queryMapper = (configuration.pragmas().shuffleJoin() || configuration.pragmas().cbo())
+            && ShuffleGate.allowed(configuration, optimizedPlan) ? new Mapper(configuration.pragmas(), planDecisions) : mapper;
         Set<LocalRelation> subPlansResults = Collections.newSetFromMap(new IdentityHashMap<>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
@@ -1430,6 +1437,7 @@ public class EsqlSession {
                     var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                     LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
                     LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
+                    updateCboDecisions(newMainPlan, configuration, physicalPlanOptimizer.context().minimumVersion());
 
                     // Pins for this subplan are only consumed at the final reconcile. Collect after
                     // execution so they are not live through this subplan's discovery.
@@ -3002,14 +3010,40 @@ public class EsqlSession {
         }
         Mapper currentMapper = queryMapper;
         if (currentMapper == null) {
-            currentMapper = configuration.pragmas().shuffleJoin() && ShuffleGate.allowed(configuration, logicalPlan)
-                ? new Mapper(configuration.pragmas())
-                : mapper;
+            updateCboDecisions(logicalPlan, configuration, optimizedPlan.minimumVersion());
+            currentMapper = (configuration.pragmas().shuffleJoin() || configuration.pragmas().cbo())
+                && ShuffleGate.allowed(configuration, logicalPlan) ? new Mapper(configuration.pragmas(), planDecisions) : mapper;
             queryMapper = currentMapper;
         }
         PhysicalPlan plan = currentMapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;
+    }
+
+    private void updateCboDecisions(LogicalPlan plan, Configuration configuration, TransportVersion minimumVersion) {
+        if (configuration.pragmas().cbo() == false
+            || ShuffleGate.allowed(configuration, plan) == false
+            || minimumVersion.supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
+            planDecisions.set(PlanDecisions.EMPTY);
+            return;
+        }
+        PlanDecisions decisions = new CostBasedOptimizer().optimize(
+            plan,
+            new CboContext(
+                configuration,
+                minimumVersion,
+                clusterService.state().nodes().getDataNodes().size(),
+                plannerSettings.intermediateLocalRelationMaxSize().getBytes()
+            )
+        );
+        planDecisions.set(decisions);
+        for (DecisionTrace trace : decisions.traces()) {
+            if (configuration.pragmas().cboTrace()) {
+                LOGGER.info("CBO decision: {}", trace);
+            } else {
+                LOGGER.debug("CBO decision: {}", trace);
+            }
+        }
     }
 
     private PhysicalPlan optimizedPhysicalPlan(

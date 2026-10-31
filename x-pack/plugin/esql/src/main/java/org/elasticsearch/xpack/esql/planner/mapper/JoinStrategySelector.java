@@ -13,8 +13,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 /** Selects whether a join should use a shuffle exchange or an existing join path. */
-final class JoinStrategySelector {
-    enum JoinStrategy {
+public final class JoinStrategySelector {
+    /** Available physical strategies for logical joins. */
+    public enum JoinStrategy {
         PARTITIONED,
         BROADCAST,
         LOOKUP,
@@ -24,7 +25,8 @@ final class JoinStrategySelector {
 
     private JoinStrategySelector() {}
 
-    static JoinStrategy select(Join join, QueryPragmas pragmas, boolean leftIsScan) {
+    /** Selects the legacy strategy used when the cost-based planner has no applicable decision. */
+    public static JoinStrategy select(Join join, QueryPragmas pragmas, boolean leftIsScan) {
         if (join instanceof SubqueryLookupJoin) {
             if (Mapper.distributedJoinEligible(join) == false || pragmas.shuffleJoin() == false) {
                 return JoinStrategy.MATERIALIZED;
@@ -47,7 +49,8 @@ final class JoinStrategySelector {
         return JoinStrategy.LOCAL;
     }
 
-    static boolean isLookupIndexJoin(Join join) {
+    /** Identifies joins whose right side is a lookup-mode index. */
+    public static boolean isLookupIndexJoin(Join join) {
         return Mapper.isIndexModeLookup(join.right());
     }
 }

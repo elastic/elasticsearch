@@ -18,12 +18,16 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
@@ -214,6 +218,78 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
         );
     }
 
+    public void testApiKeyStopsAuthenticatingWhenItsAccountIsDisabledOrDeleted() {
+        putAccount(API_KEY_ROLE);
+        final SecureString bearer = createToken("token-api-key-lifecycle");
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("lifecycle-key", null, null, null);
+        createApiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        final CreateApiKeyResponse apiKey = bearerClient(bearer.toString()).execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest)
+            .actionGet();
+        assertThat(authenticateWithApiKey(apiKey.getId(), apiKey.getKey()).getEffectiveSubject().getUser().principal(), equalTo(principal));
+
+        setAccountEnabled(API_KEY_ROLE, false);
+        assertApiKeyAuthenticationFails(apiKey.getId(), apiKey.getKey());
+
+        setAccountEnabled(API_KEY_ROLE, true);
+        assertThat(authenticateWithApiKey(apiKey.getId(), apiKey.getKey()).getEffectiveSubject().getUser().principal(), equalTo(principal));
+
+        final DeleteUserManagedServiceAccountResponse deleteResponse = securityAdminClient().execute(
+            DeleteUserManagedServiceAccountAction.INSTANCE,
+            new DeleteUserManagedServiceAccountRequest(NAMESPACE, serviceName, WriteRequest.RefreshPolicy.WAIT_UNTIL, true)
+        ).actionGet();
+        assertThat(deleteResponse.found(), is(true));
+        assertApiKeyAuthenticationFails(apiKey.getId(), apiKey.getKey());
+    }
+
+    public void testLeftoverApiKeysBlockDeleteAndRecreateUntilInvalidated() {
+        putAccount(API_KEY_ROLE);
+        final String tokenName = "token-api-key-recreate";
+        final SecureString bearer = createToken(tokenName);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("recreate-key", null, null, null);
+        createApiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        final CreateApiKeyResponse apiKey = bearerClient(bearer.toString()).execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest)
+            .actionGet();
+
+        final DeleteServiceAccountTokenRequest deleteTokenRequest = new DeleteServiceAccountTokenRequest(NAMESPACE, serviceName, tokenName);
+        deleteTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        assertThat(
+            securityAdminClient().execute(DeleteUserManagedServiceAccountTokenAction.INSTANCE, deleteTokenRequest).actionGet().found(),
+            is(true)
+        );
+        final IllegalArgumentException guardException = expectThrows(
+            IllegalArgumentException.class,
+            () -> securityAdminClient().execute(
+                DeleteUserManagedServiceAccountAction.INSTANCE,
+                new DeleteUserManagedServiceAccountRequest(NAMESPACE, serviceName, WriteRequest.RefreshPolicy.WAIT_UNTIL, false)
+            ).actionGet()
+        );
+        assertThat(guardException.getMessage(), containsString("because it has API keys; invalidate the keys first"));
+
+        final DeleteUserManagedServiceAccountResponse deleteResponse = securityAdminClient().execute(
+            DeleteUserManagedServiceAccountAction.INSTANCE,
+            new DeleteUserManagedServiceAccountRequest(NAMESPACE, serviceName, WriteRequest.RefreshPolicy.WAIT_UNTIL, true)
+        ).actionGet();
+        assertThat(deleteResponse.found(), is(true));
+
+        final IllegalArgumentException recreateException = expectThrows(
+            IllegalArgumentException.class,
+            () -> securityAdminClient().execute(
+                PutUserManagedServiceAccountAction.INSTANCE,
+                new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(MONITOR_ROLE), true, null)
+            ).actionGet()
+        );
+        assertThat(recreateException.getMessage(), containsString("because it has leftover API keys; invalidate the keys first"));
+        assertApiKeyAuthenticationFails(apiKey.getId(), apiKey.getKey());
+
+        final InvalidateApiKeyRequest invalidateRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKey.getId(), false);
+        assertThat(
+            securityAdminClient().execute(InvalidateApiKeyAction.INSTANCE, invalidateRequest).actionGet().getInvalidatedApiKeys(),
+            equalTo(List.of(apiKey.getId()))
+        );
+        putAccount(MONITOR_ROLE);
+        assertApiKeyAuthenticationFails(apiKey.getId(), apiKey.getKey());
+    }
+
     public void testForceDeleteLeavesTokensThatBlockRecreate() {
         putAccount(MONITOR_ROLE);
         final SecureString oldBearer = createToken("token-delete-recreate");
@@ -287,6 +363,14 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
         assertThat(response.created(), is(true));
     }
 
+    private void setAccountEnabled(String roleName, boolean enabled) {
+        final PutUserManagedServiceAccountResponse response = securityAdminClient().execute(
+            PutUserManagedServiceAccountAction.INSTANCE,
+            new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(roleName), enabled, null)
+        ).actionGet();
+        assertThat(response.created(), is(false));
+    }
+
     private SecureString createToken(String tokenName) {
         final CreateServiceAccountTokenResponse response = securityAdminClient().execute(
             CreateUserManagedServiceAccountTokenAction.INSTANCE,
@@ -318,6 +402,17 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
             () -> bearerClient(bearerString).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet()
         );
         assertThat(exception.status(), equalTo(RestStatus.UNAUTHORIZED));
+    }
+
+    private void assertApiKeyAuthenticationFails(String apiKeyId, SecureString apiKey) {
+        final ElasticsearchSecurityException exception = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> apiKeyClient(apiKeyId, apiKey).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet()
+        );
+        // A request from the in-process client that no credential authenticates runs as the internal fallback user, so a
+        // rejected key shows up as that user being denied rather than as the 401 a REST caller would get.
+        assertThat(exception.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(exception.getMessage(), containsString("for user [_system]"));
     }
 
     private void assertHasClusterPrivilege(String bearerString, String privilege, boolean expected) {

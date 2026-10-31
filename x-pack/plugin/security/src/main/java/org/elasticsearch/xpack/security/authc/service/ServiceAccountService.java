@@ -209,10 +209,26 @@ public class ServiceAccountService {
     }
 
     /**
+     * Reports whether the user-managed account exists and is enabled, the same condition its service tokens must meet
+     * to authenticate. Credentials the account minted for itself, such as API keys, rely on this so that they stop
+     * working once the account is deleted or disabled. A node without an account store cannot hold a user-managed
+     * account, so it reports {@code false}.
+     */
+    public void isUserManagedAccountActive(String principal, ActionListener<Boolean> listener) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onResponse(false);
+            return;
+        }
+        userManagedServiceAccountStore.getByPrincipal(principal, listener.map(account -> account != null && account.enabled()));
+    }
+
+    /**
      * Creates the account, or replaces an existing one of the same name wholesale. Creating an account of a name that
-     * still has leftover tokens is refused: those tokens would otherwise start authenticating again. Replacing an
-     * account that is already present is allowed even when tokens exist, because those tokens already belong to it.
-     * The write is attributed to the effective subject of {@code authentication}.
+     * still has leftover tokens, or API keys that are neither invalidated nor expired, is refused: those credentials
+     * would otherwise start authenticating again, and a leftover key would carry the privileges of the account it was
+     * created by rather than those of the new one. Replacing an account that is already present is allowed even when
+     * such credentials exist, because they already belong to it. The write is attributed to the effective subject of
+     * {@code authentication}.
      */
     public void putUserManagedAccount(
         ServiceAccountId accountId,
@@ -241,9 +257,29 @@ public class ServiceAccountService {
                                 + "] because it has leftover service tokens; delete the tokens first"
                         )
                     );
-                } else {
-                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, authentication, refreshPolicy, inner);
+                    return;
                 }
+                userManagedServiceAccountStore.hasUsableApiKeysFor(accountId, inner.delegateFailureAndWrap((innermost, hasApiKeys) -> {
+                    if (hasApiKeys) {
+                        innermost.onFailure(
+                            new IllegalArgumentException(
+                                "cannot create service account ["
+                                    + accountId
+                                    + "] because it has leftover API keys; invalidate the keys first"
+                            )
+                        );
+                    } else {
+                        userManagedServiceAccountStore.putAccount(
+                            accountId,
+                            roles,
+                            enabled,
+                            description,
+                            authentication,
+                            refreshPolicy,
+                            innermost
+                        );
+                    }
+                }));
             }));
         }));
     }
@@ -307,8 +343,10 @@ public class ServiceAccountService {
     }
 
     /**
-     * A surviving token cannot authenticate once its account is gone, and creating an account of the same name is
-     * refused while those leftovers remain. It is not atomic with the delete: a token created in between survives,
+     * Without {@code force}, deleting an account that still has tokens, or API keys that are neither invalidated nor
+     * expired, is refused, so that those credentials are not stranded without the caller choosing to. A surviving
+     * credential cannot authenticate once its account is gone, and creating an account of the same name is refused
+     * while those leftovers remain. The check is not atomic with the delete: a credential created in between survives,
      * leaving the state {@code force} produces deliberately.
      */
     public void deleteUserManagedAccount(
@@ -335,9 +373,22 @@ public class ServiceAccountService {
                             + " or set force=true to delete the account and leave its tokens in place"
                     )
                 );
-            } else {
-                userManagedServiceAccountStore.deleteAccount(accountId, refreshPolicy, delegate);
+                return;
             }
+            userManagedServiceAccountStore.hasUsableApiKeysFor(accountId, delegate.delegateFailureAndWrap((inner, hasApiKeys) -> {
+                if (hasApiKeys) {
+                    inner.onFailure(
+                        new IllegalArgumentException(
+                            "cannot delete service account ["
+                                + accountId
+                                + "] because it has API keys; invalidate the keys first,"
+                                + " or set force=true to delete the account and leave its keys in place"
+                        )
+                    );
+                } else {
+                    userManagedServiceAccountStore.deleteAccount(accountId, refreshPolicy, inner);
+                }
+            }));
         }));
     }
 

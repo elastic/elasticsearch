@@ -31,7 +31,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -192,7 +192,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final long maxBccGen = maxBccGeneration;
             cacheService.forceEvict(shardId, (key, region) -> {
                 final String blobName = key.fileName();
-                final long bccGeneration = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
+                final var blobFile = BlobFile.of(key.primaryTerm(), blobName);
+                if (blobFile instanceof BccBlobFile == false) {
+                    return false; // Do not evict non-BCC blob files
+                }
+                final long bccGeneration = blobFile.termAndGeneration().generation();
 
                 BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
                 if (activeRegions != null && activeRegions.get(region)) {

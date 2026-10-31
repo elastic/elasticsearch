@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
+import static org.elasticsearch.xpack.stateless.commits.BlobFileTestUtils.randomBlobFile;
 
 public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobLocation> {
 
@@ -24,43 +24,38 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
 
     @Override
     protected BlobLocation createTestInstance() {
-        return createBlobLocation(
-            randomLongBetween(1, 10),
-            randomLongBetween(1, 1000),
-            randomLongBetween(0, 100),
-            randomLongBetween(100, 1000)
-        );
+        return new BlobLocation(randomBlobFile(), randomLongBetween(0, 100), randomLongBetween(100, 1000));
     }
 
     @Override
     protected BlobLocation mutateInstance(BlobLocation instance) throws IOException {
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> createBlobLocation(
-                randomValueOtherThan(instance.primaryTerm(), () -> randomLongBetween(1, 10)),
-                instance.compoundFileGeneration(),
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new BlobLocation(
+                randomValueOtherThan(instance.blobFile(), () -> randomBlobFile()),
                 instance.offset(),
                 instance.fileLength()
             );
-            case 1 -> createBlobLocation(
-                instance.primaryTerm(),
-                randomValueOtherThan(instance.compoundFileGeneration(), () -> randomLongBetween(1, 1000)),
-                instance.offset(),
-                instance.fileLength()
-            );
-            case 2 -> createBlobLocation(
-                instance.primaryTerm(),
-                instance.compoundFileGeneration(),
+            case 1 -> new BlobLocation(
+                instance.blobFile(),
                 randomValueOtherThan(instance.offset(), () -> randomLongBetween(0, 100)),
                 instance.fileLength()
             );
-            case 3 -> createBlobLocation(
-                instance.primaryTerm(),
-                instance.compoundFileGeneration(),
+            case 2 -> new BlobLocation(
+                instance.blobFile(),
                 instance.offset(),
                 randomValueOtherThan(instance.fileLength(), () -> randomLongBetween(100, 1000))
             );
-            default -> randomValueOtherThan(instance, this::createTestInstance);
+            default -> throw new AssertionError("unreachable");
         };
+    }
+
+    public void testContains() {
+        final var blobFile = randomBlobFile();
+        final var outer = new BlobLocation(blobFile, 100, 100);
+        assertTrue(outer.contains(new BlobLocation(blobFile, 100, 100)));
+        assertTrue(outer.contains(new BlobLocation(blobFile, 150, 50)));
+        assertFalse(outer.contains(new BlobLocation(blobFile, 150, 51)));
+        assertFalse(outer.contains(new BlobLocation(randomValueOtherThan(blobFile, () -> randomBlobFile()), 100, 100)));
     }
 
     @Override

@@ -17,7 +17,7 @@ public record StaleCompoundCommit(ShardId shardId, PrimaryTermAndGeneration prim
     }
 
     public String fileName() {
-        return BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
+        return BccBlobFile.blobNameFromGeneration(primaryTermAndGeneration.generation());
     }
 
     public String absoluteBlobPath(BlobPath blobPath) {

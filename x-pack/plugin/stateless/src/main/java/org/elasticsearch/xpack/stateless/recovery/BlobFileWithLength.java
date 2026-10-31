@@ -18,7 +18,7 @@ import java.io.IOException;
 record BlobFileWithLength(BlobFile blobFile, long length) implements Writeable {
 
     BlobFileWithLength(StreamInput in) throws IOException {
-        this(new BlobFile(in), in.readVLong());
+        this(BlobFile.readFrom(in), in.readVLong());
     }
 
     @Override

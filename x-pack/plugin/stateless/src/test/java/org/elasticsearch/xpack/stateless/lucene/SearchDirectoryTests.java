@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -272,7 +272,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
-            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1L);
+            final String blobName = BccBlobFile.blobNameFromGeneration(1L);
             long blobLength = 0L;
             long generation = 0L;
 
@@ -710,7 +710,7 @@ public class SearchDirectoryTests extends ESTestCase {
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            BlobFile blobFile = new BlobFile("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
+            BlobFile blobFile = new BccBlobFile(new PrimaryTermAndGeneration(1, 1));
             var compoundCommit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
                 searchDirectory.shardId,
                 blobFile,
@@ -844,8 +844,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final var genFileSeg1 = "_1_1.fnm"; // soft-delete of segment _1, first written into BCC (1,2)
 
             // Backing bytes for the two BCC blobs so the generational files can actually be opened once their BCC is pinned.
-            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(1L), 300);
-            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(2L), 300);
+            writeBlob(blobContainer, BccBlobFile.blobNameFromGeneration(1L), 300);
+            writeBlob(blobContainer, BccBlobFile.blobNameFromGeneration(2L), 300);
 
             // Notification for the commit in BCC (1,1): segment _0 and its first soft-delete gen file, all internal to BCC (1,1).
             searchDirectory.updateCommit(
@@ -1001,7 +1001,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
 
-            final var metadataBlobName = BatchedCompoundCommit.blobNameFromGeneration(3L);
+            final var metadataBlobName = BccBlobFile.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
             var metadataReadDirectory = searchDirectory.createNewInstance(
@@ -1009,7 +1009,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 true,
                 Map.of(
                     metadataBlobName,
-                    new BlobFileRanges(new BlobLocation(new BlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
+                    new BlobFileRanges(new BlobLocation(new BccBlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
                 ),
                 regionSize.getBytes()
             );
@@ -1261,8 +1261,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final long primaryTerm = 1L;
             final var orphanTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 1L);
             final var reReadTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 2L);
-            final var orphanBlobName = BatchedCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
-            final var reReadBlobName = BatchedCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
+            final var orphanBlobName = BccBlobFile.blobNameFromGeneration(orphanTermAndGen.generation());
+            final var reReadBlobName = BccBlobFile.blobNameFromGeneration(reReadTermAndGen.generation());
 
             final var orphanKey = new FileCacheKey(node.shardId, primaryTerm, orphanBlobName);
             final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);
@@ -1371,7 +1371,7 @@ public class SearchDirectoryTests extends ESTestCase {
         int offset = randomIntBetween(0, 500);  // model some initial offset in the File
         int length = randomIntBetween(10, 200);  // some small file length initially
         for (int i = 0; i < n; i++) {
-            locations.add(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+            locations.add(new BlobLocation(new BccBlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
             offset += length;
             // randomly increase next file length a bit
             length += randomIntBetween(50, 200);

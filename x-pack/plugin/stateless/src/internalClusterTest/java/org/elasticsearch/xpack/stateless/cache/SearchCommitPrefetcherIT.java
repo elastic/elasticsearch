@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -147,7 +147,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = latestCommitGeneration + 1;
         var shardId = new ShardId(resolveIndex(indexName), 0);
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(vBCCGen);
 
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
@@ -318,7 +318,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = latestCommitGeneration + 1;
         var shardId = new ShardId(resolveIndex(indexName), 0);
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(vBCCGen);
 
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
@@ -413,7 +413,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = latestCommitGeneration + 1;
         var shardId = new ShardId(resolveIndex(indexName), 0);
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(vBCCGen);
 
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
@@ -494,7 +494,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = latestCommitGeneration + 1;
         var shardId = new ShardId(resolveIndex(indexName), 0);
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(vBCCGen);
 
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
@@ -552,7 +552,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = latestCommitGeneration + 1;
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(vBCCGen);
 
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
@@ -651,7 +651,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var initialCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = initialCommitGeneration + 1;
         var shardId = new ShardId(resolveIndex(indexName), 0);
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(vBCCGen);
 
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
@@ -866,7 +866,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             .stream()
             // We have to exclude the first BCC (empty) because that one is not a candidate for prefetching,
             // it's the base commit for recovery.
-            .filter(entry -> entry.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(initialCommitGeneration)) == false)
+            .filter(entry -> entry.getKey().equals(BccBlobFile.blobNameFromGeneration(initialCommitGeneration)) == false)
             // We prefetch data from the indexing node and we prefetch page aligned chunks, that's why we need to get the page aligned size.
             .mapToLong(entry -> toPageAlignedSize(entry.getValue().length()))
             .sum();
@@ -1032,8 +1032,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         var bytesRead = super.read(b, off, len);
-                        if (bytesRead > 0 && BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
-                            prefetchedGenerations.add(BatchedCompoundCommit.parseGenerationFromBlobName(blobName));
+                        if (bytesRead > 0 && BccBlobFile.startsWithBlobPrefix(blobName)) {
+                            prefetchedGenerations.add(BccBlobFile.parseGenerationFromBlobName(blobName));
                         }
                         return bytesRead;
                     }

@@ -37,7 +37,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.junit.AfterClass;
@@ -113,7 +113,7 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
         testServer.start();
         final HttpHandler bccUploadWatchingHandler = exchange -> {
             final boolean bccUpload = "PUT".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getPath().contains(BatchedCompoundCommit.PREFIX);
+                && exchange.getRequestURI().getPath().contains(BccBlobFile.PREFIX);
             if (bccUpload == false) {
                 azureHandler.handle(exchange);
                 return;
@@ -235,7 +235,7 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
                     );
                 }
                 for (Map.Entry<String, BytesReference> blob : azureHandler.blobs().entrySet()) {
-                    if (blob.getKey().contains(BatchedCompoundCommit.PREFIX) == false) {
+                    if (blob.getKey().contains(BccBlobFile.PREFIX) == false) {
                         continue;
                     }
                     final var intended = intendedBccs.entrySet()

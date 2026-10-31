@@ -24,7 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -159,7 +159,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
 
     FileCacheKey getCacheKeyForIndex(String indexName, ShardId shardId) {
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);
+        var bccBlobName = BccBlobFile.blobNameFromGeneration(latestCommitGeneration);
         var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
         return new FileCacheKey(shardId, primaryTerm, bccBlobName);
     }

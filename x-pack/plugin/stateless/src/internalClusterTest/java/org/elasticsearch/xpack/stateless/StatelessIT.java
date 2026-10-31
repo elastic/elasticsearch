@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -1220,14 +1221,11 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
      */
     private static BatchedCompoundCommit readLatestUploadedBccUptoGen(BlobContainer blobContainerForCommit, long maxGeneration)
         throws IOException {
-        final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
-            operationPurpose,
-            BatchedCompoundCommit.PREFIX
-        )
+        final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(operationPurpose, BccBlobFile.PREFIX)
             .values()
             .stream()
-            .filter(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
-            .max(Comparator.comparingLong(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name())))
+            .filter(m -> BccBlobFile.parseGenerationFromBlobName(m.name()) <= maxGeneration)
+            .max(Comparator.comparingLong(m -> BccBlobFile.parseGenerationFromBlobName(m.name())))
             .orElseThrow(() -> new AssertionError("retry with assertBusy"));
         final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
             latestUploadBccMetadata.name(),

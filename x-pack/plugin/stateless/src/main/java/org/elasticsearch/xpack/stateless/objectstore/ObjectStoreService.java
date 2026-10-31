@@ -72,9 +72,11 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -115,8 +117,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
+import static org.elasticsearch.xpack.stateless.commits.BccBlobFile.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BccBlobFile.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -946,6 +948,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         for (var blob : blobs.entrySet()) {
             if (startsWithBlobPrefix(blob.getKey())) {
                 map.put(new PrimaryTermAndGeneration(blobPrimaryTerm, parseGenerationFromBlobName(blob.getKey())), blob.getValue());
+            } else if (MergeBlobFile.startsWithBlobPrefix(blob.getKey())) {
+                // merge blobs are not batched compound commits, they are not listed here
+                logger.trace(() -> format("ignoring merge blob [%s] in [%s]", blob.getKey(), blobContainer.path().buildAsString()));
             } else {
                 logger.warn(
                     () -> format(
@@ -976,9 +981,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var bcc = new BccBlobFile(blobTermAndGen);
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
-        return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
+        return BatchedCompoundCommit.readFromStore(bcc.blobName(), maxBlobLength, blobReader, true);
     }
 
     /**
@@ -998,6 +1003,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BlobFile blobFile,
         long maxBlobLength
     ) {
+        assert blobFile instanceof BccBlobFile : "only BCC blob files are supported for now, got " + blobFile;
         var blobReader = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
         return BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, blobReader, false);
     }
@@ -1009,26 +1015,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var bcc = new BccBlobFile(blobTermAndGen);
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
                 directory.getShardId(),
-                blobName,
+                bcc.blobName(),
                 maxBlobLength,
                 blobTermAndGen
             )
         );
         var dir = directory.createPerBccMetadataReadDirectory(
-            Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
+            Map.of(bcc.blobName(), new BlobFileRanges(new BlobLocation(bcc, 0L, maxBlobLength))),
             maxBlobLength
         );
 
         return (ignored, offset, length) -> {
             assert offset + length <= maxBlobLength : offset + " + " + length + " > " + maxBlobLength;
-            var input = dir.openInput(blobName, context);
+            var input = dir.openInput(bcc.blobName(), context);
             try {
-                return new InputStreamStreamInput(new InputStreamIndexInput(input.slice(blobName, offset, length), length) {
+                return new InputStreamStreamInput(new InputStreamIndexInput(input.slice(bcc.blobName(), offset, length), length) {
                     @Override
                     public void close() throws IOException {
                         IOUtils.close(super::close, input);
@@ -1307,7 +1313,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         otherBlobs = blobs.entrySet()
                             .stream()
                             .filter(entry -> Objects.equals(entry.getKey(), latestBcc.primaryTermAndGeneration()) == false)
-                            .map(entry -> new BlobFile(entry.getValue().name(), entry.getKey()))
+                            .<BlobFile>map(entry -> new BccBlobFile(entry.getValue().name(), entry.getKey()))
                             .collect(Collectors.toUnmodifiableSet());
                     } else {
                         // No blobs found
@@ -1512,7 +1518,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     ) {
         public StatelessCompoundCommitReference {
             assert compoundCommit.primaryTerm() == bccBlobFile.primaryTerm() : "the CC term is different from the holder BCC's term";
-            assert compoundCommit.generation() >= bccBlobFile.generation()
+            assert compoundCommit.generation() >= bccBlobFile.termAndGeneration().generation()
                 : "the CC generation is smaller than the holder BCC's generation";
         }
     }

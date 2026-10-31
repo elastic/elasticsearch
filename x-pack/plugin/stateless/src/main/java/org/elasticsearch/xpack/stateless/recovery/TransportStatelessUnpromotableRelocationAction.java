@@ -62,7 +62,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -448,7 +448,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             final var luceneCommitPointMetadata = searchDirectory.getBlobFileRangesForFile(indexCommit.getSegmentsFileName());
             assert luceneCommitPointMetadata != null : "commit point [" + indexCommit + "] not found in search directory";
             final var bccTermAndGen = luceneCommitPointMetadata.getBatchedCompoundCommitTermAndGeneration();
-            final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
+            final var bccBlobName = new BccBlobFile(bccTermAndGen);
             final var metadataFromSearchDirectory = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
 
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
@@ -461,7 +461,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
                         shardId,
                         bccTermAndGen,
-                        new BlobMetadata(bccBlobName, luceneCommitPointMetadata.fileOffset())
+                        new BlobMetadata(bccBlobName.blobName(), luceneCommitPointMetadata.fileOffset())
                     );
                     Map<String, BlobFileRanges> metadataFromStore = null;
                     while (bccIterator.hasNext()) {

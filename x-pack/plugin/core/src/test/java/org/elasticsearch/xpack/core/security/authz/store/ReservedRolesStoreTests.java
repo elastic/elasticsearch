@@ -4682,7 +4682,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 "monitoring_user",
                 "alertzero_threat_hunt",
                 "alertzero_rule_tuning",
-                "alertzero_rule_coverage"
+                "alertzero_rule_coverage",
+                "alertzero_attack_discovery"
             )
         );
     }
@@ -4735,8 +4736,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
     }
 
+    public void testAlertZeroAttackDiscoveryRoleRemoteIndices() {
+        final Role role = alertZeroRole("alertzero_attack_discovery");
+        assertRemoteAllowed(role, "logs-endpoint.events.process-sample", TransportSearchAction.TYPE.name(), true);
+        assertRemoteAllowed(role, "logs-endpoint.events.sample", TransportSearchAction.TYPE.name(), true);
+        assertRemoteAllowed(role, "logs-endpoint.events.process-sample", ResolveIndexAction.NAME, true);
+        assertRemoteAllowed(role, "logs-endpoint.events.process-sample", TransportIndexAction.NAME, false);
+        assertRemoteAllowed(role, "logs-endpoint.events.process-sample", TransportDeleteIndexAction.TYPE.name(), false);
+        // The data view's other streams, and the entity store, stay local.
+        assertRemoteAllowed(role, "logs-sample", TransportSearchAction.TYPE.name(), false);
+        assertRemoteAllowed(role, "entities-latest-sample", TransportSearchAction.TYPE.name(), false);
+        assertRemoteAllowed(role, ".alerts-security.alerts-default", TransportSearchAction.TYPE.name(), false);
+    }
+
     public void testAlertZeroWorkerRolesWithoutRemoteIndices() {
-        for (String roleName : List.of("alertzero_alert_triage", "alertzero_attack_discovery", "alertzero_endpoint_analysis")) {
+        for (String roleName : List.of("alertzero_alert_triage", "alertzero_endpoint_analysis")) {
             final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
             assertNotNull(roleDescriptor);
             assertThat(roleName, roleDescriptor.hasRemoteIndicesPrivileges(), is(false));

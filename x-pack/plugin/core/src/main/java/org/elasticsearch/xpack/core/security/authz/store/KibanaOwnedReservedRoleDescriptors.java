@@ -925,6 +925,11 @@ class KibanaOwnedReservedRoleDescriptors {
 
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor alertZeroAttackDiscovery(String name) {
+        // Split from entities-latest-*: a remote twin is rejected unless the local entry also has read_cross_cluster.
+        final RoleDescriptor.IndicesPrivileges endpointEvents = RoleDescriptor.IndicesPrivileges.builder()
+            .indices("logs-endpoint.events.*")
+            .privileges("read", "read_cross_cluster")
+            .build();
         return alertZeroWorker(
             name,
             "Attack Discovery",
@@ -937,6 +942,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 "feature_workflowsManagement.workflow_execute",
                 "feature_securitySolutionAttackDiscovery.all",
                 "feature_securitySolutionAlertsV1.all" },
+            new RoleDescriptor.RemoteIndicesPrivileges[] { new RoleDescriptor.RemoteIndicesPrivileges(endpointEvents, "*") },
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".alerts-security.attack.discovery.alerts-*", ".adhoc.alerts-security.attack.discovery.alerts-*")
                 .privileges("read", "view_index_metadata", "index", "maintenance")
@@ -961,7 +967,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 .indices(".kibana-elastic-ai-assistant-anonymization-fields-*")
                 .privileges("read")
                 .build(),
-            RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.events.*", "entities-latest-*").privileges("read").build(),
+            endpointEvents,
+            RoleDescriptor.IndicesPrivileges.builder().indices("entities-latest-*").privileges("read").build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(
                     "apm-*-transaction*",

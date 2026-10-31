@@ -9,12 +9,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
@@ -31,6 +34,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -43,6 +47,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.CharBuffer;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -310,14 +315,66 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
         List<Object> values = new ArrayList<>();
+        final TermEncoder encoder = new TermEncoder();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            Object value = maybeConvertToBytesRef(parser.objectBytes());
+            final Object parsed = parser.objectBytes();
+            // A term longer than the limit has more bytes than that however it is encoded, so it takes the general path, which rejects it,
+            // instead of growing the encoder's buffer for it.
+            final Object value = parsed instanceof CharBuffer chars && chars.length() <= IndexWriter.MAX_TERM_LENGTH
+                ? BytesRefs.checkIndexableLength(encoder.encode(chars))
+                : maybeConvertToBytesRef(parsed);
             if (value == null) {
                 throw new ParsingException(parser.getTokenLocation(), "No value specified for terms query");
             }
             values.add(value);
         }
         return values;
+    }
+
+    /**
+     * Encodes the terms of one list as UTF-8 into arrays of exactly their size.
+     * This allocates a temporary scratch buffer for the worst case of 3 bytes per char.
+     * The optimized route checks if the chars are all ASCII, and if so, encodes them directly.
+     */
+    private static final class TermEncoder {
+        private byte[] scratch = new byte[128];
+
+        BytesRef encode(CharBuffer value) {
+            final int length = value.length();
+            if (value.hasArray() == false) {
+                final int used = UnicodeUtil.UTF16toUTF8(value, 0, length, ensureScratch(length));
+                return new BytesRef(Arrays.copyOf(scratch, used));
+            }
+            final char[] chars = value.array();
+            final int from = value.arrayOffset() + value.position();
+            // Shortcut - check the first char for free before allocating
+            if (length > 0 && chars[from] > 0x7F) {
+                final int used = UnicodeUtil.UTF16toUTF8(chars, from, length, ensureScratch(length));
+                return new BytesRef(Arrays.copyOf(scratch, used));
+            }
+            final byte[] bytes = new byte[length];
+            int bits = 0;
+            for (int i = 0; i < length; i++) {
+                final char c = chars[from + i];
+                bits |= c;
+                bytes[i] = (byte) c;
+            }
+            if (bits < 0x80) {
+                // If the whole string is ASCII, we can avoid the UTF-8 conversion
+                return new BytesRef(bytes);
+            }
+            final int used = UnicodeUtil.UTF16toUTF8(chars, from, length, ensureScratch(length));
+            return new BytesRef(Arrays.copyOf(scratch, used));
+        }
+
+        // Ensure scratch is large enough to hold the UTF-8 encoded bytes
+        private byte[] ensureScratch(int charLength) {
+            final int max = UnicodeUtil.maxUTF8Length(charLength);
+            if (scratch.length < max) {
+                scratch = new byte[ArrayUtil.oversize(max, Byte.BYTES)];
+            }
+            return scratch;
+        }
     }
 
     @Override

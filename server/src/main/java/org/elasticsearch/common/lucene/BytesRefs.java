@@ -69,7 +69,7 @@ public class BytesRefs {
      * @param s the input string to convert
      * @return a BytesRef object representing the input string
      */
-    public static BytesRef toExactSizedBytesRef(String s) {
+    public static BytesRef toExactSizedBytesRef(CharSequence s) {
         int l = s.length();
         byte[] b = new byte[UnicodeUtil.calcUTF16toUTF8Length(s, 0, l)];
         UnicodeUtil.UTF16toUTF8(s, 0, l, b);

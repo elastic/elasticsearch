@@ -49,6 +49,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -63,6 +66,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -146,7 +150,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
 
         var service = createRequestExecutorService(null, requestSender);
 
@@ -244,7 +248,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalArgumentException("failed");
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -295,6 +299,86 @@ public class RequestExecutorServiceTests extends ESTestCase {
             is(format("Request timed out after [%s] for inference id [%s]", TimeValue.timeValueNanos(1), INFERENCE_ID))
         );
         assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
+    }
+
+    /**
+     * Given a request whose http exchange never completes (e.g. it waits for a pooled connection that never frees up)
+     * When the request times out
+     * Then the exchange is aborted, so that it does not stay queued in the connection pool holding on to its request body.
+     */
+    public void testExecute_AbortsHttpExchange_WhenRequestTimesOut() throws Exception {
+        var requestSender = mock(RetryingHttpSender.class);
+        var exchangeStarted = new CountDownLatch(1);
+        var exchangeAborted = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            Consumer<Runnable> abortHandlerRegistry = invocation.getArgument(4);
+            abortHandlerRegistry.accept(exchangeAborted::countDown);
+            exchangeStarted.countDown();
+            // never complete the listener, the exchange is stuck
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+
+        // never elapses on its own, the test fires the timeout manually once the exchange started instead of relying on the clock
+        var timeout = TimeValue.MAX_VALUE;
+        var onTimeout = new AtomicReference<Runnable>();
+        var service = new RequestExecutorService(
+            threadPoolCapturingTimeout(timeout, onTimeout),
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            requestSender,
+            new TestCircuitBreaker()
+        );
+        threadPool.generic().execute(service::start);
+
+        // randomly exercise the fast path and the rate limited path
+        var requestManager = RequestManagerTests.createMockSendingThroughExecutorRequestSender(
+            INFERENCE_ID,
+            new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
+        );
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputType.SEARCH), timeout, listener);
+
+        assertTrue(exchangeStarted.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        assertThat(exchangeAborted.getCount(), is(1L));
+        assertNotNull("the request timeout must have been scheduled", onTimeout.get());
+
+        onTimeout.get().run();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        // the timeout runs the abort handlers synchronously after notifying the listener
+        assertThat(exchangeAborted.getCount(), is(0L));
+
+        service.shutdown();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+    }
+
+    public void testExecute_DoesNotAbortHttpExchange_WhenRequestSucceeds() throws Exception {
+        var requestSender = mock(RetryingHttpSender.class);
+        var exchangeAborted = new AtomicBoolean();
+        doAnswer(invocation -> {
+            Consumer<Runnable> abortHandlerRegistry = invocation.getArgument(4);
+            abortHandlerRegistry.accept(() -> exchangeAborted.set(true));
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(5);
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+
+        var service = createRequestExecutorService(null, requestSender);
+        threadPool.generic().execute(service::start);
+
+        var requestManager = RequestManagerTests.createMockSendingThroughExecutorRequestSender(
+            INFERENCE_ID,
+            new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
+        );
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputType.SEARCH), null, listener);
+
+        listener.actionGet(TIMEOUT);
+        // a successful (e.g. streamed) response may still be backed by the exchange
+        assertFalse(exchangeAborted.get());
+
+        service.shutdown();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
@@ -1247,6 +1331,23 @@ public class RequestExecutorServiceTests extends ESTestCase {
         long getTotalCharged() {
             return totalCharged;
         }
+    }
+
+    /**
+     * Spies on the test thread pool so that the request timeout is captured instead of scheduled, letting tests fire it manually
+     * rather than relying on the clock. Every other call, including the executor service's own scheduling, uses the real thread pool.
+     */
+    private ThreadPool threadPoolCapturingTimeout(TimeValue requestTimeout, AtomicReference<Runnable> onTimeout) {
+        var spiedThreadPool = spy(threadPool);
+        doAnswer(invocation -> {
+            TimeValue delay = invocation.getArgument(1);
+            if (delay.equals(requestTimeout) == false) {
+                return invocation.callRealMethod();
+            }
+            onTimeout.set(invocation.getArgument(0));
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(spiedThreadPool).schedule(any(Runnable.class), any(), any());
+        return spiedThreadPool;
     }
 
     private RequestExecutorService createRequestExecutorServiceWithMocks() {

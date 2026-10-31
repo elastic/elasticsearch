@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.time.Clock;
@@ -56,7 +58,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  *
  * <b>NOTE:</b> requests wait for a pooled connection indefinitely: the http client disables the connection lease timeout
  * ({@link org.apache.hc.client5.http.config.RequestConfig.Builder#setConnectionRequestTimeout}), so a queued task is bounded
- * only by the per-request inference timeout.
+ * only by the per-request inference timeout. Once a task fails or times out, its http exchanges are aborted, which removes them
+ * from the connection pool's pending queue (see {@link #abortingOnTaskFailure(RequestSender, InferenceRequest)}).
  *
  * The request flow looks as follows:
  *
@@ -359,7 +362,12 @@ public class RequestExecutorService implements RequestExecutor {
     private void executeTaskImmediately(RejectableTask task) {
         try {
             task.getRequestManager()
-                .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+                .execute(
+                    task.getInferenceInputs(),
+                    abortingOnTaskFailure(requestSender, task),
+                    task.getRequestCompletedFunction(),
+                    task.getListener()
+                );
         } catch (Exception e) {
             logger.warn(
                 format("Failed to execute fast-path request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
@@ -613,6 +621,27 @@ public class RequestExecutorService implements RequestExecutor {
     }
 
     /**
+     * Binds the request sender to the task, so that the http exchanges sent on behalf of the task are aborted once the task fails or
+     * times out. Without this, a timed out request would stay queued in the connection pool, holding on to its request body,
+     * until a connection becomes available for it.
+     */
+    // default for testing
+    static RequestSender abortingOnTaskFailure(RequestSender requestSender, InferenceRequest task) {
+        return new RequestSender() {
+            @Override
+            public void send(
+                Logger logger,
+                OutboundRequest outboundRequest,
+                Supplier<Boolean> hasRequestTimedOutFunction,
+                ResponseHandler responseHandler,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                requestSender.send(logger, outboundRequest, hasRequestTimedOutFunction, responseHandler, task::addAbortHandler, listener);
+            }
+        };
+    }
+
+    /**
      * Provides rate limiting functionality for requests. A single {@link RateLimitingEndpointHandler} governs a group of requests.
      * This allows many requests to be serialized if they are being sent too fast. If the rate limit has not been met they will be sent
      * as soon as a thread is available.
@@ -731,7 +760,12 @@ public class RequestExecutorService implements RequestExecutor {
                 }
 
                 task.getRequestManager()
-                    .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+                    .execute(
+                        task.getInferenceInputs(),
+                        abortingOnTaskFailure(requestSender, task),
+                        task.getRequestCompletedFunction(),
+                        task.getListener()
+                    );
             } catch (Exception e) {
                 logger.warn(format("Executor service grouping [%s] failed to execute request", rateLimitGroupingId), e);
                 // Reject the task to free up tracked bytes
@@ -864,6 +898,11 @@ public class RequestExecutorService implements RequestExecutor {
 
         @Override
         public Supplier<Boolean> getRequestCompletedFunction() {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+
+        @Override
+        public void addAbortHandler(Runnable abortHandler) {
             throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
         }
     };

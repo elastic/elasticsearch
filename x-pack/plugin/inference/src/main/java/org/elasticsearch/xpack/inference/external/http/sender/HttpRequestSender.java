@@ -221,6 +221,7 @@ public class HttpRequestSender implements Sender {
                             outboundRequest,
                             timedListener::hasCompleted,
                             responseHandler,
+                            timedListener::addAbortHandler,
                             timedListener.getListener()
                         )
                     );

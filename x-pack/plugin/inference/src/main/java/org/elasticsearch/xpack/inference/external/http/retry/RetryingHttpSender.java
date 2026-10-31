@@ -32,6 +32,7 @@ import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -99,6 +100,7 @@ public class RetryingHttpSender implements RequestSender {
         private final Logger logger;
         private final HttpClientContext context;
         private final Supplier<Boolean> hasRequestCompletedFunction;
+        private final Consumer<Runnable> abortHandlerRegistry;
         private final AtomicInteger retryCount;
 
         InternalRetrier(
@@ -107,6 +109,7 @@ public class RetryingHttpSender implements RequestSender {
             HttpClientContext context,
             Supplier<Boolean> hasRequestCompletedFunction,
             ResponseHandler responseHandler,
+            Consumer<Runnable> abortHandlerRegistry,
             ActionListener<InferenceServiceResults> listener
         ) {
             super(
@@ -123,6 +126,7 @@ public class RetryingHttpSender implements RequestSender {
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);
             this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
+            this.abortHandlerRegistry = Objects.requireNonNull(abortHandlerRegistry);
             this.retryCount = new AtomicInteger(0);
         }
 
@@ -184,8 +188,14 @@ public class RetryingHttpSender implements RequestSender {
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {
+            /*
+              The connection pool queues requests without a lease timeout, so an exchange is only bounded by the inference timeout.
+              Failing the inference listener does not stop the exchange though, so we register its abort action. Otherwise a timed out
+              request keeps waiting for a pooled connection forever, holding on to its request body.
+             */
+            final Runnable abortExchange;
             if (outboundRequest.isStreaming() && responseHandler.canHandleStreamingResponses()) {
-                httpClient.stream(httpRequest, context, listener.delegateFailureAndWrap((l, r) -> {
+                abortExchange = httpClient.stream(httpRequest, context, listener.delegateFailureAndWrap((l, r) -> {
                     if (r.isSuccessfulResponse()) {
                         l.onResponse(responseHandler.parseResult(outboundRequest, r.toHttpResult()));
                     } else {
@@ -197,7 +207,7 @@ public class RetryingHttpSender implements RequestSender {
                     }
                 }));
             } else {
-                httpClient.send(
+                abortExchange = httpClient.send(
                     httpRequest,
                     context,
                     listener.delegateFailureAndWrap(
@@ -205,6 +215,7 @@ public class RetryingHttpSender implements RequestSender {
                     )
                 );
             }
+            abortHandlerRegistry.accept(abortExchange);
         }
 
         /**
@@ -279,12 +290,25 @@ public class RetryingHttpSender implements RequestSender {
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
+        send(logger, outboundRequest, hasRequestTimedOutFunction, responseHandler, abortExchange -> {}, listener);
+    }
+
+    @Override
+    public void send(
+        Logger logger,
+        OutboundRequest outboundRequest,
+        Supplier<Boolean> hasRequestTimedOutFunction,
+        ResponseHandler responseHandler,
+        Consumer<Runnable> abortHandlerRegistry,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         var retrier = new InternalRetrier(
             logger,
             outboundRequest,
             HttpClientContext.create(),
             hasRequestTimedOutFunction,
             responseHandler,
+            abortHandlerRegistry,
             listener
         );
         retrier.run();

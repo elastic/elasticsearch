@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -142,6 +143,81 @@ public class TimedListenerTests extends ESTestCase {
 
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
+    }
+
+    public void testAbortHandler_RunsWhenTimingOut() {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, mockThreadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+        assertThat(abortCount.get(), is(0));
+
+        onTimeout.get().run();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(abortCount.get(), is(1));
+    }
+
+    public void testAbortHandler_RunsWhenFailing() {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+
+        expectThrows(IllegalArgumentException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(abortCount.get(), is(2));
+    }
+
+    public void testAbortHandler_RunsImmediately_WhenRegisteredAfterFailure() {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+        assertThat(abortCount.get(), is(1));
+    }
+
+    public void testAbortHandler_DoesNotRun_WhenSucceeding() {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, mockThreadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
+        // a late timeout and a late failure must not abort the work backing the successful response, e.g. a streamed body
+        onTimeout.get().run();
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        assertThat(abortCount.get(), is(0));
+    }
+
+    public void testAbortHandler_FailureDoesNotPreventOtherAbortHandlers() {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(() -> { throw new IllegalStateException("abort failed"); });
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+
+        expectThrows(IllegalArgumentException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(abortCount.get(), is(1));
     }
 
     public static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable, ThreadPool threadPool) {

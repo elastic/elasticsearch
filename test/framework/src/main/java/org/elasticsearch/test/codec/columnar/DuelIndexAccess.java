@@ -12,6 +12,7 @@ package org.elasticsearch.test.codec.columnar;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -66,7 +67,7 @@ public final class DuelIndexAccess {
                 continue;
             }
             startedShardSeen = true;
-            try (Engine.Searcher searcher = shard.acquireSearcher("duel-format-check")) {
+            try (Engine.Searcher searcher = shard.acquireExternalSearcher("duel-format-check", SplitShardCountSummary.IRRELEVANT)) {
                 for (final LeafReaderContext leaf : searcher.getLeafContexts()) {
                     final FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(field);
                     if (fieldInfo != null && fieldInfo.getDocValuesType() != DocValuesType.NONE) {

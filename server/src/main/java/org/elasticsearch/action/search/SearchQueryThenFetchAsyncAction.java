@@ -256,7 +256,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final Object[] results;
         private final Exception reductionFailure;
         private final SearchPhaseController.TopDocsStats topDocsStats;
-        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+        private QueryPhaseResultConsumer.MergeResult mergeResult;
 
         public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
@@ -278,6 +278,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         Exception getReductionFailure() {
             return reductionFailure;
+        }
+
+        /**
+         * Hands the merge result, and responsibility for releasing its aggregations, over to the caller.
+         */
+        QueryPhaseResultConsumer.MergeResult takeMergeResult() {
+            final var taken = mergeResult;
+            mergeResult = null;
+            return taken;
         }
 
         @Override
@@ -326,6 +335,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         r.decRef();
                     }
                     results[i] = null;
+                }
+                if (mergeResult != null) {
+                    QueryPhaseResultConsumer.releaseBatchedAggs(mergeResult.reducedAggs());
+                    mergeResult = null;
                 }
                 return true;
             }
@@ -608,7 +621,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             if (reductionFailure != null) {
                                 queryPhaseResultConsumer.setFailure(reductionFailure);
                             } else {
-                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
+                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.takeMergeResult());
                             }
                         }
                         SearchPhaseResult lastResult = null;
@@ -969,10 +982,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
                 return bwcBuildResponse();
             }
-            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
-            out.setTransportVersion(channel.getVersion());
+            RecyclerBytesStreamOutput out = null;
             boolean success = false;
             try (queryPhaseResultConsumer) {
+                // Inside the try, so a trip on the first page still closes the consumer.
+                out = newResponseStream();
                 Exception reductionFailure = queryPhaseResultConsumer.getFailure();
                 if (reductionFailure == null) {
                     writeSuccessfulResponse(out);
@@ -981,11 +995,20 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 success = true;
             } finally {
-                if (success == false) {
+                if (success == false && out != null) {
                     out.close();
                 }
             }
             return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
+        }
+
+        /** The response can be large, so its bytes stay charged to the request breaker until the network write completes. */
+        private RecyclerBytesStreamOutput newResponseStream() {
+            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(
+                dependencies.searchService.getCircuitBreaker()
+            );
+            out.setTransportVersion(channel.getVersion());
+            return out;
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -1087,8 +1110,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
                 final int resultCount = queryPhaseResultConsumer.getNumShards();
-                out = dependencies.transportService.newNetworkBytesStream(null);
-                out.setTransportVersion(channel.getVersion());
+                out = newResponseStream();
                 out.writeVInt(resultCount);
                 for (int i = 0; i < resultCount; i++) {
                     var result = queryPhaseResultConsumer.results.get(i);

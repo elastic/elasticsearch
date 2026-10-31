@@ -168,7 +168,7 @@ public class StringColumnStreamedWriteTests extends ColumnarStringTestCase {
         }
 
         @Override
-        public int valueCount() {
+        public int valueCount() throws IOException {
             return in.valueCount();
         }
 

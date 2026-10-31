@@ -20,9 +20,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -32,7 +34,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Logic-only tests for {@link ShardBatchIndexer#canUseBatchIndexing(BulkShardRequest)}. Separated out
+ * Logic-only tests for {@link ShardBatchIndexer#canUseBatchIndexing(BulkShardRequest, IndexSettings)}. Separated out
  * to avoid creating temp directories for every test as happens in {@link ShardBatchIndexerTests}
  */
 public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
@@ -50,6 +52,18 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             ),
             BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
+    }
+
+    /**
+     * Index settings with {@code index.batch_indexing} explicitly set. The setting is only registered when the feature flag
+     * is on, so it is omitted otherwise (the index then never opts in, which the flag-off assertions expect).
+     */
+    private static IndexSettings indexSettings(boolean batchIndexing) {
+        Settings.Builder builder = Settings.builder();
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            builder.put(IndexSettings.BATCH_INDEXING.getKey(), batchIndexing);
+        }
+        return IndexSettingsModule.newIndexSettings("index", builder.build());
     }
 
     private static IndexRequest indexRequest(String id) {
@@ -79,7 +93,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };
         try (EscfBatch batch = buildBatch(2)) {
-            assertTrue(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch)));
+            assertTrue(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(true)));
         }
     }
 
@@ -88,7 +102,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             new BulkItemRequest(0, indexRequest("1").create(true)),
             new BulkItemRequest(1, indexRequest("2").create(true)) };
         try (EscfBatch batch = buildBatch(2)) {
-            assertTrue(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch)));
+            assertTrue(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(true)));
         }
     }
 
@@ -97,7 +111,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2").create(true)) };
         try (EscfBatch batch = buildBatch(2)) {
-            assertTrue(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch)));
+            assertTrue(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(true)));
         }
     }
 
@@ -106,7 +120,7 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, new DeleteRequest("index", "2")) };
         try (EscfBatch batch = buildBatch(2)) {
-            assertFalse(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch)));
+            assertFalse(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(true)));
         }
     }
 
@@ -115,14 +129,22 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, new UpdateRequest("index", "2")) };
         try (EscfBatch batch = buildBatch(2)) {
-            assertFalse(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch)));
+            assertFalse(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(true)));
         }
     }
 
     public void testCanUseBatchIndexingDisabled() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
         try (EscfBatch batch = buildBatch(1)) {
-            assertFalse(indexer(false).canUseBatchIndexing(requestWithBatch(items, batch)));
+            assertFalse(indexer(false).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(true)));
+        }
+    }
+
+    public void testCanUseBatchIndexingIndexSettingOff() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
+        try (EscfBatch batch = buildBatch(1)) {
+            assertFalse(indexer(true).canUseBatchIndexing(requestWithBatch(items, batch), indexSettings(false)));
         }
     }
 
@@ -130,12 +152,12 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };
-        assertFalse(indexer(true).canUseBatchIndexing(requestWithoutBatch(items)));
+        assertFalse(indexer(true).canUseBatchIndexing(requestWithoutBatch(items), indexSettings(true)));
     }
 
     public void testDynamicSettingUpdate() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
+            Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build(),
             Set.of(BatchIndexingEnabled.BATCH_INDEXING, BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE)
         );
         BatchIndexingEnabled gate = new BatchIndexingEnabled(clusterSettings);
@@ -145,14 +167,14 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
         try (EscfBatch batch = buildBatch(1)) {
             BulkShardRequest request = requestWithBatch(items, batch);
 
-            assertFalse(batchIndexer.canUseBatchIndexing(request));
+            assertFalse(batchIndexer.canUseBatchIndexing(request, indexSettings(true)));
 
             if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
                 clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
-                assertTrue(batchIndexer.canUseBatchIndexing(request));
+                assertTrue(batchIndexer.canUseBatchIndexing(request, indexSettings(true)));
 
                 clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build());
-                assertFalse(batchIndexer.canUseBatchIndexing(request));
+                assertFalse(batchIndexer.canUseBatchIndexing(request, indexSettings(true)));
             } else {
                 IllegalArgumentException ex = expectThrows(
                     IllegalArgumentException.class,

@@ -25,6 +25,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -138,6 +140,10 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
+        createBatchIndex(index, shards, replicas, true);
+    }
+
+    private void createBatchIndex(String index, int shards, int replicas, boolean batchIndexing) throws IOException {
         XContentBuilder mapping = getMapping();
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -146,6 +152,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_replicas", replicas)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), batchIndexing)
                 )
                 .setMapping(mapping)
         );
@@ -787,6 +794,60 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
+     * Per-index opt-in: in one bulk, only the index with {@code index.batch_indexing} enabled gets a batch on its shard requests, while
+     * the disabled index is indexed from inline source. Both must be fully indexed, with replicas, and no pages may leak.
+     */
+    public void testMixedBulkBatchesOnlyEnabledIndex() throws Exception {
+        String enabledIndex = "test-batch-enabled";
+        String disabledIndex = "test-batch-disabled";
+        createBatchIndex(enabledIndex, 2, 1, true);
+        createBatchIndex(disabledIndex, 2, 1, false);
+        String coordinatingNode = findCoordinatingNode();
+
+        Set<String> indicesWithBatch = ConcurrentCollections.newConcurrentSet();
+        Set<String> indicesWithoutBatch = ConcurrentCollections.newConcurrentSet();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
+                    // the primary action receives the request wrapped for its target allocation id
+                    BulkShardRequest shardRequest = (BulkShardRequest) ((TransportReplicationAction.ConcreteShardRequest<?>) request)
+                        .getRequest();
+                    (shardRequest.getBulkShardBatch() != null ? indicesWithBatch : indicesWithoutBatch).add(
+                        shardRequest.shardId().getIndexName()
+                    );
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        int docsPerIndex = randomIntBetween(10, 50);
+        try {
+            BulkRequestBuilder bulk = client(coordinatingNode).prepareBulk();
+            for (int i = 0; i < docsPerIndex; i++) {
+                for (String index : List.of(enabledIndex, disabledIndex)) {
+                    bulk.add(
+                        new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
+                            .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+                    );
+                }
+            }
+            assertNoFailures(bulk.get());
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+
+        assertThat(indicesWithBatch, equalTo(Set.of(enabledIndex)));
+        assertThat(indicesWithoutBatch, equalTo(Set.of(disabledIndex)));
+        refresh(enabledIndex, disabledIndex);
+        for (String index : List.of(enabledIndex, disabledIndex)) {
+            assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), response -> {
+                assertNoFailures(response);
+                assertThat(response.getHits().getTotalHits().value(), equalTo((long) docsPerIndex));
+            });
+        }
+    }
+
+    /**
      * Batch pages come from the coordinating node's recycler. The mock recycler installed by {@link NodeMocksPlugin} charges each page
      * to the request breaker, so the breaker rises while the shard requests are held and drops back once the bulk completes. The
      * production recycler does not charge a breaker. The same bulk is first sent with batch indexing off as a control, so anything
@@ -1212,7 +1273,12 @@ public class BatchBulkIT extends ESIntegTestCase {
         String index = "test-mixed-ops";
         assertAcked(
             indicesAdmin().prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
                 .setMapping(getMapping())
         );
         ensureGreen(index);
@@ -1345,6 +1411,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1508,7 +1575,12 @@ public class BatchBulkIT extends ESIntegTestCase {
 
         assertAcked(
             indicesAdmin().prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
                 .setMapping(mapping)
         );
         ensureGreen(index);
@@ -1593,6 +1665,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1720,6 +1793,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
                         .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
@@ -1818,6 +1892,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1965,6 +2040,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("resource_id"))
                         .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
@@ -2154,6 +2230,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("resource_id"))
                         .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
@@ -2293,6 +2370,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -2823,6 +2901,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", numShards)
                         .put("index.number_of_replicas", 1)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)

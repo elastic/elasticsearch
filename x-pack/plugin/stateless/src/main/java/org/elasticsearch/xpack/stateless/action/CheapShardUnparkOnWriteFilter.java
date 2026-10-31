@@ -13,13 +13,17 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,15 +34,19 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
 
+import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Cheap shards, phase 3 ("both tiers to zero"), default off: a bulk (or single-document write, which runs as a bulk) to an index whose
- * indexing shard is parked ({@code index.cheap_shard.parked: true}) unparks it by clearing the setting, then lets the request proceed
- * unchanged. The write waits for the primary in {@code TransportReplicationAction.ReroutePhase} (request timeout, default 1m) while the
- * settings update reroutes and the primary recovers from the object store, so the filter never blocks the request path itself.
- * At most one unpark per index is in flight on this node; other writes just proceed and wait in the same way.
+ * Cheap shards, phase 3 ("both tiers to zero"), default off: a bulk (or single-document index/delete, which runs as a bulk) or an
+ * {@code _update} (which waits for the primary before it issues its bulk) to an index whose indexing shard is parked
+ * ({@code index.cheap_shard.parked: true}) unparks it by clearing the setting, then lets the request proceed unchanged. The write
+ * waits for the primary in {@code TransportReplicationAction.ReroutePhase} (request timeout, default 1m) while the settings update
+ * reroutes and the primary recovers from the object store, so the filter never blocks the request path itself.
+ * At most one unpark per index is in flight on this node; other writes just proceed and wait in the same way. Only the real bulk and
+ * update actions act, not {@code SimulateBulkAction} (whose request is a {@link BulkRequest} too but must not change state). The index is
+ * resolved in the request's project ({@link ProjectResolver}).
  * <p>
  * Prototype limitations: the settings update runs in the caller's thread context (no internal origin, so it needs a user allowed to
  * update index settings when security is on), and only concrete index names, aliases and data streams with a write index are resolved
@@ -57,12 +65,18 @@ public class CheapShardUnparkOnWriteFilter implements ActionFilter {
 
     private final Supplier<ClusterService> clusterService;
     private final Supplier<Client> client;
+    private final Supplier<ProjectResolver> projectResolver;
     private final Set<Index> unparking = ConcurrentCollections.newConcurrentSet();
 
     /** Suppliers because action filters are created before the plugin's components. */
-    public CheapShardUnparkOnWriteFilter(Supplier<ClusterService> clusterService, Supplier<Client> client) {
+    public CheapShardUnparkOnWriteFilter(
+        Supplier<ClusterService> clusterService,
+        Supplier<Client> client,
+        Supplier<ProjectResolver> projectResolver
+    ) {
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -78,18 +92,25 @@ public class CheapShardUnparkOnWriteFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        if (request instanceof BulkRequest bulkRequest) {
+        final List<? extends DocWriteRequest<?>> writes;
+        if (request instanceof BulkRequest bulkRequest && TransportBulkAction.NAME.equals(action)) {
+            writes = bulkRequest.requests();
+        } else if (request instanceof UpdateRequest updateRequest && TransportUpdateAction.NAME.equals(action)) {
+            writes = List.of(updateRequest);
+        } else {
+            writes = List.of();
+        }
+        if (writes.isEmpty() == false) {
             final ClusterService cs = clusterService.get();
-            if (cs != null && cs.getClusterSettings().get(ENABLED_SETTING)) {
-                unparkTargets(cs, bulkRequest);
+            if (cs != null && client.get() != null && projectResolver.get() != null && cs.getClusterSettings().get(ENABLED_SETTING)) {
+                unparkTargets(projectResolver.get().getProjectMetadata(cs.state()), writes);
             }
         }
         chain.proceed(task, action, request, listener);
     }
 
-    private void unparkTargets(ClusterService cs, BulkRequest bulkRequest) {
-        final ProjectMetadata project = cs.state().metadata().getProject();
-        for (DocWriteRequest<?> item : bulkRequest.requests()) {
+    private void unparkTargets(ProjectMetadata project, List<? extends DocWriteRequest<?>> writes) {
+        for (DocWriteRequest<?> item : writes) {
             final IndexMetadata indexMetadata = writeIndex(project, item.index());
             if (indexMetadata != null
                 && CheapShardParkedAllocationDecider.PARKED_SETTING.get(indexMetadata.getSettings())

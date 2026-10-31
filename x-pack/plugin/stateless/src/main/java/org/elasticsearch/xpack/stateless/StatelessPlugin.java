@@ -2089,7 +2089,7 @@ public class StatelessPlugin extends Plugin
     @Override
     public Collection<ActionFilter> getActionFilters() {
         // cheap shards, phase 3: a write to a parked index unparks its indexing shard (default off, see the filter's setting)
-        return List.of(new CheapShardUnparkOnWriteFilter(clusterService::get, clientRef::get));
+        return List.of(new CheapShardUnparkOnWriteFilter(clusterService::get, clientRef::get, projectResolver::get));
     }
 
     @Override

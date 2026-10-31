@@ -11,6 +11,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
@@ -49,6 +51,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
@@ -229,7 +232,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
      * and blocking registration) if the pointer is missing, unreadable or does not match, or if warming its commit fails.
      */
     private void pointerRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener) {
-        final long knownPrimaryTerm = indexShard.getOperationPrimaryTerm();
+        final long knownPrimaryTerm = pointerPrimaryTerm(indexShard);
         final ActionListener<Void> fallback = ActionListener.wrap(ignored -> {
             try {
                 beforeRecoveryOnSearchShard(indexShard, blobContainer, listener);
@@ -348,7 +351,75 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
      */
     private final Map<IndexShard, NewCommitNotification> pendingRegistrationCommits = ConcurrentCollections.newConcurrentMap();
 
+    /**
+     * The primary term whose commit pointer names the shard's current commit: the cluster state's primary term, except for a parked
+     * index (phase 3, {@code index.cheap_shard.parked}) whose primary is not active. Parking fails the active primary of term T, which
+     * bumps the term to T + 1 (IndexMetadataUpdater#shardFailed) without any primary ever being assigned at T + 1 (the parked decider
+     * keeps it unassigned, and assigning it would bump the term again), so the last pointer is the one of term T. Reading it directly
+     * avoids a missing-pointer GET and the LIST fallback; the stale-primary check then covers the terms before T as usual.
+     */
+    private long pointerPrimaryTerm(IndexShard indexShard) {
+        final long term = indexShard.getOperationPrimaryTerm();
+        if (CheapShardParkedAllocationDecider.PARKED_SETTING.get(indexShard.indexSettings().getSettings())
+            && term > 1
+            && isPrimaryActive(clusterService.state(), indexShard.shardId()) == false) {
+            logger.debug("{} fast activation: index is parked, reading the commit pointer of term [{}]", indexShard.shardId(), term - 1);
+            return term - 1;
+        }
+        return term;
+    }
+
+    /**
+     * Both tiers to zero (phase 3): background registrations of pointer-activated shards whose indexing shard is not active (parked,
+     * {@code index.cheap_shard.parked}). Sending them would only wait 10 s for a primary and fail; instead they are sent once the
+     * cluster state shows an active primary (see {@link #registerDeferred}). Nothing can write while there is no primary, so the pointed
+     * commit is current until then, and a primary that recovers while this copy is assigned retains every commit it lists for all
+     * assigned search nodes (StatelessCommitService#registerVirtualBccForUnpromotableRecovery is not needed for that).
+     */
+    private final Map<IndexShard, CommitPointer> deferredRegistrations = ConcurrentCollections.newConcurrentMap();
+    private final AtomicBoolean deferredRegistrationListenerAdded = new AtomicBoolean();
+
     private void registerInBackground(IndexShard indexShard, CommitPointer pointer) {
+        if (isPrimaryActive(clusterService.state(), indexShard.shardId()) == false) {
+            logger.debug("{} fast activation: no active indexing shard, deferring the background registration", indexShard.shardId());
+            deferredRegistrations.put(indexShard, pointer);
+            if (deferredRegistrationListenerAdded.compareAndSet(false, true)) {
+                clusterService.addListener(event -> {
+                    if (deferredRegistrations.isEmpty() == false && event.routingTableChanged()) {
+                        registerDeferred(event.state());
+                    }
+                });
+            }
+            // the primary may have become active between the check above and the put
+            registerDeferred(clusterService.state());
+            return;
+        }
+        sendRegistrationInBackground(indexShard, pointer);
+    }
+
+    private void registerDeferred(ClusterState state) {
+        for (var entry : deferredRegistrations.entrySet()) {
+            final IndexShard indexShard = entry.getKey();
+            if (indexShard.state() == IndexShardState.CLOSED) {
+                deferredRegistrations.remove(indexShard);
+            } else if (isPrimaryActive(state, indexShard.shardId()) && deferredRegistrations.remove(indexShard, entry.getValue())) {
+                logger.debug("{} fast activation: indexing shard is active, sending the deferred registration", indexShard.shardId());
+                // off the cluster applier thread
+                clusterService.threadPool().generic().execute(() -> sendRegistrationInBackground(indexShard, entry.getValue()));
+            }
+        }
+    }
+
+    private static boolean isPrimaryActive(ClusterState state, ShardId shardId) {
+        final var project = state.metadata().lookupProject(shardId.getIndex());
+        if (project.isEmpty()) {
+            return false;
+        }
+        final var indexRoutingTable = state.routingTable(project.get().id()).index(shardId.getIndex());
+        return indexRoutingTable != null && indexRoutingTable.shard(shardId.id()).primaryShard().active();
+    }
+
+    private void sendRegistrationInBackground(IndexShard indexShard, CommitPointer pointer) {
         recoveryCommitRegistrationHandler.register(
             pointer.batchedCompoundCommitTermAndGeneration(),
             pointer.compoundCommit().primaryTermAndGeneration(),
@@ -560,6 +631,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
     public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             pendingRegistrationCommits.remove(indexShard);
+            deferredRegistrations.remove(indexShard);
         }
     }
 

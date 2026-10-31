@@ -404,6 +404,7 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v9.2.8#mixedClusterTest
+  - :qa:mixed-cluster:v9.2.8#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
   tasks:

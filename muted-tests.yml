@@ -458,3 +458,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: testWideFileOverDefaultCapIsRefused
   issue: https://github.com/elastic/elasticsearch/issues/164160
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  tasks:
+  - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
+  method: testTransformLifecycleInALoop
+  issue: https://github.com/elastic/elasticsearch/issues/155844

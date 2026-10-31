@@ -199,19 +199,9 @@ These are the same rows as on the [PromQL limitations](/reference/query-language
 :::{include} ../../../../promql/_snippets/limitations/metric-names.md
 :::
 
-### Combined results [esql-promql-limitations-combined]
-
-:::{include} ../../../../promql/_snippets/limitations/combined-results.md
-:::
-
 ### Function results [esql-promql-limitations-functions]
 
 :::{include} ../../../../promql/_snippets/limitations/function-results.md
-:::
-
-### Query validation [esql-promql-limitations-errors]
-
-:::{include} ../../../../promql/_snippets/limitations/query-validation.md
 :::
 
 ### Native histograms [esql-promql-limitations-native-histograms]

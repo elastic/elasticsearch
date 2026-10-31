@@ -17,6 +17,8 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 
 - Each row compares what Elasticsearch does with what Prometheus does. Expected behavior comes from Prometheus, never
   from Elasticsearch tests.
+- List features that aren't supported yet and differences by design, not bugs. Bugs are tracked and fixed separately.
+- The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
 - Rows are numbered across all sections. Keep the numbers sequential when you add or remove a row.
 - Check the version badges. A row without a badge applies to every version. A limitation that a change lifts gets
   `stack: ga <first>-<last>` for the versions that still have it. A difference that only exists from some version on

@@ -19,15 +19,14 @@ products:
 
 PromQL in {{es}} reads metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 Most PromQL queries run unchanged and return the same results as Prometheus 3.
-This page lists every known difference, so you can tell in advance whether a query runs and what it returns.
+This page lists the PromQL features {{es}} doesn't support yet and where its behavior differs by design, so you can tell in advance whether a query runs and what it returns.
 It applies to both the [Prometheus-compatible HTTP API](promql-http-api.md) and the {{esql}} [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source command, unless a section says otherwise.
 
-Each row compares what {{es}} does with what Prometheus does for the same query.
+Each row compares what {{es}} does with what Prometheus does for the same query, and links the issue that tracks the work where there is one.
 A row with a version badge applies only to those versions. A row without one applies to every version.
 
 - [Unsupported constructs](#promql-limitations-unsupported-constructs) return an error.
-- [Lookback and time](#promql-limitations-lookback), [metric names](#promql-limitations-metric-name), [combined results](#promql-limitations-combined), and [function results](#promql-limitations-functions) list queries that run but return a different result.
-- [Query validation](#promql-limitations-errors) lists queries that {{es}} runs but Prometheus rejects.
+- [Lookback and time](#promql-limitations-lookback), [metric names](#promql-limitations-metric-name), and [function results](#promql-limitations-functions) list queries that run but return a different result.
 - [Native histograms](#promql-limitations-native-histograms) and the [HTTP API](#promql-limitations-http-api) cover the remaining differences.
 
 Individual functions and operators can have further differences, which are listed under **Differences from Prometheus** on each [function](functions.md) and [operator](operators.md) reference entry.
@@ -47,19 +46,9 @@ Individual functions and operators can have further differences, which are liste
 :::{include} _snippets/limitations/metric-names.md
 :::
 
-## Combined results [promql-limitations-combined]
-
-:::{include} _snippets/limitations/combined-results.md
-:::
-
 ## Function results [promql-limitations-functions]
 
 :::{include} _snippets/limitations/function-results.md
-:::
-
-## Query validation [promql-limitations-errors]
-
-:::{include} _snippets/limitations/query-validation.md
 :::
 
 ## Native histograms [promql-limitations-native-histograms]

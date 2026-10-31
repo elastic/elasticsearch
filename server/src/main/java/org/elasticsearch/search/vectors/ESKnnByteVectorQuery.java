@@ -124,7 +124,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
-        // Patience termination produces an incomplete candidate queue whose score floor cannot prove post-filter completeness.
+        // Patience termination produces an incomplete candidate queue whose bound cannot prove post-filter completeness.
         return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, false, null, true);
     }
 

@@ -37,6 +37,12 @@ import java.util.List;
 
 public final class KnnQueryUtils {
 
+    /** Lucene's kNN result order: higher scores first, with lower global doc IDs breaking ties. */
+    static final Comparator<ScoreDoc> SCORE_DESC_DOC_ASC = (left, right) -> {
+        int scoreComparison = Float.compare(right.score, left.score);
+        return scoreComparison != 0 ? scoreComparison : Integer.compare(left.doc, right.doc);
+    };
+
     public record FilterWeight(@Nullable Weight weight) {
         static final FilterWeight MATCH_NO_DOCS = new FilterWeight(null);
     }
@@ -102,8 +108,9 @@ public final class KnnQueryUtils {
 
     /**
      * Deduplicates {@code docs} by global doc id (highest-scoring duplicate wins) and returns the top
-     * {@code k} hits sorted by score descending. Top-k is found via {@link ArrayUtil#select} (introselect),
-     * so only the chosen k are sorted at the end rather than the full deduplicated array.
+     * {@code k} hits in Lucene's kNN order: score descending, then global doc ID ascending. Top-k is
+     * found via {@link ArrayUtil#select} (introselect), so only the chosen k are sorted at the end rather
+     * than the full deduplicated array.
 
      */
     public static ScoreDoc[] dedupAndSelectTopK(ScoreDoc[] docs, int k) {
@@ -176,15 +183,14 @@ public final class KnnQueryUtils {
     }
 
     private static ScoreDoc[] selectTopK(ScoreDoc[] docs, int k) {
-        Comparator<ScoreDoc> byScoreDesc = (a, b) -> Float.compare(b.score, a.score);
         if (docs.length <= k) {
-            ArrayUtil.introSort(docs, byScoreDesc);
+            ArrayUtil.introSort(docs, SCORE_DESC_DOC_ASC);
             return docs;
         }
         // Partition around the kth-best so docs[0..k) holds the k highest-scoring entries
         // (in unspecified order), then sort just those k in place.
-        ArrayUtil.select(docs, 0, docs.length, k - 1, byScoreDesc);
-        ArrayUtil.introSort(docs, 0, k, byScoreDesc);
+        ArrayUtil.select(docs, 0, docs.length, k - 1, SCORE_DESC_DOC_ASC);
+        ArrayUtil.introSort(docs, 0, k, SCORE_DESC_DOC_ASC);
         return Arrays.copyOf(docs, k);
     }
 

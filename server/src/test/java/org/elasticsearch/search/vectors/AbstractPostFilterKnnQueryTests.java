@@ -81,6 +81,41 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
+    /** Equal scores across leaves must consistently prefer the lower global doc IDs. */
+    public void testEqualScoresUseDocIdTieBreakAcrossSegments() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat()));
+        config.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 30; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", 1f);
+                doc.add(new KeywordField("tag", i < 12 ? "fail" : "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            for (int i = 0; i < 60; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", 1f);
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertEquals("expected two segments", 2, reader.leaves().size());
+                int k = 2;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = createQuery("vector", new float[] { 1f }, k, 20, userFilter, 1f);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                TopDocs td = searcher.search(pfq, k);
+
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 12, 13 });
+            }
+        }
+    }
+
     public void testPartialDelegateFallsBackBeforeUsingScoreFloors() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < 8; i++) {

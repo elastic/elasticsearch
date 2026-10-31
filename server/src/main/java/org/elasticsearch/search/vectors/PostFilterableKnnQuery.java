@@ -235,14 +235,14 @@ public interface PostFilterableKnnQuery {
 
     /**
      * Per-leaf candidate docs collected during a post-filter delegate round, together with whether their
-     * score floors are valid bounds on what the round did not return. A partial or early-terminated round
-     * must set {@link PostFilterCandidates#hasValidScoreBounds()} to {@code false}; the orchestrator then falls back to the original
-     * pre-filtered query rather than use an invalid completeness proof.
+     * score-and-doc-ID bounds are valid for what the round did not return. A partial or early-terminated round
+     * must set {@link PostFilterCandidates#hasValidCompetitiveBounds()} to {@code false}; the orchestrator then falls back to the
+     * original pre-filtered query rather than use an invalid completeness proof.
      *
      * @param perLeafCandidates candidates indexed by leaf ordinal, with global doc IDs and scores
-     * @param hasValidScoreBounds whether each leaf's lowest score bounds its unreturned results
+     * @param hasValidCompetitiveBounds whether each leaf's worst candidate bounds its unreturned results
      */
-    record PostFilterCandidates(ScoreDoc[][] perLeafCandidates, boolean hasValidScoreBounds) {}
+    record PostFilterCandidates(ScoreDoc[][] perLeafCandidates, boolean hasValidCompetitiveBounds) {}
 
     /**
      * Returns candidates from the most recent delegate round. Never returns {@code null}: implementations
@@ -268,11 +268,11 @@ public interface PostFilterableKnnQuery {
             int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
             perLeafCandidates[leafOrd] = td.scoreDocs.clone();
         }
-        return new PostFilterCandidates(perLeafCandidates, hasValidScoreBounds(perLeafResults));
+        return new PostFilterCandidates(perLeafCandidates, hasValidCompetitiveBounds(perLeafResults));
     }
 
-    /** A score floor is only valid when every leaf search completed without early termination. */
-    static boolean hasValidScoreBounds(TopDocs[] perLeafResults) {
+    /** A candidate bound is only valid when every leaf search completed without early termination. */
+    static boolean hasValidCompetitiveBounds(TopDocs[] perLeafResults) {
         for (TopDocs topDocs : perLeafResults) {
             if (topDocs.totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
                 return false;

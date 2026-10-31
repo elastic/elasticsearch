@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.search.vectors.KnnQueryUtils.SCORE_DESC_DOC_ASC;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.dedupAndSelectTopK;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays;
@@ -50,12 +51,14 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays
  * {@link PostFilterableKnnQuery#finalizeTopK} for auto-calibrated IVF.
  *
  * <h2>When is the filtered pool complete?</h2>
- * Each leaf hands back its candidates in score order, so every doc a leaf has <em>not</em> shown yet scores at
- * or below the lowest candidate it did show - that leaf's <em>floor</em>. Once the survivors of all leaves are
- * merged into the pool, the pool's last entry is the <em>threshold</em> any missing doc would have to beat. A
- * leaf whose floor is still above the threshold is <em>exhausted</em>: everything it showed was either filtered
- * out or ranks above the threshold, and its next, unseen doc could be a passing one that belongs in the pool.
- * The pool is proven complete only when no leaf is exhausted. This is the same test Lucene's own
+ * Each leaf hands back its top candidates in Lucene's kNN order: score descending, then doc ID ascending.
+ * Every doc a leaf has <em>not</em> shown yet therefore ranks at or below the worst candidate it did show - that
+ * leaf's <em>bound</em>. Once the survivors of all leaves are merged into the pool, the pool's last entry is the
+ * <em>threshold</em> any missing doc would have to beat. A leaf whose bound still ranks above the threshold is
+ * <em>exhausted</em>: everything it showed was either filtered out or ranks above the threshold, and its next,
+ * unseen doc could be a passing one that belongs in the pool. Comparing both score and doc ID matters here:
+ * an unseen hit tied on score can still displace the threshold when its doc ID is lower.
+ * The pool is proven complete only when no leaf is exhausted. This is the tie-aware form of the test Lucene's own
  * {@code AbstractKnnVectorQuery} applies between its optimistic first pass and its re-entry pass, just against
  * the <em>filtered</em> threshold - pre-filtering keeps the two in agreement for free, post-filtering has to check.
  * A pool short of its target size has no threshold at all, so every leaf with candidates counts as exhausted
@@ -157,7 +160,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         }
 
         PostFilterableKnnQuery.PostFilterCandidates initialCandidates = postFilterQuery.getPostFilterCandidates();
-        if (initialCandidates.hasValidScoreBounds() == false) {
+        if (initialCandidates.hasValidCompetitiveBounds() == false) {
             this.totalVectorOps += vectorOps;
             logger.debug("post-filter delegate returned partial results for field=[{}]; falling back to original query", field);
             return null;
@@ -170,15 +173,15 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
 
-        // State carried across rounds. The floor of a leaf is only ever replaced when that leaf is re-entered:
-        // a leaf left alone keeps the floor it already proved, and one that comes back empty is drained (NaN).
-        float[] leafFloor = filtered.minScorePerLeaf();
+        // State carried across rounds. A leaf's bound is only ever replaced when that leaf is re-entered:
+        // a leaf left alone keeps the bound it already proved, and one that comes back empty is drained (null).
+        ScoreDoc[] leafBounds = filtered.worstCandidatePerLeaf();
         // Excluded accumulates every doc seen so far; exclusion must be computed before seed selection, which
         // reorders the matching arrays in place.
         int[] excluded = seenDocIds(filtered, reader);
         int[][] seedsPerLeaf = nearestSeedsPerLeaf(filtered.matchingPerLeaf(), MAX_SEEDS_PER_LEAF);
 
-        boolean[] exhausted = exhaustedLeaves(leafFloor, pool, poolSize);
+        boolean[] exhausted = exhaustedLeaves(leafBounds, pool, poolSize);
         int round = 0;
         while (exhausted != null && round < MAX_RETRY_ROUNDS) {
             round++;
@@ -189,15 +192,15 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "post-filter retry round [{}] for field=[{}], k=[{}], poolSize=[{}], selectivity=[{}], pool so far=[{}],"
-                        + " threshold=[{}], leaf floors=[{}], exhausted leaves=[{}], retryK=[{}]",
+                        + " threshold=[{}], leaf bounds=[{}], exhausted leaves=[{}], retryK=[{}]",
                     round,
                     field,
                     k,
                     poolSize,
                     selectivity,
                     pool.length,
-                    pool.length >= poolSize ? pool[poolSize - 1].score : Float.NEGATIVE_INFINITY,
-                    Arrays.toString(leafFloor),
+                    pool.length >= poolSize ? pool[poolSize - 1] : null,
+                    Arrays.toString(leafBounds),
                     Arrays.toString(exhausted),
                     retryK
                 );
@@ -208,7 +211,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             vectorOps += retryQuery.totalVectorOps();
 
             PostFilterableKnnQuery.PostFilterCandidates retryCandidates = retryQuery.getPostFilterCandidates();
-            if (retryCandidates.hasValidScoreBounds() == false) {
+            if (retryCandidates.hasValidCompetitiveBounds() == false) {
                 this.totalVectorOps += vectorOps;
                 logger.debug(
                     "post-filter retry round [{}] returned partial results for field=[{}]; falling back to original query",
@@ -218,16 +221,16 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 return null;
             }
             FilteredCandidates retryFiltered = applyFilter(retryCandidates.perLeafCandidates(), filterWeight, leaves);
-            float[] retryFloor = retryFiltered.minScorePerLeaf();
-            for (int leafOrd = 0; leafOrd < leafFloor.length; leafOrd++) {
+            ScoreDoc[] retryBounds = retryFiltered.worstCandidatePerLeaf();
+            for (int leafOrd = 0; leafOrd < leafBounds.length; leafOrd++) {
                 if (exhausted[leafOrd]) {
-                    leafFloor[leafOrd] = retryFloor[leafOrd];
+                    leafBounds[leafOrd] = retryBounds[leafOrd];
                 }
             }
             pool = dedupAndSelectTopK(mergeScoreDocArrays(pool, flattenPerLeaf(retryFiltered.matchingPerLeaf())), poolSize);
             excluded = KnnQueryUtils.sortedMerge(excluded, seenDocIds(retryFiltered, reader));
             mergeSeeds(seedsPerLeaf, nearestSeedsPerLeaf(retryFiltered.matchingPerLeaf(), MAX_SEEDS_PER_LEAF));
-            exhausted = exhaustedLeaves(leafFloor, pool, poolSize);
+            exhausted = exhaustedLeaves(leafBounds, pool, poolSize);
         }
 
         this.totalVectorOps += vectorOps;
@@ -261,23 +264,23 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     }
 
     /**
-     * The leaves whose floor is still above the pool's threshold, or {@code null} when there are none and the
+     * The leaves whose bound still ranks above the pool's threshold, or {@code null} when there are none and the
      * pool is therefore proven complete. See the class javadoc.
      *
-     * @param leafFloor the lowest score each leaf returned in the last round that searched it; {@code NaN} for a
-     *                  leaf with nothing (left) to return, which can never be exhausted
-     * @param pool      the filtered pool so far, sorted by score descending
-     * @param poolSize  the pool size the orchestrator is filling; a shorter pool has no threshold
+     * @param leafBounds the worst-ranked candidate each leaf returned in the last round that searched it;
+     *                   {@code null} for a leaf with nothing (left) to return, which can never be exhausted
+     * @param pool       the filtered pool so far, sorted by score descending and doc ID ascending
+     * @param poolSize   the pool size the orchestrator is filling; a shorter pool has no threshold
      */
     @Nullable
-    static boolean[] exhaustedLeaves(float[] leafFloor, ScoreDoc[] pool, int poolSize) {
-        float threshold = pool.length >= poolSize ? pool[poolSize - 1].score : Float.NEGATIVE_INFINITY;
+    static boolean[] exhaustedLeaves(ScoreDoc[] leafBounds, ScoreDoc[] pool, int poolSize) {
+        ScoreDoc threshold = pool.length >= poolSize ? pool[poolSize - 1] : null;
         boolean[] exhausted = null;
-        for (int leafOrd = 0; leafOrd < leafFloor.length; leafOrd++) {
-            // NaN compares false, so a drained leaf is never exhausted
-            if (leafFloor[leafOrd] > threshold) {
+        for (int leafOrd = 0; leafOrd < leafBounds.length; leafOrd++) {
+            ScoreDoc leafBound = leafBounds[leafOrd];
+            if (leafBound != null && (threshold == null || SCORE_DESC_DOC_ASC.compare(leafBound, threshold) < 0)) {
                 if (exhausted == null) {
-                    exhausted = new boolean[leafFloor.length];
+                    exhausted = new boolean[leafBounds.length];
                 }
                 exhausted[leafOrd] = true;
             }
@@ -358,11 +361,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
      * @param filteredOutPerLeaf        per-leaf global doc IDs of candidates that did NOT pass the filter,
      *                          indexed by leaf ordinal (null entries = no filtered-out docs for that leaf).
      *                          Within each leaf, sorted ascending by doc ID.
-     * @param minScorePerLeaf   the lowest score among <em>all</em> of a leaf's candidates, matching or not - the
-     *                          leaf's floor, see the class javadoc - indexed by leaf ordinal; {@code NaN} for a
-     *                          leaf that returned no candidates.
+     * @param worstCandidatePerLeaf the worst-ranked of <em>all</em> of a leaf's candidates, matching or not - the
+     *                              leaf's bound, see the class javadoc - indexed by leaf ordinal; {@code null} for
+     *                              a leaf that returned no candidates
      */
-    record FilteredCandidates(ScoreDoc[][] matchingPerLeaf, int[][] filteredOutPerLeaf, float[] minScorePerLeaf) {}
+    record FilteredCandidates(ScoreDoc[][] matchingPerLeaf, int[][] filteredOutPerLeaf, ScoreDoc[] worstCandidatePerLeaf) {}
 
     /**
      * Partitions per-leaf candidates into filter-matching and filtered-out sets in one pass
@@ -384,8 +387,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
         ScoreDoc[][] matchingPerLeaf = new ScoreDoc[perLeafCandidates.length][];
         int[][] filteredOutPerLeaf = new int[perLeafCandidates.length][];
-        float[] minScorePerLeaf = new float[perLeafCandidates.length];
-        Arrays.fill(minScorePerLeaf, Float.NaN);
+        ScoreDoc[] worstCandidatePerLeaf = new ScoreDoc[perLeafCandidates.length];
 
         for (int leafOrd = 0; leafOrd < perLeafCandidates.length; leafOrd++) {
             ScoreDoc[] cands = perLeafCandidates[leafOrd];
@@ -401,16 +403,18 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             List<ScoreDoc> leafMatching = new ArrayList<>();
             int[] leafFilteredOut = new int[cands.length];
             int filteredOutCount = 0;
-            float minScore = Float.POSITIVE_INFINITY;
+            ScoreDoc worstCandidate = null;
             for (ScoreDoc cand : cands) {
-                minScore = Math.min(minScore, cand.score);
+                if (worstCandidate == null || SCORE_DESC_DOC_ASC.compare(cand, worstCandidate) > 0) {
+                    worstCandidate = cand;
+                }
                 if (bits.get(cand.doc - ctx.docBase)) {
                     leafMatching.add(cand);
                 } else {
                     leafFilteredOut[filteredOutCount++] = cand.doc;
                 }
             }
-            minScorePerLeaf[leafOrd] = minScore;
+            worstCandidatePerLeaf[leafOrd] = worstCandidate;
 
             if (leafMatching.isEmpty() == false) {
                 matchingPerLeaf[leafOrd] = leafMatching.toArray(new ScoreDoc[0]);
@@ -422,7 +426,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
 
-        return new FilteredCandidates(matchingPerLeaf, filteredOutPerLeaf, minScorePerLeaf);
+        return new FilteredCandidates(matchingPerLeaf, filteredOutPerLeaf, worstCandidatePerLeaf);
     }
 
     private static ScoreDoc[] flattenPerLeaf(ScoreDoc[][] perLeaf) {

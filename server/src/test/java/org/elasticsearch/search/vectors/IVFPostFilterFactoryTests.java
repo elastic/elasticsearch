@@ -346,18 +346,18 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     public void testGetPostFilterCandidatesBeforeRewriteIsEmpty() {
         PostFilterableKnnQuery.PostFilterCandidates candidates = floatPlain().getPostFilterCandidates();
         assertEquals(0, candidates.perLeafCandidates().length);
-        assertFalse(candidates.hasValidScoreBounds());
+        assertFalse(candidates.hasValidCompetitiveBounds());
     }
 
-    public void testPostFilterScoreBoundsRequireCompleteLeafResults() {
+    public void testPostFilterCompetitiveBoundsRequireCompleteLeafResults() {
         TopDocs complete = new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1f) });
         TopDocs partial = new TopDocs(
             new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
             new ScoreDoc[] { new ScoreDoc(1, 0.5f) }
         );
 
-        assertTrue(PostFilterableKnnQuery.hasValidScoreBounds(new TopDocs[] { complete }));
-        assertFalse(PostFilterableKnnQuery.hasValidScoreBounds(new TopDocs[] { complete, partial }));
+        assertTrue(PostFilterableKnnQuery.hasValidCompetitiveBounds(new TopDocs[] { complete }));
+        assertFalse(PostFilterableKnnQuery.hasValidCompetitiveBounds(new TopDocs[] { complete, partial }));
     }
 
     public void testCreateRetryQueryExcludesDocsAndScalesNumCandsDown() throws IOException {

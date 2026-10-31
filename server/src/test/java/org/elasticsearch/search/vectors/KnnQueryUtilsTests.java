@@ -35,6 +35,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 public class KnnQueryUtilsTests extends ESTestCase {
@@ -91,7 +92,8 @@ public class KnnQueryUtilsTests extends ESTestCase {
         assertEquals(0.9f, result[0].score, 0.001f);
         assertEquals(2, result[1].doc);
         assertEquals(0.8f, result[1].score, 0.001f);
-        // docs 3 and 4 both have 0.7 (order between them is unspecified after dedup)
+        // doc 4 has the remaining 0.7 score
+        assertEquals(4, result[2].doc);
         assertEquals(0.7f, result[2].score, 0.001f);
         assertEquals(0.6f, result[3].score, 0.001f);
         assertEquals(3, result[3].doc);
@@ -119,6 +121,14 @@ public class KnnQueryUtilsTests extends ESTestCase {
         assertEquals(0.9f, result[1].score, 0.001f);
         assertEquals(3, result[2].doc);
         assertEquals(0.8f, result[2].score, 0.001f);
+    }
+
+    public void testDedupAndSelectTopKBreaksTiesByDocId() {
+        ScoreDoc[] input = new ScoreDoc[] { new ScoreDoc(7, 1f), new ScoreDoc(2, 1f), new ScoreDoc(5, 1f), new ScoreDoc(1, 1f) };
+
+        ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(input, 3);
+
+        assertArrayEquals(new int[] { 1, 2, 5 }, Arrays.stream(result).mapToInt(scoreDoc -> scoreDoc.doc).toArray());
     }
 
     public void testDedupAndSelectTopKEmptyInputOrZeroK() {

@@ -387,7 +387,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 perLeafCandidates[leafOrd] = scoreDocs.clone();
             }
         }
-        return new PostFilterCandidates(perLeafCandidates, PostFilterableKnnQuery.hasValidScoreBounds(rawPerLeafResults));
+        return new PostFilterCandidates(perLeafCandidates, PostFilterableKnnQuery.hasValidCompetitiveBounds(rawPerLeafResults));
     }
 
     @Override

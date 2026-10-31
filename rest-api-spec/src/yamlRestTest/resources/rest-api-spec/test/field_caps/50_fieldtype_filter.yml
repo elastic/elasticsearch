@@ -133,15 +133,15 @@ setup:
   - is_true: fields.level1
 
 ---
-"Exclude parent objects":
+"Include parent objects":
   - do:
       field_caps:
         index: 'test1,test2,test3'
         fields: '*'
-        filters: '-parent'
+        filters: '+parent'
 
   - is_true: fields.object\\.nested1
-  - is_false: fields.object
+  - is_true: fields.object
 
 ---
 "Exclude metadata fields":

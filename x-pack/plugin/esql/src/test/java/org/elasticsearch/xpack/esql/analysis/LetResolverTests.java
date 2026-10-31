@@ -303,6 +303,44 @@ public class LetResolverTests extends ESTestCase {
         expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(query.toString()));
     }
 
+    public void testForkInLetReferenceAccepted() {
+        parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0)); FROM r"
+        );
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q | FORK (WHERE y > 0) (WHERE y < 0))"
+        );
+        parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q, b | FORK (WHERE y > 0) (WHERE y < 0)");
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q) | FORK (WHERE y > 0) (WHERE y < 0)"
+        );
+    }
+
+    /**
+     * Each binding adds a FORK over the previous one; the chain goes over the plan size limit. FORKs nested through subqueries in
+     * the main query are rejected by the parser already, by the branch count.
+     */
+    public void testBigForkExpansionRejected() {
+        StringBuilder insideLet = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            insideLet.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        insideLet.append(" FROM f39");
+        expectThrows(VerificationException.class, containsString(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(insideLet.toString()));
+
+        StringBuilder outsideLet = new StringBuilder("FROM q | FORK (WHERE x > 0) (WHERE x < 0)");
+        for (int i = 0; i < 8; i++) {
+            outsideLet = new StringBuilder("FROM (" + outsideLet + "), b | FORK (WHERE x > 0) (WHERE x < 0)");
+        }
+        String statement = "LET q = (FROM a); " + outsideLet;
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to at least 30 branches, exceeding the limit of 20"),
+            () -> parseAndResolveLet(statement)
+        );
+    }
+
     // -----------------------------------------------------------------------
     // Substitution into multiple positions
     // -----------------------------------------------------------------------

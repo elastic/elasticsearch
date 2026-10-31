@@ -455,6 +455,15 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Label for the source of {@link #maxCommandCount(int)}, used in verification messages.
+     */
+    public String maxCommandCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey())
+            ? "[" + MAX_COMMAND_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
      * Label for the source of {@link #maxBranchCount(int)}, used in verification messages.
      */
     public String maxBranchCountLimitSource(String clusterSettingKey) {

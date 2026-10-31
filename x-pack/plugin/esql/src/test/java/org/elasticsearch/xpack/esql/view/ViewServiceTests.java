@@ -41,9 +41,10 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +67,10 @@ public class ViewServiceTests extends ESTestCase {
             threadPool,
             ProjectId.DEFAULT,
             Settings.EMPTY,
-            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING, EsqlFlags.ESQL_MAX_COMMAND_COUNT)
+            Stream.concat(
+                Stream.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING),
+                EsqlFlags.ALL_ESQL_FLAGS_SETTINGS.stream()
+            ).collect(Collectors.toSet())
         );
         // The default test publisher never acknowledges, so acked tasks would not complete their listeners.
         var publisher = ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService());
@@ -241,6 +245,19 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
     }
 
+    public void testPutViewRejectsSecondForkOnOnePipeline() {
+        var view = new View("fork-view", "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)", null, false);
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> future.actionGet(10, TimeUnit.SECONDS)
+        );
+        assertThat(viewService.get(ProjectId.DEFAULT, "fork-view"), nullValue());
+    }
+
     public void testAcceptsTsWithStats() {
         validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
         validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
@@ -293,6 +310,30 @@ public class ViewServiceTests extends ESTestCase {
 
         clusterService.getClusterSettings()
             .applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), defaultLimit + 100).build());
+        viewService.validatePutView(project, view);
+    }
+
+    /**
+     * A PUT request carries no pragmas, so the cluster setting is the only source of the branch limit when a view is validated;
+     * the parser applies it to each FORK of the definition, and reads the setting as it stands at validation time.
+     */
+    public void testPutViewValidatesAgainstConfiguredBranchLimit() {
+        String body = "FROM some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        for (int i = 0; i < 3; i++) {
+            body = "FROM (" + body + "), some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        }
+        View view = new View("forky-view", body, null);
+        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "query resolved to at least 30 branches, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting"
+            ),
+            () -> viewService.validatePutView(project, view)
+        );
+
+        clusterService.getClusterSettings().applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 30).build());
         viewService.validatePutView(project, view);
     }
 

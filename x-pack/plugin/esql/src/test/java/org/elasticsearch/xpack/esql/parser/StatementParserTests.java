@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
@@ -19,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -1502,13 +1504,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    private static QueryPragmas pragma(Setting<Integer> pragma, int value) {
+        return new QueryPragmas(Settings.builder().put(pragma.getKey(), value).build());
+    }
+
     public void testMaxCommandCountIsConfigurable() {
         String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
-        TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
+        TEST_PARSER.parse(
+            query,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            pragma(QueryPragmas.MAX_COMMAND_COUNT, 5),
+            EsqlFlags.DEFAULTS
+        );
         expectThrows(
             ParsingException.class,
             containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
-            () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
+            () -> TEST_PARSER.parse(
+                query,
+                new QueryParams(),
+                new InferenceSettings(Settings.EMPTY),
+                pragma(QueryPragmas.MAX_COMMAND_COUNT, 4),
+                EsqlFlags.DEFAULTS
+            )
         );
     }
 
@@ -4176,7 +4194,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
             | KEEP a
             """;
@@ -4213,7 +4230,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 | LOOKUP JOIN idx3 ON f1 > f3)
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
                ( SAMPLE 0.99 )
             | KEEP a
@@ -4230,6 +4246,124 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """;
         plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
+    }
+
+    /**
+     * The single-FORK rule is applied while the parse tree is visited, so that a second FORK on one pipeline never reaches view
+     * resolution or analysis, where it would multiply the plan below it by its branch count first. Every subquery, whether in FROM,
+     * in an IN condition or in a LET binding, is a FORK scope of its own; FORK branches share the scope of their pipeline.
+     */
+    public void testSecondForkOnOnePipelineRejectedWhileParsing() {
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError(
+            "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)",
+            "Found 1 problem\nline 1:45: " + error
+        );
+        expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", "line 1:16: " + error);
+        expectVerificationError(
+            "FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError(
+            "FROM a | WHERE (x, y) IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError("FROM a | WHERE x IN (FROM b | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0))", error);
+        expectVerificationError("FROM (FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)) | WHERE x > 0", error);
+        expectVerificationError("FROM a" + " | FORK (WHERE x > 0) (WHERE x < 0)".repeat(60), error);
+
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b | FORK (WHERE x > 1) (WHERE x < 1))");
+        query("""
+            FROM (FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM c) | FORK (WHERE y > 0) (WHERE y < 0)), (FROM d)
+            | FORK (WHERE z > 0) (WHERE z < 0)
+            """);
+        query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
+    }
+
+    private static final String MAX_BRANCH_COUNT_ERROR =
+        "query resolved to at least 30 branches, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting";
+
+    /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^(depth + 2) - 2 leaves. */
+    private static String nestedForks(int depth) {
+        String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
+        for (int i = 0; i < depth; i++) {
+            query = "FROM (\n" + query + "\n), b | FORK (WHERE x > 0) (WHERE x < 0)";
+        }
+        return query;
+    }
+
+    /**
+     * FORKs nested through UNION ALL subqueries double the leaf branches at every level, and every walk after the parser pays once per
+     * leaf. The parser applies the query-wide branch limit to each FORK it builds, so a 40-deep nesting, 2^42 leaves, is rejected at
+     * the fourth FORK before any command on top of it is applied; the same query is rejected by the verifier with the same message.
+     */
+    public void testNestedForksPastTheBranchCountRejectedWhileParsing() {
+        for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {
+            expectVerificationError(nestedForks(10) + suffix, MAX_BRANCH_COUNT_ERROR);
+        }
+        expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+    }
+
+    /** The limit is on leaf branches, not on plan nodes: a long pipeline with one FORK stays at two leaves. */
+    public void testForksWithinTheBranchCountParse() {
+        assertThat(query("FROM a" + " | EVAL x = 1".repeat(400) + " | FORK (WHERE x > 0) (WHERE x < 0)"), instanceOf(Fork.class));
+        assertThat(query(nestedForks(2)), instanceOf(Fork.class));
+        InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
+        assertThat(
+            TEST_PARSER.parse(
+                nestedForks(3),
+                new QueryParams(),
+                inferenceSettings,
+                pragma(QueryPragmas.MAX_BRANCH_COUNT, 30),
+                EsqlFlags.DEFAULTS
+            ).plan(),
+            instanceOf(Fork.class)
+        );
+        expectVerificationError(nestedForks(3), MAX_BRANCH_COUNT_ERROR);
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to at least 30 branches, exceeding the limit of 29 set by the [max_branch_count] query pragma"),
+            () -> TEST_PARSER.parse(
+                nestedForks(3),
+                new QueryParams(),
+                inferenceSettings,
+                pragma(QueryPragmas.MAX_BRANCH_COUNT, 29),
+                EsqlFlags.DEFAULTS
+            )
+        );
+    }
+
+    public void testSecondForkOnOnePipelineInExplainRejectedWhileParsing() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))", error);
+        assertThat(query("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0))"), instanceOf(Explain.class));
+    }
+
+    /**
+     * A LET binding body is a FORK scope of its own. Two FORKs that only meet once the binding is substituted are rejected by
+     * {@code LetResolver}.
+     */
+    public void testSecondForkOnOnePipelineInLetBindingRejectedAfterParsing() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)); FROM q")
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> statement("LET q = (FROM a); FROM q | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)")
+        );
+
+        statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
     }
 
     public void testForkWithBareFillNull() {

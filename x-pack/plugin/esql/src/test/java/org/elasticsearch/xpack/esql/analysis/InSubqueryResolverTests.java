@@ -4072,11 +4072,11 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testPlanSizeCountsNestedSubqueriesOnce() {
         Eval eval = as(TEST_PARSER.parseQuery("FROM main | EVAL a = x IN (FROM sub | WHERE y IN (FROM sub2) AND z > 0)"), Eval.class);
-        int initialSize = PlanSize.countNodes(eval);
+        int initialSize = countNodes(eval);
         int addedNodes = 5;
 
         LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval, new PlanSize(initialSize, initialSize + addedNodes));
-        assertEquals(initialSize + addedNodes, PlanSize.countNodes(resolved));
+        assertEquals(initialSize + addedNodes, countNodes(resolved));
         expectThrows(
             VerificationException.class,
             () -> InSubqueryResolver.resolveInSubqueryInEval(eval, new PlanSize(initialSize, initialSize + addedNodes - 1))
@@ -4085,11 +4085,11 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testPlanSizeCreditsTheFilterReplacedByJoins() {
         Filter filter = as(TEST_PARSER.parseQuery("FROM main | WHERE x IN (FROM sub)"), Filter.class);
-        int initialSize = PlanSize.countNodes(filter);
+        int initialSize = countNodes(filter);
         int addedNodes = 1;
 
         LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter, new PlanSize(initialSize, initialSize + addedNodes));
-        assertEquals(initialSize + addedNodes, PlanSize.countNodes(resolved));
+        assertEquals(initialSize + addedNodes, countNodes(resolved));
         expectThrows(
             VerificationException.class,
             () -> InSubqueryResolver.resolveInSubqueryInFilter(filter, new PlanSize(initialSize, initialSize + addedNodes - 1))
@@ -4098,11 +4098,11 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testPlanSizeKeepsTheChargeOfTheFilterThatRemains() {
         Filter filter = as(TEST_PARSER.parseQuery("FROM main | WHERE x IN (FROM sub) AND y > 0"), Filter.class);
-        int initialSize = PlanSize.countNodes(filter);
+        int initialSize = countNodes(filter);
         int addedNodes = 2;
 
         LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter, new PlanSize(initialSize, initialSize + addedNodes));
-        assertEquals(initialSize + addedNodes, PlanSize.countNodes(resolved));
+        assertEquals(initialSize + addedNodes, countNodes(resolved));
         expectThrows(
             VerificationException.class,
             () -> InSubqueryResolver.resolveInSubqueryInFilter(filter, new PlanSize(initialSize, initialSize + addedNodes - 1))
@@ -4110,6 +4110,10 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     // ---- helpers ----
+
+    private static int countNodes(LogicalPlan plan) {
+        return new PlanSize(0, Integer.MAX_VALUE).countNodes(plan);
+    }
 
     private static final class CountingPlanSize extends PlanSize {
         private int adds;
@@ -4126,7 +4130,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     private static void assertStopsAtLimit(LogicalPlan plan, Consumer<PlanSize> rewrite) {
-        CountingPlanSize planSize = new CountingPlanSize(PlanSize.countNodes(plan), 100);
+        CountingPlanSize planSize = new CountingPlanSize(countNodes(plan), 100);
         expectThrows(VerificationException.class, () -> rewrite.accept(planSize));
         // The plan starts with 2 nodes and each IN subquery adds 2, so the 50th add crosses 100 and throws. One extra call of slack.
         assertThat(planSize.adds, lessThanOrEqualTo(51));

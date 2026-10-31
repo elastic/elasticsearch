@@ -36,10 +36,10 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 - Keep every table inside `:::{table}` with `:widths: 1-4-3-3-1`, so all tables share the same column grid.
 - The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
 - Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
-- Keep rows for versions that are about to leave maintenance, such as `=9.4`, at the bottom of their table.
-- Check the version badges. A row without a badge applies to every version. A limitation that a change lifts gets
-  `stack: ga <first>-<last>` for the versions that still have it. A difference that only exists from some version on
-  gets `stack: ga <version>+` and `serverless: ga`.
+- Check the version badges. A row without a badge applies to every version. A difference that only exists from some
+  version on gets `stack: ga <version>+` and `serverless: ga`. Don't keep rows that only apply to older versions, such
+  as `stack: ga =9.5`: the badge renders as "Generally available in 9.5", which reads as if the limitation still
+  applies. When a change lifts a limitation, remove its row.
 - Unsupported functions are listed separately: their list is generated from `PromqlFunctionRegistry` by
   `PromqlKibanaDefinitionGeneratorTests`.
 

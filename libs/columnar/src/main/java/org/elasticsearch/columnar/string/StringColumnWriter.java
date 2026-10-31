@@ -31,6 +31,7 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
+import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
@@ -50,11 +51,12 @@ import java.io.IOException;
  * while a plain column, having no spare byte string to mean null with, stores it as a length of its own.
  *
  * <p>The values are walked as few times as the layout allows. The caller has counted them, and normally
- * surveyed them in the same walk; a sparse column then walks its documents once more for its presence, reading
- * no value; and the values are read once more to be written, a dictionary column streaming its ordinals in
- * that same walk. Only a caller that could not settle the terms —
- * a merge whose inputs recorded nothing it can use — has them surveyed here, and a sparse column folds that
- * survey into its presence walk.
+ * surveyed them in the same walk, and the same walk collected which documents hold a value, so a sparse column
+ * writes its presence without walking the field; and the values are read once more to be written, a
+ * dictionary column streaming its ordinals in that same walk. Only a caller that did not count — a merge
+ * reading columns that recorded their totals — has the presence walked here, and only one that could not settle
+ * the terms either, a merge whose inputs recorded nothing it can use, has them surveyed here, a sparse column
+ * folding that survey into its presence walk.
  */
 public final class StringColumnWriter {
 
@@ -93,6 +95,8 @@ public final class StringColumnWriter {
      *                                  these values, or by what a merge's inputs recorded — or null to survey
      *                                  them here. A survey that found nothing is still a survey: it is handed
      *                                  over with null terms, and the values are not surveyed again
+     * @param docsWithField             the documents holding a value, as the caller's counting pass saw them,
+     *                                  or null where it did not count and the presence is walked here
      * @param directory                 directory a dictionary column with escapes stages them in
      * @param context                   IO context for that staged file
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
@@ -106,6 +110,7 @@ public final class StringColumnWriter {
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
         Vocabulary.Survey survey,
+        DocsWithFieldCollector docsWithField,
         Directory directory,
         IOContext context,
         ColumnOutputs outputs,
@@ -127,11 +132,14 @@ public final class StringColumnWriter {
         // before it gets here, and a merge mostly knows them from what its inputs recorded. What is left is a
         // merge whose records cannot speak, and it surveys as a flush used to.
         final boolean needsSurvey = dictionaryPolicy.enabled() && survey == null;
-        // For a sparse column that still needs a survey, the presence pass and the survey walk the same
-        // documents, so they share one cursor: SurveyingDocs feeds the surveyor on every nextDoc() call, and
-        // IndexedDISI.writeBitSet drives the walk through the default intoBitSet, which loops on nextDoc(), so
-        // every document is seen exactly once. Otherwise the presence pass reads no value at all.
-        final boolean combinedPass = needsSurvey && numDocsWithField < maxDoc;
+        // For a sparse column that still needs a survey, and whose presence the caller did not collect, the
+        // presence pass and the survey walk the same documents, so they share one cursor: SurveyingDocs feeds
+        // the surveyor on every nextDoc() call, and IndexedDISI.writeBitSet drives the walk through the default
+        // intoBitSet, which loops on nextDoc(), so every document is seen exactly once. Otherwise the presence
+        // pass reads no value at all, and none at all where the caller collected the presence.
+        final boolean combinedPass = needsSurvey && numDocsWithField < maxDoc && docsWithField == null;
+        assert docsWithField == null || docsWithField.count() == numDocsWithField
+            : "the caller counted " + docsWithField.count() + " documents with the field but reports " + numDocsWithField;
 
         final ColumnIteratorMetadata iterator;
         final Vocabulary.Terms vocabulary;
@@ -144,7 +152,9 @@ public final class StringColumnWriter {
             iterator = ColumnIteratorWriter.write(docs, numDocsWithField, maxDoc, outputs.addressing());
             vocabulary = docs.finish();
         } else {
-            iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, outputs.addressing());
+            iterator = docsWithField != null
+                ? ColumnIteratorWriter.write(docsWithField::iterator, numDocsWithField, maxDoc, outputs.addressing())
+                : ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, outputs.addressing());
             if (needsSurvey) {
                 vocabulary = Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
             } else {

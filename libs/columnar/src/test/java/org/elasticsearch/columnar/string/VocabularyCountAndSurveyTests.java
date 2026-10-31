@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -75,7 +76,12 @@ public class VocabularyCountAndSurveyTests extends ColumnarStringTestCase {
         if (numDocsWithField(docSlots) == 0) {
             docSlots[0] = new BytesRef[2];
         }
-        final Vocabulary.Counted counted = Vocabulary.countAndSurvey(cursor(docSlots), ROOMY, ROOMY_SUMMARY);
+        final Vocabulary.Counted counted = Vocabulary.countAndSurvey(
+            cursor(docSlots),
+            ROOMY,
+            ROOMY_SUMMARY,
+            new DocsWithFieldCollector(docSlots.length)
+        );
         assertEquals(totals(docSlots), counted.totals());
         assertEquals("no length to report", -1, counted.totals().minLength());
         assertEquals("no length to report", -1, counted.totals().maxLength());
@@ -86,7 +92,12 @@ public class VocabularyCountAndSurveyTests extends ColumnarStringTestCase {
     /** An empty column: no document holds a slot. */
     public void testEmptyColumn() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[between(1, 50)][];
-        final Vocabulary.Counted counted = Vocabulary.countAndSurvey(cursor(docSlots), ROOMY, ROOMY_SUMMARY);
+        final Vocabulary.Counted counted = Vocabulary.countAndSurvey(
+            cursor(docSlots),
+            ROOMY,
+            ROOMY_SUMMARY,
+            new DocsWithFieldCollector(docSlots.length)
+        );
         assertEquals(new StringColumnValues.Totals(0, 0, 0, -1, -1, true), counted.totals());
         assertNull(counted.survey().terms());
     }
@@ -108,7 +119,12 @@ public class VocabularyCountAndSurveyTests extends ColumnarStringTestCase {
 
     private static void assertCountAndSurveyMatches(BytesRef[][] docSlots, DictionaryPolicy policy, SummaryPolicy summaryPolicy)
         throws IOException {
-        final Vocabulary.Counted counted = Vocabulary.countAndSurvey(cursor(docSlots), policy, summaryPolicy);
+        final Vocabulary.Counted counted = Vocabulary.countAndSurvey(
+            cursor(docSlots),
+            policy,
+            summaryPolicy,
+            new DocsWithFieldCollector(docSlots.length)
+        );
         assertEquals("totals", totals(docSlots), counted.totals());
         assertNotNull("a survey, whatever it found", counted.survey());
 

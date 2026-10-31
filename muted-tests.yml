@@ -524,3 +524,8 @@ tests:
   - :modules:apm:test
   method: testUnreachableDestinationReportsFailedExportMetric
   issue: https://github.com/elastic/elasticsearch/issues/164184
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkUnmappedTypeConflictsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos}
+  issue: https://github.com/elastic/elasticsearch/issues/164188

@@ -854,11 +854,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testResponseReservedWhileArriving() throws Exception {
+    public void testResponseReservedWhileArriving() {
+        final String action = "internal:large_response";
         // Several times what one network read can carry, so the response arrives in more than one piece
         final String largeMessage = randomAlphaOfLength(between(256 * 1024, 1024 * 1024));
         serviceA.registerRequestHandler(
-            "internal:large_response",
+            action,
             threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> channel.sendResponse(new StringMessageResponse(largeMessage))
@@ -881,7 +882,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 final StringMessageResponse response = safeAwait(
                     listener -> serviceB.sendRequest(
                         connection,
-                        "internal:large_response",
+                        action,
                         new StringMessageRequest(""),
                         TransportRequestOptions.EMPTY,
                         reservingResponseHandler(listener, breaker, pieces, reservedWhenRead)
@@ -900,7 +901,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         StringMessageResponse.class,
                         listener -> serviceB.sendRequest(
                             connection,
-                            "internal:large_response",
+                            action,
                             new StringMessageRequest(""),
                             TransportRequestOptions.EMPTY,
                             reservingResponseHandler(listener, smallBreaker, new AtomicInteger(), reservedWhenReadSmall)

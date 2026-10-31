@@ -520,16 +520,16 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator = responseAggregator(circuitBreaker, requestId, responseHandler);
 
         startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
-        final int fragments = between(1, 5);
+        final int fragments = between(2, 5);
         for (int i = 0; i < fragments; i++) {
             final ReleasableBytesReference fragment = fragment(between(1, 100));
             aggregator.aggregate(fragment);
             fragment.close();
+            assertThat(asked.get(), equalTo(1));
         }
         try (InboundMessage aggregated = aggregator.finishAggregation()) {
             assertFalse(aggregated.isShortCircuit());
         }
-        assertThat(asked.get(), equalTo(1));
     }
 
     public void testHandshakeErrorAndUnknownResponsesAreNotReserved() throws IOException {

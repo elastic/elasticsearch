@@ -55,6 +55,11 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     public static final long INJECTED_ROW_LIMIT = EsqlDataExtractorQueryUtils.INJECTED_ROW_LIMIT;
 
+    /** Delegates to {@link EsqlDataExtractorQueryUtils#injectsRowLimit(String)}. */
+    public static boolean injectsRowLimit(String esqlQuery) {
+        return EsqlDataExtractorQueryUtils.injectsRowLimit(esqlQuery);
+    }
+
     /** Whether the user's pipeline contains a depth-zero {@code STATS} command (aggregating query). */
     public static boolean hasAggregation(String esqlQuery) {
         return EsqlQueryClauseScanner.hasAggregation(esqlQuery);

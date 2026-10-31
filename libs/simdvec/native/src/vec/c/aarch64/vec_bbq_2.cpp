@@ -533,7 +533,9 @@ __attribute__((noinline)) static void dotd2q4_bulk4(
     // Four vectors per batch, each with one accumulator per doc bit plane so the UDOT chains stay short:
     // the eight bit planes, the four query planes, the five weights and the eight accumulators fit in the
     // 32 z registers. Using that many registers makes the function save the callee-saved ones, so it is
-    // kept out of line and only called with at least one full batch.
+    // kept out of line and only called with at least one full batch. The dot products are grouped per
+    // accumulator below, unlike the single and pair kernels; the order does not matter, the compiler
+    // interleaves the eight independent accumulator chains itself.
     const svuint8_t w1 = svdup_n_u8(1);
     const svuint8_t w2 = svdup_n_u8(2);
     const svuint8_t w4 = svdup_n_u8(4);

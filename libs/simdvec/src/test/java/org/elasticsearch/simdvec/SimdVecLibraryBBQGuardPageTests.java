@@ -51,7 +51,8 @@ public class SimdVecLibraryBBQGuardPageTests extends ESTestCase {
     /**
      * Dimension counts under test. All striped BBQ layouts hold {@code dims/8} bytes per bit plane, so
      * {@code 8..320} in steps of 8 leaves 1 to 40 bytes per plane after a whole-chunk loop of 16 bytes
-     * (NEON/SSE) or 32 bytes (AVX2); the larger entries do the same for the 64 byte chunks of AVX-512.
+     * (NEON/SSE, 128-bit SVE) or 32 bytes (AVX2, 256-bit SVE, which reads the tail with a predicated
+     * load, as 128-bit SVE does); the larger entries do the same for the 64 byte chunks of AVX-512.
      */
     private static final int[] DIMS = IntStream.concat(
         IntStream.rangeClosed(1, 40).map(i -> i * 8),

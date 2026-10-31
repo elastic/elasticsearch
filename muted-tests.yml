@@ -109,9 +109,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetAllModels
   issue: https://github.com/elastic/elasticsearch/issues/162424
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/162447
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_DeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/162888

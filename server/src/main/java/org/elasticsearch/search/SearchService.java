@@ -81,6 +81,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -168,7 +169,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1018,6 +1018,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         searchReady();
                         return;
                     }
+                    // no timeout here, since the timeout task below handles a finite one and NO_TIMEOUT must wait for the global checkpoint
                     shard.addGlobalCheckpointListener(waitForCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
                         @Override
                         public Executor executor() {
@@ -1031,14 +1032,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                     : shard.shardId() + " only advanced to [" + g + "] while waiting for [" + waitForCheckpoint + "]";
                                 searchReady();
                             } else {
-                                assert e != null;
-                                // Ignore TimeoutException, our scheduled timeout task will handle this
-                                if (e instanceof TimeoutException == false) {
-                                    onFailure(e);
-                                }
+                                assert e instanceof IndexShardClosedException : e;
+                                onFailure(e);
                             }
                         }
-                    }, NO_TIMEOUT.equals(timeout) == false ? null : timeout);
+                    }, null);
                 }
 
                 @Override

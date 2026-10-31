@@ -10,20 +10,14 @@ products:
 
 # Prometheus compatibility [prometheus-compatibility]
 
-% Cleanup: once 9.6 is released, remove all `=9.4` rows in _snippets/compatibility/.
-% They are kept at the bottom of each table so they are easy to trim. Rationale: Elastic maintains only the two most
-% recent minors, so 9.4 leaves maintenance when 9.6 ships, and PromQL was only a tech preview in 9.4.
-% At the same time, consider simplifying the page frontmatter to `stack: ga 9.5+`.
 % Each section lives in _snippets/compatibility/ so other pages can include it. Sections and headings follow the
 % Prometheus querying docs (basics, operators, functions, HTTP API). Rows are numbered across all sections. A row
 % without a version badge applies to every version.
 
 PromQL in {{es}} reads metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
-Most PromQL queries run unchanged and return the same results as Prometheus 3.
+Most PromQL queries run unchanged and return the same results as Prometheus v3.x.x.
 This page lists the PromQL features {{es}} doesn't support yet and where its behavior differs by design, so you can tell in advance whether a query runs and what it returns.
 It applies to both the [Prometheus-compatible HTTP API](promql-http-api.md) and the {{esql}} [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source command, unless a section says otherwise.
-
-The sections follow the [Prometheus querying documentation](https://prometheus.io/docs/prometheus/latest/querying/basics/), so you can look up a difference under the same heading that documents the feature in Prometheus:
 
 - [Basics](#prometheus-compatibility-basics): data types, literals, selectors, modifiers, subqueries, and staleness.
 - [Operators](#prometheus-compatibility-operators): unary, binary, and aggregation operators, and vector matching.
@@ -31,7 +25,6 @@ The sections follow the [Prometheus querying documentation](https://prometheus.i
 - [HTTP API](#prometheus-compatibility-http-api).
 
 Each row compares what {{es}} does with what Prometheus does for the same query, and links the issue that tracks the work where there is one.
-**Error** in the {{es}} column means the query is rejected.
 A row with a version badge applies only to those versions. A row without one applies to every version.
 
 ## Basics [prometheus-compatibility-basics]

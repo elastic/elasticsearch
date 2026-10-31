@@ -396,20 +396,46 @@ EXPORT void vec_dotd2q2_bulk_sparse_2(
     dotd2q2_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
+// One step of one vector of the d2q4 batch kernel: the low doc plane against the four query planes into
+// lo, the high plane into hi. The pair kernel interleaves its two vectors' dot products instead.
+static inline void dot_d2q4_step_sv(
+    svuint32_t& lo,
+    svuint32_t& hi,
+    const svuint8_t lo_plane,
+    const svuint8_t hi_plane,
+    const svuint8_t q0,
+    const svuint8_t q1,
+    const svuint8_t q2,
+    const svuint8_t q3,
+    const svuint8_t w0,
+    const svuint8_t w1,
+    const svuint8_t w2,
+    const svuint8_t w3,
+    const svuint8_t w4
+) {
+    lo = dot_bit_weighted_sv(lo, lo_plane, q0, w0);
+    lo = dot_bit_weighted_sv(lo, lo_plane, q1, w1);
+    lo = dot_bit_weighted_sv(lo, lo_plane, q2, w2);
+    lo = dot_bit_weighted_sv(lo, lo_plane, q3, w3);
+    hi = dot_bit_weighted_sv(hi, hi_plane, q0, w1);
+    hi = dot_bit_weighted_sv(hi, hi_plane, q1, w2);
+    hi = dot_bit_weighted_sv(hi, hi_plane, q2, w3);
+    hi = dot_bit_weighted_sv(hi, hi_plane, q3, w4);
+}
+
 // 2-bit doc x 4-bit query, both doc bit planes in one pass. The doc is two contiguous planes of
 // length/2 bytes (low bit, then high bit), the query four planes of length/2 bytes. UDOT applies
 // 2^(query bit + doc bit) as a weight; the eight plane pairs are spread over four accumulators to keep
-// the UDOT chains short, and summed before a single reduction. The accumulators here and in the pair and
-// batch kernels below are spelled out rather than kept in arrays driven by apply_indexed, because SVE
-// types are sizeless and cannot be array elements.
+// the UDOT chains short, and summed before a single reduction. Accumulators are separate variables, as
+// SVE types cannot be array elements.
 static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     const int32_t bit_length = length / 2;
     const int8_t* a_hi = a + bit_length;
-    const svuint8_t w1 = svdup_n_u8(1);
-    const svuint8_t w2 = svdup_n_u8(2);
-    const svuint8_t w4 = svdup_n_u8(4);
-    const svuint8_t w8 = svdup_n_u8(8);
-    const svuint8_t w16 = svdup_n_u8(16);
+    const svuint8_t w0 = svdup_n_u8(1);
+    const svuint8_t w1 = svdup_n_u8(2);
+    const svuint8_t w2 = svdup_n_u8(4);
+    const svuint8_t w3 = svdup_n_u8(8);
+    const svuint8_t w4 = svdup_n_u8(16);
 
     int r = 0;
     svuint32_t acc0 = svdup_n_u32(0);
@@ -425,14 +451,14 @@ static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const 
         const svuint8_t lo = svld1_u8(pg, (const uint8_t*)(a + r));
         const svuint8_t hi = svld1_u8(pg, (const uint8_t*)(a_hi + r));
 
-        acc0 = dot_bit_weighted_sv(acc0, lo, q0, w1);
-        acc1 = dot_bit_weighted_sv(acc1, lo, q2, w4);
-        acc2 = dot_bit_weighted_sv(acc2, hi, q0, w2);
-        acc3 = dot_bit_weighted_sv(acc3, hi, q2, w8);
-        acc0 = dot_bit_weighted_sv(acc0, lo, q1, w2);
-        acc1 = dot_bit_weighted_sv(acc1, lo, q3, w8);
-        acc2 = dot_bit_weighted_sv(acc2, hi, q1, w4);
-        acc3 = dot_bit_weighted_sv(acc3, hi, q3, w16);
+        acc0 = dot_bit_weighted_sv(acc0, lo, q0, w0);
+        acc1 = dot_bit_weighted_sv(acc1, lo, q2, w2);
+        acc2 = dot_bit_weighted_sv(acc2, hi, q0, w1);
+        acc3 = dot_bit_weighted_sv(acc3, hi, q2, w3);
+        acc0 = dot_bit_weighted_sv(acc0, lo, q1, w1);
+        acc1 = dot_bit_weighted_sv(acc1, lo, q3, w3);
+        acc2 = dot_bit_weighted_sv(acc2, hi, q1, w2);
+        acc3 = dot_bit_weighted_sv(acc3, hi, q3, w4);
     };
     const int32_t full = bit_length - bit_length % (int32_t)svcntb();
     for (; r < full; r += svcntb()) {
@@ -446,7 +472,8 @@ static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const 
 }
 
 // Two vectors in lockstep, for the remainder of a bulk call: few enough registers to avoid saving the
-// callee-saved ones, while the two vectors' UDOT chains run side by side.
+// callee-saved ones, with one accumulator per doc bit plane per vector, so the two vectors' UDOT chains
+// run side by side.
 static inline void dotd2q4_inner_pair(
     const int8_t* a0,
     const int8_t* a1,
@@ -456,11 +483,11 @@ static inline void dotd2q4_inner_pair(
     int64_t* r1
 ) {
     const int32_t bit_length = length / 2;
-    const svuint8_t w1 = svdup_n_u8(1);
-    const svuint8_t w2 = svdup_n_u8(2);
-    const svuint8_t w4 = svdup_n_u8(4);
-    const svuint8_t w8 = svdup_n_u8(8);
-    const svuint8_t w16 = svdup_n_u8(16);
+    const svuint8_t w0 = svdup_n_u8(1);
+    const svuint8_t w1 = svdup_n_u8(2);
+    const svuint8_t w2 = svdup_n_u8(4);
+    const svuint8_t w3 = svdup_n_u8(8);
+    const svuint8_t w4 = svdup_n_u8(16);
 
     int r = 0;
     svuint32_t lo_acc0 = svdup_n_u32(0);
@@ -478,22 +505,22 @@ static inline void dotd2q4_inner_pair(
         const svuint8_t lo1 = svld1_u8(pg, (const uint8_t*)(a1 + r));
         const svuint8_t hi1 = svld1_u8(pg, (const uint8_t*)(a1 + bit_length + r));
 
-        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q0, w1);
-        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q0, w2);
-        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q0, w1);
-        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q0, w2);
-        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q1, w2);
-        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q1, w4);
-        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q1, w2);
-        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q1, w4);
-        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q2, w4);
-        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q2, w8);
-        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q2, w4);
-        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q2, w8);
-        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q3, w8);
-        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q3, w16);
-        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q3, w8);
-        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q3, w16);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q0, w0);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q0, w1);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q0, w0);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q0, w1);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q1, w1);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q1, w2);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q1, w1);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q1, w2);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q2, w2);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q2, w3);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q2, w2);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q2, w3);
+        lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q3, w3);
+        hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q3, w4);
+        lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q3, w3);
+        hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q3, w4);
     };
     const int32_t full = bit_length - bit_length % (int32_t)svcntb();
     for (; r < full; r += svcntb()) {
@@ -518,7 +545,7 @@ template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
-__attribute__((noinline)) static void dotd2q4_bulk4(
+__attribute__((noinline)) static void dotd2q4_inner_bulk4(
     const TData* a,
     const int8_t* query,
     const int32_t length,
@@ -533,14 +560,15 @@ __attribute__((noinline)) static void dotd2q4_bulk4(
     // Four vectors per batch, each with one accumulator per doc bit plane so the UDOT chains stay short:
     // the eight bit planes, the four query planes, the five weights and the eight accumulators fit in the
     // 32 z registers. Using that many registers makes the function save the callee-saved ones, so it is
-    // kept out of line and only called with at least one full batch. The dot products are grouped per
-    // accumulator below, unlike the single and pair kernels; the order does not matter, the compiler
-    // interleaves the eight independent accumulator chains itself.
-    const svuint8_t w1 = svdup_n_u8(1);
-    const svuint8_t w2 = svdup_n_u8(2);
-    const svuint8_t w4 = svdup_n_u8(4);
-    const svuint8_t w8 = svdup_n_u8(8);
-    const svuint8_t w16 = svdup_n_u8(16);
+    // kept out of line and only called with at least one full batch. Each step's dot products are grouped
+    // per accumulator in the source; the compiler interleaves the eight independent chains itself. Four
+    // vectors of two bit planes keep as many streams in flight as the eight single-plane vectors of the
+    // d1q4 batch; eight d2q4 vectors would need more than 32 registers.
+    const svuint8_t w0 = svdup_n_u8(1);
+    const svuint8_t w1 = svdup_n_u8(2);
+    const svuint8_t w2 = svdup_n_u8(4);
+    const svuint8_t w3 = svdup_n_u8(8);
+    const svuint8_t w4 = svdup_n_u8(16);
 
     for (; c < count4; c += 4) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
@@ -574,41 +602,13 @@ __attribute__((noinline)) static void dotd2q4_bulk4(
             const svuint8_t lo3 = svld1_u8(pg, (const uint8_t*)(a3 + r));
             const svuint8_t hi3 = svld1_u8(pg, (const uint8_t*)(a3 + bit_length + r));
 
-            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q0, w1);
-            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q1, w2);
-            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q2, w4);
-            lo_acc0 = dot_bit_weighted_sv(lo_acc0, lo0, q3, w8);
-            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q0, w2);
-            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q1, w4);
-            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q2, w8);
-            hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q3, w16);
+            dot_d2q4_step_sv(lo_acc0, hi_acc0, lo0, hi0, q0, q1, q2, q3, w0, w1, w2, w3, w4);
 
-            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q0, w1);
-            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q1, w2);
-            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q2, w4);
-            lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q3, w8);
-            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q0, w2);
-            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q1, w4);
-            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q2, w8);
-            hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q3, w16);
+            dot_d2q4_step_sv(lo_acc1, hi_acc1, lo1, hi1, q0, q1, q2, q3, w0, w1, w2, w3, w4);
 
-            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q0, w1);
-            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q1, w2);
-            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q2, w4);
-            lo_acc2 = dot_bit_weighted_sv(lo_acc2, lo2, q3, w8);
-            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q0, w2);
-            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q1, w4);
-            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q2, w8);
-            hi_acc2 = dot_bit_weighted_sv(hi_acc2, hi2, q3, w16);
+            dot_d2q4_step_sv(lo_acc2, hi_acc2, lo2, hi2, q0, q1, q2, q3, w0, w1, w2, w3, w4);
 
-            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q0, w1);
-            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q1, w2);
-            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q2, w4);
-            lo_acc3 = dot_bit_weighted_sv(lo_acc3, lo3, q3, w8);
-            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q0, w2);
-            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q1, w4);
-            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q2, w8);
-            hi_acc3 = dot_bit_weighted_sv(hi_acc3, hi3, q3, w16);
+            dot_d2q4_step_sv(lo_acc3, hi_acc3, lo3, hi3, q0, q1, q2, q3, w0, w1, w2, w3, w4);
         };
         const int32_t full = bit_length - bit_length % (int32_t)svcntb();
         for (; r < full; r += svcntb()) {
@@ -640,7 +640,7 @@ static inline void dotd2q4_inner_bulk(
 ) {
     const int32_t count4 = count & ~3;
     if (count4 > 0) {
-        dotd2q4_bulk4<TData, mapper, out_mapper>(a, query, length, pitch, offsets, count4, results);
+        dotd2q4_inner_bulk4<TData, mapper, out_mapper>(a, query, length, pitch, offsets, count4, results);
     }
     int c = count4;
     if (c + 1 < count) {

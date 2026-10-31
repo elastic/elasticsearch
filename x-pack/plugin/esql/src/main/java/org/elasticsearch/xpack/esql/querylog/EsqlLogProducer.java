@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import java.util.Map;
 import java.util.Optional;
 
-public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
+public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> {
 
     public static final String SETTINGS_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "settings.";
     /**
@@ -31,7 +31,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
 
     @Override
-    public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(EsqlCaptureContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery())
             .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());

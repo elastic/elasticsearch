@@ -1,0 +1,299 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.common.logging.activity;
+
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+
+public class QueryInterceptorTests extends ESTestCase {
+
+    private List<String> responses = new ArrayList<>();
+    private List<Exception> failures = new ArrayList<>();
+    private ActionListener<String> listener = ActionListener.wrap(responses::add, failures::add);
+
+    @Before
+    public void resetListener() {
+        responses = new ArrayList<>();
+        failures = new ArrayList<>();
+        listener = ActionListener.wrap(responses::add, failures::add);
+    }
+
+    public void testWrapAndRunDoesNotWrapWhenNoSinkIsEnabled() {
+        var sink = new RecordingSink(false);
+        var received = new ArrayList<ActionListener<String>>();
+
+        interceptor(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), received::add);
+
+        assertThat(received.size(), equalTo(1));
+        assertThat(received.get(0), sameInstance(listener));
+    }
+
+    public void testWrapAndRunDoesNotWrapWithoutSinks() {
+        var received = new ArrayList<ActionListener<String>>();
+
+        interceptor(List.of()).wrapAndRun(listener, new TestContextBuilder(), received::add);
+
+        assertThat(received.size(), equalTo(1));
+        assertThat(received.get(0), sameInstance(listener));
+    }
+
+    public void testWrapAndRunWrapsWhenASinkIsEnabled() {
+        var sink = new RecordingSink(true);
+        var received = new ArrayList<ActionListener<String>>();
+
+        interceptor(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), received::add);
+
+        assertThat(received.size(), equalTo(1));
+        assertThat(received.get(0), not(sameInstance(listener)));
+        received.get(0).onResponse("done");
+        assertThat(sink.accepted.size(), equalTo(1));
+        assertThat(responses, contains("done"));
+    }
+
+    public void testSinkSeesResponseAndDelegateStillCalled() {
+        var sink = new RecordingSink(true);
+
+        interceptor(List.of(sink.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+        assertThat(sink.accepted.size(), equalTo(1));
+        assertTrue(sink.accepted.get(0).isSuccess());
+        assertThat(responses, contains("done"));
+    }
+
+    public void testSinkSeesFailureAndDelegateStillCalled() {
+        var sink = new RecordingSink(true);
+        var failure = new IllegalStateException("boom");
+
+        interceptor(List.of(sink.sink)).wrap(listener, new TestContextBuilder()).onFailure(failure);
+
+        assertThat(sink.accepted.size(), equalTo(1));
+        assertFalse(sink.accepted.get(0).isSuccess());
+        assertThat(sink.accepted.get(0).getErrorMessage(), equalTo("boom"));
+        assertThat(failures, contains(sameInstance(failure)));
+    }
+
+    public void testOnlyEnabledSinksAreCalled() {
+        var disabled = new RecordingSink(false);
+        var enabled = new RecordingSink(true);
+
+        interceptor(List.of(disabled.sink, enabled.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+        assertThat(disabled.accepted, empty());
+        assertThat(enabled.accepted.size(), equalTo(1));
+    }
+
+    public void testAllEnabledSinksAreCalledWithTheSameContext() {
+        var first = new RecordingSink(true);
+        var second = new RecordingSink(true);
+
+        interceptor(List.of(first.sink, second.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+        assertThat(first.accepted.size(), equalTo(1));
+        assertThat(second.accepted.size(), equalTo(1));
+        assertThat(second.accepted.get(0), sameInstance(first.accepted.get(0)));
+    }
+
+    public void testSinkCheckedForEnabledOnEveryAction() {
+        var sink = new RecordingSink(false);
+        var actionLogger = interceptor(List.of(sink.sink));
+        var builder = new TestContextBuilder();
+
+        actionLogger.wrap(listener, builder).onResponse("one");
+        sink.enabled.set(true);
+        actionLogger.wrap(listener, builder).onResponse("two");
+
+        assertThat(sink.accepted.size(), equalTo(1));
+        assertThat(responses, contains("one", "two"));
+    }
+
+    public void testFailingSinkDoesNotFailTheActionOrStarveOthers() {
+        var failing = new TestQuerySink<TestContext>(
+            () -> true,
+            context -> { throw new IllegalStateException("sink failure"); },
+            () -> "failing-sink"
+        );
+        var after = new RecordingSink(true);
+
+        try (var mockLog = MockLog.capture(QueryInterceptor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "failing sink is named in the warning",
+                    QueryInterceptor.class.getCanonicalName(),
+                    Level.WARN,
+                    "query sink [failing-sink] failed"
+                )
+            );
+
+            interceptor(List.of(failing, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertThat(after.accepted.size(), equalTo(1));
+        assertThat(responses, contains("done"));
+        assertThat(failures, empty());
+    }
+
+    public void testThrowingSinkSwitchDoesNotFailTheActionOrStarveOthers() {
+        var broken = new TestQuerySink<TestContext>(
+            () -> { throw new IllegalStateException("switch failure"); },
+            context -> fail("a sink with a throwing switch must not be called"),
+            () -> "broken-sink"
+        );
+        var after = new RecordingSink(true);
+
+        interceptor(List.of(broken, after.sink)).wrap(listener, new TestContextBuilder()).onResponse("done");
+
+        assertThat(after.accepted.size(), equalTo(1));
+        assertThat(responses, contains("done"));
+        assertThat(failures, empty());
+    }
+
+    public void testThrowingContextBuilderDoesNotFailSuccessfulAction() {
+        var sink = new RecordingSink(true);
+
+        interceptor(List.of(sink.sink)).wrap(listener, new ThrowingContextBuilder()).onResponse("done");
+
+        assertThat(sink.accepted, empty());
+        assertThat(responses, contains("done"));
+        assertThat(failures, empty());
+    }
+
+    public void testThrowingContextBuilderPreservesOriginalFailure() {
+        var sink = new RecordingSink(true);
+        var failure = new IllegalStateException("boom");
+
+        interceptor(List.of(sink.sink)).wrap(listener, new ThrowingContextBuilder()).onFailure(failure);
+
+        assertThat(sink.accepted, empty());
+        assertThat(responses, empty());
+        assertThat(failures, contains(sameInstance(failure)));
+    }
+
+    public void testWrapAndRunThrowingContextBuilderRethrowsOriginal() {
+        var sink = new RecordingSink(true);
+        var failure = new IllegalStateException("thrown by the action");
+
+        var thrown = expectThrows(
+            IllegalStateException.class,
+            () -> interceptor(List.of(sink.sink)).wrapAndRun(listener, new ThrowingContextBuilder(), l -> {
+                throw failure;
+            })
+        );
+
+        assertThat(thrown, sameInstance(failure));
+        assertThat(sink.accepted, empty());
+    }
+
+    public void testWrapAndRunReportsExceptionToSinkAndRethrows() {
+        var sink = new RecordingSink(true);
+        var failure = new IllegalStateException("thrown by the action");
+
+        var thrown = expectThrows(
+            IllegalStateException.class,
+            () -> interceptor(List.of(sink.sink)).wrapAndRun(listener, new TestContextBuilder(), l -> {
+                throw failure;
+            })
+        );
+
+        assertThat(thrown, sameInstance(failure));
+        assertThat(sink.accepted.size(), equalTo(1));
+        assertFalse(sink.accepted.get(0).isSuccess());
+    }
+
+    private static QueryInterceptor<TestContext> interceptor(List<QuerySink<TestContext>> sinks) {
+        return new QueryInterceptor<>(sinks);
+    }
+
+    /** A sink that records the contexts it is given. */
+    private static class RecordingSink {
+        final AtomicBoolean enabled;
+        final List<TestContext> accepted = new ArrayList<>();
+        final QuerySink<TestContext> sink;
+
+        RecordingSink(boolean enabled) {
+            this.enabled = new AtomicBoolean(enabled);
+            this.sink = new TestQuerySink<>(this.enabled::get, accepted::add, () -> "recording-sink");
+        }
+    }
+
+    /** A builder that fails to build the context, to check that this can never change the outcome of the action. */
+    private static class ThrowingContextBuilder extends QueryCaptureContextBuilder<TestContext, String, String> {
+        ThrowingContextBuilder() {
+            super(mock(Task.class), "request");
+        }
+
+        @Override
+        public TestContext build(String response) {
+            throw new IllegalStateException("cannot build context from response");
+        }
+
+        @Override
+        public TestContext build(Exception e) {
+            throw new IllegalStateException("cannot build context from failure");
+        }
+    }
+
+    private static class TestContextBuilder extends QueryCaptureContextBuilder<TestContext, String, String> {
+        TestContextBuilder() {
+            super(mock(Task.class), "request");
+        }
+
+        @Override
+        public TestContext build(String response) {
+            return new TestContext(100);
+        }
+
+        @Override
+        public TestContext build(Exception e) {
+            return new TestContext(e);
+        }
+    }
+
+    private static class TestContext extends QueryCaptureContext {
+        TestContext(long tookInNanos) {
+            super(mock(Task.class), "test", tookInNanos);
+        }
+
+        TestContext(Exception error) {
+            super(mock(Task.class), "test", 0, error);
+        }
+
+        @Override
+        public String getQuery() {
+            return "";
+        }
+
+        @Override
+        public int getResultCount() {
+            return 0;
+        }
+
+        @Override
+        public String[] getIndices() {
+            return new String[0];
+        }
+    }
+}

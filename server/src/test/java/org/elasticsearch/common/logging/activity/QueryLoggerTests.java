@@ -9,20 +9,22 @@
 
 package org.elasticsearch.common.logging.activity;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -30,7 +32,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link QueryLogger} that exercise {@link ClusterSettings}-backed query log settings.
+ * Tests for {@link QueryLogger}, as a sink of a {@link QueryInterceptor}, that exercise {@link ClusterSettings}-backed
+ * query log settings.
  */
 public class QueryLoggerTests extends ESTestCase {
 
@@ -39,7 +42,9 @@ public class QueryLoggerTests extends ESTestCase {
     private ActivityLogProducer<TestContext> producer;
     private ActivityLogWriter writer;
     private ActionLoggingFields loggingFields;
-    private QueryLogger<TestContext> actionLogger;
+    private ActionLoggingFieldsProvider fieldProvider;
+    private ActivityLogWriterProvider writerProvider;
+    private QueryInterceptor<TestContext> interceptor;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -48,14 +53,14 @@ public class QueryLoggerTests extends ESTestCase {
         producer = mock(ActivityLogProducer.class);
         when(producer.loggerName()).thenReturn(loggerName);
         writer = mock(ActivityLogWriter.class);
-        ActionLoggingFieldsProvider fieldProvider = mock(ActionLoggingFieldsProvider.class);
+        fieldProvider = mock(ActionLoggingFieldsProvider.class);
         loggingFields = mock(ActionLoggingFields.class);
 
         when(fieldProvider.create(any())).thenReturn(loggingFields);
-        var writerProvider = mock(ActivityLogWriterProvider.class);
+        writerProvider = mock(ActivityLogWriterProvider.class);
         when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        actionLogger = new QueryLogger<>(clusterSettings, producer, writerProvider, fieldProvider);
+        interceptor = new QueryInterceptor<>(List.of(queryLogger()));
     }
 
     private ESLogMessage randomMessage() {
@@ -64,7 +69,7 @@ public class QueryLoggerTests extends ESTestCase {
 
     public void testLogActionDisabled() {
         TestContext context = new TestContext(100);
-        actionLogger.logAction(context);
+        interceptor.notifySinks(context);
         verifyNoInteractions(writer);
     }
 
@@ -76,16 +81,16 @@ public class QueryLoggerTests extends ESTestCase {
 
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
 
-        actionLogger.logAction(context);
+        interceptor.notifySinks(context);
 
-        verify(writer).write(actionLogger.getLogLevel(), randomMessage);
+        verify(writer).write(Level.INFO, randomMessage);
     }
 
     public void testLogActionBelowThreshold() {
         setThreshold(TimeValue.timeValueMillis(100));
 
         TestContext context = new TestContext(TimeValue.timeValueMillis(50).nanos());
-        actionLogger.logAction(context);
+        interceptor.notifySinks(context);
 
         verifyNoInteractions(writer);
     }
@@ -98,20 +103,19 @@ public class QueryLoggerTests extends ESTestCase {
 
         when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
 
-        actionLogger.logAction(context);
+        interceptor.notifySinks(context);
 
-        verify(writer).write(actionLogger.getLogLevel(), randomMessage);
+        verify(writer).write(Level.INFO, randomMessage);
     }
 
-    @SuppressWarnings("unchecked")
-    public void testWrapDisabled() {
-        ActionListener<String> listener = ActionListener.noop();
-        ActivityLoggerContextBuilder<TestContext, String, String> builder = mock(ActivityLoggerContextBuilder.class);
+    public void testSinkDescriptionNamesTheProducer() {
+        var queryLogger = new QueryLogger<>(clusterSettings, new SearchLogProducer(), writerProvider, fieldProvider);
 
-        ActionListener<String> wrapped = actionLogger.wrap(listener, builder);
+        assertThat(queryLogger.toString(), equalTo("query_log/SearchLogProducer"));
+    }
 
-        assertThat(wrapped, sameInstance(listener));
-        verifyNoInteractions(builder);
+    private QueryLogger<TestContext> queryLogger() {
+        return new QueryLogger<>(clusterSettings, producer, writerProvider, fieldProvider);
     }
 
     private void enableLogger() {
@@ -128,7 +132,7 @@ public class QueryLoggerTests extends ESTestCase {
         );
     }
 
-    private static class TestContext extends QueryLoggerContext {
+    private static class TestContext extends QueryCaptureContext {
         TestContext(long tookInNanos) {
             super(mock(Task.class), "test", tookInNanos);
         }

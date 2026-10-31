@@ -11,7 +11,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -43,6 +46,8 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -126,6 +132,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * fill, so that {@link #clearActivationFillOverrides()} also applies to inputs opened during the activation.
      */
     private volatile boolean dynamicFillSize = false;
+
+    /**
+     * Prototype ("cheap shards", phase 3 gap 3): notified when a query-time read finds a blob of the commit missing in the object store
+     * (see {@link #setMissingBlobListener}). {@code null} (the default) keeps the existing behaviour: the read fails, the shard stays.
+     */
+    @Nullable
+    private volatile Consumer<Exception> missingBlobListener;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -551,8 +564,54 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return override > 0 ? override : cacheService.getRangeSize();
     }
 
+    /**
+     * Installs (or with {@code null} removes) a listener that is notified when a query-time read of a blob of this shard fails because the
+     * blob does not exist (any longer) in the object store. Used by pointer-based activation, whose commit's blobs are not protected from
+     * deletion by a registration with the indexing shard, to fail the shard instead of failing searches until it moves.
+     */
+    public void setMissingBlobListener(@Nullable Consumer<Exception> listener) {
+        this.missingBlobListener = listener;
+    }
+
     @Override
     public CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+        final CacheBlobReader reader = getQueryCacheBlobReader(fileName, blobFile);
+        final Consumer<Exception> onMissingBlob = missingBlobListener;
+        return onMissingBlob == null ? reader : new MissingBlobDetectingCacheBlobReader(reader, onMissingBlob);
+    }
+
+    /** Reports a {@link NoSuchFileException} / {@link FileNotFoundException} of the object store read to a listener, then fails as before. */
+    private record MissingBlobDetectingCacheBlobReader(CacheBlobReader delegate, Consumer<Exception> onMissingBlob)
+        implements
+            CacheBlobReader {
+
+        @Override
+        public ByteRange getRange(long position, int length, long remainingFileLength) {
+            return delegate.getRange(position, length, remainingFileLength);
+        }
+
+        @Override
+        public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+            return delegate.getRange(position, length, remainingFileLength, minRangeSize);
+        }
+
+        @Override
+        public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+            delegate.getRangeInputStream(position, length, listener.delegateResponse((l, e) -> {
+                if (ExceptionsHelper.unwrap(e, NoSuchFileException.class, FileNotFoundException.class) != null) {
+                    onMissingBlob.accept(e);
+                }
+                l.onFailure(e);
+            }));
+        }
+
+        @Override
+        public String executorName() {
+            return delegate.executorName();
+        }
+    }
+
+    private CacheBlobReader getQueryCacheBlobReader(String fileName, BlobFile blobFile) {
         if (dynamicFillSize) {
             return cacheBlobReaderService.getCacheBlobReader(
                 shardId,

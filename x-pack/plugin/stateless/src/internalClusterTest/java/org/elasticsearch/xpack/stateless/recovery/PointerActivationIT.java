@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -30,6 +32,8 @@ import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.CommitPointer;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -50,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -147,8 +152,12 @@ public class PointerActivationIT extends AbstractStatelessPluginIntegTestCase {
 
     /** An index with several flushed (uploaded) commits carrying soft deletes, and no search copy. */
     private Fixture setUpIndex() throws Exception {
+        return setUpIndex(Settings.EMPTY);
+    }
+
+    private Fixture setUpIndex(Settings indexNodeSettings) throws Exception {
         startMasterOnlyNode();
-        final String indexNode = startIndexNode();
+        final String indexNode = startIndexNode(indexNodeSettings);
         final CountingStrategy searchStore = new CountingStrategy();
         final String searchNode = startSearchNode(searchStore);
         ensureStableCluster(3);
@@ -411,5 +420,173 @@ public class PointerActivationIT extends AbstractStatelessPluginIntegTestCase {
         } finally {
             setActivation(false);
         }
+    }
+
+    /** Distinct blobs referenced by the pointed commit, as (term, blob name). */
+    private static List<BlobFile> blobsOf(CommitPointer pointer) {
+        return pointer.compoundCommit().commitFiles().values().stream().map(BlobLocation::blobFile).distinct().toList();
+    }
+
+    private boolean blobExists(Fixture f, BlobFile blob) throws IOException {
+        return getObjectStoreService(f.indexNode).getProjectBlobContainer(shardId(f), blob.primaryTerm())
+            .blobExists(OperationPurpose.INDICES, blob.blobName());
+    }
+
+    /**
+     * Retention race (phase 3 gap 2), as it happens: the search shard reads pointer P1, then (before it registers) a newer commit that
+     * references none of P1's blobs is uploaded and the indexing shard releases P1's commit. Stopping the publisher keeps P1 in place,
+     * which stands for a search shard that read it just before. Returns P1.
+     */
+    private CommitPointer releasePointedCommit(Fixture f) throws Exception {
+        updateClusterSettings(Settings.builder().put(FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING.getKey(), false));
+        final CommitPointer stale = CommitPointer.read(shardContainer(f), primaryTerm(f));
+        assertThat(stale, notNullValue());
+        indexDocs(f.indexName, 1, () -> "force-merged-" + randomUUID());
+        assertNoFailures(client().admin().indices().prepareForceMerge(f.indexName).setMaxNumSegments(1).setFlush(true).get());
+        indexDocs(f.indexName, 1, () -> "after-merge-" + randomUUID());
+        flush(f.indexName);
+        return stale;
+    }
+
+    /**
+     * Phase 3 gap 2, without a deletion delay: the blobs of the pointed commit are deleted before the search shard opens it. Warming
+     * fails on the missing blob, and the shard falls back to discovery and serves the latest commit.
+     */
+    public void testFallsBackWhenPointedCommitWasDeleted() throws Exception {
+        final Fixture f = setUpIndex();
+        final CommitPointer stale = releasePointedCommit(f);
+        setActivation(false);
+        final String expected = activateAndQuery(f);
+        deactivate(f);
+        // warming touches every blob of the commit, so one deleted blob is enough to make it fail
+        assertBusy(() -> {
+            boolean anyDeleted = false;
+            for (BlobFile blob : blobsOf(stale)) {
+                anyDeleted |= blobExists(f, blob) == false;
+            }
+            assertTrue("a blob of the released commit " + blobsOf(stale) + " was deleted", anyDeleted);
+        });
+
+        setActivation(true);
+        try {
+            assertThat(activateAndQuery(f), equalTo(expected));
+            assertThat("pointer read once", f.searchStore.pointerReads(), equalTo(1L));
+            assertThat("fallback discovers the commit in the object store", f.searchStore.lists.get(), greaterThan(0));
+        } finally {
+            setActivation(false);
+        }
+    }
+
+    /**
+     * Phase 3 gap 2, with the existing {@link ObjectStoreService#OBJECT_STORE_FILE_DELETION_DELAY} on the index node: the released
+     * commit's blobs are kept for the delay, so the search shard opens the pointed commit without falling back (0 LIST), and the
+     * background registration then moves it to the latest commit.
+     */
+    public void testDeletionDelayKeepsPointedCommitReadable() throws Exception {
+        final Fixture f = setUpIndex(Settings.builder().put(ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY.getKey(), "1h").build());
+        final CommitPointer stale = releasePointedCommit(f);
+        // the indexing shard released the pointed commit and would have deleted its blobs by now without the delay
+        final var objectStoreService = getObjectStoreService(f.indexNode);
+        final var staleBcc = stale.batchedCompoundCommitTermAndGeneration();
+        assertBusy(
+            () -> assertTrue(
+                objectStoreService.getCommitBlobsDeletionsInProgress(shardId(f))
+                    .stream()
+                    .anyMatch(c -> c.primaryTermAndGeneration().equals(staleBcc))
+            )
+        );
+        setActivation(false);
+        final String expected = activateAndQuery(f);
+        deactivate(f);
+        for (BlobFile blob : blobsOf(stale)) {
+            assertTrue("released blob " + blob + " kept", blobExists(f, blob));
+        }
+
+        setActivation(true);
+        try {
+            f.searchStore.reset();
+            setReplicaCount(1, f.indexName);
+            ensureGreen(f.indexName);
+            assertThat("opened from the pointer, no fallback", f.searchStore.lists.get(), equalTo(0));
+            assertThat(f.searchStore.pointerReads(), equalTo(1L));
+            assertBusy(() -> assertThat(queries(f), equalTo(expected)));
+        } finally {
+            setActivation(false);
+        }
+    }
+
+    /**
+     * Phase 3 gap 3: a blob of the commit a pointer-activated shard serves goes missing after activation (deleted under it, see gap 2).
+     * The query that hits it fails, and the shard is failed (instead of failing every query on that range until it moves) and recovers;
+     * once the blob is back (here: restored; in reality: recovery picks the then-current pointer or discovers the latest commit) it
+     * serves the same hits again.
+     */
+    public void testMissingBlobAfterPointerActivationFailsShard() throws Exception {
+        final Fixture f = setUpIndex();
+        setActivation(false);
+        final String expected = activateAndQuery(f);
+        deactivate(f);
+
+        setActivation(true);
+        try {
+            assertThat(activateAndQuery(f), equalTo(expected));
+            assertThat(f.searchStore.lists.get(), equalTo(0));
+            final String allocationId = findSearchShard(f.indexName).routingEntry().allocationId().getId();
+
+            final CommitPointer pointer = CommitPointer.read(shardContainer(f), primaryTerm(f));
+            final BlobFile blob = randomFrom(blobsOf(pointer));
+            final BlobContainer termContainer = getObjectStoreService(f.indexNode).getProjectBlobContainer(shardId(f), blob.primaryTerm());
+            final byte[] bytes;
+            try (InputStream in = termContainer.readBlob(OperationPurpose.INDICES, blob.blobName())) {
+                bytes = in.readAllBytes();
+            }
+            termContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, List.of(blob.blobName()).iterator());
+            evictSearchCache(f);
+
+            // every query reads all segments (match_all, all hits with source), so it needs the deleted blob
+            Throwable failure = null;
+            try {
+                queries(f);
+            } catch (Throwable t) {
+                failure = t;
+            }
+            assertNotNull("query on a deleted blob fails", failure);
+            termContainer.writeBlob(OperationPurpose.INDICES, blob.blobName(), new BytesArray(bytes), false);
+
+            assertBusy(() -> {
+                final var routing = findSearchShardRouting(f);
+                assertNotNull(routing);
+                assertThat("search shard was failed and reallocated", routing.allocationId().getId(), not(equalTo(allocationId)));
+            });
+            ClusterRerouteUtils.rerouteRetryFailed(client());
+            ensureGreen(f.indexName);
+            assertBusy(() -> assertThat(queries(f), equalTo(expected)));
+        } finally {
+            setActivation(false);
+        }
+    }
+
+    private ShardRouting findSearchShardRouting(Fixture f) {
+        return client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .routingTable()
+            .index(f.indexName)
+            .shard(0)
+            .assignedUnpromotableShards()
+            .stream()
+            .findFirst()
+            .orElse(null);
+    }
+
+    private void evictSearchCache(Fixture f) {
+        internalCluster().getInstance(PluginsService.class, f.searchNode)
+            .filterPlugins(StatelessPlugin.class)
+            .findFirst()
+            .orElseThrow()
+            .getStatelessSharedBlobCacheService()
+            .forceEvict(key -> key.shardId().getIndex().equals(f.index));
     }
 }

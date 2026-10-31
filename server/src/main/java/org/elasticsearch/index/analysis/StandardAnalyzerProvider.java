@@ -23,7 +23,7 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
     public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        CharArraySet stopWords = Analysis.parseStopWords(indexSettings.getIndexVersionCreated(), env, settings, defaultStopwords);
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         standardAnalyzer = new StandardAnalyzer(stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);

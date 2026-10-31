@@ -34,7 +34,13 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        this.stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
+        this.stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET,
+            ignoreCase
+        );
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");
         }

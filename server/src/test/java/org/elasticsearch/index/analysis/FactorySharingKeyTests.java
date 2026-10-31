@@ -17,9 +17,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.io.IOException;
 import java.io.Reader;
 
 /**
@@ -33,7 +37,11 @@ import java.io.Reader;
 public class FactorySharingKeyTests extends ESTestCase {
 
     private IndexSettings indexSettings() {
-        Settings idx = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        return indexSettings(IndexVersion.current());
+    }
+
+    private IndexSettings indexSettings(IndexVersion version) {
+        Settings idx = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         return IndexSettingsModule.newIndexSettings("test", idx);
     }
 
@@ -100,6 +108,90 @@ public class FactorySharingKeyTests extends ESTestCase {
         StopTokenFilterFactory keep = new StopTokenFilterFactory(is, env, "a", Settings.builder().put("remove_trailing", true).build());
         StopTokenFilterFactory remove = new StopTokenFilterFactory(is, env, "b", Settings.builder().put("remove_trailing", false).build());
         assertNotEquals(keep.sharingKey(), remove.sharingKey());
+    }
+
+    /**
+     * {@code _thai_} resolves to a different list on either side of {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}; the
+     * content-hashed stop set in the key must keep the two apart.
+     */
+    public void testStopFactoryThaiNamedSetDiffersAcrossThaiGate() {
+        Environment env = env();
+        Settings thai = Settings.builder().put("stopwords", "_thai_").build();
+        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        StopTokenFilterFactory oldA = new StopTokenFilterFactory(indexSettings(legacy), env, "a", thai);
+        StopTokenFilterFactory oldB = new StopTokenFilterFactory(
+            indexSettings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0)),
+            env,
+            "b",
+            thai
+        );
+        StopTokenFilterFactory current = new StopTokenFilterFactory(indexSettings(), env, "c", thai);
+        assertEquals(oldA.sharingKey(), oldB.sharingKey());
+        assertNotEquals(oldA.sharingKey(), current.sharingKey());
+    }
+
+    // ---- PreBuiltAnalyzerProviderFactory ----
+
+    /** A custom version key shares one provider across index and Lucene versions with equivalent behavior. */
+    public void testCustomVersionPrebuiltAnalyzerSharesByVersionKey() throws IOException {
+        Environment env = env();
+        IndexVersion firstLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
+        IndexVersion secondLegacy = IndexVersions.UPGRADE_TO_LUCENE_10_5_2;
+        assertNotEquals(firstLegacy.luceneVersion(), secondLegacy.luceneVersion());
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.versioned(
+                "versioned",
+                version -> version.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0),
+                legacy -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> firstProvider = factory.get(indexSettings(firstLegacy), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> secondProvider = factory.get(indexSettings(secondLegacy), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
+            assertSame(firstProvider, secondProvider);
+            assertNotSame(firstProvider, currentProvider);
+            assertSame(firstProvider, firstProvider.sharingKey());
+            assertEquals(firstProvider.sharingKey(), secondProvider.sharingKey());
+            assertNotEquals(firstProvider.sharingKey(), currentProvider.sharingKey());
+            assertSame(currentProvider, factory.get(indexSettings(), env, "versioned", Settings.EMPTY));
+        }
+    }
+
+    /** The current provider participates in custom version caching instead of occupying a separate slot. */
+    public void testCustomVersionPrebuiltAnalyzerSharesCurrentProvider() throws IOException {
+        Environment env = env();
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.versioned(
+                "versioned",
+                version -> true,
+                ignored -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> previousProvider = factory.get(
+                indexSettings(IndexVersionUtils.getPreviousVersion()),
+                env,
+                "versioned",
+                Settings.EMPTY
+            );
+            assertSame(currentProvider, previousProvider);
+        }
+    }
+
+    /** Prebuilt analyzers registered with a plain supplier are version-invariant and keep sharing by name across versions. */
+    public void testSupplierPrebuiltAnalyzerSharesAcrossVersions() throws IOException {
+        Environment env = env();
+        try (
+            PreBuiltAnalyzerProviderFactory factory = new PreBuiltAnalyzerProviderFactory(
+                "invariant",
+                CachingStrategy.INDEX,
+                StandardAnalyzer::new
+            )
+        ) {
+            AnalyzerProvider<?> current = factory.get(indexSettings(), env, "invariant", Settings.EMPTY);
+            AnalyzerProvider<?> old = factory.get(indexSettings(IndexVersionUtils.getPreviousVersion()), env, "invariant", Settings.EMPTY);
+            assertEquals(current.sharingKey(), old.sharingKey());
+        }
     }
 
     // ---- ShingleTokenFilterFactory ----

@@ -18,5 +18,16 @@ public final class AnalyzeCapabilities {
 
     private static final String MAX_CHAR_COUNT_CAPABILITY = "analyze_max_char_count";
 
-    public static final Set<String> CAPABILITIES = Set.of(WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY, MAX_CHAR_COUNT_CAPABILITY);
+    /**
+     * Thai analysis ({@code thai} analyzer and tokenizer, {@code _thai_} stopwords) follows the index's creation version: indices
+     * created before {@code IndexVersions.UPGRADE_TO_LUCENE_10_6_0} keep the Lucene 10.5 output, newer indices and index-less
+     * requests get Lucene's current output.
+     */
+    private static final String THAI_ANALYSIS_BY_INDEX_VERSION_CAPABILITY = "thai_analysis_by_index_version";
+
+    public static final Set<String> CAPABILITIES = Set.of(
+        WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY,
+        MAX_CHAR_COUNT_CAPABILITY,
+        THAI_ANALYSIS_BY_INDEX_VERSION_CAPABILITY
+    );
 }

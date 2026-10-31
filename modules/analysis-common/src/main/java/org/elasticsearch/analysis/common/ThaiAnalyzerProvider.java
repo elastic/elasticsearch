@@ -9,28 +9,40 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.Analysis;
 
-public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
+/**
+ * Provider for the {@code thai} analyzer type. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} get
+ * {@link LegacyThaiAnalyzer} (the Lucene 10.5 chain and default stopwords); newer indices get Lucene's {@link ThaiAnalyzer}.
+ */
+public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
-    private final ThaiAnalyzer analyzer;
+    private final Analyzer analyzer;
     private final Object sharingKey;
 
     ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet());
-        analyzer = new ThaiAnalyzer(stopWords);
-        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords));
+        IndexVersion created = indexSettings.getIndexVersionCreated();
+        ThaiAnalysis.Generation generation = ThaiAnalysis.generation(created.luceneVersion());
+        CharArraySet defaults = generation.defaultStopSet();
+        CharArraySet stopWords = Analysis.parseStopWords(created, env, settings, defaults);
+        analyzer = generation.newAnalyzer(stopWords);
+        // The stop set alone does not distinguish the two chains (a user may supply the same explicit list on both sides of the
+        // gate), so the gate side must be part of the key.
+        this.sharingKey = new Key(generation, Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override
-    public ThaiAnalyzer get() {
+    public Analyzer get() {
         return this.analyzer;
     }
 
@@ -39,5 +51,5 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnal
         return sharingKey;
     }
 
-    private record Key(Analysis.StableCharArraySet stopWords) {}
+    private record Key(ThaiAnalysis.Generation generation, Analysis.StableCharArraySet stopWords) {}
 }

@@ -25,7 +25,12 @@ public class BengaliAnalyzerProvider extends AbstractIndexAnalyzerProvider<Benga
 
     BengaliAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, BengaliAnalyzer.getDefaultStopSet());
+        CharArraySet stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            BengaliAnalyzer.getDefaultStopSet()
+        );
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new BengaliAnalyzer(stopWords, stemExclusions);
         this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));

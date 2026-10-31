@@ -1,0 +1,138 @@
+## Thai analysis follows the index's creation version. Indices created before the Lucene 10.6 upgrade keep the
+## Lucene 10.5 output (covered by the full-cluster-restart and rolling-upgrade suites); index-less requests and
+## indices created now get Lucene's current output, which these tests pin.
+
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_analyze
+          capabilities: [ thai_analysis_by_index_version ]
+      reason: Thai analysis is gated on the index creation version
+
+  - do:
+      indices.create:
+        index: test_thai
+        body:
+          settings:
+            analysis:
+              analyzer:
+                my_thai:
+                  type: thai
+                thai_tokens:
+                  tokenizer: thai
+                thai_stops:
+                  tokenizer: thai
+                  filter: [ my_thai_stop ]
+              filter:
+                my_thai_stop:
+                  type: stop
+                  stopwords: _thai_
+
+---
+"thai analyzer normalizes, expands repeats and uses the curated stop list":
+  # double Sara E (\u0e40\u0e40) is normalized to Sara Ae (\u0e41)
+  - do:
+      indices.analyze:
+        body:
+          text: เเมว
+          analyzer: thai
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: แมว }
+
+  # Maiyamok repeats the previous word
+  - do:
+      indices.analyze:
+        body:
+          text: เร็วๆ
+          analyzer: thai
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: เร็ว }
+  - match:  { tokens.1.token: เร็ว }
+
+  # ไป and ผ่าน / มา are no longer default stopwords
+  - do:
+      indices.analyze:
+        body:
+          text: ที่ผ่านมา
+          analyzer: thai
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: ผ่าน }
+  - match:  { tokens.1.token: มา }
+
+  - do:
+      indices.analyze:
+        index: test_thai
+        body:
+          text: เเมว
+          analyzer: thai
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: แมว }
+
+  - do:
+      indices.analyze:
+        index: test_thai
+        body:
+          text: เร็วๆ
+          analyzer: my_thai
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: เร็ว }
+  - match:  { tokens.1.token: เร็ว }
+
+  - do:
+      indices.analyze:
+        index: test_thai
+        body:
+          text: ที่ผ่านมา
+          analyzer: my_thai
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: ผ่าน }
+  - match:  { tokens.1.token: มา }
+
+---
+"thai tokenizer treats whitespace as a safe buffer boundary":
+  # 1021 x ก, a space, then แมว straddling the 1024 char segmenting buffer. Before Lucene 10.6 only
+  # line terminators were safe cuts and แมว was split into แม + ว.
+  - do:
+      indices.analyze:
+        body:
+          text: "กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก แมว"
+          tokenizer: thai
+  - length: { tokens: 512 }
+  - match:  { tokens.510.token: ก }
+  - match:  { tokens.511.token: แมว }
+
+  - do:
+      indices.analyze:
+        index: test_thai
+        body:
+          text: "กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก แมว"
+          analyzer: thai_tokens
+  - length: { tokens: 512 }
+  - match:  { tokens.510.token: ก }
+  - match:  { tokens.511.token: แมว }
+
+---
+"_thai_ stopwords use the curated list":
+  - do:
+      indices.analyze:
+        body:
+          text: ที่ผ่านมา
+          tokenizer: thai
+          filter:
+            - type: stop
+              stopwords: _thai_
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: ผ่าน }
+  - match:  { tokens.1.token: มา }
+
+  - do:
+      indices.analyze:
+        index: test_thai
+        body:
+          text: ที่ผ่านมา
+          analyzer: thai_stops
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: ผ่าน }
+  - match:  { tokens.1.token: มา }

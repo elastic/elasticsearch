@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.Index;
@@ -86,34 +88,40 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
                 ensureGreen(index.getName());
             }
             case LOCAL_FAIL_SHARD -> {
+                int shardIdToFail = randomIntBetween(0, indexMetadata.getNumberOfShards() - 1);
+                boolean isIndexShard = randomBoolean();
+                IndexShard shard;
+                if (isIndexShard) {
+                    shard = findIndexShardOrNull(index, shardIdToFail);
+                } else {
+                    shard = findSearchShardOrNull(index, shardIdToFail);
+                }
+                if (shard == null) {
+                    // We picked a target shard that is not yet created.
+                    return;
+                }
+
                 try {
-                    int shardIdToFail = randomIntBetween(0, indexMetadata.getNumberOfShards());
-                    boolean isIndexShard = randomBoolean();
-                    IndexShard shard;
-                    if (isIndexShard) {
-                        shard = findIndexShard(index, shardIdToFail);
-                    } else {
-                        shard = findSearchShard(index, shardIdToFail);
-                    }
-                    var listener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
+                    AllocationId allocationId = shard.routingEntry().allocationId();
+                    shard.failShard("broken", new Exception("boom local"));
+                    logger.info("--> failing {} shard {}", isIndexShard ? "index" : "search", shard.shardId());
+                    var failedAndRecoveredListener = ClusterServiceUtils.addMasterTemporaryStateListener(cs -> {
                         var shardRoutingTable = cs.routingTable(project.id()).index(index.getName()).shard(shard.shardId().id());
 
-                        return isIndexShard
-                            ? shardRoutingTable.primaryShard().unassigned()
-                            : shardRoutingTable.unpromotableShards().get(0).unassigned();
+                        ShardRouting shardRouting = isIndexShard
+                            ? shardRoutingTable.primaryShard()
+                            : shardRoutingTable.unpromotableShards().get(0);
+                        return shardRouting.allocationId().equals(allocationId) == false && shardRouting.started();
                     });
-                    logger.info("--> failing {} shard {}", isIndexShard ? "index" : "search", shard.shardId());
-                    shard.failShard("broken", new Exception("boom local"));
-                    // ensureGreen may succeed before the cluster state reflects the failed shard
-                    safeAwait(listener);
-                    ensureGreen(index.getName());
-                } catch (AssertionError | AlreadyClosedException e) {
-                    // Unlucky, shard does not exist yet or is already closed.
+
+                    safeAwait(failedAndRecoveredListener);
+                } catch (AlreadyClosedException e) {
+                    // Unlucky, shard is in recovery or is closed.
                 }
             }
             case RELOCATE_SHARD -> {
                 ensureGreen(index.getName());
-                var shardId = randomIntBetween(0, indexMetadata.getNumberOfShards());
+                var shardId = randomIntBetween(0, indexMetadata.getNumberOfShards() - 1);
                 var shardRoutingTable = clusterState.routingTable(project.id()).index(index.getName()).shard(shardId);
                 if (shardRoutingTable == null) {
                     // target shard doesn't exist yet, relocate source instead
@@ -122,7 +130,7 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
                     shardRoutingTable = clusterState.routingTable(project.id()).index(index.getName()).shard(shardId);
                 }
                 boolean relocatePrimary = randomBoolean();
-                // We run with one replica so there will only one unpromotable shard to relocate here.
+                // We run with one replica so there will only ever be one unpromotable shard to relocate here.
                 String fromNodeId = null;
                 if (relocatePrimary) {
                     fromNodeId = shardRoutingTable.primaryShard().currentNodeId();
@@ -174,6 +182,14 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
         ISOLATE_NODE,
         LOCAL_FAIL_SHARD,
         RELOCATE_SHARD,
+    }
+
+    private static IndexShard findIndexShardOrNull(Index index, int shardId) {
+        return findShardOrNull(index, shardId, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
+    }
+
+    protected static IndexShard findSearchShardOrNull(Index index, int shardId) {
+        return findShardOrNull(index, shardId, DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
     }
 
     private static String randomOtherDataNode(String coordinator) {

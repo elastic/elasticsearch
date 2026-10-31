@@ -184,7 +184,6 @@ expression at the end of the time range of the date picker
 
 These are the same rows as on the [Prometheus compatibility](/reference/query-languages/promql/prometheus-compatibility.md) page, which also lists the differences of the Prometheus HTTP API.
 Headings follow the Prometheus querying documentation.
-**Error** in the {{es}} column means the query is rejected.
 
 :::{include} ../../../../promql/_snippets/compatibility/basics.md
 :::

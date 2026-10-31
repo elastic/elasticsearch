@@ -4,27 +4,27 @@
 % Headings follow https://prometheus.io/docs/prometheus/latest/querying/basics/. Rows are numbered across all
 % snippets in _snippets/compatibility/. A row without a version badge applies to every version.
 
-These rows follow [Querying basics](https://prometheus.io/docs/prometheus/latest/querying/basics/) in the Prometheus documentation.
+Sections follow [Querying basics](https://prometheus.io/docs/prometheus/latest/querying/basics/) in the Prometheus documentation.
 
 ### Expression language data types [prometheus-compatibility-expression-language-data-types]
 
-{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` {{es}} supports Prometheus native histograms through the `exponential_histogram` field type.
-`histogram_quantile`, `increase`, and `sum` work on native histograms, and so do `histogram_count`, `histogram_sum`, `histogram_avg`, `histogram_fraction`, and `changes` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`.
-For example, `histogram_quantile(0.9, sum by (job) (increase(metric)))` works.
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Native histograms are stored as `exponential_histogram` fields.
+`histogram_quantile`, `increase`, and `sum` support them, and so do `histogram_count`, `histogram_sum`, `histogram_avg`, `histogram_fraction`, and `changes` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`.
+For example: `histogram_quantile(0.9, sum by (job) (increase(metric)))`.
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 1 | A range vector as the result of an instant query: `x[5m]` | Error | Returns the raw samples of each series | - |
-| 2 | {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` A raw native histogram as the result: `my_histogram`, `increase(my_histogram)` | Error. Wrap it in `histogram_quantile`, `histogram_count`, `histogram_sum`, `histogram_avg`, `histogram_fraction`, or `changes` | Returns the histograms | [#152263](https://github.com/elastic/elasticsearch/issues/152263) |
-| 3 | {applies_to}`stack: ga =9.5` Results that are `NaN` or infinite: `x / 0`, `ln(vector(-1))`, `asin(x)` outside its domain, `histogram_quantile(NaN, ...)`, `scalar()` of several series | Leaves those series out | Returns `NaN`, `+Inf`, or `-Inf` | - |
+| 1 | Range vector as the result of an instant query: `x[5m]` | Unsupported | Returns the raw samples | - |
+| 2 | {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Native histogram as the result: `my_histogram`, `increase(my_histogram)` | Unsupported. Wrap it in one of the functions above | Returns the histograms | [#152263](https://github.com/elastic/elasticsearch/issues/152263) |
+| 3 | {applies_to}`stack: ga =9.5` `NaN` and infinite results: `x / 0`, `ln(vector(-1))`, `scalar()` of several series | Series left out | Returned as `NaN`, `+Inf`, or `-Inf` | - |
 
 ### Literals [prometheus-compatibility-literals]
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 4 | Duration functions in a duration expression: `x[step()]`, `x[range()]`, `x[min_of(5m, step())]`, `x[max_of(step(), 5s)]` | Error. Arithmetic in durations, such as `rate(x[5m + 1m])`, is supported | Evaluates when the `promql-duration-expr` feature flag is enabled | - |
-| 5 | {applies_to}`stack: ga =9.5` Durations as numbers: `1h`, `90s`, `5m - 1m` | Error | The number of seconds, such as `3600` for `1h` | - |
-| 6 | {applies_to}`stack: ga =9.5` A string literal as the query: `"text"` | Instant queries return an empty scalar. Range queries run | Instant queries return the string. Range queries return an error | - |
+| 4 | `step()`, `range()`, `min_of()`, and `max_of()` in a duration: `x[step()]`, `x[min_of(5m, step())]` | Unsupported. Duration arithmetic, such as `x[5m + 1m]`, is supported | Supported with the `promql-duration-expr` feature flag | - |
+| 5 | {applies_to}`stack: ga =9.5` Durations as numbers: `1h`, `5m - 1m` | Unsupported | Seconds, such as `3600` for `1h` | - |
+| 6 | {applies_to}`stack: ga =9.5` String literal as the query: `"text"` | Instant query: an empty scalar. Range query: runs | Instant query: the string. Range query: an error | - |
 
 ### Time series selectors [prometheus-compatibility-time-series-selectors]
 
@@ -32,45 +32,45 @@ For example, `histogram_quantile(0.9, sum by (job) (increase(metric)))` works.
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 7 | Selectors without a metric name: `{job="api"}` | Error | Every series that matches | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
-| 8 | Regex matchers on `__name__`: `{__name__=~"node_.*"}`, `{__name__!~"up", job="node"}` | Error | Every series whose name matches | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
-| 9 | A negative matcher on `__name__`: `{__name__!="up", job="node"}` | No results | Every other metric that matches | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
+| 7 | No metric name: `{job="api"}` | Unsupported | Supported | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
+| 8 | Regex matcher on `__name__`: `{__name__=~"node_.*"}`, `{__name__!~"up", job="node"}` | Unsupported | Supported | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
+| 9 | Negative matcher on `__name__`: `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 10 | The `anchored` and `smoothed` range modifiers: `increase(x[5m] anchored)`, `rate(x[5m] smoothed)` | Error | Evaluates when the `promql-extended-range-selectors` feature flag is enabled | - |
+| 10 | `anchored` and `smoothed` modifiers: `increase(x[5m] anchored)`, `rate(x[5m] smoothed)` | Unsupported | Supported with the `promql-extended-range-selectors` feature flag | - |
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 11 | A negative offset near the end of the query range: `x offset -5m` | Reads no samples after the end of the query range, so the last evaluation times have no value | Reads samples after the end of the query range | - |
-| 12 | {applies_to}`stack: preview =9.4` The `offset` modifier | Error | Evaluates | - |
+| 11 | Negative offset at the end of the query range: `x offset -5m` | Doesn't read past the query end, so the last steps have no value | Reads samples after the query end | - |
+| 12 | {applies_to}`stack: preview =9.4` `offset` | Unsupported | Supported | - |
 
 #### @ modifier [prometheus-compatibility-at-modifier]
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 13 | The `@` modifier: `x @ 1700000000`, `x @ start()`, `x @ end()` | Error | Evaluates the selector at the given time | [#164139](https://github.com/elastic/elasticsearch/issues/164139) |
+| 13 | `@`: `x @ 1700000000`, `x @ start()`, `x @ end()` | Unsupported | Supported | [#164139](https://github.com/elastic/elasticsearch/issues/164139) |
 
 ### Subquery [prometheus-compatibility-subquery]
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 14 | Subqueries: `max_over_time(rate(x[5m])[1h:1m])`, `max_over_time(x[10m:])` | Error | Evaluates the inner expression at each step of the subquery range | [#164139](https://github.com/elastic/elasticsearch/issues/164139) |
+| 14 | Subqueries: `max_over_time(rate(x[5m])[1h:1m])`, `max_over_time(x[10m:])` | Unsupported | Supported | [#164139](https://github.com/elastic/elasticsearch/issues/164139) |
 
 ### Gotchas [prometheus-compatibility-gotchas]
 
 #### Staleness [prometheus-compatibility-staleness]
 
-A selector without a range, such as `http_requests_total`, returns the latest sample of each series at every evaluation time.
+A selector without a range, such as `http_requests_total`, returns the latest sample of each series at each evaluation time.
 
 | # | Construct | {{es}} | Prometheus | Issue |
 |---|---|---|---|---|
-| 15 | Instant queries: `/api/v1/query` | Looks back a fixed five minutes for the latest sample. The `lookback_delta` parameter isn't supported | Looks back five minutes by default, configurable with `lookback_delta` | [#149939](https://github.com/elastic/elasticsearch/issues/149939) |
-| 16 | Range queries: a series that stops reporting, in `/api/v1/query_range` | Looks back one `step`. The series disappears at the first step without a sample of its own | Keeps returning the last sample for up to five minutes | - |
-| 17 | Staleness markers: a scrape target that disappears | Ignores staleness markers. The series disappears only once all its samples fall outside the lookback window | Drops the series as soon as the staleness marker arrives | - |
-| 18 | {applies_to}`stack: preview =9.4` Instant queries: `/api/v1/query` | A five-minute range query ending at `time`, returning the last sample per series | Evaluates the expression at `time` | - |
-| 19 | {applies_to}`stack: preview =9.4` Time buckets of range queries | Aligned to fixed calendar boundaries, so results can differ slightly, especially for short ranges or large steps | Aligned to the query start time | - |
+| 15 | Lookback in instant queries (`/api/v1/query`) | Fixed at five minutes | Five minutes by default, configurable with `lookback_delta` | [#149939](https://github.com/elastic/elasticsearch/issues/149939) |
+| 16 | Lookback in range queries (`/api/v1/query_range`) | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
+| 17 | Staleness markers | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
+| 18 | {applies_to}`stack: preview =9.4` Instant queries | A five-minute range query ending at `time`, returning the last sample per series | Evaluated at `time` | - |
+| 19 | {applies_to}`stack: preview =9.4` Range query time buckets | Aligned to calendar boundaries. Results can differ for short ranges or large steps | Aligned to the query start | - |

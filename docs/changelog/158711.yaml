@@ -1,0 +1,6 @@
+pr: 158711
+summary: Validate geohash strings in Geohash#longEncode
+area: Geo
+type: bug
+issues:
+ - 158708

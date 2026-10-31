@@ -11,7 +11,10 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -25,6 +28,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -33,6 +37,8 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,12 +52,16 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
@@ -63,17 +73,24 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -96,7 +113,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -117,6 +137,7 @@ import static org.elasticsearch.ingest.IngestService.NOOP_PIPELINE_NAME;
 import static org.elasticsearch.ingest.IngestService.hasPipeline;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -274,6 +295,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -1602,6 +1624,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -1652,6 +1675,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(failureHandler, times(1)).apply(
@@ -1690,6 +1714,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -1756,6 +1781,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> null,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         assertTrue(failures[0]);
@@ -1800,6 +1826,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         latch.await();
@@ -1833,6 +1860,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -1895,6 +1923,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(any(), any());
@@ -1953,6 +1982,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2012,6 +2042,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -2071,6 +2102,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2139,6 +2171,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -2206,6 +2239,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not redirect to failure store"),
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -2271,6 +2305,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2322,6 +2357,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2373,6 +2409,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2431,6 +2468,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2496,6 +2534,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> true,
             requestItemRedirectHandler,
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -2560,6 +2599,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -2677,6 +2717,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
+            IngestMemoryAccountant.NOOP,
             ActionListener.noop()
         );
 
@@ -2762,6 +2803,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterFirstRequestStats = ingestService.stats();
@@ -2790,6 +2832,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterSecondRequestStats = ingestService.stats();
@@ -2819,6 +2862,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
@@ -2853,6 +2897,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterForthRequestStats = ingestService.stats();
@@ -2883,6 +2928,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterFifthRequestStats = ingestService.stats();
@@ -2980,6 +3026,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -3077,6 +3124,7 @@ public class IngestServiceTests extends ESTestCase {
                 (s) -> false,
                 (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
                 (integer, e, status) -> {},
+                IngestMemoryAccountant.NOOP,
                 ActionListener.noop()
             );
         }
@@ -3152,6 +3200,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
+            IngestMemoryAccountant.NOOP,
             ActionListener.noop()
         );
 
@@ -3839,6 +3888,14 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors, Predicate<NodeFeature> featureTest) {
+        return createWithProcessors(processors, featureTest, FailureStoreMetrics.NOOP);
+    }
+
+    private static IngestService createWithProcessors(
+        Map<String, Processor.Factory> processors,
+        Predicate<NodeFeature> featureTest,
+        FailureStoreMetrics failureStoreMetrics
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -3859,7 +3916,7 @@ public class IngestServiceTests extends ESTestCase {
             null,
             UserAgentParserRegistry.NOOP,
             IpLocationService.NOOP,
-            FailureStoreMetrics.NOOP,
+            failureStoreMetrics,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
                 @Override
@@ -4025,5 +4082,310 @@ public class IngestServiceTests extends ESTestCase {
             IngestService.PIPELINE_TASK_EXECUTOR,
             oneTask(DEFAULT_PROJECT_ID, request)
         );
+    }
+
+    /**
+     * An ingest service with a pipeline "_id" that runs a single processor, and the project it is set up in.
+     */
+    private record ServiceAndProject(IngestService service, ProjectId projectId) {}
+
+    private ServiceAndProject ingestServiceWithProcessor(Processor processor) {
+        return ingestServiceWithProcessor(processor, FailureStoreMetrics.NOOP);
+    }
+
+    private ServiceAndProject ingestServiceWithProcessor(Processor processor, FailureStoreMetrics failureStoreMetrics) {
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config, projectId) -> processor),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals,
+            failureStoreMetrics
+        );
+        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(projectId, putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        return new ServiceAndProject(ingestService, projectId);
+    }
+
+    /**
+     * A processor that adds a field to every document, completing on the calling thread or, as the enrich processor does, on another one.
+     */
+    private static Processor fieldAddingProcessor(int fieldLength, boolean async) {
+        return new AbstractProcessor("tag", null) {
+            @Override
+            public String getType() {
+                return "mock";
+            }
+
+            @Override
+            public boolean isAsync() {
+                // the two argument execute is only called for async processors, which is how the enrich processor completes
+                return true;
+            }
+
+            @Override
+            public void execute(IngestDocument document, BiConsumer<IngestDocument, Exception> handler) {
+                document.setFieldValue("added", "x".repeat(fieldLength));
+                if (async) {
+                    new Thread(() -> handler.accept(document, null)).start();
+                } else {
+                    handler.accept(document, null);
+                }
+            }
+        };
+    }
+
+    private static BulkRequest bulkOfSmallDocuments(int size) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < size; i++) {
+            bulkRequest.add(
+                new IndexRequest("_index").id("_id" + i)
+                    .source(XContentType.JSON, "field", "value" + i)
+                    .setPipeline("_id")
+                    .setFinalPipeline("_none")
+            );
+        }
+        return bulkRequest;
+    }
+
+    public void testGrowthOfSourceIsChargedToAccountant() throws Exception {
+        final boolean async = randomBoolean();
+        final int fieldLength = randomIntBetween(1, 1000);
+        final int size = randomIntBetween(1, 20);
+        var setup = ingestServiceWithProcessor(fieldAddingProcessor(fieldLength, async));
+        BulkRequest bulkRequest = bulkOfSmallDocuments(size);
+        final long[] originalLengths = new long[size];
+        for (int i = 0; i < size; i++) {
+            originalLengths[i] = ((IndexRequest) bulkRequest.requests().get(i)).source().length();
+        }
+
+        final AtomicLong charged = new AtomicLong();
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                size,
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> false,
+                (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+                (slot, e, status) -> fail(e),
+                charged::addAndGet,
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+
+        long expected = 0;
+        for (int i = 0; i < size; i++) {
+            long newLength = ((IndexRequest) bulkRequest.requests().get(i)).source().length();
+            assertThat(newLength, greaterThan(originalLengths[i]));
+            expected += newLength - originalLengths[i];
+        }
+        assertThat(charged.get(), equalTo(expected));
+    }
+
+    public void testShrinkingSourceIsNotCharged() throws Exception {
+        var setup = ingestServiceWithProcessor(new TestProcessor(document -> document.removeField("field")));
+        BulkRequest bulkRequest = bulkOfSmallDocuments(randomIntBetween(1, 10));
+
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                bulkRequest.numberOfActions(),
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> false,
+                (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+                (slot, e, status) -> fail(e),
+                bytes -> fail("the sources shrank, but [" + bytes + "] was charged"),
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+    }
+
+    public void testRejectedGrowthFailsTheDocumentAndRestoresItsSource() throws Exception {
+        final boolean async = randomBoolean();
+        // a rejection must fail the item whether or not the failure store is enabled, a redirected one would be reported as a success
+        final Boolean failureStoreResolution = randomFrom(true, false, null);
+        final int size = randomIntBetween(2, 20);
+        final int rejectedCharge = randomIntBetween(1, size);
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        var setup = ingestServiceWithProcessor(
+            fieldAddingProcessor(randomIntBetween(10, 100), async),
+            new FailureStoreMetrics(meterRegistry)
+        );
+        BulkRequest bulkRequest = bulkOfSmallDocuments(size);
+        final BytesReference[] originalSources = new BytesReference[size];
+        for (int i = 0; i < size; i++) {
+            originalSources[i] = ((IndexRequest) bulkRequest.requests().get(i)).source();
+        }
+
+        final AtomicInteger charges = new AtomicInteger();
+        final Map<Integer, Exception> failures = new ConcurrentHashMap<>();
+        final List<IndexDocFailureStoreStatus> failureStatuses = new CopyOnWriteArrayList<>();
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                size,
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> failureStoreResolution,
+                (slot, targetIndex, e) -> fail("Rejections must not be redirected to the failure store"),
+                (slot, e, status) -> {
+                    failures.put(slot, e);
+                    failureStatuses.add(status);
+                },
+                bytes -> {
+                    // documents may complete in any order when async, so reject whichever one is charged at the chosen position
+                    if (charges.incrementAndGet() == rejectedCharge) {
+                        throw new EsRejectedExecutionException("out of memory budget", false);
+                    }
+                },
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+
+        assertThat(charges.get(), equalTo(size));
+        assertThat(failures.size(), equalTo(1));
+        final int failedSlot = failures.keySet().iterator().next();
+        final Exception failure = failures.get(failedSlot);
+        assertThat(ExceptionsHelper.unwrapCause(failure), instanceOf(EsRejectedExecutionException.class));
+        assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        if (failureStoreResolution == null) {
+            assertThat(failureStatuses, equalTo(List.of(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)));
+            assertFailureStoreMetrics(meterRegistry, 0, 0, 0);
+        } else {
+            assertThat(
+                failureStatuses,
+                equalTo(
+                    List.of(
+                        failureStoreResolution
+                            ? IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+                            : IndexDocFailureStoreStatus.NOT_ENABLED
+                    )
+                )
+            );
+            // only the rejected document is counted here, the others are counted once they are indexed
+            assertFailureStoreMetrics(meterRegistry, 1, 0, 1);
+        }
+        for (int i = 0; i < size; i++) {
+            IndexRequest request = (IndexRequest) bulkRequest.requests().get(i);
+            if (i == failedSlot) {
+                assertThat(request.source(), equalTo(originalSources[i]));
+            } else {
+                assertThat(request.source().length(), greaterThan(originalSources[i].length()));
+            }
+        }
+    }
+
+    public void testCapacityFailuresAreNotRedirectedToFailureStore() throws Exception {
+        final RuntimeException capacityFailure = randomFrom(
+            new EsRejectedExecutionException("queue is full", false),
+            new CircuitBreakingException("too much", CircuitBreaker.Durability.TRANSIENT),
+            new ElasticsearchStatusException("busy", RestStatus.TOO_MANY_REQUESTS),
+            // only 429 blocks, such as the flood-stage one
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+        );
+        assertFailureStoreRedirection(maybeWrapped(capacityFailure), false);
+    }
+
+    public void testOtherFailuresAreStillRedirectedToFailureStore() throws Exception {
+        final RuntimeException otherFailure = randomFrom(
+            new IllegalStateException("error"),
+            new ElasticsearchException("boom"),
+            new ElasticsearchStatusException("unavailable", RestStatus.SERVICE_UNAVAILABLE),
+            // conflicts and retryable blocks are not about capacity, unlike at the shard level these are redirected
+            new VersionConflictEngineException(new ShardId("index", "_na_", 0), "[id]", "version conflict"),
+            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL))
+        );
+        assertFailureStoreRedirection(maybeWrapped(otherFailure), true);
+    }
+
+    /**
+     * Wraps the failure as remote calls do. The pipeline additionally wraps any processor failure in an {@link IngestProcessorException}.
+     */
+    private static RuntimeException maybeWrapped(RuntimeException failure) {
+        return randomBoolean() ? failure : new RemoteTransportException("remote", failure);
+    }
+
+    /**
+     * Fails a single document in its pipeline, and checks whether it is redirected to the failure store if that is enabled, which status
+     * it fails with otherwise, and that each outcome is reflected in the failure store metrics.
+     */
+    private void assertFailureStoreRedirection(RuntimeException processorFailure, boolean redirectIfEnabled) throws Exception {
+        // true if the failure store is enabled, false if the target is a data stream without it, null if it is not a data stream
+        final Boolean failureStoreResolution = randomFrom(true, false, null);
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        var setup = ingestServiceWithProcessor(
+            new TestProcessor("tag", "mock", null, processorFailure),
+            new FailureStoreMetrics(meterRegistry)
+        );
+        BulkRequest bulkRequest = bulkOfSmallDocuments(1);
+
+        final AtomicInteger redirected = new AtomicInteger();
+        final List<IndexDocFailureStoreStatus> failureStatuses = new CopyOnWriteArrayList<>();
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                1,
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> failureStoreResolution,
+                (slot, targetIndex, e) -> redirected.incrementAndGet(),
+                (slot, e, status) -> failureStatuses.add(status),
+                IngestMemoryAccountant.NOOP,
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+
+        if (failureStoreResolution == null) {
+            assertThat(redirected.get(), equalTo(0));
+            assertThat(failureStatuses, equalTo(List.of(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)));
+            assertFailureStoreMetrics(meterRegistry, 0, 0, 0);
+        } else if (failureStoreResolution && redirectIfEnabled) {
+            assertThat(redirected.get(), equalTo(1));
+            assertThat(failureStatuses, empty());
+            // the total is counted once the failure document is indexed
+            assertFailureStoreMetrics(meterRegistry, 0, 1, 0);
+        } else {
+            assertThat(redirected.get(), equalTo(0));
+            assertThat(
+                failureStatuses,
+                equalTo(
+                    List.of(
+                        failureStoreResolution
+                            ? IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+                            : IndexDocFailureStoreStatus.NOT_ENABLED
+                    )
+                )
+            );
+            // the document is neither indexed nor stored in the failure store, so it is rejected
+            assertFailureStoreMetrics(meterRegistry, 1, 0, 1);
+        }
+    }
+
+    private static void assertFailureStoreMetrics(RecordingMeterRegistry meterRegistry, long total, long failureStore, long rejected) {
+        assertThat(measuredFailureStoreMetric(meterRegistry, FailureStoreMetrics.METRIC_TOTAL), equalTo(total));
+        assertThat(measuredFailureStoreMetric(meterRegistry, FailureStoreMetrics.METRIC_FAILURE_STORE), equalTo(failureStore));
+        assertThat(measuredFailureStoreMetric(meterRegistry, FailureStoreMetrics.METRIC_REJECTED), equalTo(rejected));
+        for (Measurement measurement : meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, FailureStoreMetrics.METRIC_REJECTED)) {
+            assertThat(measurement.attributes().get("error_location"), equalTo(FailureStoreMetrics.ErrorLocation.PIPELINE.name()));
+            assertThat(measurement.attributes().get("failure_store"), equalTo(false));
+        }
+    }
+
+    private static long measuredFailureStoreMetric(RecordingMeterRegistry meterRegistry, String metric) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metric)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 }

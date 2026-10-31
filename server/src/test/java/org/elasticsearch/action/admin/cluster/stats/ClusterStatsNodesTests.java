@@ -115,7 +115,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );
-        long[] expectedStats = new long[14];
+        long[] expectedStats = new long[18];
         for (NodeStats nodeStat : nodeStats) {
             IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
             if (indexingPressureStats != null) {
@@ -136,6 +136,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 expectedStats[12] += indexingPressureStats.getLargeOpsRejections();
 
                 expectedStats[13] += indexingPressureStats.getMemoryLimit();
+                expectedStats[14] += indexingPressureStats.getCurrentIngestExpansionBytes();
+                expectedStats[15] += indexingPressureStats.getTotalIngestExpansionBytes();
+                expectedStats[16] += indexingPressureStats.getIngestExpansionRejections();
             }
         }
 
@@ -160,6 +163,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"all_in_bytes\":"
                     + (expectedStats[3] + expectedStats[0])
+                    + ","
+                    + "\"ingest_expansion_in_bytes\":"
+                    + expectedStats[14]
                     + "},"
                     + "\"total\":{"
                     + "\"combined_coordinating_and_primary_in_bytes\":"
@@ -177,6 +183,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + "\"all_in_bytes\":"
                     + (expectedStats[7] + expectedStats[4])
                     + ","
+                    + "\"ingest_expansion_in_bytes\":"
+                    + expectedStats[15]
+                    + ","
                     + "\"coordinating_rejections\":"
                     + expectedStats[8]
                     + ","
@@ -191,6 +200,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"large_operation_rejections\":"
                     + expectedStats[12]
+                    + ","
+                    + "\"ingest_expansion_rejections\":"
+                    + expectedStats[16]
                     + "},"
                     + "\"limit_in_bytes\":"
                     + expectedStats[13]

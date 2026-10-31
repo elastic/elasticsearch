@@ -740,7 +740,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "coordinating_in_bytes": 0,
                         "primary_in_bytes": 0,
                         "replica_in_bytes": 0,
-                        "all_in_bytes": 0
+                        "all_in_bytes": 0,
+                        "ingest_expansion_in_bytes": 0
                       },
                       "total": {
                         "combined_coordinating_and_primary_in_bytes": 0,
@@ -748,11 +749,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "primary_in_bytes": 0,
                         "replica_in_bytes": 0,
                         "all_in_bytes": 0,
+                        "ingest_expansion_in_bytes": 0,
                         "coordinating_rejections": 0,
                         "primary_rejections": 0,
                         "replica_rejections": 0,
                         "primary_document_rejections": 0,
-                        "large_operation_rejections": 0
+                        "large_operation_rejections": 0,
+                        "ingest_expansion_rejections": 0
                       },
                       "limit_in_bytes": 0
                     }

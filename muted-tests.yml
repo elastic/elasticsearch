@@ -529,3 +529,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
   method: test {csv-spec:unmapped-type-conflicts.typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos}
   issue: https://github.com/elastic/elasticsearch/issues/164188
+- class: org.elasticsearch.xpack.esql.optimizer.GoldenGcTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testStaleTestDirectoriesNameNoMethodOfTheSuite
+  issue: https://github.com/elastic/elasticsearch/issues/164167

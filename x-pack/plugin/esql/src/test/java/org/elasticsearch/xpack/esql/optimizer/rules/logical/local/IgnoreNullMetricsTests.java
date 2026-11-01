@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -219,6 +220,25 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         assertEquals(DataType.AGGREGATE_METRIC_DOUBLE, attribute.dataType());
         assertTrue(attribute.isMetric());
         assertEquals("network.eth0.rx", attribute.fieldName().string());
+    }
+
+    /**
+     * A metric converted between counter and gauge has a value exactly where the metric has one, so the aggregate reading the
+     * conversion filters on the metric too, although the conversion is computed in an eval below the aggregate.
+     */
+    public void testConvertedMetricsAreFiltered() {
+        for (var conversion : Map.of("to_gauge", "network.total_bytes_in", "to_counter", "network.eth0.tx").entrySet()) {
+            String query = Strings.format("""
+                TS k8s
+                | STATS max(last_over_time(%s(%s)))
+                | LIMIT 10
+                """, conversion.getKey(), conversion.getValue());
+            LogicalPlan actual = ts().localPlan(query);
+            Filter filter = actual.collect(Filter.class).getFirst();
+            IsNotNull condition = as(filter.condition(), IsNotNull.class);
+            FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
+            assertEquals(query, conversion.getValue(), attribute.fieldName().string());
+        }
     }
 
     /**

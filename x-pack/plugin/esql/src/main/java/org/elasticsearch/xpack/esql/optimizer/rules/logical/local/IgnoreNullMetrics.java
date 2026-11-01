@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,6 +15,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -42,15 +44,20 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
-        AttributeMap<Attribute> castMetrics = metricsBehindCasts(agg.child());
+        // Only evals directly below the aggregate: every field they read passes through them, so the filter can reference it.
+        AttributeMap.Builder<Expression> evaluated = AttributeMap.builder();
+        for (LogicalPlan child = agg.child(); child instanceof Eval eval; child = eval.child()) {
+            eval.fields().forEach(alias -> evaluated.put(alias.toAttribute(), alias.child()));
+        }
+        AttributeMap<Expression> definitions = evaluated.build();
         Set<Attribute> metrics = new HashSet<>();
         agg.forEachExpression(Attribute.class, attr -> {
-            Attribute metric = metricOf(attr, castMetrics);
+            Attribute metric = metricOf(attr, definitions);
             if (metric != null) {
                 metrics.add(metric);
             }
         });
-        if (metrics.isEmpty() || hasNonMetricInput(agg, castMetrics)) {
+        if (metrics.isEmpty() || hasNonMetricInput(agg, definitions)) {
             return agg;
         }
         Expression conditional = null;
@@ -69,12 +76,13 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
     /**
      * Whether an aggregation reads an input that isn't a metric field, such as a converted metric ({@code metric::double}) or a value
      * computed in an {@code EVAL}. A filter on the metrics alone would drop the rows that only have values for that input.
+     * A conversion between counter and gauge counts as its metric (see {@link #metricOf}).
      * <p>
      * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have
      * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.
      * </p>
      */
-    private static boolean hasNonMetricInput(TimeSeriesAggregate agg, AttributeMap<Attribute> castMetrics) {
+    private static boolean hasNonMetricInput(TimeSeriesAggregate agg, AttributeMap<Expression> definitions) {
         Holder<Boolean> found = new Holder<>(false);
         agg.forEachExpression(AggregateFunction.class, af -> {
             // VALUES and DIMENSION_VALUES only carry the grouping keys from the per time series aggregation to the final one
@@ -83,7 +91,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
             }
             for (Expression field : af.fields()) {
                 for (Attribute attr : field.references()) {
-                    if (metricOf(attr, castMetrics) == null
+                    if (metricOf(attr, definitions) == null
                         && attr.isDimension() == false
                         && attr.semanticEquals(agg.timestamp()) == false) {
                         found.set(true);
@@ -94,23 +102,41 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
         return found.get();
     }
 
-    private static Attribute metricOf(Attribute attr, AttributeMap<Attribute> castMetrics) {
-        return attr.isMetric() ? attr : castMetrics.get(attr);
+    /**
+     * The metric {@code expression} reads, directly or through a conversion between counter and gauge, or {@code null} if it
+     * reads none. A conversion between counter and gauge keeps every value, so a row without the metric has no value of the
+     * expression either, and filtering on the metric drops nothing the aggregate reads. The same holds for the cast of an
+     * {@code aggregate_metric_double} metric.
+     * <p>
+     * A {@code TO_DOUBLE} of such a conversion counts too, because aggregates like {@code avg} cast their {@code long} input to
+     * {@code double}. A {@code TO_DOUBLE} of a metric itself ({@code metric::double}) doesn't.
+     * </p>
+     */
+    private static Attribute metricOf(Expression expression, AttributeMap<Expression> definitions) {
+        return switch (expression) {
+            case Attribute attr when attr.isMetric() -> attr;
+            case Attribute attr -> {
+                Expression definition = definitions.get(attr);
+                yield definition == null ? null : metricOf(definition, definitions);
+            }
+            case FromAggregateMetricDouble cast when cast.field() instanceof Attribute field && field.isMetric() -> field;
+            case ToGauge toGauge -> metricOf(toGauge.field(), definitions);
+            case ToCounter toCounter -> metricOf(toCounter.field(), definitions);
+            case ToDouble toDouble when isCounterGaugeConversion(toDouble.field(), definitions) -> metricOf(toDouble.field(), definitions);
+            default -> null;
+        };
     }
 
-    private static AttributeMap<Attribute> metricsBehindCasts(LogicalPlan plan) {
-        AttributeMap.Builder<Attribute> castMetrics = AttributeMap.builder();
-        while (plan instanceof Eval eval) {
-            for (Alias alias : eval.fields()) {
-                if (alias.child() instanceof FromAggregateMetricDouble cast
-                    && cast.field() instanceof Attribute field
-                    && field.isMetric()) {
-                    castMetrics.put(alias.toAttribute(), field);
-                }
+    private static boolean isCounterGaugeConversion(Expression expression, AttributeMap<Expression> definitions) {
+        return switch (expression) {
+            case ToGauge toGauge -> true;
+            case ToCounter toCounter -> true;
+            case Attribute attr -> {
+                Expression definition = definitions.get(attr);
+                yield definition != null && isCounterGaugeConversion(definition, definitions);
             }
-            plan = eval.child();
-        }
-        return castMetrics.build();
+            default -> false;
+        };
     }
 
     /**

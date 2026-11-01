@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
@@ -81,8 +83,11 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
 
                 @Override
                 public void onFailure(Exception e) {
+                    // Strip transport wrappers, e.g. when the task belongs to another node, so we report the actual failure.
+                    Throwable failure = ExceptionsHelper.unwrapCause(e);
                     // The underlying root cause is meaningless to the user, but that is what will be shown, so we remove it.
-                    var withoutCause = new Exception(e.getMessage());
+                    // We keep the original status though, so e.g. a task that can't be found is a 404 rather than a 500.
+                    var withoutCause = new ElasticsearchStatusException(failure.getMessage(), ExceptionsHelper.status(failure));
                     listener.onFailure(withoutCause);
                 }
             }

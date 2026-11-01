@@ -3,6 +3,7 @@
 
 // A series without a value of a converted counter still reports a count of 0 and absent=true.
 countAndAbsentOverTimeOfConvertedCounterReportEverySeries
+skip_flattened_rewrite: passthrough_dimension_in_routing_path
 required_capability: ts_command_v0
 required_capability: to_gauge
 required_capability: fix_ts_block_loader_passthrough_aliasing

@@ -1151,9 +1151,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     public void testCheckOnStartupCanBeOverridden() throws Exception {
-        final String suffix = getTestName().toLowerCase(Locale.ROOT);
-
-        final String index = "index_" + suffix;
+        final String index = randomIndexName();
         final Settings.Builder indexSettings = Settings.builder();
         indexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
 
@@ -1163,10 +1161,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
         createAndPopulateIndex(index, indexSettings);
 
-        final String repository = "repository_" + suffix;
+        final String repository = randomRepoName();
         createRepository(repository, "fs");
 
-        final String snapshot = "snapshot_" + suffix;
+        final String snapshot = randomSnapshotName();
         createFullSnapshot(repository, snapshot);
         assertAcked(indicesAdmin().prepareDelete(index));
 

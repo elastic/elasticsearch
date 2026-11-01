@@ -535,3 +535,8 @@ tests:
   - :modules:apm:test
   method: testUpdateMaxSpansPropagatesToTracer
   issue: https://github.com/elastic/elasticsearch/issues/164198
+- class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testCancelTailRequest
+  issue: https://github.com/elastic/elasticsearch/issues/153203

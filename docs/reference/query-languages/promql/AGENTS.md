@@ -43,6 +43,7 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 - A difference that has no construct of its own, such as the `or` operand limit, is a sentence in the Supported
   paragraph, not a row.
 - The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
+  Write the link with the `es-issue` substitution: `[#123]({{es-issue}}123)`.
 - Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
 - Check the version badges. A row without a badge applies to every version. A difference that only exists from some
   version on gets `stack: ga <version>+` and `serverless: ga`. Don't keep rows that only apply to older versions, such

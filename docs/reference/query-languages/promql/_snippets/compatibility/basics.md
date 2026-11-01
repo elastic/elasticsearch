@@ -27,7 +27,7 @@ Classic histograms, stored as `_bucket` series with an `le` label, such as `hist
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 1 | Native histogram as the result {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `h`, `increase(h[5m])` | Wrap it in a histogram function, such as `histogram_count` | [#152263](https://github.com/elastic/elasticsearch/issues/152263) |
+| 1 | Native histogram as the result {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `h`, `increase(h[5m])` | Wrap it in a histogram function, such as `histogram_count` | [#152263]({{es-issue}}152263) |
 :::
 
 ### Range vector [prometheus-compatibility-range-vector]
@@ -45,7 +45,7 @@ Refer to [Implicit range selectors](/reference/query-languages/esql/commands/pro
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 2 | Range vector as the result of an instant query | `x[5m]` | - | [#164220](https://github.com/elastic/elasticsearch/issues/164220) |
+| 2 | Range vector as the result of an instant query | `x[5m]` | - | [#164220]({{es-issue}}164220) |
 :::
 
 ### Literals [prometheus-compatibility-literals]
@@ -63,7 +63,7 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 3 | `step()`, `range()`, `min_of()`, and `max_of()` in a duration ({{prom}}: `promql-duration-expr` feature flag) | `x[step()]`, `x[min_of(5m, step())]` | Use a fixed duration | [#164221](https://github.com/elastic/elasticsearch/issues/164221) |
+| 3 | `step()`, `range()`, `min_of()`, and `max_of()` in a duration ({{prom}}: `promql-duration-expr` feature flag) | `x[step()]`, `x[min_of(5m, step())]` | Use a fixed duration | [#164221]({{es-issue}}164221) |
 :::
 
 ### Time series selectors [prometheus-compatibility-time-series-selectors]
@@ -81,8 +81,8 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 4 | Selector without a metric name | `{job="api"}` | - | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
-| 5 | Regex matcher on `__name__` | `{__name__=~"node_.*"}` | Combine the metrics with `or`: `node_cpu or node_mem` | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
+| 4 | Selector without a metric name | `{job="api"}` | - | [#146977]({{es-issue}}146977) |
+| 5 | Regex matcher on `__name__` | `{__name__=~"node_.*"}` | Combine the metrics with `or`: `node_cpu or node_mem` | [#146977]({{es-issue}}146977) |
 :::
 
 **Behaves differently**
@@ -92,7 +92,7 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 6 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977](https://github.com/elastic/elasticsearch/issues/146977) |
+| 6 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
 :::
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]
@@ -108,7 +108,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 7 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222](https://github.com/elastic/elasticsearch/issues/164222) |
+| 7 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
 :::
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]
@@ -136,7 +136,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 9 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139](https://github.com/elastic/elasticsearch/issues/164139) |
+| 9 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Subquery [prometheus-compatibility-subquery]
@@ -148,7 +148,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 10 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139](https://github.com/elastic/elasticsearch/issues/164139) |
+| 10 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Gotchas [prometheus-compatibility-gotchas]
@@ -166,7 +166,7 @@ A selector without a range, such as `http_requests_total`, returns the latest sa
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 11 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939](https://github.com/elastic/elasticsearch/issues/149939) |
+| 11 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
 | 12 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
 | 13 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
 :::

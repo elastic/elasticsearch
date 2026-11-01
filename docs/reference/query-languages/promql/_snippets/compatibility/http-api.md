@@ -37,7 +37,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 57 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939](https://github.com/elastic/elasticsearch/issues/149939) |
+| 57 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
 :::
 
 ### Querying metric metadata [prometheus-compatibility-querying-metric-metadata]
@@ -53,7 +53,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 58 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230](https://github.com/elastic/elasticsearch/issues/157230) |
+| 58 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
 :::
 
 ### Querying exemplars [prometheus-compatibility-querying-exemplars]
@@ -65,5 +65,5 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 59 | Exemplar queries | `GET /api/v1/query_exemplars` | In Grafana, remove the links under **Data sources** > **Elasticsearch** > **Exemplars** | [#154786](https://github.com/elastic/elasticsearch/issues/154786) |
+| 59 | Exemplar queries | `GET /api/v1/query_exemplars` | In Grafana, remove the links under **Data sources** > **Elasticsearch** > **Exemplars** | [#154786]({{es-issue}}154786) |
 :::

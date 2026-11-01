@@ -554,7 +554,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
-                storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
+                storageObject = provider.newObject(
+                    storagePath,
+                    hint.length(),
+                    Instant.ofEpochMilli(hint.lastModifiedMillis()),
+                    hint.version()
+                );
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {

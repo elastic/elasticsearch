@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163256
+pr: 163599
+summary: Fix COMPLETION ignoring the timeout option
+type: bug

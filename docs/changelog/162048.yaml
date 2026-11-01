@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 161960
+pr: 162048
+summary: Fix continuous transforms not deleting old checkpoints from `.transform-internal-*` (causing the index to grow without bound) while their node's host has been up between about 107 and 214 days, and deleting checkpoints newer than the 10-day retention period at other times
+type: bug

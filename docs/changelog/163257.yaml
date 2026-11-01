@@ -1,0 +1,7 @@
+area: Highlighting
+issues:
+ - 163241
+pr: 163257
+summary: Update semantic highlighter to only use knn queries that target the highlighted
+  field
+type: bug

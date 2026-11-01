@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -341,6 +342,18 @@ public final class ServiceUtils {
         }
 
         return createUri(url);
+    }
+
+    /**
+     * Builds the URI while keeping colons in path segments unencoded. The HttpClient 4.x {@code URIBuilder} never percent-encoded
+     * colons in path segments (they are legal per RFC 3986), but the 5.x builder does, which breaks Google-style method URLs
+     * such as {@code models/gemini-pro:generateContent}.
+     *
+     * TODO (httpclient5 migration): this post-processing also un-encodes a literal ':' contained in user-provided segments
+     * (project/model ids), exactly matching the 4.x behavior. Revisit if the library ever offers per-segment encoding control.
+     */
+    public static URI buildUriPreservingColons(URIBuilder uriBuilder) throws URISyntaxException {
+        return new URI(uriBuilder.build().toString().replace("%3A", ":"));
     }
 
     public static SecureString extractRequiredSecureString(
@@ -1067,8 +1080,24 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
     }
 
+    public static void throwUnsupportedTemplateUnifiedCompletionOperation(String serviceName) {
+        throw createUnsupportedTemplateUnifiedCompletionException(serviceName);
+    }
+
+    /**
+     * For services that do not go through {@code SenderService} and therefore report failures through a listener instead of
+     * throwing.
+     */
+    public static UnsupportedOperationException createUnsupportedTemplateUnifiedCompletionException(String serviceName) {
+        return createUnsupportedTaskOperationException(serviceName, "unified completion with templates");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
+    }
+
+    public static void throwUnsupportedDecisionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "decision");
     }
 
     public static void throwUnsupportedDocumentExtractionOperation(String serviceName) {
@@ -1076,7 +1105,11 @@ public final class ServiceUtils {
     }
 
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
-        throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+        throw createUnsupportedTaskOperationException(serviceName, taskName);
+    }
+
+    private static UnsupportedOperationException createUnsupportedTaskOperationException(String serviceName, String taskName) {
+        return new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
     public static ElasticsearchStatusException createUnsupportedNonStreamingChatCompletionException(String serviceName) {

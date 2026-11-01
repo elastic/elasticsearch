@@ -4,8 +4,14 @@ import type { FailureKind, FlakinessReport } from "./junit-reports-analyzer.ts";
 const MAX_FAILING_ROWS = 100;
 const MAX_EXAMPLE_MESSAGES = 25;
 const MAX_MESSAGE_CHARS = 400;
+const MAX_TEMP_DIR_EXHAUSTED_CLASSES = 10;
 const MAX_ANNOTATION_BYTES = 900_000;
 const TRUNCATION_MARKER = "\n\n_Annotation truncated to stay under the Buildkite size limit._";
+
+// Shown on any report with a flakiness found.
+// Placed right under the heading so truncation of a large report can never cut it off.
+export const CONTACT_NOTE =
+  "> If you think this result is wrong - contact #es-core-infra.";
 
 function truncateMessage(msg: string): string {
   return msg.length <= MAX_MESSAGE_CHARS ? msg : `${msg.slice(0, MAX_MESSAGE_CHARS)}…`;
@@ -27,6 +33,10 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false, inp
   const lines: string[] = [];
   lines.push("## Flakiness summary");
   lines.push("");
+  if (totals.realFailures > 0) {
+    lines.push(CONTACT_NOTE);
+    lines.push("");
+  }
   // The compile phase failed, so every batch was skipped and the
   // totals below are all zero. Explain that up front so the run does not read
   // as a clean pass.
@@ -49,6 +59,16 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false, inp
   lines.push(`- Successful cases: ${totals.successfulCases}`);
   lines.push(`- Real failures: ${totals.realFailures}`);
   lines.push(`- Suite-timeout markers (informational): ${totals.suiteTimeoutMarkers}`);
+  if (totals.tempDirExhaustedMarkers > 0) {
+    const classes = report.tempDirExhaustedClasses;
+    const shown = classes.slice(0, MAX_TEMP_DIR_EXHAUSTED_CLASSES).map((c) => `\`${c}\``);
+    if (classes.length > shown.length) {
+      shown.push(`${classes.length - shown.length} more`);
+    }
+    lines.push(
+      `- Iterations not completed: ${totals.tempDirExhaustedMarkers} in ${shown.join(", ")} (Lucene temp dir limit hit, not counted as failures)`
+    );
+  }
   lines.push("");
 
   // Most-flaky first, so truncation drops the least-failing tests.
@@ -106,6 +126,7 @@ export function severity(
   if (buildFailed) return "warning";
   if (report.totals.realFailures > 0) return "error";
   if (report.totals.suiteTimeoutMarkers > 0) return "warning";
+  if (report.totals.tempDirExhaustedMarkers > 0) return "warning";
   // An incomplete report must not read as a clean pass.
   if (inputProblems.length > 0) return "warning";
   return "success";

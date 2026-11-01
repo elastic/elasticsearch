@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -831,10 +832,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             makeAnalyzer("mapping-all-types.json")
         );
         assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(
-            pushedQuery(dbl).toString(),
-            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
-        );
+        assertThat(pushedQuery(dbl).toString(), equalTo(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true)).toString()));
 
         // Keyword is YES: exclusive endpoints push exactly and the FilterExec drops.
         var kw = plannerOptimizer.plan(
@@ -1059,7 +1057,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvGreaterDoubleRecheckInclusiveSuperset() {
         var plan = plannerOptimizer.plan("from test | where mv_greater(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(plan).toString(), equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true))).toString()));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("double").from(-0.0, true)).toString()));
     }
 
     /**
@@ -1069,7 +1067,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvLessDoubleRecheckInclusiveSuperset() {
         var plan = plannerOptimizer.plan("from test | where mv_less(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(plan).toString(), equalTo(boolQuery().filter(unscore(rangeQuery("double").to(0.0, true))).toString()));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("double").to(0.0, true)).toString()));
     }
 
     /**
@@ -1483,10 +1481,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                         QueryBuilder expectedInnerQuery = unscore(termQuery(testCase.fieldName, Double.parseDouble(value)));
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else if (predicate.equals(NEQ)) {
-                        QueryBuilder expectedInnerQuery = unscore(
-                            boolQuery().mustNot(unscore(termQuery(testCase.fieldName, Double.parseDouble(value))))
-                        );
-                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                        double parsed = Double.parseDouble(value);
+                        var bool = as(actualInnerLuceneQuery, BoolQueryBuilder.class);
+                        assertThat(bool.should(), hasSize(2));
+                        var lt = as(bool.should().get(0), RangeQueryBuilder.class);
+                        assertThat(lt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(lt.to(), equalTo(parsed));
+                        assertThat(lt.includeUpper(), equalTo(false));
+                        var gt = as(bool.should().get(1), RangeQueryBuilder.class);
+                        assertThat(gt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(gt.from(), equalTo(parsed));
+                        assertThat(gt.includeLower(), equalTo(false));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
                         assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));
@@ -2949,6 +2954,44 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertNull(esQuery.query());
     }
 
+    /**
+     * A conjunction of a runtime match and an indexed match splits: the indexed leg is pushed to Lucene while the runtime
+     * leg stays behind in a {@link FilterExec}.
+     */
+    public void testRuntimeMatchAndIndexedMatchSplit() {
+        var plan = plannerOptimizer.plan("from test | where match(to_text(first_name), \"anna\") and match(last_name, \"Smith\")");
+
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+        assertThat(runtimeFilterCondition(plan), instanceOf(Match.class));
+    }
+
+    /**
+     * A disjunction with a runtime match cannot be split: pushing only the indexed leg would drop rows matched by the
+     * runtime leg, so the whole condition stays in the {@link FilterExec}.
+     */
+    public void testRuntimeMatchOrIndexedMatchNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where match(to_text(first_name), \"anna\") or match(last_name, \"Smith\")");
+
+        assertThat(pushedQuery(plan), nullValue());
+        assertThat(runtimeFilterCondition(plan), instanceOf(Or.class));
+    }
+
+    public void testNegatedRuntimeMatchNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where not match(to_text(first_name), \"anna\")");
+
+        assertThat(pushedQuery(plan), nullValue());
+        var not = as(runtimeFilterCondition(plan), Not.class);
+        assertThat(not.field(), instanceOf(Match.class));
+    }
+
+    private static Expression runtimeFilterCondition(PhysicalPlan plan) {
+        List<FilterExec> filters = new ArrayList<>();
+        plan.forEachDown(FilterExec.class, filters::add);
+        assertThat(filters, hasSize(1));
+        return filters.get(0).condition();
+    }
+
     public void testToDateNanosPushDown() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
@@ -3714,14 +3757,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        // PushFiltersToSource runs at fixed-point; on the second pass the initial range query is wrapped in a bool filter.
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("within")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("within")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3744,12 +3784,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3772,13 +3810,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3801,13 +3837,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3830,13 +3864,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
-                    .to("1965-06-01T00:00:00.000Z", true)
-                    .format("strict_date_optional_time")
-                    .relation("contains")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
+                .to("1965-06-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
+                .relation("contains")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }

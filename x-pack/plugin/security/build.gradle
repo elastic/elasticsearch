@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
@@ -15,6 +16,35 @@ esplugin {
 
 base {
   archivesName = 'x-pack-security'
+}
+
+def guavaDependency = 'com.google.guava:guava:33.7.2-jre'
+def failureAccessDependency = 'com.google.guava:failureaccess:1.0.3'
+
+configurations {
+  unmodularGuava {
+    canBeConsumed = false
+    canBeResolved = true
+    transitive = false
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
+    }
+  }
+}
+
+FilteringJarTransform.registerTransform(dependencies) { spec ->
+  spec.exclude('module-info.class')
+  spec.exclude('META-INF/versions/*/module-info.class')
+}
+
+// Guava's and failureaccess' explicit modules are never resolved into the plugin's module layer, so bundle them as automatic modules
+def unmodularGuavaFiles = configurations.unmodularGuava
+esplugin.bundleSpec.from(unmodularGuavaFiles)
+esplugin.bundleSpec.exclude { FileTreeElement e ->
+  (e.file.name.startsWith('guava-') || e.file.name.startsWith('failureaccess-')) && unmodularGuavaFiles.files.contains(e.file) == false
 }
 
 dependencies {
@@ -43,6 +73,8 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
+  internalClusterTestImplementation project(xpackModule('enrich'))
+  internalClusterTestImplementation project(':modules:ingest-common')
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   internalClusterTestImplementation project(path: ':modules:lang-painless')
@@ -77,8 +109,10 @@ dependencies {
   // provided by x-pack-core
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  runtimeOnly 'com.google.guava:guava:33.0.0-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  runtimeOnly guavaDependency
+  unmodularGuava guavaDependency
+  runtimeOnly failureAccessDependency
+  unmodularGuava failureAccessDependency
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "joda-time:joda-time:2.10.10"
 
@@ -287,16 +321,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
   )
 }
 

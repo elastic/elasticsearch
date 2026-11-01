@@ -1217,7 +1217,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     private static TimeValue getExpectedTimeoutForTaskType(TaskType taskType) {
         return switch (taskType) {
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING -> TimeValue.THIRTY_SECONDS;
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING, DECISION -> TimeValue.THIRTY_SECONDS;
             case COMPLETION, CHAT_COMPLETION, DOCUMENT_EXTRACTION -> TimeValue.timeValueSeconds(120);
             default -> throw new IllegalArgumentException("Invalid task type " + taskType);
         };

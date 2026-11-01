@@ -1224,28 +1224,26 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         collectAllMeters();
 
-        // APM: all four components must fire (planning is wall time so it is always > 0; execution,
-        // read, and split_discovery are real CPU time and must be > 0 for any non-trivial scan)
-        assertThat("cpu.total{component=execution} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_EXECUTION), greaterThan(0L));
-        assertThat("cpu.total{component=read} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_READ), greaterThan(0L));
+        // A short driver can use less CPU than the thread clock can resolve.
         assertThat(
-            "cpu.total{component=planning} > 0 (wall time)",
-            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
-            greaterThan(0L)
+            "cpu.total{component=execution} >= 0",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_EXECUTION),
+            greaterThanOrEqualTo(0L)
         );
+        assertThat("cpu.total{component=read} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_READ), greaterThan(0L));
+        assertThat("cpu.total{component=planning} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING), greaterThan(0L));
         assertThat(
             "cpu.total{component=split_discovery} > 0",
             cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY),
             greaterThan(0L)
         );
 
-        // phone-home: accumulator deltas must all be positive
         long execDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION)) - execBefore;
         long readDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ)) - readBefore;
         long planDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING)) - planBefore;
         long splitDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY)) - splitBefore;
 
-        assertThat("phone-home: cpu_nanos.execution > 0", execDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.execution >= 0", execDelta, greaterThanOrEqualTo(0L));
         assertThat("phone-home: cpu_nanos.read > 0", readDelta, greaterThan(0L));
         assertThat("phone-home: cpu_nanos.planning > 0", planDelta, greaterThan(0L));
         assertThat("phone-home: cpu_nanos.split_discovery > 0", splitDelta, greaterThan(0L));

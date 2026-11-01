@@ -52,6 +52,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
     private final NavigableSet<BytesRef> terms;
     /** The same terms, for the paths that decide a value by lookup; built once here rather than per segment. */
     private final Set<BytesRef> membership;
+    private final boolean singleValued;
     private final ScanBudget budget;
 
     /**
@@ -59,10 +60,14 @@ public final class ColumnarStringAnyOfQuery extends Query {
      * keeps a caller's own ordering out: the readers bisect these terms and test membership against a column
      * that is in byte order, and a sorted type handed in would carry its comparator into both.
      */
-    public ColumnarStringAnyOfQuery(String field, Collection<BytesRef> terms, ScanBudget budget) {
+    public ColumnarStringAnyOfQuery(String field, Collection<BytesRef> terms, boolean singleValued, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
-        this.terms = new TreeSet<>(Objects.requireNonNull(terms));
+        this.terms = new TreeSet<>();
+        for (final BytesRef term : Objects.requireNonNull(terms)) {
+            this.terms.add(BytesRef.deepCopyOf(term));
+        }
         this.membership = Set.copyOf(this.terms);
+        this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);
     }
 
@@ -93,9 +98,10 @@ public final class ColumnarStringAnyOfQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             return columnar.reader().matchAnyOf(terms, membership);
                         }
-                        return fallbackIterator(values, ColumNARDocValuesFormat.isSingleValued(info));
+                        return fallbackIterator(values);
                     }
                 };
             }
@@ -107,7 +113,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
         };
     }
 
-    private DocIdSetIterator fallbackIterator(BinaryDocValues values, boolean singleValued) {
+    private DocIdSetIterator fallbackIterator(BinaryDocValues values) {
         if (singleValued) {
             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                 @Override
@@ -160,11 +166,11 @@ public final class ColumnarStringAnyOfQuery extends Query {
             return false;
         }
         final ColumnarStringAnyOfQuery that = (ColumnarStringAnyOfQuery) other;
-        return field.equals(that.field) && terms.equals(that.terms);
+        return singleValued == that.singleValued && field.equals(that.field) && terms.equals(that.terms);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, terms);
+        return Objects.hash(classHash(), field, terms, singleValued);
     }
 }

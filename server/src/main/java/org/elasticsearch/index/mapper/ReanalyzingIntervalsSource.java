@@ -65,7 +65,7 @@ public final class ReanalyzingIntervalsSource extends IntervalsSource {
             if (value == null) {
                 continue;
             }
-            index.addField(field, value.toString(), indexAnalyzer);
+            index.addField(field, TokenStreamMatching.textOf(value), indexAnalyzer);
         }
         index.freeze();
         return index.createSearcher().getIndexReader().leaves().get(0);

@@ -30,7 +30,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         DateIndexNameProcessor processor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "y", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
+        assertThat(document.getMetadata().getIndex(), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
     }
 
     public void testTAI64N() throws Exception {
@@ -45,7 +45,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
             Map.of("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024")
         );
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
+        assertThat(document.getMetadata().getIndex(), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testUnixMs() throws Exception {
@@ -53,11 +53,11 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         DateIndexNameProcessor dateProcessor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", "1000500"));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
+        assertThat(document.getMetadata().getIndex(), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
         document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", 1000500L));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
+        assertThat(document.getMetadata().getIndex(), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testUnix() throws Exception {
@@ -65,7 +65,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         DateIndexNameProcessor dateProcessor = createProcessor("_field", List.of(function), ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of("_field", "1000.5"));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
+        assertThat(document.getMetadata().getIndex(), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testTemplatedFields() throws Exception {
@@ -88,7 +88,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         dateProcessor.execute(document);
 
         assertThat(
-            document.getSourceAndMetadata().get("_index"),
+            document.getMetadata().getIndex(),
             equalTo(
                 "<"
                     + indexNamePrefix

@@ -48,9 +48,10 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
     private static final Set<String> TOKENS_WHITELIST = Set.of();
     /**
      * Generated keywords to omit from the docs.
-     * {@code INLINESTATS} is the deprecated spelling of {@code INLINE STATS}.
+     * {@code INLINESTATS} is the deprecated spelling of {@code INLINE STATS}. {@code DEFAULT} only lexes inside
+     * {@code FILLNULL_MODE}, which is entered solely through the snapshot-only {@code DEV_FILLNULL}, so it is not reserved in a release.
      */
-    private static final Set<String> TOKENS_BLACKLIST = Set.of("INLINESTATS", "UNKNOWN_CMD");
+    private static final Set<String> TOKENS_BLACKLIST = Set.of("DEFAULT", "INLINESTATS", "UNKNOWN_CMD");
     /**
      * Keywords grouped by introduction version, in display order.
      * {@code null} is the 9.0 base.

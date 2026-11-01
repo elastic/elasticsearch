@@ -1,4 +1,6 @@
 export type EsPipelineConfig = {
+  /** In .defaults.yml: top-level env applied to every pipeline (pipeline-specific values win). */
+  env?: Record<string, string>;
   config?: {
     "allow-labels"?: string | string[];
     "skip-labels"?: string | string[];

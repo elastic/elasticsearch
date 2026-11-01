@@ -110,7 +110,7 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
         if (model instanceof HuggingFaceEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new HuggingFaceServiceSettings(
                 serviceSettings.uri(),

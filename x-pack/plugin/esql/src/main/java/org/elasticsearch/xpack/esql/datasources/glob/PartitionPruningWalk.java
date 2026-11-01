@@ -133,8 +133,21 @@ final class PartitionPruningWalk {
         int maxDiscoveredFiles,
         String glob
     ) {
+        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, null);
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange
+    ) {
         try {
-            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob));
+            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob), folderRange);
         } catch (IOException | ExternalUnavailableException e) {
             logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
             return null;
@@ -167,12 +180,16 @@ final class PartitionPruningWalk {
         ExclusionConfig.NameFilter nameFilter,
         List<PartitionFilterHint> hints,
         int maxDiscoveredFiles,
-        Set<String> keyedGlobKeys
+        Set<String> keyedGlobKeys,
+        @Nullable FolderRangePredicate folderRange
     ) throws IOException {
         Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles);
         Set<String> pending = new HashSet<>();
         for (PartitionFilterHint hint : hints) {
             pending.add(hint.columnName());
+        }
+        if (folderRange != null) {
+            pending.addAll(folderRange.bindKeys());
         }
         // A key prunes only at its outermost occurrence: HivePartitionDetector binds the FIRST key=value segment of
         // a path. The prefix's own segments count — under data/year=2024/ every file's year IS 2024, so a deeper
@@ -284,6 +301,21 @@ final class PartitionPruningWalk {
                     if (matches[j] == false) {
                         keep[group.getValue().get(j)] = false;
                         prunedColumns.add(key);
+                    }
+                }
+            }
+            if (folderRange != null && shapedDirs.isEmpty() == false) {
+                // The predicate ran at this level even if nothing dropped: year=2026 kept by [2026-10-01, ∞)
+                // must still count as hinted so the walk descends to month/day.
+                hintedLevel = true;
+                for (int i = 0; i < keep.length; i++) {
+                    if (keep[i] == false) {
+                        continue;
+                    }
+                    Map<String, String> bindings = PartitionValueMatcher.pathBindings(shapedDirs.get(i).path());
+                    if (folderRange.mayContain(bindings) == false) {
+                        keep[i] = false;
+                        prunedColumns.add(shapedKeys.get(i));
                     }
                 }
             }

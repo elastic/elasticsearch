@@ -34,6 +34,7 @@ public class S3SnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRest
         .keystore("s3.client.snapshot_based_recoveries.secret_key", System.getProperty("s3SecretKey"))
         .setting("xpack.license.self_generated.type", "trial")
         .setting("s3.client.snapshot_based_recoveries.protocol", () -> "http", (n) -> USE_FIXTURE)
+        .setting("s3.client.snapshot_based_recoveries.region", () -> System.getProperty("test.s3.region"))
         .setting("s3.client.snapshot_based_recoveries.endpoint", s3Fixture::getAddress, (n) -> USE_FIXTURE)
         .setting("xpack.security.enabled", "false")
         .build();
@@ -55,6 +56,7 @@ public class S3SnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRest
     protected Settings repositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
         assertThat(bucket, not(blankOrNullString()));
+        assertThat(System.getProperty("test.s3.region"), not(blankOrNullString()));
 
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));

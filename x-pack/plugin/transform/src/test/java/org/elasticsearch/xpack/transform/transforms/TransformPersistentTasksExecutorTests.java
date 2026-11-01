@@ -925,7 +925,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            credentialManager
+            credentialManager,
+            Clock.systemUTC()
         );
     }
 
@@ -1233,7 +1234,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            Clock.systemUTC()
         );
     }
 

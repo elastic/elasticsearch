@@ -214,6 +214,16 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
+    public String probedVersion() {
+        return delegate.probedVersion();
+    }
+
+    @Override
     public long length() throws IOException {
         // Metadata ops (length/lastModified/exists) never bump the read-scoped registry request counter, so their
         // retries/errors/read-stall must NOT feed the registry sink — that would leak storage.retries/errors/read_stall

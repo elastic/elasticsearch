@@ -48,6 +48,7 @@ import org.elasticsearch.columnar.string.SummaryMerger;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -84,7 +85,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     private boolean closed = false;
 
-    private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
+    private record FieldEntry(int fieldNumber, ColumnarFieldType type, boolean singleValued, ColumnMetadata metadata) {}
 
     ColumNARDocValuesConsumer(
         SegmentWriteState state,
@@ -143,14 +144,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
             case STRING -> {
-                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
-                writeStringColumn(
-                    field,
-                    type,
-                    singleValued
-                        ? () -> ColumnarStringBinaryDocValues.decodeRawValues(valuesProducer.getBinary(field))
-                        : () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
-                );
+                final StringColumnOptions options = stringSelector.select(field.name, type);
+                writeStringColumn(field, type, options, () -> decodeBlobs(valuesProducer.getBinary(field), options), null);
             }
         }
     }
@@ -169,8 +164,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
-                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary, singleValued), vocabulary);
+                writeStringColumn(field, type, options, () -> stringMergeCursor(field, mergeState, vocabulary, options), vocabulary);
             }
         }
     }
@@ -505,7 +499,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         FieldInfo field,
         MergeState mergeState,
         Vocabulary.Terms vocabulary,
-        boolean singleValued
+        StringColumnOptions options
     ) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
@@ -556,15 +550,23 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // what this merge takes from it.
                 recorded &= mergeState.liveDocs[i] == null;
             } else {
-                values = singleValued
-                    ? ColumnarStringBinaryDocValues.decodeRawValues(binary)
-                    : ColumnarStringBinaryDocValues.decodePayloads(binary);
+                values = decodeBlobs(binary, options);
                 recorded = false;
             }
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
 
+        // Values are streamed only when every input streams. One unsorted input marks the merged column unsorted, even if
+        // deletions left it in order, which only forgoes a bisection.
+        boolean streams = true;
+        boolean mayBeSorted = true;
+        for (ColumnMergeSub<StringColumnValues> sub : subs) {
+            streams &= sub.values.streamsValues();
+            mayBeSorted &= sub.values.mayBeSorted();
+        }
+        final boolean streamsValues = streams;
+        final boolean valuesMayBeSorted = mayBeSorted;
         DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
         StringColumnValues.Totals totals = recorded
@@ -573,6 +575,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return new StringColumnValues() {
             private ColumnMergeSub<StringColumnValues> current;
             private int docID = -1;
+            /** The input the previous value came from; an input's recorded repeat holds only if it is the current one. */
+            private ColumnMergeSub<StringColumnValues> previousValueFrom;
+            private boolean sameInputAsPrevious;
 
             @Override
             public Totals totals() {
@@ -597,7 +602,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
 
             @Override
-            public int valueCount() {
+            public int valueCount() throws IOException {
                 return current.values.valueCount();
             }
 
@@ -608,12 +613,34 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
             @Override
             public void nextValue() throws IOException {
+                sameInputAsPrevious = previousValueFrom == current;
+                previousValueFrom = current;
                 current.values.nextValue();
             }
 
             @Override
             public BytesRef value() throws IOException {
                 return current.values.value();
+            }
+
+            @Override
+            public void transferValue(BytesSink sink) throws IOException {
+                current.values.transferValue(sink);
+            }
+
+            @Override
+            public boolean streamsValues() {
+                return streamsValues;
+            }
+
+            @Override
+            public boolean repeatsPrevious() throws IOException {
+                return sameInputAsPrevious && current.values.repeatsPrevious();
+            }
+
+            @Override
+            public boolean mayBeSorted() {
+                return valuesMayBeSorted;
             }
 
             @Override
@@ -631,6 +658,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 return finalCost;
             }
         };
+    }
+
+    private static StringColumnValues decodeBlobs(BinaryDocValues binary, StringColumnOptions options) {
+        return options.singleValued()
+            ? ColumnarStringBinaryDocValues.decodeRawValues(binary)
+            : ColumnarStringBinaryDocValues.decodePayloads(binary);
     }
 
     private void writeNumericColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<NumericColumnValues> cursors) throws IOException {
@@ -661,7 +694,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             outputs,
             skipIndex
         );
-        fields.add(new FieldEntry(field.number, type.id(), metadata));
+        fields.add(new FieldEntry(field.number, type, false, metadata));
     }
 
     /**
@@ -669,19 +702,36 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * buffering the whole field on-heap. The totals the pass collects are needed up front: they decide whether
      * a plain column stores lengths at all, and where its blocks of values end.
      *
-     * <p>A cursor that already knows them — a merge of our own columns, which each recorded theirs — reports
-     * them instead and the pass is skipped. The writer's own asserts still check the totals against what it
-     * is handed, so a cursor that mis-reports them does not go unnoticed.
+     * <p>Where the column may take a dictionary and nothing has settled its terms yet, the same pass surveys
+     * them: on ingest every pass copies each value out of the indexing buffer again, and the count and the
+     * survey each need every value, so the two share one walk and the writer is handed both. A sparse column
+     * then walks its documents once more for its presence, reading no value, and every column reads its
+     * values once more to write them — two reads of each value, dense or sparse.
+     *
+     * <p>A cursor that already knows the totals — a merge of our own columns, which each recorded theirs —
+     * reports them instead and the pass is skipped; such a merge mostly knows its terms from what the inputs
+     * recorded too, and where it does not the writer surveys them itself. The writer's own checks still hold
+     * the totals against what it writes, so a cursor that mis-reports them does not go unnoticed.
+     *
+     * @param known the terms a merge settled from what its inputs recorded, or null where the values decide
      */
-    private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
-        writeStringColumn(field, type, cursors, null);
-    }
-
-    private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors, Vocabulary.Terms known)
-        throws IOException {
+    private void writeStringColumn(
+        FieldInfo field,
+        ColumnarFieldType type,
+        StringColumnOptions options,
+        IOSupplier<StringColumnValues> cursors,
+        Vocabulary.Terms known
+    ) throws IOException {
         StringColumnValues counter = cursors.get();
         StringColumnValues.Totals totals = counter.totals();
-        if (totals == null) {
+        Vocabulary.Survey survey = known == null ? null : new Vocabulary.Survey(known);
+        if (totals == null && known == null && options.dictionary().enabled()) {
+            final Vocabulary.Counted counted = Vocabulary.countAndSurvey(counter, options.dictionary(), options.summary());
+            totals = counted.totals();
+            survey = counted.survey();
+        } else if (totals == null) {
+            // Nothing to survey: the column takes no dictionary, or a merge already knows its terms and only
+            // lost the totals to the deletions it drops on the way.
             int numDocsWithField = 0;
             long numValues = 0;
             long numNullSlots = 0;
@@ -708,9 +758,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument);
         }
 
-        final StringColumnOptions options = stringSelector.select(field.name, type);
-        StringColumnMetadata metadata = StringColumnWriter.write(maxDoc, totals, cursors, options, known, directory, context, outputs);
-        fields.add(new FieldEntry(field.number, type.id(), metadata));
+        StringColumnMetadata metadata = StringColumnWriter.write(
+            maxDoc,
+            totals,
+            cursors,
+            options,
+            survey,
+            directory,
+            context,
+            outputs,
+            skipIndex
+        );
+        fields.add(new FieldEntry(field.number, type, options.singleValued(), metadata));
     }
 
     @Override
@@ -751,7 +810,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         try {
             for (FieldEntry entry : fields) {
                 meta.writeInt(entry.fieldNumber());
-                meta.writeByte(entry.fieldTypeId());
+                meta.writeByte(entry.type().id());
+                if (entry.type() == ColumnarFieldType.STRING) {
+                    meta.writeByte(entry.singleValued() ? ColumNARDocValuesFormat.PLAIN : ColumNARDocValuesFormat.COLUMNAR_PAYLOAD);
+                }
                 entry.metadata().writeTo(meta);
             }
             meta.writeInt(-1);

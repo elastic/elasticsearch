@@ -97,7 +97,8 @@ class EsqlStreamLogContext extends EsqlLogContext {
                 ci.bytesRead(),
                 ci.readNanos(),
                 ci.readCpuNanos(),
-                ci.cpuNanos()
+                ci.cpuNanos(),
+                ci.driverNanos()
             )
         );
     }

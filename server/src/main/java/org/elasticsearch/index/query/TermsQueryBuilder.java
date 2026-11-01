@@ -12,6 +12,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +23,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -335,6 +340,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+        values.chargeDecodedBytes(context);
         return fieldType.termsQuery(values, context);
     }
 
@@ -496,6 +502,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     @SuppressWarnings("rawtypes")
     public static final class BinaryValues extends AbstractCollection implements Writeable {
 
+        private static final long BYTES_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+
         @Nullable
         private BytesReference valueRef;
 
@@ -503,18 +511,82 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
         private final Collection<?> values;
 
+        /**
+         * Heap the values take after deserialization beyond their serialized size. The serialized size is already held by the
+         * in-flight requests breaker until the request that carried them responds, so only the difference is charged.
+         */
+        private final long decodedBytesOverWire;
+
+        // guarded by this
+        private int decodedBytesHolders;
+        @Nullable
+        private CircuitBreaker decodedBytesBreaker;
+
         private BinaryValues(StreamInput in) throws IOException {
             this.valueRef = null;
             this.convert = false;
-            int ignored = in.readVInt();
+            int serializedBytes = in.readVInt();
             int ignored2 = in.readByte();
             assert ignored2 == StreamOutput.GENERIC_LIST_HEADER;
-            values = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+            List<Object> decoded = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+            values = decoded;
+            decodedBytesOverWire = Math.max(0L, ramBytesUsed(decoded) - serializedBytes);
         }
 
         private BinaryValues(Collection<?> values, boolean convert) {
             this.convert = convert;
             this.values = values;
+            this.decodedBytesOverWire = 0L;
+        }
+
+        private static long ramBytesUsed(List<Object> values) {
+            long bytes = RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * values.size()
+            );
+            for (Object value : values) {
+                if (value instanceof BytesRef bytesRef) {
+                    bytes += BYTES_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytesRef.bytes);
+                } else {
+                    bytes += RamUsageEstimator.sizeOfObject(value, 0);
+                }
+            }
+            return bytes;
+        }
+
+        /**
+         * Charges {@link #decodedBytesOverWire} to the request breaker once per deserialized copy, held while at least one search
+         * context that built a query from it is open. With the batched query phase every shard search of a node shares one copy,
+         * so a per-context charge would count the same memory once per shard.
+         */
+        private void chargeDecodedBytes(SearchExecutionContext context) {
+            CircuitBreaker breaker = context.getCircuitBreaker();
+            if (decodedBytesOverWire == 0L || breaker == null) {
+                return;
+            }
+            synchronized (this) {
+                if (decodedBytesHolders == 0) {
+                    breaker.addEstimateBytesAndMaybeBreak(decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
+                    decodedBytesBreaker = breaker;
+                } else {
+                    assert decodedBytesBreaker == breaker : "decoded terms shared by contexts with different breakers";
+                }
+                decodedBytesHolders++;
+            }
+            context.addQueryConstructionReleasable(Releasables.releaseOnce(this::releaseDecodedBytes));
+        }
+
+        private synchronized void releaseDecodedBytes() {
+            assert decodedBytesHolders > 0 : "decoded terms released more often than charged";
+            if (--decodedBytesHolders == 0) {
+                assert decodedBytesBreaker != null : "charged decoded terms without a breaker";
+                decodedBytesBreaker.addWithoutBreaking(-decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
+                decodedBytesBreaker = null;
+            }
+        }
+
+        // Package-private for testing.
+        long decodedBytesOverWire() {
+            return decodedBytesOverWire;
         }
 
         private static BytesReference serialize(Collection<?> values, boolean convert) {

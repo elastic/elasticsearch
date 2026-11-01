@@ -94,7 +94,9 @@ public abstract class DenseVectorQuery extends Query {
 
     @Override
     public void visit(QueryVisitor queryVisitor) {
-        queryVisitor.visitLeaf(this);
+        if (queryVisitor.acceptField(field)) {
+            queryVisitor.visitLeaf(this);
+        }
     }
 
     @Override
@@ -631,8 +633,8 @@ public abstract class DenseVectorQuery extends Query {
 
         private final VectorScorer vectorScorer;
         private final DocIdSetIterator filterIterator;
-        // Must lazily initialize because the default VectorScorer#bulk method advances the iterator in a way that breaks conjunctions.
-        // See https://github.com/apache/lucene/pull/16377.
+        // LUCENE WORKAROUND (apache/lucene#16377): the default VectorScorer#bulk advances the iterator eagerly, which breaks
+        // conjunctions, so initialize lazily. Remove once Lucene 11.0.0 is adopted.
         private VectorScorer.Bulk bulkScorer;
         private final DocIdSetIterator iterator;
         private final float boost;

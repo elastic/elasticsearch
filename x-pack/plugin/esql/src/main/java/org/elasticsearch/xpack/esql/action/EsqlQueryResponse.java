@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
@@ -69,6 +70,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long readNanos;
     private final long readCpuNanos;
     private final long cpuNanos;
+    private final long driverNanos;
     private final Profile profile;
     private final boolean columnar;
     private final String asyncExecutionId;
@@ -98,6 +100,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long readNanos,
         long readCpuNanos,
         long cpuNanos,
+        long driverNanos,
         @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
@@ -119,6 +122,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.readNanos = readNanos;
         this.readCpuNanos = readCpuNanos;
         this.cpuNanos = cpuNanos;
+        this.driverNanos = driverNanos;
         this.profile = profile;
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
@@ -150,6 +154,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             pages,
             documentsFound,
             valuesLoaded,
+            0L,
             0L,
             0L,
             0L,
@@ -250,6 +255,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
             EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
             Boolean approximationApplied = in.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED) ? in.readOptionalBoolean() : null;
+            long driverNanos = in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0;
             EsqlQueryResponse response = new EsqlQueryResponse(
                 columns,
                 pages,
@@ -260,6 +266,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 readNanos,
                 readCpuNanos,
                 cpuNanos,
+                driverNanos,
                 profile,
                 columnar,
                 asyncExecutionId,
@@ -316,6 +323,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (out.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED)) {
             out.writeOptionalBoolean(approximationApplied);
         }
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NANOS)) {
+            out.writeVLong(driverNanos);
+        }
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
@@ -365,8 +375,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return readCpuNanos;
     }
 
+    /**
+     * Thread CPU nanos used by all drivers.
+     */
     public long cpuNanos() {
         return cpuNanos;
+    }
+
+    /**
+     * Nanos all drivers held a thread, including time waiting for a core, GC pauses and time blocked inside an operator.
+     */
+    public long driverNanos() {
+        return driverNanos;
     }
 
     public long documentsFound() {
@@ -463,7 +483,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 .field("bytes_read", bytesRead)
                 .field("read_nanos", readNanos)
                 .field("read_cpu_nanos", readCpuNanos)
-                .field("cpu_nanos", cpuNanos);
+                .field("cpu_nanos", cpuNanos)
+                .field("driver_nanos", driverNanos);
 
             if (startTimeMillis != 0L) {
                 builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
@@ -532,6 +553,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && readNanos == that.readNanos
             && readCpuNanos == that.readCpuNanos
             && cpuNanos == that.cpuNanos
+            && driverNanos == that.driverNanos
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
     }
@@ -552,6 +574,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             readNanos,
             readCpuNanos,
             cpuNanos,
+            driverNanos,
             profile,
             executionInfo
         );

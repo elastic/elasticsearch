@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.response;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
@@ -33,12 +31,8 @@ import static org.mockito.Mockito.when;
 public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
 
     public void testCheckForFailureStatusCode() {
-        var statusLine = mock(StatusLine.class);
-
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
         var mockRequest = RequestTests.mockRequest("id");
@@ -51,7 +45,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
 
         // 503
-        when(statusLine.getStatusCode()).thenReturn(503);
+        when(httpResponse.getCode()).thenReturn(503);
         var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertTrue(retryException.shouldRetry());
         assertThat(
@@ -60,7 +54,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 501
-        when(statusLine.getStatusCode()).thenReturn(501);
+        when(httpResponse.getCode()).thenReturn(501);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
@@ -69,7 +63,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 500
-        when(statusLine.getStatusCode()).thenReturn(500);
+        when(httpResponse.getCode()).thenReturn(500);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertTrue(retryException.shouldRetry());
         assertThat(
@@ -78,13 +72,13 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
-        when(statusLine.getStatusCode()).thenReturn(429);
+        when(httpResponse.getCode()).thenReturn(429);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code."));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
-        when(statusLine.getStatusCode()).thenReturn(413);
+        when(httpResponse.getCode()).thenReturn(413);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertThat(retryException, instanceOf(ContentTooLargeException.class));
         assertTrue(retryException.shouldRetry());
@@ -97,7 +91,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 generic bad request should not be marked as a content too large
-        when(statusLine.getStatusCode()).thenReturn(400);
+        when(httpResponse.getCode()).thenReturn(400);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
@@ -106,7 +100,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 is not flagged as a content too large when the error message is different
-        when(statusLine.getStatusCode()).thenReturn(400);
+        when(httpResponse.getCode()).thenReturn(400);
         retryException = handler.buildFailureStatusCodeException(mockRequest, createResult(400, "blah"));
         assertFalse(retryException.shouldRetry());
         assertThat(
@@ -115,7 +109,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 401
-        when(statusLine.getStatusCode()).thenReturn(401);
+        when(httpResponse.getCode()).thenReturn(401);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
@@ -124,7 +118,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
-        when(statusLine.getStatusCode()).thenReturn(300);
+        when(httpResponse.getCode()).thenReturn(300);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
@@ -133,7 +127,7 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
         // 402
-        when(statusLine.getStatusCode()).thenReturn(402);
+        when(httpResponse.getCode()).thenReturn(402);
         retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertFalse(retryException.shouldRetry());
         assertThat(
@@ -145,10 +139,8 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
 
     public void testBuildRateLimitErrorMessage() {
         int statusCode = 429;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(statusCode);
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
@@ -219,10 +211,8 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResult createResult(int statusCode, String message) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
 
         String responseJson = Strings.format("""
                 {

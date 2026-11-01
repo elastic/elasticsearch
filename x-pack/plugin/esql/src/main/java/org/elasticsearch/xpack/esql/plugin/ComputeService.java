@@ -14,7 +14,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -30,12 +32,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -74,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -90,7 +95,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -214,6 +218,7 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
@@ -225,10 +230,12 @@ public class ComputeService {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
+        ComputeExecutor computeExecutor,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FormatReaderRegistry formatReaderRegistry
+        FormatReaderRegistry formatReaderRegistry,
+        Client client
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -236,6 +243,7 @@ public class ComputeService {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
@@ -257,7 +265,8 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            searchExecutor
+            searchExecutor,
+            client
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
@@ -1953,9 +1962,13 @@ public class ComputeService {
 
         try {
             var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
+            // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
+            // snapshots cannot disagree on anything that is read.
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -1972,10 +1985,11 @@ public class ComputeService {
                 userAgentParserRegistry,
                 ipLocationService,
                 projectResolver,
-                projectResolver.getProjectMetadata(clusterService.state()),
+                projectMetadata,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
-                parallelWorkerExecutor,
+                datasetConfigResolver.snapshotBuild(),
+                computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion()
@@ -2002,7 +2016,8 @@ public class ComputeService {
                         SearchContextStats.from(localContexts),
                         formatReaderRegistry,
                         coordinatorExternalSplits,
-                        planTimeProfile
+                        planTimeProfile,
+                        datasetConfigResolver
                     );
                     logicalPlanString = null;
                     approximationApplied = false;
@@ -2021,7 +2036,10 @@ public class ComputeService {
                     approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
-                localPlan = plan;
+                // No reduce plan carries an external source today (reductionPlan replaces the breaker's children with
+                // an exchange source), and the external request handler rebinds before it gets here; the rebind is
+                // idempotent and free on a plan without external sources, so apply it rather than rely on that.
+                localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
                 approximationApplied = false;
             }
@@ -2110,19 +2128,14 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                ActionListener.releaseAfter(driverListener, () -> {
-                    if (hookExecInfo != null) {
-                        for (BooleanSupplier hook : registeredStopHooks) {
-                            hookExecInfo.removeStopHook(hook);
-                        }
+            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
+                if (hookExecInfo != null) {
+                    for (BooleanSupplier hook : registeredStopHooks) {
+                        hookExecInfo.removeStopHook(hook);
                     }
-                    Releasables.close(drivers);
-                })
-            );
+                }
+                Releasables.close(drivers);
+            }));
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());

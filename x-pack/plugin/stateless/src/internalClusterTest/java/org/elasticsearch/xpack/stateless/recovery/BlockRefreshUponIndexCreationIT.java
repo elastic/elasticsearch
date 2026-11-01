@@ -378,8 +378,9 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             assertThat(removeRefreshClusterBlockService.blockedIndices(), hasSize(0));
         });
 
-        blockedIndices.forEach(
-            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(false))
+        awaitClusterState(
+            state -> blockedIndices.stream()
+                .noneMatch(index -> state.blocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK))
         );
     }
 

@@ -13,6 +13,8 @@ import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -100,6 +102,72 @@ public class S3OpenEndedReadTests extends ESTestCase {
         assertNull("first GET is unpinned", captor.getAllValues().get(0).ifMatch());
         assertEquals("resume/later GET pins the first ETag", "\"gen-1\"", captor.getAllValues().get(1).ifMatch());
         assertEquals("\"gen-1\"", obj.contentGeneration());
+    }
+
+    /**
+     * The version a listing reported seeds the pin, so the first GET is already conditional on it. A rewrite since the
+     * listing answers with another ETag, which is refused rather than read under the footer of the listed version.
+     */
+    public void testSeededVersionMakesFirstGetConditional() throws IOException {
+        byte[] body = "hello open-ended world".getBytes(StandardCharsets.UTF_8);
+        GetObjectResponse rewritten = GetObjectResponse.builder().contentLength((long) body.length).eTag("\"gen-2\"").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(rewritten, AbortableInputStream.create(new ByteArrayInputStream(body)))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        obj.seedVersion("\"gen-1\"");
+        assertEquals("\"gen-1\"", obj.version());
+
+        expectThrows(ExternalObjectChangedException.class, obj::newStream);
+
+        ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(mockS3).getObject(captor.capture());
+        assertEquals("the first GET is conditional on the listed version", "\"gen-1\"", captor.getValue().ifMatch());
+    }
+
+    /**
+     * An existence probe is a one-byte range GET, and its response pins the ETag like any read. So an object probed with
+     * exists() is versioned, which is what the enumerable glob path needs: it probes each candidate before reading it.
+     */
+    public void testExistenceProbeGivesTheObjectItsVersion() throws IOException {
+        GetObjectResponse probe = GetObjectResponse.builder().contentLength(1L).contentRange("bytes 0-0/5").eTag("\"probe-1\"").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(probe, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 'x' })))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        assertTrue(obj.exists());
+
+        assertEquals("\"probe-1\"", obj.version());
+        assertEquals("\"probe-1\"", obj.contentGeneration());
+    }
+
+    /**
+     * When the range GET of a probe fails with a server error, the probe falls back to a HEAD. That HEAD's ETag is the version the
+     * probe saw, so the object is still versioned. It does not pin: the pin is set only by a GET or a seed.
+     */
+    public void testHeadFallbackProbeGivesTheObjectItsVersionWithoutPinning() throws IOException {
+        S3Exception serverError = (S3Exception) S3Exception.builder().statusCode(500).message("Internal Error").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(serverError);
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(5L).eTag("\"head-1\"").build()
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        assertTrue(obj.exists());
+
+        assertEquals("\"head-1\"", obj.probedVersion());
+        assertNull(obj.contentGeneration());
+    }
+
+    /** A weak ETag is not byte-for-byte identifying, so it never becomes a version, from a listing or a seed. */
+    public void testWeakEtagIsNotAVersion() {
+        assertNull(S3StorageObject.strongEtag("W/\"gen-1\""));
+        assertNull(S3StorageObject.strongEtag(null));
+        assertEquals("\"gen-1\"", S3StorageObject.strongEtag("\"gen-1\""));
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        obj.seedVersion("W/\"gen-1\"");
+        assertNull(obj.version());
     }
 
     public void testGetRefreshesKnownLengthFromResponseNotListing() throws IOException {

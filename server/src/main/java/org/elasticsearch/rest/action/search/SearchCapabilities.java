@@ -55,6 +55,8 @@ public final class SearchCapabilities {
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
     private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
+    /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
+    private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -80,6 +82,7 @@ public final class SearchCapabilities {
         capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
+        capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

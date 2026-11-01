@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -48,7 +49,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
 /**
  * Returns a subset of the multivalued field using the start and end index values.
  */
-public class MvSlice extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class MvSlice extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSlice", MvSlice::new);
 
     private final Expression field, start, end;

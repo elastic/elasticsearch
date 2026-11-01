@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -25,7 +27,6 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -54,6 +55,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -102,6 +105,7 @@ import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -132,7 +136,11 @@ import static org.hamcrest.Matchers.is;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -221,16 +229,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        final String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        assertTrue(TESTS_CLUSTER + " must be set", Strings.hasLength(clusterAddresses));
         if (scope == Scope.TEST) {
-            throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+            throw new IllegalArgumentException("Cannot run TEST scope test with an externally started cluster");
         }
-        final String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-        if (Strings.isNullOrEmpty(clusterName)) {
-            throw new IllegalArgumentException("External test cluster name must be provided");
-        }
-        final String[] stringAddresses = clusterAddresses.split(",");
+        final String[] stringAddresses = CLUSTER.getTransportEndpoints().split(",");
         final TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
@@ -243,7 +245,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             externalClusterClientSettings(),
             nodePlugins(),
             getClientWrapper(),
-            clusterName,
+            Clusters.CLUSTER_NAME,
             transportAddresses
         );
     }

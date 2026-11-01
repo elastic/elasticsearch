@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
 public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
@@ -119,7 +120,9 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
                 "Line 1:1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
                         ? "cannot parse empty datetime"
-                        : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time]"))
+                        : ("failed to parse date field ["
+                            + truncateForError(bytesRef.utf8ToString())
+                            + "] with format [strict_date_optional_time]"))
             )
         );
         TestCaseSupplier.unary(

@@ -137,7 +137,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                 return new MatchNoDocsQuery();
             }
         }
-        return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));
+        return new IntervalQuery(field, new ExpansionLimitIntervalsSource(sourceProvider.getSource(context, fieldType)));
     }
 
     @Override

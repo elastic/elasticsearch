@@ -15,7 +15,6 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
-import org.elasticsearch.gradle.internal.distribution.BundledJdkCacertsTask
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
 import org.elasticsearch.gradle.transform.FilteringJarTransform
 
@@ -300,30 +299,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   }
 
-  /*
-   * SHA-256 fingerprints of root certificates to remove from the bundled JDK's lib/security/cacerts. This only affects
-   * distributions that use the bundled JDK's cacerts: the Docker images replace it with the operating system's trust
-   * store. Remove entries once the bundled JDK no longer has these roots.
-   */
-  List<String> removedBundledJdkRoots = [
-    // Roots that compromised eMudhra intermediate CAs chain to, see https://bugzilla.mozilla.org/show_bug.cgi?id=2083449.
-    // Mozilla and Chrome no longer trust AAA Certificate Services, and NSS 3.131.1 removed emSign ECC Root CA - G3.
-    'D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4', // AAA Certificate Services (Sectigo)
-    '86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B', // emSign ECC Root CA - G3 (eMudhra)
-  ]
-
-  ['darwin', 'windows', 'linux'].each { platform ->
-    architecturesFor(platform).each { architecture ->
-      String jdkName = BundledJdkPlatforms.jdkName(platform, architecture)
-      def jdk = project.jdks.getByName(jdkName)
-      tasks.register("${jdkName}Cacerts", BundledJdkCacertsTask) {
-        jdkCacerts.from(files(jdk).asFileTree.matching { include "${BundledJdkPlatforms.securityDir(platform)}/cacerts" })
-        removedRoots.set(removedBundledJdkRoots)
-        outputFile.set(layout.buildDirectory.file("bundled-jdk-cacerts/${jdkName}/cacerts"))
-      }
-    }
-  }
-
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
@@ -545,15 +520,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
 
     jdkFiles = { Project project, String os, String architecture ->
-      String jdkName = BundledJdkPlatforms.jdkName(os, architecture)
       return copySpec {
-        from(project.jdks.getByName(jdkName)) {
-          // replaced by the copy without the removed roots below
-          exclude "${BundledJdkPlatforms.securityDir(os)}/cacerts"
-        }
-        into(BundledJdkPlatforms.securityDir(os)) {
-          from project.tasks.named("${jdkName}Cacerts")
-        }
+        from project.jdks.getByName(BundledJdkPlatforms.jdkName(os, architecture))
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude

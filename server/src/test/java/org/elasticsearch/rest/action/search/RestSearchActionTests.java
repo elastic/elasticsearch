@@ -149,6 +149,19 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals(TermSuggestionBuilder.SuggestMode.MISSING, builder.suggestMode());
     }
 
+    public void testParseSuggestParametersWithoutSuggestMode() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
+            Map.of("suggest_field", "field", "suggest_text", "text")
+        ).build();
+        SuggestBuilder suggestBuilder = RestSearchAction.parseSuggestUrlParameters(request);
+        TermSuggestionBuilder builder = (TermSuggestionBuilder) suggestBuilder.getSuggestions().get("field");
+        assertNotNull(builder);
+        assertEquals("text", builder.text());
+        assertEquals("field", builder.field());
+        assertEquals(5, builder.size().intValue());
+        assertEquals(TermSuggestionBuilder.SuggestMode.MISSING, builder.suggestMode());
+    }
+
     public void testParseSuggestParametersError() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
             Map.of("suggest_text", "text", "suggest_size", "3", "suggest_mode", "missing")

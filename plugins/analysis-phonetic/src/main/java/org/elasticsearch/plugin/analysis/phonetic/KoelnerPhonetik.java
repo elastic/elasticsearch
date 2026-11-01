@@ -37,6 +37,31 @@ public class KoelnerPhonetik implements StringEncoder {
 
     private static final String[] POSTEL_VARIATIONS_PATTERNS = { "AUN", "OWN", "RB", "RW", "WSK", "RSK" };
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = { "OWN", "AUN", "RW", "RB", "RSK", "WSK" };
+
+    // Whitespace, control and punctuation characters split a token into the segments generateParts() combines.
+    private static final Pattern SEGMENT_SEPARATOR = Pattern.compile("[\\p{Z}\\p{C}\\p{P}]");
+    private static final Pattern SEPARATORS_ONLY = Pattern.compile("[\\p{Z}\\p{C}\\p{P}]*");
+
+    /**
+     * Default for {@code maxVariations}. 256 fits 8 pattern matches in one word, or a 22-segment token (253 parts)
+     * with no matches, which is well beyond what real names need while keeping the worst-case cost of one token small.
+     */
+    static final int DEFAULT_MAX_VARIATIONS = 256;
+
+    /**
+     * Largest {@code maxVariations} accepted. generateParts() passes {@code maxVariations + 1} as the split() limit,
+     * and overflowing that to a negative limit would make split() unbounded again.
+     */
+    static final int MAX_VARIATIONS_UPPER_BOUND = Integer.MAX_VALUE - 1;
+
+    /**
+     * Limit on the number of variations one {@code encode()} call may produce, shared across every part that
+     * {@code partition()} generates. Each pattern match in a part doubles its variations, and a token with
+     * n separator-delimited segments yields n(n+1)/2 parts, so without this limit certain tokens (e.g. "AUN" repeated,
+     * or many hyphenated segments) can exhaust the heap. The limit removes the possibility of exponential heap growth.
+     */
+    private final int maxVariations;
+
     private Pattern[] variationsPatterns;
     private boolean primary = false;
     private final Set<Character> csz = new HashSet<>(Arrays.asList('C', 'S', 'Z'));
@@ -47,8 +72,22 @@ public class KoelnerPhonetik implements StringEncoder {
     /**
      * Constructor for  Kölner Phonetik
      */
-    @SuppressWarnings("this-escape")
     public KoelnerPhonetik() {
+        this(DEFAULT_MAX_VARIATIONS);
+    }
+
+    /**
+     * @param maxVariations limit on the variations generated for one token, see {@code maxVariations}; between 1 and
+     *                      {@link #MAX_VARIATIONS_UPPER_BOUND}
+     */
+    @SuppressWarnings("this-escape")
+    public KoelnerPhonetik(int maxVariations) {
+        if (maxVariations < 1 || maxVariations > MAX_VARIATIONS_UPPER_BOUND) {
+            throw new IllegalArgumentException(
+                "maxVariations must be between 1 and " + MAX_VARIATIONS_UPPER_BOUND + ", got [" + maxVariations + "]"
+            );
+        }
+        this.maxVariations = maxVariations;
         init();
     }
 
@@ -124,15 +163,53 @@ public class KoelnerPhonetik implements StringEncoder {
     }
 
     private List<String> partition(String str) {
-        String primaryForm = str;
+        List<String> parts = generateParts(str);
+        List<String> variations = new ArrayList<>();
+        // Share a single budget across all parts so the total variations for the whole token stay bounded,
+        // rather than allowing each part to independently produce up to maxVariations.
+        int remainingBudget = maxVariations;
+        for (int i = 0; i < parts.size() && remainingBudget > 0; i++) {
+            List<String> variation = getVariations(parts.get(i), remainingBudget);
+            variations.addAll(variation);
+            remainingBudget -= variation.size();
+        }
+        return variations;
+    }
+
+    // A token with n punctuation/whitespace-separated segments yields every contiguous run of segments as
+    // its own part, i.e. n(n+1)/2 parts. Stop generating parts once the shared maxVariations budget is
+    // reached so that count can't grow unbounded either, independent of the downstream variations budget in
+    // partition(); otherwise a token with many segments would still materialize a huge intermediate parts
+    // list even though the final variations count stays capped.
+    List<String> generateParts(String str) {
         List<String> parts = new ArrayList<>();
-        parts.add(primaryForm.replaceAll("[^\\p{L}\\p{N}]", ""));
+        parts.add(str.replaceAll("[^\\p{L}\\p{N}]", ""));
         if (primary == false) {
-            List<String> tmpParts = new ArrayList<>(Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]")));
-            int numberOfParts = tmpParts.size();
-            while (tmpParts.size() > 0) {
+            // Cap String.split() at maxVariations + 1 segments instead of splitting the whole token
+            // unbounded: without a limit, split() allocates a String and array/list slot per segment before
+            // the cap above ever gets a chance to apply, so a punctuation-heavy token with many segments
+            // would still force an allocation proportional to its segment count. The "+ 1" is a single extra
+            // slot used only to detect whether more segments exist beyond what we keep.
+            String[] rawParts = SEGMENT_SEPARATOR.split(str, maxVariations + 1);
+            // A positive split() limit, unlike the unlimited split() it replaces, does not drop trailing
+            // empty strings, and a long enough run of trailing separators lands entirely inside the final
+            // slot as one non-empty separator-only string (e.g. "----"). Trim any trailing slot that is
+            // wholly separator characters (including empty ones, matched by "*" as zero occurrences), not
+            // just empty ones, so trailing separators have no effect regardless of how many there are.
+            int effectiveLength = rawParts.length;
+            while (effectiveLength > 0 && SEPARATORS_ONLY.matcher(rawParts[effectiveLength - 1]).matches()) {
+                effectiveLength--;
+            }
+            boolean moreSegmentsExist = effectiveLength > maxVariations;
+            int keptCount = moreSegmentsExist ? maxVariations : effectiveLength;
+            List<String> tmpParts = new ArrayList<>(Arrays.asList(rawParts).subList(0, keptCount));
+            // If more segments exist beyond what we kept, use a numberOfParts the loop below can never reach,
+            // since the "skip the final full-string concatenation" check it's used for only applies to the
+            // token's true last segment, which isn't in our truncated batch.
+            int numberOfParts = moreSegmentsExist ? Integer.MAX_VALUE : tmpParts.size();
+            while (!tmpParts.isEmpty() && parts.size() < maxVariations) {
                 StringBuilder part = new StringBuilder();
-                for (int i = 0; i < tmpParts.size(); i++) {
+                for (int i = 0; i < tmpParts.size() && parts.size() < maxVariations; i++) {
                     part.append(tmpParts.get(i));
                     if ((i + 1 == numberOfParts) == false) {
                         parts.add(part.toString());
@@ -141,17 +218,10 @@ public class KoelnerPhonetik implements StringEncoder {
                 tmpParts.remove(0);
             }
         }
-        List<String> variations = new ArrayList<>();
-        for (int i = 0; i < parts.size(); i++) {
-            List<String> variation = getVariations(parts.get(i));
-            if (variation != null) {
-                variations.addAll(variation);
-            }
-        }
-        return variations;
+        return parts;
     }
 
-    private List<String> getVariations(String str) {
+    private List<String> getVariations(String str, int budget) {
         int position = 0;
         List<String> variations = new ArrayList<>();
         variations.add("");
@@ -167,11 +237,26 @@ public class KoelnerPhonetik implements StringEncoder {
             }
             if (substPos >= position) {
                 i--;
-                List<String> varNew = new ArrayList<>();
                 String prevPart = str.substring(position, substPos);
-                for (int ii = 0; ii < variations.size(); ii++) {
-                    String tmp = variations.get(ii);
-                    varNew.add(tmp.concat(prevPart + getReplacements()[i]));
+
+                // Fix the pre-branch size so the loop below only rewrites the existing entries, not the
+                // replacement variants just appended to varNew. Add only as many replacement branches as fit
+                // under the budget, rather than always doubling, so a budget that isn't a power of two
+                // (e.g. left over from an earlier part) can't be overshot.
+                int sizeBeforeBranching = variations.size();
+                if (sizeBeforeBranching >= budget) {
+                    String suffix = str.substring(position);
+                    for (int ii = 0; ii < sizeBeforeBranching; ii++) {
+                        variations.set(ii, variations.get(ii) + suffix);
+                    }
+                    break;
+                }
+                int branchesToAdd = Math.min(sizeBeforeBranching, budget - sizeBeforeBranching);
+                List<String> varNew = new ArrayList<>(branchesToAdd);
+                for (int ii = 0; ii < sizeBeforeBranching; ii++) {
+                    if (ii < branchesToAdd) {
+                        varNew.add(variations.get(ii).concat(prevPart + getReplacements()[i]));
+                    }
                     variations.set(ii, variations.get(ii) + prevPart + getPatterns()[i]);
                 }
                 variations.addAll(varNew);

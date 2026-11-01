@@ -124,7 +124,8 @@ class NodeServiceProvider {
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        TaskManager taskManager
     ) {
         return new SearchService(
             clusterService,
@@ -137,7 +138,8 @@ class NodeServiceProvider {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            taskManager
         );
     }
 

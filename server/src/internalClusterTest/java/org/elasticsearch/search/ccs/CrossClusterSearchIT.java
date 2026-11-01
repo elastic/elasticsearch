@@ -18,10 +18,14 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -30,6 +34,7 @@ import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +75,41 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
             return List.of(slowRunningSpec, throwingSpec);
         }
+    }
+
+    /**
+     * With minimize_roundtrips, the coordinating node charges the local and remote responses while it merges them, and the hits the merged
+     * response keeps until it is released. The local response arrives already charged, so charging it twice or releasing it twice would
+     * leave the breaker away from zero.
+     */
+    public void testMinimizeRoundtripsResponseChargedUntilReleased() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        // Test clusters sometimes give a node a no-op request breaker, so coordinate on one with a real breaker.
+        List<String> coordinators = Arrays.stream(cluster(LOCAL_CLUSTER).getNodeNames())
+            .filter(node -> requestBreaker(node) instanceof NoopCircuitBreaker == false)
+            .toList();
+        assumeFalse("every local node has a no-op request breaker", coordinators.isEmpty());
+        String coordinator = randomFrom(coordinators);
+        CircuitBreaker breaker = requestBreaker(coordinator);
+
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.setCcsMinimizeRoundtrips(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+        SearchResponse response = cluster(LOCAL_CLUSTER).client(coordinator).search(searchRequest).actionGet();
+        try {
+            assertThat(response.getClusters().getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(response.getHits().getHits().length, greaterThan(0));
+            assertThat(breaker.getUsed(), greaterThan(0L));
+        } finally {
+            response.decRef();
+        }
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+    }
+
+    private CircuitBreaker requestBreaker(String localNode) {
+        return cluster(LOCAL_CLUSTER).getInstance(CircuitBreakerService.class, localNode).getBreaker(CircuitBreaker.REQUEST);
     }
 
     public void testClusterDetailsAfterSuccessfulCCS() throws Exception {
@@ -357,7 +397,8 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
-            assertThat(rootCause.getMessage(), containsString("index corrupted"));
+            assertNotNull(ExceptionsHelper.stackTrace(ee), rootCause);
+            assertThat(ExceptionsHelper.stackTrace(ee), rootCause.getMessage(), containsString("index corrupted"));
         } else {
             assertResponse(queryFuture, response -> {
                 assertNotNull(response);
@@ -409,7 +450,11 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
+                assertThat(
+                    failureReasonMessage(remoteClusterSearchInfo, remoteShardSearchFailure),
+                    remoteShardSearchFailure.reason(),
+                    containsString("index corrupted")
+                );
             });
         }
     }
@@ -596,7 +641,8 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);
-            assertThat(rootCause.getMessage(), containsString("index corrupted"));
+            assertNotNull(ExceptionsHelper.stackTrace(ee), rootCause);
+            assertThat(ExceptionsHelper.stackTrace(ee), rootCause.getMessage(), containsString("index corrupted"));
         } else {
             assertResponse(queryFuture, response -> {
                 assertNotNull(response);
@@ -627,7 +673,11 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
+                assertThat(
+                    failureReasonMessage(remoteClusterSearchInfo, remoteShardSearchFailure),
+                    remoteShardSearchFailure.reason(),
+                    containsString("index corrupted")
+                );
             });
         }
     }
@@ -712,15 +762,128 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
-    public void testNegativeRemoteIndexNameThrows() {
-        SearchRequest searchRequest = new SearchRequest("*:*", "-" + REMOTE_CLUSTER + ":prod");
-        searchRequest.setCcsMinimizeRoundtrips(true);
+    public void testNegativeRemoteIndexNameEquivalentToRemoteNegativeIndexSyntax() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest clusterPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", "-" + REMOTE_CLUSTER + ":prod");
+        clusterPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
+        clusterPrefixExclusion.allowPartialSearchResults(false);
+        clusterPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        SearchRequest indexPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", REMOTE_CLUSTER + ":-prod");
+        indexPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
+        indexPrefixExclusion.allowPartialSearchResults(false);
+        indexPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        final long[] clusterPrefixTotalHits = new long[1];
+        assertResponse(client(LOCAL_CLUSTER).search(clusterPrefixExclusion), clusterPrefixResponse -> {
+            assertNotNull(clusterPrefixResponse);
+            Clusters clusters = clusterPrefixResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
+            Cluster clusterPrefixCluster = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(clusterPrefixCluster);
+            assertThat(clusterPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(clusterPrefixCluster.getIndexExpression(), equalTo("*,-prod"));
+            for (var hit : clusterPrefixResponse.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+            clusterPrefixTotalHits[0] = Objects.requireNonNull(clusterPrefixResponse.getHits().getTotalHits()).value();
+        });
+        assertResponse(client(LOCAL_CLUSTER).search(indexPrefixExclusion), indexPrefixResponse -> {
+            assertNotNull(indexPrefixResponse);
+            assertThat(Objects.requireNonNull(indexPrefixResponse.getHits().getTotalHits()).value(), equalTo(clusterPrefixTotalHits[0]));
+            Cluster indexPrefixCluster = indexPrefixResponse.getClusters().getCluster(REMOTE_CLUSTER);
+            assertNotNull(indexPrefixCluster);
+            assertThat(indexPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(indexPrefixCluster.getIndexExpression(), equalTo("*,-prod"));
+        });
+    }
+
+    public void testNegativeRemoteIndexNameBeforeInclusionIsAccepted() throws Exception {
+        String remoteIndex = (String) setupTwoClusters().get("remote.index");
+        boolean minimizeRoundtrips = randomBoolean();
+
+        SearchRequest controlRequest = new SearchRequest(REMOTE_CLUSTER + ":*");
+        controlRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        controlRequest.allowPartialSearchResults(false);
+        controlRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        SearchRequest searchRequest = new SearchRequest("-" + REMOTE_CLUSTER + ":prod", REMOTE_CLUSTER + ":*");
+        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
-        var queryFuture = client(LOCAL_CLUSTER).search(searchRequest);
-        // This should throw the wildcard error
-        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
-        assertNotNull(ee.getCause());
+
+        final long[] controlTotalHits = new long[1];
+        assertResponse(client(LOCAL_CLUSTER).search(controlRequest), controlResponse -> {
+            controlTotalHits[0] = Objects.requireNonNull(controlResponse.getHits().getTotalHits()).value();
+        });
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod,*"));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), equalTo(controlTotalHits[0]));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+        });
+    }
+
+    public void testMixedRemoteIndexAndClusterExclusionsClusterExclusionLast() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        SearchRequest searchRequest = new SearchRequest(
+            localIndex,
+            REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":prod",
+            "-" + REMOTE_CLUSTER + ":*"
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertNull(clusters.getCluster(REMOTE_CLUSTER));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(localIndex));
+            }
+        });
+    }
+
+    public void testMixedRemoteIndexAndClusterExclusionsClusterExclusionFirst() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        SearchRequest searchRequest = new SearchRequest(
+            localIndex,
+            REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":prod"
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod"));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(0));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(localIndex));
+            }
+        });
     }
 
     public void testClusterDetailsWhenLocalClusterHasNoMatchingIndex() throws Exception {
@@ -797,7 +960,25 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         assertThat(cluster.getFailures().size(), equalTo(1));
         assertThat(cluster.getTook().millis(), greaterThan(0L));
         ShardSearchFailure remoteShardSearchFailure = cluster.getFailures().get(0);
-        assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
+        assertThat(
+            failureReasonMessage(cluster, remoteShardSearchFailure),
+            remoteShardSearchFailure.reason(),
+            containsString("index corrupted")
+        );
+    }
+
+    /**
+     * Describes the failure being asserted and its siblings. {@link Cluster#getFailures()} is ordered by arrival, not
+     * by shard id, so the asserted entry is not necessarily shard 0.
+     */
+    private static String failureReasonMessage(Cluster cluster, ShardSearchFailure failure) {
+        return Strings.format(
+            "unexpected reason for failure on shard [%s] of cluster [%s]; all %d failure(s): %s",
+            failure.shard(),
+            cluster.getClusterAlias(),
+            cluster.getFailures().size(),
+            cluster.getFailures()
+        );
     }
 
 }

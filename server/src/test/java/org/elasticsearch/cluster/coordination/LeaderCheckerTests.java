@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -31,7 +32,6 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -167,7 +167,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final AtomicBoolean leaderFailed = new AtomicBoolean();
 
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, (msg, e) -> {
-            assertThat(e, anyOf(instanceOf(RemoteTransportException.class), instanceOf(ReceiveTimeoutTransportException.class)));
+            assertThat(e, anyOf(instanceOf(RemoteTransportException.class), instanceOf(ElasticsearchTimeoutException.class)));
             if (e instanceof RemoteTransportException) {
                 assertThat(e.getCause().getMessage(), equalTo("simulated error"));
             }

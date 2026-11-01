@@ -99,6 +99,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -113,6 +114,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -392,7 +394,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList()),
             List.of(),
-            randomFrom(IndexMode.values())
+            randomFrom(IndexMode.availableModes())
         );
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
             .fielddataBuilder(
@@ -401,17 +403,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     indexSettings,
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
+                    () -> false,
                     context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
             indexSettings,
             bitsetFilterCache,
             fieldDataBuilder,
-            null,
+            mapperService,
             mappingLookup,
             null,
             getMockScriptService(),
@@ -448,7 +453,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 indexSettings,
                 searchExecutionContext,
                 bitsetFilterCache,
-                breakerService.getBreaker(CircuitBreaker.REQUEST)
+                breakerService.getBreaker(CircuitBreaker.REQUEST),
+                query
             ),
             bitsetFilterCache,
             randomInt(),
@@ -484,7 +490,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        Query query
     ) {
         SearchContext ctx = mock(SearchContext.class);
         try {
@@ -533,7 +540,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(ctx.newSourceLoader(null)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
         when(ctx.innerHits()).thenReturn(new InnerHitsContext());
-        var res = new SubSearchContext(ctx);
+        // SearchService gives the SubSearchContext the query of the search. Without it, anything that needs the query, like
+        // track_scores on a top_hits that is sorted, finds none.
+        var res = new SubSearchContext(ctx).parsedQuery(new ParsedQuery(query));
         releasables.add(res); // TODO: nasty workaround for not getting the standard resource handling behavior of a real search context
         return res;
     }
@@ -548,6 +557,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .build(),
             Settings.EMPTY
         );
+    }
+
+    protected MappingParserContext createMappingParserContext(IndexSettings indexSettings) {
+        return new MockParserContext(indexSettings);
     }
 
     /**
@@ -777,7 +790,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         if (aggTestConfig.testReductionCancellation()) {
             try {
                 // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
-                List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
+                List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs.size());
+                for (InternalAggregations aggs : internalAggs) {
+                    List<InternalAggregation> copied = new ArrayList<>(aggs.copyResults().size());
+                    for (InternalAggregation agg : aggs) {
+                        copied.add(copyNamedWriteable(agg, writableRegistry(), InternalAggregation.class));
+                    }
+                    internalAggsCopy.add(InternalAggregations.from(copied));
+                }
                 A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
                 if (internalAgg instanceof MultiBucketsAggregation mb) {
                     // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
@@ -1414,11 +1434,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 null,
                 IndexVersion.current(),
                 () -> TransportVersion.current(),
+                f -> true,
                 null,
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null,
                 query -> {
                     throw new UnsupportedOperationException();
                 },

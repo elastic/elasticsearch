@@ -33,8 +33,8 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateTool.GenerateCertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.Name;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -140,9 +141,8 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeJimfs() throws Exception {
         IOUtils.close(jimfs);
-        super.tearDown();
     }
 
     public void testOutputDirectory() throws Exception {

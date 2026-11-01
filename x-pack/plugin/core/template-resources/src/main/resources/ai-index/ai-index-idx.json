@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["${ai-index.idx.index_pattern}"],
+  "priority": 500,
+  "composed_of": [
+    "ai-index@mappings",
+    "ai-index@custom"
+  ],
+  "ignore_missing_component_templates": ["ai-index@custom"],
+  "_meta": {
+    "description": "Template applied by default to standard-index backed AI indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

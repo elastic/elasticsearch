@@ -14,9 +14,24 @@ import org.elasticsearch.core.Nullable;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeNonEmptyString;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public final class StringParser {
+
+    /**
+     * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
+     */
+    public static void validateStringIsNotNullOrEmpty(@Nullable String value, String settingName) {
+        if (value == null) {
+            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, SERVICE_SETTINGS.toString()));
+        }
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, SERVICE_SETTINGS.toString()));
+        }
+    }
 
     public static List<String> extractStringList(
         Map<String, Object> map,

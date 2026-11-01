@@ -7,23 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,7 +34,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
 
     private static final String AUTH_HEADER_VALUE = "Bearer foo";
 
-    public void testCreateRequest_Default() throws IOException {
+    public void testCreateRequest_Default() throws IOException, URISyntaxException {
         var requestMap = testCreateRequest(null);
         assertThat(requestMap, aMapWithSize(1));
         assertThat(
@@ -47,7 +44,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
 
     }
 
-    public void testCreateRequest_Anthropic() throws IOException {
+    public void testCreateRequest_Anthropic() throws IOException, URISyntaxException {
         var requestMap = testCreateRequest(GoogleModelGardenProvider.ANTHROPIC);
         assertThat(requestMap, aMapWithSize(4));
         assertThat(
@@ -59,7 +56,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
                     "max_tokens",
                     1024,
                     "messages",
-                    List.of(Map.of("role", "user", "content", "Hello Gemini!")),
+                    List.of(Map.of("role", "user", "content", List.of(Map.of("type", "text", "text", "Hello Gemini!")))),
                     "anthropic_version",
                     "vertex-2023-10-16"
                 )
@@ -68,7 +65,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
 
     }
 
-    private static Map<String, Object> testCreateRequest(GoogleModelGardenProvider googleModelGardenProvider) throws IOException {
+    private static Map<String, Object> testCreateRequest(GoogleModelGardenProvider googleModelGardenProvider) throws IOException,
+        URISyntaxException {
         var modelId = "gemini-pro";
         var projectId = "test-project";
         var location = "us-central1";
@@ -77,7 +75,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
 
         var request = createRequest(projectId, location, modelId, messages, null, null, null, googleModelGardenProvider);
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var uri = URI.create(
             Strings.format(
@@ -89,11 +87,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
             )
         );
 
-        assertThat(httpPost.getURI(), equalTo(uri));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri(), equalTo(uri));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        return entityAsMap(httpPost.getEntity().getContent());
+        return entityAsMap(httpPost.getBodyText());
     }
 
     public static GoogleVertexAiUnifiedChatCompletionRequest createRequest(
@@ -115,24 +113,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
             thinkingConfig,
             provider,
             null,
-            null
+            null,
+            AUTH_HEADER_VALUE
         );
         var unifiedChatInput = new UnifiedChatInput(messages, "user", true);
 
-        return new GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest(unifiedChatInput, model);
-    }
-
-    /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
-     */
-    private static class GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest extends GoogleVertexAiUnifiedChatCompletionRequest {
-        GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest(UnifiedChatInput unifiedChatInput, GoogleVertexAiChatCompletionModel model) {
-            super(unifiedChatInput, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
+        return new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model);
     }
 }

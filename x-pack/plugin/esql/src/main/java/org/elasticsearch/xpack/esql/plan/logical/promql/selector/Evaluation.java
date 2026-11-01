@@ -22,19 +22,13 @@ import java.util.Objects;
  * &lt;implicit&gt; offset &lt;optional_offset&gt; @ &lt;optional_at&gt;
  */
 public class Evaluation {
-    public static final Evaluation NONE = new Evaluation(
-        new Literal(Source.EMPTY, Duration.ZERO, DataType.TIME_DURATION),
-        false,
-        Literal.NULL
-    );
+    public static final Evaluation NONE = new Evaluation(new Literal(Source.EMPTY, Duration.ZERO, DataType.TIME_DURATION), Literal.NULL);
 
     private final Literal offset;
-    private final boolean offsetNegative;
     private final Literal at;
 
-    public Evaluation(Literal offset, boolean offsetNegative, Literal at) {
+    public Evaluation(Literal offset, Literal at) {
         this.offset = offset;
-        this.offsetNegative = offsetNegative;
         this.at = at;
     }
 
@@ -42,12 +36,11 @@ public class Evaluation {
         return offset;
     }
 
+    /**
+     * The offset modifier value.
+     */
     public Duration offsetDuration() {
-        return (Duration) offset.value();
-    }
-
-    public boolean offsetNegative() {
-        return offsetNegative;
+        return offset == null || offset.value() == null ? Duration.ZERO : (Duration) offset.value();
     }
 
     public Literal at() {
@@ -63,23 +56,19 @@ public class Evaluation {
             return false;
         }
         Evaluation that = (Evaluation) o;
-        return offsetNegative == that.offsetNegative && Objects.equals(offset, that.offset) && Objects.equals(at, that.at);
+        return Objects.equals(offset, that.offset) && Objects.equals(at, that.at);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(offset, offsetNegative, at);
+        return Objects.hash(offset, at);
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (offset != null && offsetDuration().isZero() == false) {
-            sb.append("offset ");
-            if (offsetNegative) {
-                sb.append("-");
-            }
-            sb.append(offset);
+        if (offsetDuration().isZero() == false) {
+            sb.append("offset ").append(offset);
         }
         if (at != null) {
             if (sb.isEmpty() == false) {

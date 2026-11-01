@@ -44,6 +44,12 @@ public abstract class AbstractTransformStageTestCase extends ESTestCase {
         assertArrayEquals(original, values);
     }
 
+    // Sized to fit the payload (raw longs) plus per-value metadata (up to ~16 bytes for stages
+    // like ALP that write a long plus a VInt position per exception) plus headers and slack.
+    private static int sizeFor(int blockSize) {
+        return blockSize * (Long.BYTES * 3) + 512;
+    }
+
     protected static void assertTransformRoundTrip(final NumericCodecStage stage, final long[] original) throws IOException {
         final int blockSize = original.length;
         final int pipelineLength = 2;
@@ -60,7 +66,7 @@ public abstract class AbstractTransformStageTestCase extends ESTestCase {
         }
 
         encodingContext.applyStage(1);
-        final byte[] buffer = new byte[blockSize * Long.BYTES + 256];
+        final byte[] buffer = new byte[sizeFor(blockSize)];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         BlockFormat.writeBlock(out, values, TestPayloadCodecStage.INSTANCE, encodingContext);
 
@@ -79,7 +85,7 @@ public abstract class AbstractTransformStageTestCase extends ESTestCase {
         final int blockSize = blocks[0].length;
         final int pipelineLength = 2;
 
-        final byte[] buffer = new byte[blocks.length * blockSize * Long.BYTES + 256 * blocks.length];
+        final byte[] buffer = new byte[blocks.length * sizeFor(blockSize)];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
 
         final boolean[] applied = new boolean[blocks.length];

@@ -9,25 +9,29 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.util.hnsw.IntToIntFunction;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
-final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues {
+public final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues {
 
     private final ClusteringFloatVectorValues allValues;
-    private final int[] slice;
+    private final IntToIntFunction ordTranslator;
+    private final int size;
 
-    ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, int[] slice) {
-        assert slice != null;
-        assert slice.length <= allValues.size();
+    public ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, IntToIntFunction ordTranslator, int size) {
+        assert ordTranslator != null;
+        assert allValues.size() >= size;
         this.allValues = allValues;
-        this.slice = slice;
+        this.ordTranslator = ordTranslator;
+        this.size = size;
     }
 
     @Override
     public float[] vectorValue(int ord) throws IOException {
-        return this.allValues.vectorValue(this.slice[ord]);
+        return this.allValues.vectorValue(ordTranslator.apply(ord));
     }
 
     @Override
@@ -37,19 +41,25 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
 
     @Override
     public int size() {
-        return slice.length;
+        return size;
     }
 
     @Override
     public int ordToDoc(int ord) {
-        return this.slice[ord];
+        return ordTranslator.apply(ord);
     }
 
     @Override
     public ClusteringFloatVectorValuesSlice copy() throws IOException {
-        return new ClusteringFloatVectorValuesSlice(this.allValues.copy(), this.slice);
+        return new ClusteringFloatVectorValuesSlice(this.allValues.copy(), this.ordTranslator, size);
     }
 
+    /**
+     * Create a new random slice by sampling indices using reservoir sampling.
+     * @param origin the input vectors to sample
+     * @param k the number of samples
+     * @param seed the random seed
+     */
     static ClusteringFloatVectorValues createRandomSlice(ClusteringFloatVectorValues origin, int k, long seed) {
         if (k >= origin.size()) {
             return origin;
@@ -58,7 +68,24 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
         int[] samples = reservoirSample(origin.size(), k, seed);
         // sort to prevent random backwards access weirdness
         Arrays.sort(samples);
-        return new ClusteringFloatVectorValuesSlice(origin, samples);
+        return new ClusteringFloatVectorValuesSlice(origin, i -> samples[i], k);
+    }
+
+    /**
+     * Create a new random slice by sampling indices using reservoir sampling.
+     * @param origin the input vectors to sample
+     * @param k the number of samples
+     * @param seed the random seed
+     * @param samples where to store the sampled indices
+     */
+    static ClusteringFloatVectorValues createRandomSlice(ClusteringFloatVectorValues origin, int k, long seed, int[] samples) {
+        if (k >= origin.size()) {
+            return origin;
+        }
+        innerReservoirSample(origin.size(), seed, samples);
+        // sort to prevent random backwards access weirdness
+        Arrays.sort(samples);
+        return new ClusteringFloatVectorValuesSlice(origin, i -> samples[i], k);
     }
 
     /**
@@ -70,17 +97,28 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
      * @return array of k samples
      */
     static int[] reservoirSample(int n, int k, long seed) {
-        Random rnd = new Random(seed);
         int[] reservoir = new int[k];
-        for (int i = 0; i < k; i++) {
+        innerReservoirSample(n, seed, reservoir);
+        return reservoir;
+    }
+
+    /**
+     * Sample k elements from n elements according to reservoir sampling algorithm.
+     *
+     * @param n number of elements
+     * @param seed random seed
+     * @param reservoir array of samples
+     */
+    private static void innerReservoirSample(int n, long seed, int[] reservoir) {
+        Random rnd = new Random(seed);
+        for (int i = 0; i < reservoir.length; i++) {
             reservoir[i] = i;
         }
-        for (int i = k; i < n; i++) {
+        for (int i = reservoir.length; i < n; i++) {
             int j = rnd.nextInt(i + 1);
-            if (j < k) {
+            if (j < reservoir.length) {
                 reservoir[j] = i;
             }
         }
-        return reservoir;
     }
 }

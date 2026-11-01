@@ -28,7 +28,7 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","user":"user"}"""));
+            {"input":["abc"],"model":"model","user":"user","encoding_format":"base64"}"""));
     }
 
     public void testXContent_DoesNotWriteUserWhenItIsNull() throws IOException {
@@ -39,7 +39,7 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+            {"input":["abc"],"model":"model","encoding_format":"base64"}"""));
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNotSetByUser() throws IOException {
@@ -50,7 +50,7 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+            {"input":["abc"],"model":"model","encoding_format":"base64"}"""));
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNull_EvenIfSetByUserIsTrue() throws IOException {
@@ -61,7 +61,7 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+            {"input":["abc"],"model":"model","encoding_format":"base64"}"""));
     }
 
     public void testXContent_WritesDimensionsWhenNonNull_AndSetByUserIsTrue() throws IOException {
@@ -72,6 +72,6 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","dimensions":100}"""));
+            {"input":["abc"],"model":"model","dimensions":100,"encoding_format":"base64"}"""));
     }
 }

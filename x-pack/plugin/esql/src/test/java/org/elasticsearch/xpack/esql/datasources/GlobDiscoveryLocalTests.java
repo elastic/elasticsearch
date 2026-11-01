@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -130,6 +132,18 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         assertTrue(result.isResolved());
         // 2 parquet files from glob + 1 literal
         assertEquals(3, result.fileCount());
+    }
+
+    public void testFlatBraceOnlyAlternatives() throws IOException {
+        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,report_2024_02}.parquet", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+    }
+
+    public void testFlatBraceOnlyAlternativesSkipsMissing() throws IOException {
+        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,nonexistent}.parquet", provider);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
     }
 
     // -- randomized tests --
@@ -265,6 +279,10 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
     // -- inline filesystem StorageProvider for testing --
 
     private static class TestLocalStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
 
         @Override
         public StorageObject newObject(StoragePath path) {
@@ -370,7 +388,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         }
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         TestStorageObject(StoragePath path) {

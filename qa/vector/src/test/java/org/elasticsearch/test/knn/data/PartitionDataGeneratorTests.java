@@ -9,17 +9,38 @@
 
 package org.elasticsearch.test.knn.data;
 
+import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.knn.IndexVectorReader;
+import org.elasticsearch.test.knn.KnnIndexer;
 
 import java.util.List;
 import java.util.Map;
 
 public class PartitionDataGeneratorTests extends ESTestCase {
 
+    public void testIndexSortUsesSliceKeyOnlyForSlicedLayout() {
+        PartitionConfiguration partitionConfiguration = new PartitionConfiguration(10, 2, DatasetConfig.PartitionDistribution.UNIFORM);
+        IOSupplier<IndexVectorReader> vectors = () -> new IndexVectorReader.RandomVectorReader(42L, 8, false);
+
+        var sliced = new PartitionDataGenerator(vectors, 10, vectors, 0, partitionConfiguration, true);
+        assertEquals(SliceIndexing.SLICE_KEY_FIELD_NAME, sliced.getIndexSort().getSort()[0].getField());
+
+        var unsliced = new PartitionDataGenerator(vectors, 10, vectors, 0, partitionConfiguration, false);
+        assertEquals(KnnIndexer.PARTITION_ID_FIELD, unsliced.getIndexSort().getSort()[0].getField());
+    }
+
     public void testUniformDistribution() {
         int numDocs = 1000;
         int numPartitions = 10;
-        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, DatasetConfig.PartitionDistribution.UNIFORM, 42L);
+        PartitionConfiguration partitionConfiguration = new PartitionConfiguration(
+            numDocs,
+            numPartitions,
+            DatasetConfig.PartitionDistribution.UNIFORM
+        );
+        IOSupplier<IndexVectorReader> vectors = () -> new IndexVectorReader.RandomVectorReader(42L, 8, false);
+        var generator = new PartitionDataGenerator(vectors, numDocs, vectors, 0, partitionConfiguration, false);
 
         Map<String, List<Integer>> assignments = generator.getPartitionAssignments();
         assertEquals(numPartitions, assignments.size());
@@ -31,7 +52,13 @@ public class PartitionDataGeneratorTests extends ESTestCase {
     public void testZipfDistribution() {
         int numDocs = 1000;
         int numPartitions = 10;
-        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, DatasetConfig.PartitionDistribution.ZIPF, 42L);
+        PartitionConfiguration partitionConfiguration = new PartitionConfiguration(
+            numDocs,
+            numPartitions,
+            DatasetConfig.PartitionDistribution.ZIPF
+        );
+        IOSupplier<IndexVectorReader> vectors = () -> new IndexVectorReader.RandomVectorReader(42L, 8, false);
+        var generator = new PartitionDataGenerator(vectors, numDocs, vectors, 0, partitionConfiguration, false);
 
         Map<String, List<Integer>> assignments = generator.getPartitionAssignments();
         assertEquals(numPartitions, assignments.size());
@@ -48,7 +75,13 @@ public class PartitionDataGeneratorTests extends ESTestCase {
     public void testUniformDistributionUnevenSplit() {
         int numDocs = 103;
         int numPartitions = 10;
-        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, DatasetConfig.PartitionDistribution.UNIFORM, 42L);
+        PartitionConfiguration partitionConfiguration = new PartitionConfiguration(
+            numDocs,
+            numPartitions,
+            DatasetConfig.PartitionDistribution.UNIFORM
+        );
+        IOSupplier<IndexVectorReader> vectors = () -> new IndexVectorReader.RandomVectorReader(42L, 8, false);
+        var generator = new PartitionDataGenerator(vectors, numDocs, vectors, 0, partitionConfiguration, false);
 
         Map<String, List<Integer>> assignments = generator.getPartitionAssignments();
         assertEquals(numPartitions, assignments.size());

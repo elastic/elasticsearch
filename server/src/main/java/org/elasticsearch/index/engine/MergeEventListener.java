@@ -20,6 +20,8 @@ public interface MergeEventListener {
      */
     void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes);
 
+    void onMergeStarted(OnGoingMerge merge);
+
     void onMergeCompleted(OnGoingMerge merge);
 
     void onMergeAborted(OnGoingMerge merge);

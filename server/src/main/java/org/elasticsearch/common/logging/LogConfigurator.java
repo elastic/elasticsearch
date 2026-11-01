@@ -25,7 +25,6 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFact
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.builder.impl.DefaultConfigurationBuilder;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
@@ -62,6 +61,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
@@ -81,6 +81,8 @@ public class LogConfigurator {
             super.log(data);
         }
     };
+
+    private static final AtomicReference<StatusListener> statusLoggerForwarder = new AtomicReference<>();
 
     private static Appender consoleAppender;
 
@@ -136,25 +138,34 @@ public class LogConfigurator {
     private static void configureStatusLoggerForwarder() {
         // the real logger is lazily retrieved here since logging won't yet be setup during clinit of this class
         var logger = LogManager.getLogger("StatusLogger");
+        var reentryGuard = ThreadLocal.withInitial(() -> false);
         var listener = new StatusConsoleListener(Level.WARN) {
             @Override
             public void log(StatusData data) {
-                logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
-                super.log(data);
+                // Only print status events raised by our own forwarding below, forwarding them could loop forever
+                if (reentryGuard.get()) {
+                    super.log(data);
+                    return;
+                }
+                reentryGuard.set(true);
+                try {
+                    logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
+                    super.log(data);
+                } finally {
+                    reentryGuard.remove();
+                }
             }
         };
         StatusLogger.getLogger().registerListener(listener);
+        // Each forwarder only guards against its own re-entry, so a second one would forward the other's status events again
+        var previous = statusLoggerForwarder.getAndSet(listener);
+        if (previous != null) {
+            StatusLogger.getLogger().removeListener(previous);
+        }
     }
 
     public static void configureESLogging() {
         LoggerFactory.setInstance(new LoggerFactoryImpl());
-    }
-
-    /**
-     * Load logging plugins so we can have {@code node_name} in the pattern.
-     */
-    public static void loadLog4jPlugins() {
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
     }
 
     /**
@@ -200,8 +211,6 @@ public class LogConfigurator {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
-
-        loadLog4jPlugins();
 
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
@@ -262,6 +271,15 @@ public class LogConfigurator {
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
                 if (file.getFileName().toString().equals("log4j2.properties")) {
                     configurations.add((PropertiesConfiguration) factory.getConfiguration(context, file.toString(), file.toUri()));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(final Path file, final IOException exc) throws IOException {
+                // ignore failures unrelated to log4j config files
+                if (file.getFileName().toString().equals("log4j2.properties")) {
+                    throw exc;
                 }
                 return FileVisitResult.CONTINUE;
             }

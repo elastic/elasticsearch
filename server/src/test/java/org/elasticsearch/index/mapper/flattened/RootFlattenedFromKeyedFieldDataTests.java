@@ -20,10 +20,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -47,7 +48,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addDoc(writer, binary, "key1\0value1");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
                     assertTrue(values.advanceExact(0));
                     assertEquals(1, values.docValueCount());
                     assertEquals(new BytesRef("value1"), values.nextValue());
@@ -63,7 +64,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addDoc(writer, binary, "key1\0alpha", "key2\0beta", "key3\0gamma");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
                     assertTrue(values.advanceExact(0));
                     assertEquals(3, values.docValueCount());
                     assertEquals(new BytesRef("alpha"), values.nextValue());
@@ -81,7 +82,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addDoc(writer, binary, "key1\0foo", "key2\0foo", "key3\0bar");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
                     assertTrue(values.advanceExact(0));
                     assertEquals(2, values.docValueCount());
                     assertEquals(new BytesRef("bar"), values.nextValue());
@@ -98,7 +99,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addDoc(writer, binary, "a\0same", "b\0same", "c\0same");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
                     assertTrue(values.advanceExact(0));
                     assertEquals(1, values.docValueCount());
                     assertEquals(new BytesRef("same"), values.nextValue());
@@ -114,7 +115,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addDoc(writer, binary, "key1\0zebra", "key2\0apple", "key3\0mango");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
                     assertTrue(values.advanceExact(0));
                     assertEquals(3, values.docValueCount());
                     assertEquals(new BytesRef("apple"), values.nextValue());
@@ -132,7 +133,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 writer.addDocument(new Document());
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
                     assertFalse(values.advanceExact(0));
                 }
             }
@@ -147,7 +148,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addDoc(writer, binary, "c\0y", "d\0z");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
 
                     assertTrue(values.advanceExact(0));
                     assertEquals(2, values.docValueCount());
@@ -187,7 +188,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 }
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, binary);
 
                     // Merge policies may reorder documents, so collect values
                     // as a set of sorted lists without assuming document order.
@@ -241,8 +242,8 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         return ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer.w), new ShardId("test", "_na_", 0));
     }
 
-    private static SortedBinaryDocValues loadRootValues(IndexReader reader, boolean binary) {
-        var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, binary);
+    private static SortableBinaryDocValues loadRootValues(IndexReader reader, boolean binary) {
+        var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, binary, IndexVersion.current());
         IndexFieldData<?> fieldData = builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         return fieldData.load(reader.leaves().get(0)).getBytesValues();
     }

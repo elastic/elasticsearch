@@ -1,0 +1,9 @@
+area: Infra/Core
+issues: []
+pr: 157935
+summary: >
+  When Elasticsearch starts it collects user-supplied JVM options. Direct control of
+  JVM options is not supported. JAVA_TOOL_OPTIONS and _JAVA_OPTIONS were already ignored.
+  JDK_JAVA_OPTIONS is now also ignored. Use jvm.options.d or ES_JAVA_OPTS to pass JVM
+  parameters to Elasticsearch.
+type: bug

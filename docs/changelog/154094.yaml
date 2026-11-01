@@ -1,0 +1,6 @@
+area: "ES|QL"
+issues:
+ - 154068
+pr: 154094
+summary: Fix MATCH fuzziness `ClassCastException` on version fields
+type: bug

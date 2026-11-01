@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import fixture.s3.BlobEntry;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
@@ -19,6 +20,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -43,6 +45,12 @@ public final class S3FixtureUtils {
 
     /** Default S3 secret key for test fixtures */
     public static final String SECRET_KEY = "test-secret-key";
+
+    /** The allowlist setting a test cluster uses to reach its loopback fixture, taken from the setting itself. */
+    public static final String ALLOWED_ENDPOINT_HOSTS_SETTING = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY;
+
+    /** Loopback on any port, which is every fixture this repository starts. */
+    public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1:*,[::1]:*,localhost:*";
 
     /** Default bucket name for test fixtures */
     public static final String BUCKET = "test-bucket";
@@ -84,16 +92,25 @@ public final class S3FixtureUtils {
      * Add a blob to the S3 fixture.
      */
     public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content) {
+        addBlobToFixture(handler, key, content, Instant.now());
+    }
+
+    /**
+     * Add a blob to the S3 fixture with an explicit modification time, for tests whose outcome depends on two blobs
+     * sharing one: a default timestamp is taken at upload, so two uploads can land either side of a second boundary.
+     */
+    public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content, Instant lastModified) {
         String fullPath = "/" + BUCKET + "/" + key;
-        handler.blobs().put(fullPath, new BytesArray(content));
-        logRequest("PUT_OBJECT", fullPath, content.length);
+        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD", lastModified));
+        // A fixture-side upload is not an HTTP request, so it carries no Authorization header.
+        logRequest("PUT_OBJECT", fullPath, content.length, false);
     }
 
     /**
      * Log an S3 request.
      */
-    private static void logRequest(String requestType, String path, long contentLength) {
-        requestLogs.add(new S3RequestLog(requestType, path, contentLength, System.currentTimeMillis()));
+    private static void logRequest(String requestType, String path, long contentLength, boolean signed) {
+        requestLogs.add(new S3RequestLog(requestType, path, contentLength, System.currentTimeMillis(), signed));
     }
 
     /**
@@ -231,12 +248,14 @@ public final class S3FixtureUtils {
         private final String path;
         private final long contentLength;
         private final long timestamp;
+        private final boolean signed;
 
-        public S3RequestLog(String requestType, String path, long contentLength, long timestamp) {
+        public S3RequestLog(String requestType, String path, long contentLength, long timestamp, boolean signed) {
             this.requestType = requestType;
             this.path = path;
             this.contentLength = contentLength;
             this.timestamp = timestamp;
+            this.signed = signed;
         }
 
         public String getRequestType() {
@@ -249,6 +268,15 @@ public final class S3FixtureUtils {
 
         public long getTimestamp() {
             return timestamp;
+        }
+
+        /**
+         * Whether the request carried an {@code Authorization} header. The fixture serves an unsigned request as well, so
+         * a test that must prove the client used its configured credentials, rather than merely not the wrong ones,
+         * asserts this on the requests it caused.
+         */
+        public boolean isSigned() {
+            return signed;
         }
 
         @Override
@@ -312,14 +340,12 @@ public final class S3FixtureUtils {
                 restOfQuery = " " + trimmed.substring(pipeIndex);
             }
 
-            StringBuilder params = new StringBuilder();
-            params.append(" WITH { ");
-            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
-            params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
-            params.append(" }");
+            StringBuilder entries = new StringBuilder();
+            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            entries.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
+            entries.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
 
-            return externalPart + params + restOfQuery;
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
 
         /**
@@ -374,8 +400,9 @@ public final class S3FixtureUtils {
             String query = exchange.getRequestURI().getQuery();
 
             String requestType = classifyRequest(method, path, query);
+            String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
 
-            logRequest(requestType, path, 0);
+            logRequest(requestType, path, 0, authHeader != null);
 
             try {
                 // Allow unauthenticated access when no Authorization header is present.
@@ -383,7 +410,7 @@ public final class S3FixtureUtils {
                 // while still verifying S3 auth when credentials are sent (e.g. from the AWS SDK).
                 // NOTE: This means S3 auth bugs that cause missing Authorization headers will NOT
                 // be caught by this fixture -- only requests that send incorrect credentials are rejected.
-                String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                // A test that needs to catch them asserts S3RequestLog#isSigned on the requests it caused.
                 if (authPredicate == null
                     || authHeader == null
                     || fixture.aws.AwsCredentialsUtils.checkAuthorization(authPredicate, exchange)) {

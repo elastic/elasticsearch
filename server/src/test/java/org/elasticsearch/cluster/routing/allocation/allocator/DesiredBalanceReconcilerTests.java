@@ -1260,7 +1260,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
 
-        var clusterSettings = createBuiltInClusterSettings();
+        var clusterSettings = defaultTestClusterSettings();
         var deciders = new AllocationDecider[] {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
@@ -1352,11 +1352,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         var timeProvider = new AdvancingTimeProvider();
-        var reconciler = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
-            timeProvider,
-            new ShardRelocationOrder.DefaultOrder()
-        );
+        var reconciler = new DesiredBalanceReconciler(defaultTestClusterSettings(), timeProvider, new ShardRelocationOrder.DefaultOrder());
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeProvider.advanceByMillis(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1627,12 +1623,13 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         AtomicReference<DesiredBalanceMetrics.AllocationStats> allocationStatsAtomicReference
     ) {
         allocationStatsAtomicReference.set(
-            new DesiredBalanceReconciler(
-                createBuiltInClusterSettings(),
-                new AdvancingTimeProvider(),
-                new ShardRelocationOrder.DefaultOrder()
-            ).reconcile(desiredBalance, routingAllocation)
+            new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
+                .reconcile(desiredBalance, routingAllocation)
         );
+    }
+
+    private static ClusterSettings defaultTestClusterSettings() {
+        return ClusterSettings.createBuiltInClusterSettings(Settings.EMPTY);
     }
 
     /**
@@ -1679,7 +1676,13 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("should not be called");
             }
-        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, MeterRegistry.NOOP);
+        },
+            clusterInfoService,
+            snapshotsInfoService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP,
+            createBuiltInClusterSettings()
+        );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new NoOpExistingShardsAllocator()));
         return allocationService;
     }

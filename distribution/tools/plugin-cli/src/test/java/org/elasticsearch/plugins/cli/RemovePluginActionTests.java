@@ -45,10 +45,8 @@ public class RemovePluginActionTests extends ESTestCase {
     private Path home;
     private Environment env;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTestEnvironment() throws Exception {
         home = createTempDir();
         Files.createDirectories(home.resolve("bin"));
         Files.createFile(home.resolve("bin").resolve("elasticsearch"));

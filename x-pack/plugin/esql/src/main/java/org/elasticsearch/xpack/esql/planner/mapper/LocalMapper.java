@@ -79,7 +79,16 @@ public class LocalMapper {
         }
 
         if (leaf instanceof ParameterizedQuery pq) {
-            return new ParameterizedQueryExec(pq.source(), pq.output(), pq.matchFields(), pq.joinOnConditions(), null, pq.emptyResult());
+            return new ParameterizedQueryExec(
+                pq.source(),
+                pq.output(),
+                pq.matchFields(),
+                pq.joinOnConditions(),
+                null,
+                pq.emptyResult(),
+                null,
+                null
+            );
         }
 
         if (leaf instanceof ExternalRelation external) {
@@ -113,7 +122,8 @@ public class LocalMapper {
         }
 
         if (unary instanceof TopNBy topNBy) {
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
+                .withNonSortedOutput();
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {
@@ -127,7 +137,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof TsInfo tsInfo) {
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL, tsInfo.limit());
         }
 
         //

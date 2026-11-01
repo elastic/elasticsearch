@@ -7,7 +7,14 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
@@ -16,7 +23,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -27,9 +36,20 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
-    public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() throws Exception {
+    /**
+     * The placeholder will always be substituted with a concrete non-null double before execution.
+     * It must not be treated as nullable by optimizer rules (e.g. FoldNull, PropagateNullable).
+     */
+    public void testSampleProbabilityPlaceHolderIsNotNullable() {
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(Source.EMPTY, randomInt());
+        assertThat(placeholder.nullable(), equalTo(Nullability.FALSE));
+    }
+
+    public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)");
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -40,9 +60,11 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
-    public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
+    public void testApproximationPlan_createsConfidenceInterval_withGrouping() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no");
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -53,11 +75,13 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
-    public void testApproximationPlan_dependentConfidenceIntervals() throws Exception {
+    public void testApproximationPlan_dependentConfidenceIntervals() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan(
-                "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
-            ),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -76,14 +100,99 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(e)"))));
     }
 
-    public void testColumnMetadata() throws Exception {
+    public void testApproximationPlan_withFork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM test | FORK (STATS sum=SUM(emp_no)) (KEEP emp_no) (WHERE emp_no < 10 | STATS max=MAX(emp_no))"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+        assertThat(
+            approximationPlan.output().stream().map(Attribute::name).toList(),
+            contains("sum", "_fork", "emp_no", "max", "_approximation_confidence_interval(sum)", "_approximation_certified(sum)")
+        );
+    }
+
+    public void testApproximationPlan_withNonApproximableSubqueries() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM (FROM test | LIMIT 1 | STATS bad = COUNT(*)), (FROM test | STATS good = COUNT(*))"
+        );
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+        assertThat(
+            approximationPlan.output().stream().map(Attribute::name).toList(),
+            contains("bad", "good", "_approximation_confidence_interval(good)", "_approximation_certified(good)")
+        );
+    }
+
+    public void testApproximationPlan_percentileBucketUsesReducedCompression() {
+        assertBucketUsesReducedCompression("FROM test | STATS PERCENTILE(emp_no, 95)");
+    }
+
+    /**
+     * MEDIAN is substituted by PERCENTILE(50) during optimization. Bucket columns therefore appear as
+     * Percentile with reduced compression while the main aggregate retains full precision.
+     */
+    public void testApproximationPlan_medianBucketUsesReducedCompression() {
+        assertBucketUsesReducedCompression("FROM test | STATS MEDIAN(emp_no)");
+    }
+
+    private void assertBucketUsesReducedCompression(String query) {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(query);
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+
+        List<SampledAggregate> sampledAggs = approximationPlan.collect(SampledAggregate.class);
+        assertThat(sampledAggs, hasSize(1));
+        SampledAggregate sampledAgg = sampledAggs.getFirst();
+
+        // Bucket aggregates use reduced compression for memory efficiency.
+        List<Percentile> bucketPercentiles = sampledAgg.aggregates()
+            .stream()
+            .filter(
+                ne -> ne instanceof Alias a && a.child() instanceof Percentile && ne.name().contains(ApproximationPlan.BUCKET_NAME_PART)
+            )
+            .map(ne -> (Percentile) ((Alias) ne).child())
+            .toList();
+        assertThat(bucketPercentiles, hasSize(ApproximationPlan.TRIAL_COUNT * ApproximationPlan.BUCKET_COUNT));
+        for (Percentile bucketPercentile : bucketPercentiles) {
+            assertThat(bucketPercentile.tDigestStateCompression(), equalTo(ApproximationPlan.PERCENTILE_BUCKET_TDIGEST_STATE_COMPRESSION));
+        }
+
+        // Main aggregate retains full compression for accurate results.
+        List<Percentile> mainPercentiles = sampledAgg.aggregates()
+            .stream()
+            .filter(
+                ne -> ne instanceof Alias a
+                    && a.child() instanceof Percentile
+                    && ne.name().contains(ApproximationPlan.BUCKET_NAME_PART) == false
+            )
+            .map(ne -> (Percentile) ((Alias) ne).child())
+            .toList();
+        assertThat(mainPercentiles, hasSize(1));
+        assertThat(mainPercentiles.getFirst().tDigestStateCompression(), equalTo(QuantileStates.DEFAULT_COMPRESSION));
+    }
+
+    public void testColumnMetadata() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)");
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
         for (Attribute attr : approximationPlan.output()) {
-            Map<String, Object> metadata = ApproximationPlan.columnMetadata(attr);
+            Map<String, Object> metadata = ApproximationPlan.createColumnMetadata(attr);
             switch (attr.name()) {
                 case "count", "sum":
                     assertThat(attr.synthetic(), equalTo(false));

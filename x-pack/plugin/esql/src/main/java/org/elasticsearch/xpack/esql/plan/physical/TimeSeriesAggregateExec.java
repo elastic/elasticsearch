@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -37,8 +39,13 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         TimeSeriesAggregateExec::new
     );
 
+    // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
+    // handled by TimeSeriesCollapseExec rather than a flag on this node.
+    private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_COLLAPSED = TransportVersion.fromName(
+        "time_series_aggregate_collapsed"
+    );
+
     private final Bucket timeBucket;
-    private final Bucket outputTimeBucket;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -50,32 +57,18 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
-        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket);
-    }
-
-    public TimeSeriesAggregateExec(
-        Source source,
-        PhysicalPlan child,
-        List<? extends Expression> groupings,
-        List<? extends NamedExpression> aggregates,
-        AggregatorMode mode,
-        List<Attribute> intermediateAttributes,
-        Integer estimatedRowSize,
-        Bucket timeBucket,
-        Bucket outputTimeBucket
-    ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
-        this.outputTimeBucket = outputTimeBucket;
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
         if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
-            this.outputTimeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
-        } else {
-            this.outputTimeBucket = this.timeBucket;
+            in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
+            in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapseExec
         }
     }
 
@@ -84,7 +77,10 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
         if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
-            out.writeOptionalWriteable(outputTimeBucket);
+            out.writeOptionalWriteable(timeBucket);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
+            out.writeBoolean(false);
         }
     }
 
@@ -104,8 +100,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -119,8 +114,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -134,8 +128,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -149,8 +142,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             newMode,
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -164,8 +156,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize,
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -173,8 +164,18 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return timeBucket;
     }
 
-    public Bucket outputTimeBucket() {
-        return outputTimeBucket;
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeBucket);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
+        return Objects.equals(timeBucket, other.timeBucket);
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
@@ -188,14 +189,4 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return rounding;
     }
 
-    public Rounding.Prepared outputTimeBucketRounding(FoldContext foldContext) {
-        if (outputTimeBucket == null) {
-            return null;
-        }
-        Rounding.Prepared rounding = outputTimeBucket.getDateRoundingOrNull(foldContext);
-        if (rounding == null) {
-            throw new EsqlIllegalArgumentException("expected output TBUCKET; got ", outputTimeBucket);
-        }
-        return rounding;
-    }
 }

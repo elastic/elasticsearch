@@ -17,6 +17,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StSimplify extends SpatialDocValuesFunction {
+public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StSimplify",
@@ -57,21 +57,22 @@ public class StSimplify extends SpatialDocValuesFunction {
         .name("st_simplify");
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,
-        DouglasPeuckerSimplifier::simplify
+        IterativeDouglasPeuckerSimplifier::simplify
     );
     private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(
         GEO,
-        DouglasPeuckerSimplifier::simplify
+        IterativeDouglasPeuckerSimplifier::simplify
     );
     private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
         CARTESIAN,
-        DouglasPeuckerSimplifier::simplify
+        IterativeDouglasPeuckerSimplifier::simplify
     );
     private final Expression geometry;
     private final Expression tolerance;
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
+        briefSummary = "Simplifies the input geometry using the Douglas-Peucker algorithm with a specified tolerance.",
         description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
@@ -91,6 +92,7 @@ public class StSimplify extends SpatialDocValuesFunction {
         @Param(
             name = "tolerance",
             type = { "double", "float", "long", "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Tolerance for the geometry simplification, in the units of the input SRS"
         ) Expression tolerance
     ) {

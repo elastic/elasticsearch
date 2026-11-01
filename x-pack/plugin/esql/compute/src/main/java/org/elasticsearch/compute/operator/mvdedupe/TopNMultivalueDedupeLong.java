@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -68,7 +68,7 @@ public class TopNMultivalueDedupeLong {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -106,7 +106,7 @@ public class TopNMultivalueDedupeLong {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -195,7 +195,7 @@ public class TopNMultivalueDedupeLong {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 0) {
             builder.appendNull();
             return;
@@ -216,7 +216,7 @@ public class TopNMultivalueDedupeLong {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 0) {
             builder.appendNull();
             return;
@@ -242,7 +242,7 @@ public class TopNMultivalueDedupeLong {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 0) {
             builder.appendNull();
             return;
@@ -305,7 +305,7 @@ public class TopNMultivalueDedupeLong {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -379,7 +379,7 @@ public class TopNMultivalueDedupeLong {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hashAdd(IntBlock.Builder builder, LongHash hash, long v) {
+    private void hashAdd(IntBlock.Builder builder, LongHashTable hash, long v) {
         if (isAcceptable.test(v)) {
             hashAddNoCheck(builder, hash, v);
         } else {
@@ -387,15 +387,15 @@ public class TopNMultivalueDedupeLong {
         }
     }
 
-    private void hashAddNoCheck(IntBlock.Builder builder, LongHash hash, long v) {
+    private void hashAddNoCheck(IntBlock.Builder builder, LongHashTable hash, long v) {
         appendFound(builder, hash.add(v));
     }
 
-    private long hashLookup(LongHash hash, long v) {
+    private long hashLookup(LongHashTable hash, long v) {
         return isAcceptable.test(v) ? hash.find(v) : -1;
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, long v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongHashTable hash, long v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);

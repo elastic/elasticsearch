@@ -28,12 +28,14 @@ public class DockerAvailability {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerAvailability.class);
 
-    private static final boolean EXCLUDED_OS = isExcludedOs();
-    private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
-    private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
+    private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"))
+        || System.getenv("BUILDKITE_BUILD_URL") != null
+        || System.getenv("JENKINS_URL") != null;
+    private static final boolean EXCLUDED_OS = isExcludedOs(CI);
+    private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
 
-    static void assumeDockerIsAvailable() {
+    public static void assumeDockerIsAvailable() {
         org.junit.Assume.assumeFalse("The current OS is excluded from Docker-based tests", EXCLUDED_OS);
         if (CI && DOCKER_PROBING_SUCCESSFUL == false) {
             throw new AssertionError("Docker is expected to be available on this CI node but probing failed.");
@@ -56,8 +58,8 @@ public class DockerAvailability {
         }
     }
 
-    private static boolean isExcludedOs() {
-        if (CI == false) {
+    private static boolean isExcludedOs(boolean ci) {
+        if (ci == false) {
             // we dont exclude OS outside of CI environment
             return false;
         }
@@ -114,8 +116,9 @@ public class DockerAvailability {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())
                     .stream()
+                    .map(line -> line.contains("#") ? line.substring(0, line.indexOf('#')) : line)
                     .map(String::trim)
-                    .filter(line -> (line.isEmpty() || line.startsWith("#")) == false)
+                    .filter(line -> line.isEmpty() == false)
                     .collect(Collectors.toList());
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read " + exclusionsFile.getAbsolutePath(), e);

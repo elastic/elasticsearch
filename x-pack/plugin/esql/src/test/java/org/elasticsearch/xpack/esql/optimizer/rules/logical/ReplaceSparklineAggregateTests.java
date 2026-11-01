@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -36,6 +36,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -47,11 +48,15 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
 
     private static final String SPARKLINE_EXPR = "sparkline(count(*), hire_date, 10, \"2024-01-01\", \"2024-12-31\")";
 
+    public ReplaceSparklineAggregateTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Before
     public void checkCapability() {
         assumeTrue(
             "sparkline should be enabled",
-            EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), false).capabilities().contains("fn_sparkline")
+            EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false).capabilities().contains("fn_sparkline")
         );
     }
 
@@ -233,7 +238,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             aggregate.aggregates().size()
         );
         List<String> expectedAggregates = new ArrayList<>();
-        expectedAggregates.add("$$timestamp");
+        expectedAggregates.add("$$sparkline$timestamp");
         expectedAggregates.addAll(sparklineAggregateNames);
         nonSparklineAggregateNames.forEach(agg -> { expectedAggregates.add("$$" + agg); });
         expectedAggregates.addAll(groupings);
@@ -241,7 +246,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             assertThat(expectedAggregates, hasItem(agg.name()));
             if (sparklineAggregateNames.contains(agg.name())) {
                 assertThat(agg, instanceOf(Alias.class));
-            } else if (agg.name().equals("$$timestamp")) {
+            } else if (agg.name().equals("$$sparkline$timestamp")) {
                 // No need to check the exact class here, but it should be some kind of attribute representing the timestamp for bucketing
                 assertThat(agg, instanceOf(ReferenceAttribute.class));
             } else if (groupings.contains(agg.name())) {
@@ -260,7 +265,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
 
         assertEquals(aggregate.groupings().size(), groupings.size() + 1);
         List<String> expectedGroupings = new ArrayList<>(groupings);
-        expectedGroupings.add("$$timestamp");
+        expectedGroupings.add("$$sparkline$timestamp");
         for (Expression grouping : aggregate.groupings()) {
             assertThat(expectedGroupings, hasItem(Expressions.name(grouping)));
             expectedGroupings.remove(Expressions.name(grouping));
@@ -282,13 +287,13 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             aggregate.aggregates().size()
         );
         List<String> expectedAggregates = new ArrayList<>();
-        expectedAggregates.add("$$timestamp");
+        expectedAggregates.add("$$sparkline$timestamp");
         expectedAggregates.addAll(sparklineAggregateNames);
         expectedAggregates.addAll(nonSparklineAggregateNames);
         expectedAggregates.addAll(groupings);
         for (NamedExpression agg : aggregate.aggregates()) {
             assertThat(expectedAggregates, hasItem(agg.name()));
-            if (sparklineAggregateNames.contains(agg.name()) || agg.name().equals("$$timestamp")) {
+            if (sparklineAggregateNames.contains(agg.name()) || agg.name().equals("$$sparkline$timestamp")) {
                 assertThat(agg, instanceOf(Alias.class));
                 Alias alias = (Alias) agg;
                 assertThat(alias.child(), instanceOf(Top.class));
@@ -411,5 +416,41 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
         Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
         validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of(), List.of("last_name"));
+    }
+
+    /**
+     * Verifies that when the sparkline inner aggregate's field is a non-trivial scalar expression
+     * (e.g. {@code SUM(SIN(salary))}), the scalar is extracted into a preceding {@code Eval} so
+     * that the physical aggregator receives a correctly-typed channel.
+     * <p>
+     *     Without this extraction, {@code SumDoubleGroupingAggregatorFunction} is assigned
+     *     {@code salary}'s INTEGER-typed channel instead of a DOUBLE-typed channel,
+     *     causing a {@code ClassCastException} at runtime.
+     * </p>
+     */
+    public void testSparklineWithNestedScalarInAggField() {
+        UnaryPlan plan = as(
+            plan("from test | stats s = sparkline(sum(sin(salary)), hire_date, 10, \"2024-01-01\", \"2024-12-31\")"),
+            UnaryPlan.class
+        );
+        SparklineGenerateEmptyBuckets sparkline = as(plan.child(), SparklineGenerateEmptyBuckets.class);
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+
+        // The SUM in phase 1 must reference an Attribute (pointing to an Eval-extracted SIN alias),
+        // not the raw SIN(salary) expression. If this assertion fails, the physical planner assigns
+        // salary's INTEGER channel to SumDoubleGroupingAggregatorFunction, causing a ClassCastException.
+        NamedExpression sAlias = firstPhase.aggregates()
+            .stream()
+            .filter(agg -> agg.name().equals("s"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("first-phase aggregate missing 's'"));
+        assertThat(sAlias, instanceOf(Alias.class));
+        Sum sum = as(((Alias) sAlias).child(), Sum.class);
+        assertThat(
+            "SUM's field must be an Attribute (extracted to Eval), not a raw scalar expression",
+            sum.field(),
+            instanceOf(Attribute.class)
+        );
     }
 }

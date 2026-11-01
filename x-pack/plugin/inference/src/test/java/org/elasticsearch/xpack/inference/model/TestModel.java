@@ -38,6 +38,7 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class TestModel extends Model {
 
+    // TODO: Randomly use task type EMBEDDING
     public static TestModel createRandomInstance() {
         return createRandomInstance(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
     }
@@ -52,7 +53,7 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
-        if (taskType == TaskType.TEXT_EMBEDDING) {
+        if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
             // TODO: bfloat16
             var elementType = randomFrom(
                 DenseVectorFieldMapper.ElementType.FLOAT,
@@ -81,7 +82,7 @@ public class TestModel extends Model {
 
             return new TestModel(
                 randomAlphaOfLength(4),
-                TaskType.TEXT_EMBEDDING,
+                taskType,
                 randomAlphaOfLength(10),
                 new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
                 new TestModel.TestTaskSettings(randomInt(3)),

@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
@@ -177,7 +177,7 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
         }
     }
 
-    static class Request extends LegacyActionRequest {
+    static class Request extends UntypedActionRequest {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;

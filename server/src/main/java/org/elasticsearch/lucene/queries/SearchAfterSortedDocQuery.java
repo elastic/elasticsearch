@@ -80,7 +80,7 @@ public class SearchAfterSortedDocQuery extends Query {
                 if (firstDoc >= maxDoc) {
                     return null;
                 }
-                final DocIdSetIterator disi = new MinDocQuery.MinDocIterator(firstDoc, maxDoc);
+                final DocIdSetIterator disi = DocIdSetIterator.range(firstDoc, maxDoc);
                 Scorer scorer = new ConstantScoreScorer(score(), scoreMode, disi);
                 return new DefaultScorerSupplier(scorer);
             }

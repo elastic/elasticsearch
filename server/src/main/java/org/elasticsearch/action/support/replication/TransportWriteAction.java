@@ -11,7 +11,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -46,7 +45,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -119,7 +117,7 @@ public abstract class TransportWriteAction<
     protected Releasable checkOperationLimits(Request request) {
         return indexingPressure.validateAndMarkPrimaryOperationStarted(
             primaryOperationCount(request),
-            primaryOperationSize(request),
+            primaryBytesWithContext(request),
             primaryLargestOperationSize(request),
             force(request),
             primaryAllowsOperationsBeyondSizeLimit(request)
@@ -145,7 +143,7 @@ public abstract class TransportWriteAction<
             if (localRerouteInitiatedByNodeClient) {
                 return indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
                     primaryOperationCount(request),
-                    primaryOperationSize(request),
+                    primaryBytesWithContext(request),
                     primaryLargestOperationSize(request),
                     primaryAllowsOperationsBeyondSizeLimit(request)
                 );
@@ -158,13 +156,37 @@ public abstract class TransportWriteAction<
             // primary delegation, after the primary relocation hand-off.
             return indexingPressure.validateAndMarkPrimaryOperationStarted(
                 primaryOperationCount(request),
-                primaryOperationSize(request),
+                primaryBytesWithContext(request),
                 primaryLargestOperationSize(request),
                 force(request),
                 primaryAllowsOperationsBeyondSizeLimit(request)
             );
 
         }
+    }
+
+    /**
+     * Bytes a primary request retains while in flight: its payload plus its request context. A locally rerouted request shares the
+     * coordinating request's context, which counts toward the primary stats but is not charged against the limit again.
+     */
+    private long primaryBytesWithContext(Request request) {
+        return primaryOperationSize(request) + requestContextBytes();
+    }
+
+    /**
+     * Bytes a replica request retains while in flight: its payload plus its request context. Every replica reservation goes through
+     * this rather than {@link #replicaOperationSize}, because subclasses override that hook to size the payload alone.
+     */
+    private long replicaBytes(ReplicaRequest request) {
+        return replicaOperationSize(request) + requestContextBytes();
+    }
+
+    /**
+     * Estimated size of the request context (headers and transient security metadata) that a request retains for as long as it is
+     * in flight.
+     */
+    private long requestContextBytes() {
+        return threadPool.getThreadContext().estimatedRequestContextBytes();
     }
 
     protected long primaryOperationSize(Request request) {
@@ -185,7 +207,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationCount(request), replicaOperationSize(request), force(request));
+        return indexingPressure.markReplicaOperationStarted(replicaOperationCount(request), replicaBytes(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -206,20 +228,34 @@ public abstract class TransportWriteAction<
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
             throw failure;
         } else {
-            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+            location = locationToSync(currentLocation, operationResult.getTranslogLocation(), false);
         }
         return location;
     }
 
-    public static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next, boolean isBatch) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous
          * locations even though they are not in the same file. When the translog rolls over files
          * the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+        assert assertLocation(current, next, isBatch);
         return next;
+    }
+
+    private static boolean assertLocation(Location current, Location next, boolean isBatch) {
+        if (next == null) {
+            throw new AssertionError("next operation can't be null");
+        }
+        if (current != null) {
+            int cmp = current.compareTo(next);
+            if (isBatch ? cmp > 0 : cmp >= 0) {
+                throw new AssertionError(
+                    isBatch ? "all batch operations must be the same or increasing" : "translog locations are not increasing"
+                );
+            }
+        }
+        return true;
     }
 
     @Override
@@ -227,64 +263,15 @@ public abstract class TransportWriteAction<
         return new WriteActionReplicasProxy();
     }
 
-    /**
-     * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
-     *
-     * @param listener listener for the result of the operation on primary, including current translog location and operation response
-     * and failure async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
-     */
     @Override
-    protected void shardOperationOnPrimary(
-        Request request,
-        IndexShard primary,
-        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
-    ) {
-        executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                dispatchedShardOperationOnPrimary(request, primary, listener);
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return force(request);
-            }
-        });
+    protected Executor handlerExecutor(IndexShard indexShard) {
+        return executor(indexShard);
     }
 
-    protected abstract void dispatchedShardOperationOnPrimary(
-        Request request,
-        IndexShard primary,
-        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
-    );
-
-    /**
-     * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
-     *
-     * @param listener listener for the result of the operation on replica, including current translog location and operation
-     * response and failure async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code>
-     * refresh policy
-     */
     @Override
-    protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        executorFunction.apply(executorSelector, replica).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                dispatchedShardOperationOnReplica(request, replica, listener);
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-        });
+    protected boolean isForceExecutionOnPrimary(Request request) {
+        return force(request);
     }
-
-    protected abstract void dispatchedShardOperationOnReplica(
-        ReplicaRequest request,
-        IndexShard replica,
-        ActionListener<ReplicaResult> listener
-    );
 
     /**
      * Result of taking the action on the primary.
@@ -298,7 +285,6 @@ public abstract class TransportWriteAction<
         public final IndexShard primary;
         private final Logger logger;
         private final PostWriteRefresh postWriteRefresh;
-        private final Consumer<Runnable> postWriteAction;
 
         public WritePrimaryResult(
             ReplicaRequest request,
@@ -308,24 +294,11 @@ public abstract class TransportWriteAction<
             Logger logger,
             PostWriteRefresh postWriteRefresh
         ) {
-            this(request, finalResponse, location, primary, logger, postWriteRefresh, null);
-        }
-
-        public WritePrimaryResult(
-            ReplicaRequest request,
-            @Nullable Response finalResponse,
-            @Nullable Location location,
-            IndexShard primary,
-            Logger logger,
-            PostWriteRefresh postWriteRefresh,
-            @Nullable Consumer<Runnable> postWriteAction
-        ) {
             super(request, finalResponse);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
             this.postWriteRefresh = postWriteRefresh;
-            this.postWriteAction = postWriteAction;
         }
 
         @Override
@@ -345,7 +318,7 @@ public abstract class TransportWriteAction<
                 public void onFailure(Exception ex) {
                     listener.onFailure(ex);
                 }
-            }, logger, postWriteRefresh, postWriteAction).run();
+            }, logger, postWriteRefresh).run();
         }
     }
 
@@ -357,7 +330,6 @@ public abstract class TransportWriteAction<
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
-        private final Consumer<Runnable> postWriteAction;
 
         public WriteReplicaResult(
             ReplicaRequest request,
@@ -366,23 +338,11 @@ public abstract class TransportWriteAction<
             IndexShard replica,
             Logger logger
         ) {
-            this(request, location, operationFailure, replica, logger, null);
-        }
-
-        public WriteReplicaResult(
-            ReplicaRequest request,
-            @Nullable Location location,
-            @Nullable Exception operationFailure,
-            IndexShard replica,
-            Logger logger,
-            Consumer<Runnable> postWriteAction
-        ) {
             super(operationFailure);
             this.location = location;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
-            this.postWriteAction = postWriteAction;
         }
 
         @Override
@@ -400,7 +360,7 @@ public abstract class TransportWriteAction<
                     public void onFailure(Exception ex) {
                         listener.onFailure(ex);
                     }
-                }, logger, null, postWriteAction).run();
+                }, logger, null).run();
             }
         }
     }
@@ -451,7 +411,6 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
         private final PostWriteRefresh postWriteRefresh;
-        private final Consumer<Runnable> postWriteAction;
         private final TimeValue postWriteRefreshTimeout;
 
         AsyncAfterWriteAction(
@@ -460,8 +419,7 @@ public abstract class TransportWriteAction<
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
             final Logger logger,
-            @Nullable final PostWriteRefresh postWriteRefresh,
-            @Nullable final Consumer<Runnable> postWriteAction
+            @Nullable final PostWriteRefresh postWriteRefresh
         ) {
             this.indexShard = indexShard;
             this.request = request;
@@ -469,14 +427,10 @@ public abstract class TransportWriteAction<
             this.respond = respond;
             this.location = location;
             this.postWriteRefresh = postWriteRefresh;
-            this.postWriteAction = postWriteAction;
             if (needsRefreshAction) {
                 pendingOps.incrementAndGet();
             }
             if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
-                pendingOps.incrementAndGet();
-            }
-            if (postWriteAction != null) {
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
@@ -549,9 +503,6 @@ public abstract class TransportWriteAction<
                     syncFailure.set(e);
                     maybeFinish();
                 });
-            }
-            if (postWriteAction != null) {
-                postWriteAction.accept(this::maybeFinish);
             }
         }
     }

@@ -225,7 +225,8 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         blockRecovery.countDown();
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));
-        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recovery = recoveryInfo.recoveryState();
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
             }
@@ -521,7 +522,8 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     }
 
     private void assertNoOpRecoveries(String indexName) {
-        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recovery = recoveryInfo.recoveryState();
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
                 var translog = recovery.getTranslog();

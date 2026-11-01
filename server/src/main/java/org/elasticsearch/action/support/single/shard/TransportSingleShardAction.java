@@ -16,9 +16,11 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -27,21 +29,24 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -62,14 +67,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
     TransportAction<Request, Response> {
-
-    // How long to wait to see a shard routing update after receiving a stale request failure
-    // Deliberately is not registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS because it is only for tests
-    public static final Setting<TimeValue> ROUTE_REFRESH_TIMEOUT = Setting.timeSetting(
-        "single_shard_action.route_refresh_timeout",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope
-    );
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -167,6 +164,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private final ShardsIterator shardIt;
         private final InternalRequest internalRequest;
         private final DiscoveryNodes nodes;
+        private final ProjectState projectState;
         private volatile Exception lastFailure;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
@@ -182,6 +180,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 );
             }
             nodes = project.cluster().nodes();
+            projectState = project;
             ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;
@@ -202,7 +201,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
 
             this.shardIt = shards(project, internalRequest);
-            if (request instanceof SplitAwareRequest splitAwareRequest) {
+            if (request instanceof RetryableSplitAwareRequest splitAwareRequest) {
                 splitAwareRequest.setSplitShardCountSummary(project.metadata(), concreteSingleIndex);
             }
         }
@@ -229,6 +228,44 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             perform(e);
         }
 
+        /**
+         * The failure to report when no copy could serve the request: a {@link ShardRestoringException} if the shard is being restored by
+         * a restore that asked for its shards to be reported, otherwise the usual {@link NoShardAvailableActionException}.
+         */
+        private Exception noShardAvailableFailure(@Nullable Exception cause) {
+            final ShardRestoringException restoring = restoringShardFailure();
+            if (restoring != null) {
+                return restoring;
+            }
+            return new NoShardAvailableActionException(
+                null,
+                LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
+                cause
+            );
+        }
+
+        /**
+         * Returns a {@link ShardRestoringException} if the shard this request is for is being restored by a restore that asked for its
+         * shards to be reported, or {@code null} otherwise, in which case the caller reports the usual
+         * {@link NoShardAvailableActionException}.
+         *
+         * <p>The iterator can have no copies at all while the primary restores (in stateless a search copy is not assigned until the
+         * primary is active), so the shard is taken from the iterator itself rather than from one of its copies. An index-level iterator
+         * is for any shard of the index, so the index is checked instead. A shard iterator without a shard id is the one some actions
+         * return when a {@code _shards} preference leaves out the shard that the request routes to: the preference rather than the restore
+         * is what stops that request, so it is not reported.
+         */
+        @Nullable
+        private ShardRestoringException restoringShardFailure() {
+            final ClusterState state = projectState.cluster();
+            if (shardIt instanceof ShardIterator shardIterator) {
+                final ShardId shardId = shardIterator.shardId();
+                return shardId == null ? null : RestoreService.reportableRestoreException(projectState.projectId(), shardId, state);
+            }
+            final IndexMetadata index = projectState.metadata().index(internalRequest.concreteIndex());
+            return index == null ? null : RestoreService.reportableRestoreException(projectState.projectId(), index.getIndex(), state);
+        }
+
         private void perform(@Nullable final Exception currentFailure) {
             Exception lastFailure = this.lastFailure;
             if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
@@ -243,11 +280,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(
-                        null,
-                        LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
-                        failure
-                    );
+                    failure = noShardAvailableFailure(failure);
                 } else {
                     logger.debug(() -> format("%s: failed to execute [%s]", null, internalRequest.request()), failure);
                 }
@@ -287,8 +320,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         // e.g., due to a resharding operation.
         // Waits for the routing table to refresh, then restarts the request from the top
         private void waitForRoutingUpdateAndRestart(StaleRequestException staleRequestException) {
-            if (internalRequest.request() instanceof SplitAwareRequest splitAwareRequest) {
-                final var staleSummary = splitAwareRequest.getSplitShardCountSummary();
+            if (internalRequest.request() instanceof RetryableSplitAwareRequest retryableSplitAwareRequest) {
+                final var staleSummary = retryableSplitAwareRequest.getSplitShardCountSummary();
                 logger.debug("retrying request due to stale route: {}", internalRequest.request());
                 // TransportGetAction.getFromTranslog has a similar pattern for handling failures.
                 // These observers could add up though -- it might be nice to try to share them across requests.
@@ -313,14 +346,17 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     // this is a predicate with a side effect, apologies!
                     // it's because the summary calculation is the responsibility of the request
                     // implementation, and we don't currently have a non-mutating calculator
-                    splitAwareRequest.setSplitShardCountSummary(
+                    retryableSplitAwareRequest.setSplitShardCountSummary(
                         projectResolver.getProjectState(state).metadata(),
                         internalRequest.concreteIndex()
                     );
-                    return splitAwareRequest.getSplitShardCountSummary().equals(staleSummary) == false;
-                }, ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
+                    return retryableSplitAwareRequest.getSplitShardCountSummary().equals(staleSummary) == false;
+                }, ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
             } else {
-                assert false : "refreshRouting called without a SplitAwareRequest: " + internalRequest.request();
+                // SplitAwareRequest marks requests that intentionally opted out of retries.
+                // So we bubble the stale request exception up to be retried on a higher level.
+                assert internalRequest.request() instanceof SplitAwareRequest
+                    : "refreshRouting called without a SplitAwareRequest: " + internalRequest.request();
                 listener.onFailure(staleRequestException);
             }
         }

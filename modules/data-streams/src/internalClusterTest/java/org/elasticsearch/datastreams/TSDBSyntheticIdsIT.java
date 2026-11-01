@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -50,10 +51,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
-import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.engine.Engine;
@@ -62,6 +64,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -152,7 +155,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testInvalidIndexMode() {
         final var indexName = randomIdentifier();
-        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
 
         var exception = expectThrows(
             IllegalArgumentException.class,
@@ -387,6 +390,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         if (randomBoolean()) {
             logger.info("--> restarting the cluster");
             internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
+            ensureGreen(dataStreamName);
         } else {
             // Move all the shards to a new node to force relocations
             var newNodeName = internalCluster().startDataOnlyNode();
@@ -644,61 +648,55 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(previous, nullValue());
         }
 
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (IndexService indexService : indicesService) {
-                if (docsIndices.contains(indexService.index().getName())) {
-                    for (IndexShard indexShard : indexService) {
-                        final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
+        internalCluster().forEveryIndexShard(docsIndices, indexShard -> {
+            final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
 
-                        // Read operations from the Translog
-                        try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
-                            assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+            // Read operations from the Translog
+            try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
+                assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
 
-                            Translog.Operation operation;
-                            while ((operation = translogSnapshot.next()) != null) {
-                                assertTranslogOperation(
-                                    indexService.index().getName(),
-                                    indexShard.mapperService().documentMapper(),
-                                    operation,
-                                    docsIdsBySeqNo::get,
-                                    docsIndicesById::get,
-                                    useNestedDocs
-                                );
-                            }
-                        }
+                Translog.Operation operation;
+                while ((operation = translogSnapshot.next()) != null) {
+                    assertTranslogOperation(
+                        indexShard.shardId().getIndexName(),
+                        indexShard.mapperService().documentMapper(),
+                        operation,
+                        docsIdsBySeqNo::get,
+                        docsIndicesById::get,
+                        useNestedDocs
+                    );
+                }
+            }
 
-                        // Read operations from the Lucene index
-                        try (
-                            var luceneSnapshot = indexShard.newChangesSnapshot(
-                                getTestName(),
-                                0,
-                                Long.MAX_VALUE,
-                                false,
-                                true,
-                                true,
-                                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
-                            )
-                        ) {
-                            assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+            // Read operations from the Lucene index
+            try (
+                var luceneSnapshot = indexShard.newChangesSnapshot(
+                    getTestName(),
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    true,
+                    true,
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                )
+            ) {
+                assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
 
-                            if (docsIdsBySeqNo.isEmpty() == false) {
-                                Translog.Operation operation;
-                                while ((operation = luceneSnapshot.next()) != null) {
-                                    assertTranslogOperation(
-                                        indexService.index().getName(),
-                                        indexShard.mapperService().documentMapper(),
-                                        operation,
-                                        docsIdsBySeqNo::get,
-                                        docsIndicesById::get,
-                                        useNestedDocs
-                                    );
-                                }
-                            }
-                        }
+                if (docsIdsBySeqNo.isEmpty() == false) {
+                    Translog.Operation operation;
+                    while ((operation = luceneSnapshot.next()) != null) {
+                        assertTranslogOperation(
+                            indexShard.shardId().getIndexName(),
+                            indexShard.mapperService().documentMapper(),
+                            operation,
+                            docsIdsBySeqNo::get,
+                            docsIndicesById::get,
+                            useNestedDocs
+                        );
                     }
                 }
             }
-        }
+        });
 
         enum Operation {
             FLUSH,
@@ -748,7 +746,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : docsIndices) {
             var recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(index)) {
+            for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(index)) {
+                var shardRecoveryState = recoveryInfo.recoveryState();
                 assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 assertThat(shardRecoveryState.getTargetNode(), notNullValue());
                 assertThat(shardRecoveryState.getTargetNode().getName(), equalTo(targetNode));
@@ -945,7 +944,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Check that operations were successfully recovered locally
         var recoveryResponse = indicesAdmin().prepareRecoveries(backingIndex).get();
         assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-        for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(backingIndex)) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(backingIndex)) {
+            var shardRecoveryState = recoveryInfo.recoveryState();
             assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
             assertThat((long) shardRecoveryState.getTranslog().totalOperationsOnStart(), equalTo(expectedRecoveredOperations));
@@ -1773,7 +1773,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false) // Sequence numbers are needed for id validation.
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
@@ -1982,7 +1983,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var replicaShard = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
         assertThat(replicaShard, notNullValue());
         long expectedMaxSeqNo = totalDocs - 1 + nbGaps;
-        assertThat(replicaShard.withEngine(engine -> engine.getSeqNoStats(-1).getMaxSeqNo()), equalTo(expectedMaxSeqNo));
+        assertThat(replicaShard.withEngine(engine -> engine.getMaxSeqNo()), equalTo(expectedMaxSeqNo));
 
         // Stop the primary node: this triggers failover to the replica which will fill gaps in sequence numbers with NoOp tombstone
         // operations in IndexShard.updateShardState
@@ -2070,79 +2071,65 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
     }
 
-    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
-        int nbVisitedShards = 0;
-        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices) {
-                if (indices.contains(indexService.index().getName())) {
-                    for (var indexShard : indexService) {
-                        long size = indexShard.withEngineOrNull(engine -> {
-                            if (engine != null) {
-                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
-                                    long segmentsTotalSize = 0L;
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) throws Exception {
+        final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
+            long size = indexShard.withEngineOrNull(engine -> {
+                if (engine != null) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field", SplitShardCountSummary.IRRELEVANT)) {
+                        long segmentsTotalSize = 0L;
 
-                                    for (var leaf : searcher.getLeafContexts()) {
-                                        var leafReader = leaf.reader();
-                                        // Get the underlying stored fields reader
-                                        var tsdbStoredFieldsReader = asInstanceOf(
-                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
-                                            Lucene.segmentReader(leafReader).getFieldsReader()
-                                        );
+                        for (var leaf : searcher.getLeafContexts()) {
+                            var leafReader = leaf.reader();
+                            // Get the underlying stored fields reader
+                            var tsdbStoredFieldsReader = asInstanceOf(
+                                TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                Lucene.segmentReader(leafReader).getFieldsReader()
+                            );
 
-                                        // Extract the real (ie, non-synthetic id) stored field reader
-                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
-                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                            // Extract the real (ie, non-synthetic id) stored field reader
+                            final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                            assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
 
-                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
-                                        assertThat(fieldInfo, notNullValue());
+                            final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                            assertThat(fieldInfo, notNullValue());
 
-                                        // Visit the "_id" field and compute its total size accross all documents
-                                        final var visitor = new StoredFieldVisitor() {
-                                            long segmentSize = 0L;
-                                            int visitedDocs = -1;
+                            // Visit the "_id" field and compute its total size accross all documents
+                            final var visitor = new StoredFieldVisitor() {
+                                long segmentSize = 0L;
+                                int visitedDocs = -1;
 
-                                            @Override
-                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                                                return IdFieldMapper.NAME.equals(fieldInfo.getName())
-                                                    ? StoredFieldVisitor.Status.YES
-                                                    : Status.NO;
-                                            }
-
-                                            @Override
-                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                                                segmentSize += value.length;
-                                                if (visitedDocs == -1) {
-                                                    visitedDocs = 1;
-                                                } else {
-                                                    visitedDocs++;
-                                                }
-                                            }
-                                        };
-
-                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
-                                            defaultStoredFields.document(docID, visitor);
-                                        }
-                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
-                                        segmentsTotalSize += visitor.segmentSize;
-                                    }
-                                    return segmentsTotalSize;
-                                } catch (IOException ioe) {
-                                    throw new AssertionError(ioe);
+                                @Override
+                                public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                    return IdFieldMapper.NAME.equals(fieldInfo.getName()) ? StoredFieldVisitor.Status.YES : Status.NO;
                                 }
-                            }
-                            return 0L;
-                        });
 
-                        assertThat(
-                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
-                            size,
-                            equalTo(0L)
-                        );
-                        nbVisitedShards++;
+                                @Override
+                                public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                    segmentSize += value.length;
+                                    if (visitedDocs == -1) {
+                                        visitedDocs = 1;
+                                    } else {
+                                        visitedDocs++;
+                                    }
+                                }
+                            };
+
+                            for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                defaultStoredFields.document(docID, visitor);
+                            }
+                            assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                            segmentsTotalSize += visitor.segmentSize;
+                        }
+                        return segmentsTotalSize;
+                    } catch (IOException ioe) {
+                        throw new AssertionError(ioe);
                     }
                 }
-            }
-        }
+                return 0L;
+            });
+
+            assertThat("Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(), size, equalTo(0L));
+        });
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 
@@ -2155,10 +2142,14 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     for (var indexShard : indexService) {
                         nbVisitedShards += indexShard.withEngineOrNull(engine -> {
                             if (engine != null) {
-                                assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
-                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                assertThat(engine.config().getCodec().getName(), equalTo(Elasticsearch96Codec.NAME));
+                                try (var searcher = engine.acquireSearcher("test_codec", SplitShardCountSummary.IRRELEVANT)) {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
+                                        assertThat(
+                                            segInfo.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY),
+                                            equalTo(ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION.name())
+                                        );
                                         assertThat(
                                             segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
                                             equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())

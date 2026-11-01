@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -24,6 +25,8 @@ import java.util.Objects;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
+    static final TransportVersion PROJECT_ROUTING_USAGE_STATS = TransportVersion.fromName("project_routing_usage_stats");
+
     private final NodeInfo nodeInfo;
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
@@ -32,6 +35,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final RepositoryUsageStats repositoryUsageStats;
     private final CCSTelemetrySnapshot searchCcsMetrics;
     private final CCSTelemetrySnapshot esqlCcsMetrics;
+    private final ProjectRoutingUsageSnapshot projectRoutingUsageSnapshot;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -43,6 +47,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         repositoryUsageStats = RepositoryUsageStats.readFrom(in);
         searchCcsMetrics = new CCSTelemetrySnapshot(in);
         esqlCcsMetrics = new CCSTelemetrySnapshot(in);
+        projectRoutingUsageSnapshot = in.getTransportVersion().supports(PROJECT_ROUTING_USAGE_STATS)
+            ? new ProjectRoutingUsageSnapshot(in)
+            : new ProjectRoutingUsageSnapshot();
     }
 
     public ClusterStatsNodeResponse(
@@ -54,7 +61,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         SearchUsageStats searchUsageStats,
         RepositoryUsageStats repositoryUsageStats,
         CCSTelemetrySnapshot ccsTelemetrySnapshot,
-        CCSTelemetrySnapshot esqlTelemetrySnapshot
+        CCSTelemetrySnapshot esqlTelemetrySnapshot,
+        ProjectRoutingUsageSnapshot projectRoutingUsageSnapshot
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
@@ -65,6 +73,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
         this.searchCcsMetrics = ccsTelemetrySnapshot;
         this.esqlCcsMetrics = esqlTelemetrySnapshot;
+        this.projectRoutingUsageSnapshot = Objects.requireNonNull(projectRoutingUsageSnapshot);
     }
 
     public NodeInfo nodeInfo() {
@@ -103,6 +112,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return esqlCcsMetrics;
     }
 
+    public ProjectRoutingUsageSnapshot getProjectRoutingUsageSnapshot() {
+        return projectRoutingUsageSnapshot;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -114,6 +127,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         repositoryUsageStats.writeTo(out);
         searchCcsMetrics.writeTo(out);
         esqlCcsMetrics.writeTo(out);
+        if (out.getTransportVersion().supports(PROJECT_ROUTING_USAGE_STATS)) {
+            projectRoutingUsageSnapshot.writeTo(out);
+        }
     }
 
 }

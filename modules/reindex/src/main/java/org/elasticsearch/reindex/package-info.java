@@ -8,8 +8,8 @@
  */
 
 /**
- * Actions that modify documents based on the results of a scrolling query like {@link org.elasticsearch.index.reindex.ReindexAction},
- * {@link org.elasticsearch.index.reindex.UpdateByQueryAction}, and
+ * Actions that modify documents based on the results of a paginated search like
+ * {@link org.elasticsearch.index.reindex.ReindexAction}, {@link org.elasticsearch.index.reindex.UpdateByQueryAction}, and
  * {@link org.elasticsearch.index.reindex.DeleteByQueryAction}.
  */
 package org.elasticsearch.reindex;

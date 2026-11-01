@@ -7,20 +7,33 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -30,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -37,6 +51,8 @@ import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -53,7 +69,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldNames;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -71,8 +90,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PruneColumnsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPruneUnusedEval() {
         var plan = plan("""
@@ -313,10 +337,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var source = as(limit.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#12 AS x#8, emp_no{f}#12]]
      * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * }
      */
     public void testInlinestatsGetsPrunedEntirely() {
         var query = """
@@ -339,7 +366,9 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#16, count{r}#7]]
      * \_TopN[[Order[emp_no{f}#16,ASC,LAST]],5[INTEGER]]
      *   \_InlineJoin[LEFT,[salaryK{r}#5],[salaryK{r}#5],[salaryK{r}#5]]
@@ -348,6 +377,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Aggregate[[salaryK{r}#5],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#7, salaryK{r}#5]]
      *       \_StubRelation[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
      *              languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21, salaryK{r}#5]]
+     * }
      */
     public void testDoubleInlineStatsWithEvalGetsPrunedEntirely() {
         var query = """
@@ -387,10 +417,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#19 AS x#15, emp_no{f}#19]]
      * \_TopN[[Order[emp_no{f}#19,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     * }
      */
     public void testDoubleInlineStatsGetsPrunedEntirely() {
         var query = """
@@ -415,7 +448,9 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#15 AS x#11, a{r}#7, emp_no{f}#15]]
      * \_Limit[1[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#15],[emp_no{f}#15],[emp_no{r}#15]]
@@ -423,6 +458,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Aggregate[[emp_no{f}#15],[COUNTDISTINCT(languages{f}#18,true[BOOLEAN]) AS a#7, emp_no{f}#15]]
      *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
      *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     * }
      */
     public void testInlineStatsGetsPrunedPartially() {
         var query = """
@@ -850,18 +886,17 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Project[[first_name{r}#32]]
+     * {@snippet lang="text":
+     * Project[[first_name{r}#34]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[_fork{r}#33 == fork1[KEYWORD]]
-     *     \_Fork[[first_name{r}#32, _fork{r}#33]]
-     *       |_Project[[first_name{f}#11, _fork{r}#7]]
-     *       | \_Eval[[fork1[KEYWORD] AS _fork#7]]
-     *       |   \_Limit[1000[INTEGER],false,false]
-     *       |     \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     *       \_Project[[first_name{f}#22, _fork{r}#7]]
-     *         \_Eval[[fork2[KEYWORD] AS _fork#7]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *   \_Fork[[first_name{r}#34]]
+     *     |_Project[[first_name{f}#13]]
+     *     | \_Limit[1000[INTEGER],false,false]
+     *     |   \_EsRelation[employees][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *     \_Project[[first_name{f}#24]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[employees][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     * }
      */
     public void testPruneColumnsInForkBranchesSimpleEvalOutsideBranches() {
         var query = """
@@ -872,7 +907,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                 | FORK
                     (WHERE true)
                     (WHERE true)
-                | WHERE _fork == "fork1"
+                | WHERE _fork == "fork1" OR _fork == "fork2"
                 | DROP _fork
             """;
         var plan = optimizedPlan(query);
@@ -880,18 +915,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("first_name"));
         var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var fork = as(filter.child(), Fork.class);
-        assertThat(fork.output(), hasSize(2));
-        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("first_name", "_fork"));
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output(), hasSize(1));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toList()), equalTo(List.of("first_name")));
         for (LogicalPlan branch : fork.children()) {
             var branchProject = as(branch, Project.class);
-            assertThat(branchProject.projections().size(), equalTo(2));
-            assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("first_name", "_fork"));
-            var branchEval = as(branchProject.child(), Eval.class);
-            var alias = as(branchEval.fields().getFirst(), Alias.class);
-            assertThat(alias.name(), equalTo("_fork"));
-            var relation = as(branchEval.child(), EsRelation.class);
+            assertThat(branchProject.projections().size(), equalTo(1));
+            assertThat(Expressions.names(branchProject.projections()), equalTo(List.of("first_name")));
+            var branchLimit = as(branchProject.child(), Limit.class);
+            var relation = as(branchLimit.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "first_name"));
         }
     }
@@ -1121,18 +1153,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Project[[languages{r}#55]]
+     * {@snippet lang="text":
+     * Project[[languages{r}#57]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[_fork{r}#57 == fork1[KEYWORD]]
-     *     \_Fork[[languages{r}#55, _fork{r}#57]]
-     *       |_Project[[x{r}#15 AS languages#9, _fork{r}#13]]
-     *       | \_Eval[[1[INTEGER] AS x#15, fork1[KEYWORD] AS _fork#13]]
-     *       |   \_Limit[1000[INTEGER],false,false]
-     *       |     \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
-     *       \_Project[[languages{r}#43, _fork{r}#13]]
-     *         \_Eval[[fork2[KEYWORD] AS _fork#13, null[INTEGER] AS languages#43]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     *   \_Fork[[languages{r}#57]]
+     *     |_Project[[x{r}#14 AS languages#9]]
+     *     | \_Eval[[1[INTEGER] AS x#14]]
+     *     |   \_Limit[1000[INTEGER],false,false]
+     *     |     \_EsRelation[employees][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     *     \_Project[[languages{r}#45]]
+     *       \_Eval[[null[INTEGER] AS languages#45]]
+     *         \_Limit[1000[INTEGER],false,false]
+     *           \_EsRelation[employees][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
+     * }
      */
     public void testPruneColumnsInForkBranchesShouldKeepAliasWithSameNameAsColumn() {
         var query = """
@@ -1141,7 +1174,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | fork
                 (eval x = 1 | rename x as lang | rename lang as languages | eval a = "aardvark" | rename a as foo)
                 (where true)
-            | where _fork == "fork1"
+            | where _fork == "fork1" OR _fork == "fork2"
             | drop _fork
             | keep languages
             """;
@@ -1150,21 +1183,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
         var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var fork = as(filter.child(), Fork.class);
-        assertThat(fork.output(), hasSize(2));
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output(), hasSize(1));
         assertThat(fork.children(), hasSize(2));
-        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("languages", "_fork"));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("languages"));
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
-        assertThat(firstBranchProject.projections().size(), equalTo(2));
-        assertThat(Expressions.names(firstBranchProject.projections()), containsInAnyOrder("languages", "_fork"));
+        assertThat(Expressions.names(firstBranchProject.projections()), equalTo(List.of("languages")));
         var firstBranchEval = as(firstBranchProject.child(), Eval.class);
         var firstBranchFields = firstBranchEval.fields();
-        assertThat(firstBranchFields.size(), equalTo(2));
-        assertThat(Expressions.names(firstBranchFields), containsInAnyOrder("x", "_fork"));
-        var firstBranchRelation = as(firstBranchEval.child(), EsRelation.class);
+        assertThat(Expressions.names(firstBranchFields), equalTo(List.of("x")));
+        var firstBranchLimit = as(firstBranchEval.child(), Limit.class);
+        var firstBranchRelation = as(firstBranchLimit.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name")
@@ -1172,13 +1203,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var secondBranch = fork.children().get(1);
         var secondBranchProject = as(secondBranch, Project.class);
-        assertThat(secondBranchProject.projections().size(), equalTo(2));
-        assertThat(Expressions.names(secondBranchProject.projections()), containsInAnyOrder("languages", "_fork"));
+        assertThat(Expressions.names(secondBranchProject.projections()), equalTo(List.of("languages")));
         var secondBranchEval = as(secondBranchProject.child(), Eval.class);
         var secondBranchFields = secondBranchEval.fields();
-        assertThat(secondBranchFields.size(), equalTo(2));
-        assertThat(Expressions.names(secondBranchFields), containsInAnyOrder("languages", "_fork"));
-        var secondBranchRelation = as(secondBranchEval.child(), EsRelation.class);
+        assertThat(Expressions.names(secondBranchFields), equalTo(List.of("languages")));
+        var secondBranchLimit = as(secondBranchEval.child(), Limit.class);
+        var secondBranchRelation = as(secondBranchLimit.child(), EsRelation.class);
         assertThat(
             secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name")
@@ -1187,22 +1217,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * {@snippet lang="text":
-     * Project[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
-     * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
+     * Project[[_meta_field{r}#50, emp_no{r}#51, first_name{r}#52, gender{r}#53, hire_date{r}#54, job{r}#55, job.raw{r}#56, l
+     * ast_name{r}#57, long_noidx{r}#58, salary{r}#59]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[_fork{r}#59 == fork1[KEYWORD]]
-     *     \_Fork[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
-     * ast_name{r}#55, long_noidx{r}#56, salary{r}#57, _fork{r}#59]]
-     *       |_Project[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
-     * ast_name{f}#19, long_noidx{f}#25, salary{f}#20, _fork{r}#9]]
-     *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
-     *       |   \_Limit[1000[INTEGER],false,false]
-     *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
-     * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
-     *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
+     *   \_Fork[[_meta_field{r}#50, emp_no{r}#51, first_name{r}#52, gender{r}#53, hire_date{r}#54, job{r}#55, job.raw{r}#56, l
+     * ast_name{r}#57, long_noidx{r}#58, salary{r}#59]]
+     *     \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * ast_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      * }
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
@@ -1220,34 +1243,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var fork = as(filter.child(), Fork.class);
-        assertThat(fork.output().size(), equalTo(11));
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(10));
 
-        // second branch is completely removed
-        assertEquals(2, fork.children().size());
+        // second and third branches are completely removed
+        assertEquals(1, fork.children().size());
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
-        assertThat(firstBranchProject.projections().size(), equalTo(11));
-        var firstBranchEval = as(firstBranchProject.child(), Eval.class);
-        var forkAliasInFirstBranch = as(firstBranchEval.fields().getFirst(), Alias.class);
-        assertThat(forkAliasInFirstBranch.name(), equalTo("_fork"));
-        var firstBranchRelation = as(firstBranchEval.child(), EsRelation.class);
+        assertThat(firstBranchProject.projections().size(), equalTo(10));
+        var limitFirstBranch = as(firstBranchProject.child(), Limit.class);
+        var firstBranchRelation = as(limitFirstBranch.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
-            hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
-        );
-
-        var thirdBranch = fork.children().get(1);
-        var thirdBranchProject = as(thirdBranch, Project.class);
-        assertThat(thirdBranchProject.projections().size(), equalTo(11));
-        var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
-        var forkAliasInThirdBranch = as(thirdBranchEval.fields().getFirst(), Alias.class);
-        assertThat(forkAliasInThirdBranch.name(), equalTo("_fork"));
-        var thirdBranchRelation = as(thirdBranchEval.child(), EsRelation.class);
-        assertThat(
-            thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
     }
@@ -1287,6 +1295,113 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var relation = as(aggregateInBranch.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
         }
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#28]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
+     *     | \_Filter[NOT(STARTSWITH(gender{f}#31,v[KEYWORD]))]
+     *     |   \_Aggregate[[gender{f}#31],[gender{f}#31]]
+     *     |     \_EsRelation[employees][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
+     *     |_Project[[]]
+     *     | \_Filter[salary{f}#45 > 100000[INTEGER]]
+     *     |   \_Aggregate[[salary{f}#45],[salary{f}#45]]
+     *     |     \_EsRelation[employees][_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#51 > 10000[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#57, emp_no{f}#51, first_name{f}#52, ..]
+     * }
+     */
+    public void testPruneColumnsInForkBranchesWithFinalCountStats() {
+        var query = """
+             from employees
+             // reusing the same column name as in the final STATS
+            | FORK ( stats salary = count(*)::int, z = count(*) by gender
+                    | where NOT starts_with(gender, "v")
+                    | eval gender = gender::keyword )
+                   ( stats gender = values(gender), z = count(*) by salary
+                    | where salary > 100000 )
+                   ( where emp_no > 10000
+                    | eval gender = gender::keyword )
+            | sort salary
+            | stats y = count(*) // this removes all existing columns
+            """;
+
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
+        var fork = as(aggregate.child(), Fork.class);
+
+        assertThat(fork.output().size(), equalTo(0));
+        assertThat(fork.children().size(), equalTo(3));
+
+        var firstBranch = fork.children().getFirst();
+        var firstBranchProject = as(firstBranch, Project.class);
+        var firstBranchFilter = as(firstBranchProject.child(), Filter.class);
+        var firstBranchAggregate = as(firstBranchFilter.child(), Aggregate.class);
+        assertThat(firstBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(firstBranchAggregate.aggregates()), contains("gender"));
+        var firstBranchRelation = as(firstBranchAggregate.child(), EsRelation.class);
+        assertThat(firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("gender"));
+
+        var secondBranch = fork.children().get(1);
+        var secondBranchProject = as(secondBranch, Project.class);
+        var secondBranchFilter = as(secondBranchProject.child(), Filter.class);
+        var secondBranchAggregate = as(secondBranchFilter.child(), Aggregate.class);
+        assertThat(secondBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(secondBranchAggregate.aggregates()), contains("salary"));
+        var secondBranchRelation = as(secondBranchAggregate.child(), EsRelation.class);
+        assertThat(secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
+
+        var thirdBranch = fork.children().get(2);
+        var thirdBranchProject = as(thirdBranch, Project.class);
+        var thirdBranchFilter = as(thirdBranchProject.child(), Filter.class);
+        var thirdBranchRelation = as(thirdBranchFilter.child(), EsRelation.class);
+        assertThat(thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "gender"));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#12]]
+     *   \_Fork[[]]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#13 > 10000[INTEGER]]
+     *         \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *           \_EsRelation[employees][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }
+     */
+    public void testPruneColumnsInForkWithSingleBranchAndFinalStats() {
+        var query = """
+                 from employees
+                | stats x = count(*), y = count(*) by emp_no
+                | FORK (where emp_no > 10000)
+                | sort x
+                | stats y = count(*)
+            """;
+
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
+        var fork = as(aggregate.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(0));
+        assertThat(fork.children().size(), equalTo(1));
+
+        var project = as(fork.children().getFirst(), Project.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var filter = as(project.child(), Filter.class);
+        var branchAggregate = as(filter.child(), Aggregate.class);
+        assertThat(branchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(branchAggregate.aggregates()), contains("emp_no"));
+        var relation = as(branchAggregate.child(), EsRelation.class);
+        assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no"));
     }
 
     /*
@@ -2342,11 +2457,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("extracted_first"));
         assertThat(Expressions.names(agg.aggregates()), contains("count", "extracted_first"));
         // Dissect is fully pruned since extracted_first/extracted_last are overwritten by EVAL
         var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("extracted_first"));
-        // Dissect is fully pruned — next node is EsRelation, no Dissect in the tree
         as(eval.child(), EsRelation.class);
     }
 
@@ -2471,6 +2586,43 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
     }
 
+    public void testExternalRelationPrunesDataColumnsWhenOnlySourceConsumed() {
+        // _source is a constant null block on a dataset — a file carries no stored source — so nothing
+        // is read from the file to answer it. Project only _source over (col_a, col_b, col_c, _source);
+        // the three data columns are pruned and the reader loads none of them.
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        Attribute sourceAttr = sourceMetadataAttr();
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC, sourceAttr));
+
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(sourceAttr));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("_source"));
+    }
+
+    public void testExternalRelationStillPrunesWhenSourceBoundButUnused() {
+        // _source is bound but the user drops it without ever reading; it is pruned along with col_b
+        // and col_c.
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        Attribute sourceAttr = sourceMetadataAttr();
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC, sourceAttr));
+
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(colA));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
+    }
+
     public void testPruneColumnsInExternalRelationWithFilter() {
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
@@ -2488,6 +2640,48 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var prunedExt = as(resultFilter.child(), ExternalRelation.class);
         assertThat(prunedExt.output(), hasSize(2));
         assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    public void testEvalAliasKeepsFileSizeOnExternalRelation() {
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(size, other));
+        Alias computed = new Alias(EMPTY, "x", size);
+        LogicalPlan plan = new Project(EMPTY, new Eval(EMPTY, ext, List.of(computed)), List.of(computed.toAttribute()));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var prunedExt = as(eval.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains(FileMetadataColumns.SIZE));
+    }
+
+    public void testArithmeticWhereKeepsFileSizeOnExternalRelation() {
+        Attribute value = extAttr("a", LONG);
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        ExternalRelation ext = externalRelation(List.of(value, size));
+        Expression scaled = new Add(EMPTY, new Div(EMPTY, size, new Literal(EMPTY, 39L, LONG)), new Literal(EMPTY, 49L, LONG), null);
+        Filter filter = new Filter(EMPTY, ext, new GreaterThan(EMPTY, value, scaled, null));
+        LogicalPlan result = new PruneColumns().apply(new Project(EMPTY, filter, List.of(value)));
+
+        var project = as(result, Project.class);
+        var resultFilter = as(project.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("a", FileMetadataColumns.SIZE));
+    }
+
+    public void testWhereBeforeCountKeepsPartitionColumn() {
+        Attribute year = extAttr("year", INTEGER);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(year, other));
+        Filter filter = new Filter(EMPTY, ext, new Equals(EMPTY, year, new Literal(EMPTY, 2024, INTEGER)));
+        Alias count = new Alias(EMPTY, "count", new Count(EMPTY, Literal.keyword(EMPTY, "*")));
+        LogicalPlan result = new PruneColumns().apply(new Aggregate(EMPTY, filter, List.of(), List.of(count)));
+
+        var aggregate = as(result, Aggregate.class);
+        var resultFilter = as(aggregate.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("year"));
     }
 
     /**
@@ -2521,6 +2715,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
+    private static Attribute sourceMetadataAttr() {
+        return new ExternalMetadataAttribute(EMPTY, "_source", DataType.SOURCE);
+    }
+
     private static ExternalRelation externalRelation(List<Attribute> attributes) {
         SourceMetadata metadata = new SourceMetadata() {
             @Override
@@ -2548,7 +2746,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                 return 1;
             }
         };
-        return new ExternalRelation(EMPTY, "s3://bucket/data.parquet", metadata, attributes);
+        return new ExternalRelation(EMPTY, "s3://bucket/data.parquet", metadata, attributes, FileList.UNRESOLVED, Map.of());
     }
 
     /**
@@ -2568,7 +2766,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(cpuField)
         );
         Project project = new Project(EMPTY, esRelation, List.of(cpuField));
@@ -2597,7 +2795,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(cpuField)
         );
         Project project = new Project(EMPTY, esRelation, List.of(cpuField));
@@ -2611,4 +2809,646 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
     }
 
+    /*
+     * The subquery branch is a bare relation once its wrapper is stripped, so PushAggregateThroughUnionAll splits the
+     * count into per-branch partials summed by a combiner aggregate above the union:
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[SUM($$partial$$d2{r$}#..,...) AS d2#10]]
+     *   \_BranchPlan[[null, unnamed_view_1]]
+     *     |_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
+     *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
+     *       \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     */
+    public void testInlineStatsOverSubqueryUnusedOutput() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d = max(x)
+            | STATS d2 = count(*)
+            """;
+
+        var plan = planSubquery(query);
+
+        // No InlineJoin should survive: the right side reduces to StubRelation and gets pruned away.
+        assertFalse("InlineJoin should have been pruned", plan.anyMatch(p -> p instanceof InlineJoin));
+        // The EVAL that defined `x` is gone too since `d` (its only consumer) was dropped.
+        assertFalse("EVAL feeding the dropped aggregate should have been pruned", plan.anyMatch(p -> p instanceof Eval));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("d2"));
+        // PushAggregateThroughUnionAll split the count: the combiner sums the per-branch partial counts.
+        var sum = as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.name(sum.field()), startsWith("$$partial$$"));
+
+        var unionAll = as(agg.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        for (LogicalPlan child : unionAll.children()) {
+            var partial = as(child, Aggregate.class);
+            var count = as(Alias.unwrap(partial.aggregates().get(0)), Count.class);
+            assertTrue("expected count(*)", count.field().foldable());
+            var relation = as(partial.child(), EsRelation.class);
+            assertEquals("test", relation.indexPattern());
+        }
+    }
+
+    /*
+     * Project[[d{r}#8]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#33, emp_no{r}#33 AS x#5]]
+     *     | \_UnionAll[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                   languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42]]
+     *     |   |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,
+     *                    languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
+     *     |   | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     |   \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30,
+     *                    languages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26]]
+     *     |     \_Subquery[]
+     *     |       \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *     \_Aggregate[[],[MAX(x{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS d#8]]
+     *       \_StubRelation[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                       languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, x{r}#5]]
+     */
+    public void testInlineStatsOverSubqueryWithUsedOutput() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d = max(x)
+            | KEEP d
+            """;
+
+        var plan = planSubquery(query);
+
+        // d is used by KEEP so the InlineJoin must remain.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // The right side must still compute d = max(x).
+        assertTrue(
+            "Right side must compute d = max(x)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d"))
+        );
+
+        // The left side must contain the UnionAll produced by FROM test, (FROM test).
+        assertTrue("Left side must contain UnionAll", ij.left().anyMatch(p -> p instanceof UnionAll));
+    }
+
+    /*
+     * Project[[d1{r}#11]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#39, emp_no{r}#39 AS x#5]]
+     *     | \_UnionAll[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44,
+     *                   languages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48]]
+     *     |   |_Project[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
+     *                    languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
+     *     |   | \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *     |   \_Project[[_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, gender{f}#29, hire_date{f}#34, job{f}#35, job.raw{f}#36,
+     *                    languages{f}#30, last_name{f}#31, long_noidx{f}#37, salary{f}#32]]
+     *     |     \_Subquery[]
+     *     |       \_EsRelation[test][_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, ..]
+     *     \_Aggregate[[],[MAX(x{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS d1#11]]
+     *       \_StubRelation[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44,
+     *                       languages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48, x{r}#5, y{r}#8]]
+     */
+    public void testInlineStatsOverSubqueryPartialOutputPruning() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no, y = salary
+            | INLINE STATS d1 = max(x), d2 = max(y)
+            | KEEP d1
+            """;
+
+        var plan = planSubquery(query);
+
+        // d1 is kept by KEEP so the InlineJoin must still be present.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d1 is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // d1 must still be in the right-side aggregate.
+        assertTrue(
+            "d1 must remain in InlineJoin right side",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d1"))
+        );
+
+        // d2 must have been pruned — the key assertion that catches the pre-fix bug.
+        assertFalse(
+            "d2 must be pruned from InlineJoin right side (was unused)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d2"))
+        );
+
+        // y was only needed for d2, so it must also be pruned from all EVALs on the left side.
+        assertFalse(
+            "y must be pruned from all EVALs on the left side",
+            ij.left().anyMatch(p -> p instanceof Eval eval && Expressions.names(eval.fields()).contains("y"))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#16]]
+     *   \_UnionAll[[_meta_field{r}#39, emp_no{r}#40, first_name{r}#41, gender{r}#42, hire_date{r}#43, job{r}#44, job.raw{r}#45,
+     *               languages{r}#46, last_name{r}#47, long_noidx{r}#48, salary{r}#49]]
+     *     |_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *                languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     | \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *     \_Project[[_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, gender{f}#30, hire_date{f}#35, job{f}#36, job.raw{f}#37,
+     *                languages{f}#31, last_name{f}#32, long_noidx{f}#38, salary{f}#33]]
+     *       \_Subquery[]
+     *         \_EsRelation[test][_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, ..]
+     */
+    public void testMultipleInlineStatsOverSubqueryBothUnused() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d1 = max(x)
+            | EVAL z = salary
+            | INLINE STATS d2 = max(z)
+            | STATS cnt = count(*)
+            """;
+
+        var plan = planSubquery(query);
+
+        // Both d1 and d2 are unused, so both InlineJoins must be eliminated.
+        assertFalse("Both InlineJoins must be pruned", plan.anyMatch(p -> p instanceof InlineJoin));
+        // x and z were only needed to feed the pruned aggregates, so their EVALs must also be gone.
+        assertFalse("All EVALs must be pruned", plan.anyMatch(p -> p instanceof Eval));
+
+        // The surviving plan is just count(*) over the raw UnionAll.
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("cnt"));
+        assertTrue("UnionAll must be present below the outer aggregate", agg.child().anyMatch(p -> p instanceof UnionAll));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#14]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
+     *     | \_Filter[emp_no{f}#15 > 100[INTEGER]]
+     *     |   \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#26 < 200[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+     */
+    public void testInlineStatsOverForkUnusedOutput() {
+        var query = """
+            from employees
+            | fork (where emp_no > 100)
+                   (where emp_no < 200)
+            | eval x = emp_no
+            | inline stats d = max(x)
+            | stats cnt = count(*)
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // d is not used by the final STATS, so the InlineJoin must be pruned entirely.
+        assertFalse("InlineJoin must be pruned when its output is unused", plan.anyMatch(p -> p instanceof InlineJoin));
+        // The EVAL that defined x is also gone since d (its only consumer) was dropped.
+        assertFalse("EVAL feeding the dropped aggregate must be pruned", plan.anyMatch(p -> p instanceof Eval));
+        // The Fork must still be present — it feeds the outer count(*).
+        assertTrue("Fork must be present below the outer aggregate", plan.anyMatch(p -> p instanceof Fork));
+    }
+
+    /*
+     * Project[[d1{r}#15]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#43, emp_no{r}#43 AS x#9]]
+     *     | \_Fork[[emp_no{r}#43]]
+     *     |   |_Project[[emp_no{f}#20]]
+     *     |   | \_Filter[emp_no{f}#20 > 100[INTEGER]]
+     *     |   |   \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     *     |   \_Project[[emp_no{f}#31]]
+     *     |     \_Filter[emp_no{f}#31 < 200[INTEGER]]
+     *     |       \_EsRelation[employees][_meta_field{f}#37, emp_no{f}#31, first_name{f}#32, ..]
+     *     \_Aggregate[[],[MAX(x{r}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS d1#15]]
+     *       \_StubRelation[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48,
+     *                       languages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, _fork{r}#53, x{r}#9, y{r}#12]]
+     */
+    public void testInlineStatsOverForkPartialOutputPruning() {
+        var query = """
+            from employees
+            | fork (where emp_no > 100)
+                   (where emp_no < 200)
+            | eval x = emp_no, y = salary
+            | inline stats d1 = max(x), d2 = max(y)
+            | keep d1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // d1 is kept by KEEP so the InlineJoin must remain.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d1 is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // d1 must still be in the right-side aggregate.
+        assertTrue(
+            "d1 must remain in InlineJoin right side",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d1"))
+        );
+
+        // d2 must have been pruned — the key assertion that catches the pre-fix bug.
+        assertFalse(
+            "d2 must be pruned from InlineJoin right side (was unused)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d2"))
+        );
+
+        // y was only needed for d2, so it must be pruned from all EVALs on the left side.
+        assertFalse(
+            "y must be pruned from all EVALs on the left side",
+            ij.left().anyMatch(p -> p instanceof Eval eval && Expressions.names(eval.fields()).contains("y"))
+        );
+
+        // The Fork must still be present on the left of the InlineJoin.
+        assertTrue("Fork must be present on the left of the InlineJoin", ij.left().anyMatch(p -> p instanceof Fork));
+    }
+
+    /**
+     * A {@code TS} relation resolves the index's dimensions, so it can carry attributes the query never names. Once the
+     * rest of the plan references only a subset, {@link PruneColumns} drops the rest from the relation so they are not
+     * serialized into the fragment shipped to every data node.
+     */
+    public void testTimeSeriesRelationDropsUnreferencedDimensions() {
+        FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
+        EsRelation relation = timeSeriesRelation(
+            List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), dimensionField("region"), cost)
+        );
+        Project project = new Project(EMPTY, relation, List.of(cost));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), contains("network.cost"));
+    }
+
+    /**
+     * {@code _tsid} and {@code @timestamp} feed the time-series aggregation pipeline and are therefore referenced. They
+     * survive pruning even though the unreferenced dimensions around them are dropped.
+     */
+    public void testTimeSeriesRelationKeepsTsidAndTimestamp() {
+        FieldAttribute timestamp = timestampField();
+        MetadataAttribute tsid = tsidField();
+        EsRelation relation = timeSeriesRelation(
+            List.of(timestamp, dimensionField("cluster"), dimensionField("pod"), metricField("network.cost", DataType.DOUBLE), tsid)
+        );
+        Project project = new Project(EMPTY, relation, List.of(timestamp, tsid));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("@timestamp", "_tsid"));
+    }
+
+    /**
+     * The {@code _timeseries} metadata attribute that {@code WITHOUT} lowers to carries the excluded dimension names and
+     * drives the shard-side packed-dimension loader. It is referenced downstream, so pruning keeps it. The individual
+     * dimension field attributes are not referenced (the loader reads them off the shard by name), so they are dropped
+     * without losing the WITHOUT exclusion information.
+     */
+    public void testTimeSeriesRelationKeepsDimensionsExcludedByWithout() {
+        FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
+        TimeSeriesMetadataAttribute timeseries = new TimeSeriesMetadataAttribute(EMPTY, Set.of("pod"));
+        EsRelation relation = timeSeriesRelation(
+            List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), cost, timeseries)
+        );
+        Project project = new Project(EMPTY, relation, List.of(cost, timeseries));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("network.cost", "_timeseries"));
+    }
+
+    /**
+     * With nothing above the relation to drop columns, the relation's own output is the plan output, so every attribute is
+     * used and pruning leaves the relation untouched.
+     */
+    public void testTimeSeriesRelationWithoutProjectionKeepsEveryField() {
+        EsRelation relation = timeSeriesRelation(
+            List.of(
+                timestampField(),
+                dimensionField("cluster"),
+                dimensionField("pod"),
+                metricField("network.cost", DataType.DOUBLE),
+                tsidField()
+            )
+        );
+
+        LogicalPlan result = new PruneColumns().apply(relation);
+
+        EsRelation pruned = as(result, EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("@timestamp", "cluster", "pod", "network.cost", "_tsid"));
+    }
+
+    /**
+     * Only LOOKUP and TIME_SERIES relations are pruned here. For STANDARD relations {@code InsertFieldExtraction} handles
+     * field-level extraction later, so the rule leaves their full attribute list intact even when the query names a subset.
+     */
+    public void testStandardRelationIsNotPruned() {
+        FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
+        EsRelation relation = new EsRelation(
+            EMPTY,
+            "metrics",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("metrics", new IndexProperties(IndexMode.STANDARD, 0)),
+            List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), cost)
+        );
+        Project project = new Project(EMPTY, relation, List.of(cost));
+
+        LogicalPlan result = new PruneColumns().apply(project);
+
+        EsRelation pruned = as(as(result, Project.class).child(), EsRelation.class);
+        assertThat(Expressions.names(pruned.output()), containsInAnyOrder("@timestamp", "cluster", "pod", "network.cost"));
+    }
+
+    private static EsRelation timeSeriesRelation(List<Attribute> attributes) {
+        return new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            attributes
+        );
+    }
+
+    private static FieldAttribute timestampField() {
+        return new FieldAttribute(
+            EMPTY,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+    }
+
+    private static FieldAttribute dimensionField(String name) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION));
+    }
+
+    private static FieldAttribute metricField(String name, DataType type) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC));
+    }
+
+    private static MetadataAttribute tsidField() {
+        return new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
+    }
+
+    private static DenseVector onlyDenseVector(LogicalPlan plan) {
+        var nodes = plan.collect(p -> p instanceof DenseVector);
+        assertThat("expected exactly one DenseVector node", nodes, hasSize(1));
+        return (DenseVector) nodes.getFirst();
+    }
+
+    /**
+     * DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}, so its tests pin a version
+     * that supports it.
+     */
+    private TestAnalyzer denseVectorAnalyzer() {
+        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION;
+        return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
+    }
+
+    /**
+     * The unused generated column and its input field are pruned. Checks the delta explicitly: the analyzed node embeds
+     * both {@code keyword} and {@code text}; after pruning only {@code keyword} (whose generated column is kept) remains,
+     * proving {@code text} and its embedding were actually dropped.
+     *
+     * Before pruning:
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[keyword_dense_vector{r}#27]]
+     *   \_DENSE_VECTOR[...,[keyword{f}#18, text{f}#22],[keyword_dense_vector{r}#27, text_dense_vector{r}#28],...]
+     *     \_EsRelation[types][...]
+     * }
+     *
+     * After pruning:
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[keyword_dense_vector{r}#27]]
+     *   \_DENSE_VECTOR[...,[keyword{f}#18],[keyword_dense_vector{r}#27],...]
+     *     \_EsRelation[types][...]
+     * }
+     */
+    public void testDenseVectorPrunesUnusedGeneratedColumn() {
+        var query = """
+            from types
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector
+            """;
+        var analyzedPlan = denseVectorAnalyzer().query(query);
+
+        // before pruning: both fields are embedded
+        {
+            var limit = as(analyzedPlan, Limit.class);
+            var project = as(limit.child(), Project.class);
+            assertThat(Expressions.names(project.projections()), contains("keyword_dense_vector"));
+            var denseVector = as(project.child(), DenseVector.class);
+            assertThat(Expressions.names(denseVector.fields()), contains("keyword", "text"));
+            assertThat(Expressions.names(denseVector.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
+        }
+
+        // after pruning: only the used field survives; text and its embedding are dropped
+        {
+            LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
+            var limit = as(pruned, Limit.class);
+            var project = as(limit.child(), Project.class);
+            assertThat(Expressions.names(project.projections()), contains("keyword_dense_vector"));
+            var denseVector = as(project.child(), DenseVector.class);
+            assertThat(Expressions.names(denseVector.fields()), contains("keyword"));
+            assertThat(Expressions.names(denseVector.generatedAttributes()), contains("keyword_dense_vector"));
+        }
+    }
+
+    /**
+     * When none of the generated columns are used, the whole DENSE_VECTOR node is removed.
+     */
+    public void testDenseVectorNodeRemovedWhenNoGeneratedColumnUsed() {
+        var query = """
+            from types
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep integer
+            """;
+        var analyzedPlan = denseVectorAnalyzer().query(query);
+        assertTrue("DenseVector present before pruning", analyzedPlan.anyMatch(p -> p instanceof DenseVector));
+
+        LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
+        assertFalse("DenseVector node should be removed", pruned.anyMatch(p -> p instanceof DenseVector));
+    }
+
+    /**
+     * When every generated column is used, the node is left unchanged.
+     */
+    public void testDenseVectorUnchangedWhenAllGeneratedColumnsUsed() {
+        var query = """
+            from types
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector, text_dense_vector
+            """;
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
+        assertThat(Expressions.names(dv.fields()), contains("keyword", "text"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
+    }
+
+    /**
+     * With three embedded fields and two used generated columns, only the unused middle field is pruned.
+     */
+    public void testDenseVectorPrunesMiddleFieldOnly() {
+        var query = """
+            from types
+            | eval a = keyword, b = keyword, c = keyword
+            | dense_vector a, b, c WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep a_dense_vector, c_dense_vector
+            """;
+        var analyzedPlan = denseVectorAnalyzer().query(query);
+        assertThat(Expressions.names(onlyDenseVector(analyzedPlan).fields()), contains("a", "b", "c"));
+
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
+        assertThat(Expressions.names(dv.fields()), contains("a", "c"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("a_dense_vector", "c_dense_vector"));
+    }
+
+    /**
+     * Chained DENSE_VECTOR clauses prune independently: dropping the second clause's output removes that clause while the
+     * first clause survives.
+     */
+    public void testChainedDenseVectorClausesPruneIndependently() {
+        var query = """
+            from types
+            | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
+            | dense_vector text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector
+            """;
+        var analyzedPlan = denseVectorAnalyzer().query(query);
+        assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
+
+        LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
+        DenseVector dv = onlyDenseVector(pruned); // exactly one survives
+        assertThat(Expressions.names(dv.fields()), contains("keyword"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
+    }
+
+    /**
+     * Pruning commutes with a preceding filter: a WHERE before DENSE_VECTOR still prunes the unused field.
+     */
+    public void testDenseVectorPruneWithFilter() {
+        var query = """
+            from types
+            | where integer > 0
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector
+            """;
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
+        assertThat(Expressions.names(dv.fields()), contains("keyword"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
+    }
+
+    /**
+     * Pruning distinguishes generated columns by attribute identity, not name. Two chained clauses produce different
+     * generated columns; only the second is used, so the first clause is removed and the second survives — the surviving
+     * clause is not confused by the earlier, dropped one.
+     */
+    public void testDenseVectorPruneKeepsUsedClauseAcrossChain() {
+        var query = """
+            from types
+            | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
+            | eval keyword_copy = keyword
+            | dense_vector keyword_copy WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_copy_dense_vector
+            """;
+        var analyzedPlan = denseVectorAnalyzer().query(query);
+        assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
+
+        // only the used (second) clause survives, embedding keyword_copy
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
+        assertThat(Expressions.names(dv.fields()), contains("keyword_copy"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_copy_dense_vector"));
+    }
+
+    public void testHighlightPrunesUnusedGeneratedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP highlight_first_name
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name")));
+    }
+
+    public void testHighlightRemovedWhenNoGeneratedColumnUsed() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP emp_no
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        assertFalse("HIGHLIGHT is purely additive, so an unused node should be dropped", plan.anyMatch(p -> p instanceof Highlight));
+    }
+
+    public void testHighlightPruneKeepsQstrQualifiedOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT QSTR("first_name:x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneKeepsMatchFieldWhenGeneratedColumnUnused() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT MATCH(first_name, "x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    // A `field:term` literal translates as query_string, so it still names first_name after KEEP drops highlight_first_name.
+    public void testHighlightPruneKeepsFieldQualifiedLiteralOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "first_name:x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneDropsUnusedOnFieldForColonFreeLiteral() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_last_name")));
+    }
 }

@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractStatementParserTests extends ESTestCase {
@@ -87,7 +86,7 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static UnresolvedFunction function(String name, List<Expression> args) {
-        return new UnresolvedFunction(EMPTY, name, DEFAULT, args);
+        return new UnresolvedFunction(EMPTY, name, args);
     }
 
     static UnresolvedRelation relation(String name) {

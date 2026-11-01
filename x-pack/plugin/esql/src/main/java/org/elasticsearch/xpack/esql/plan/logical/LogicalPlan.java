@@ -91,4 +91,8 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     @Override
     public abstract boolean equals(Object obj);
+
+    public boolean skipTelemetry() {
+        return false;
+    }
 }

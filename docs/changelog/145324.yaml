@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 145324
-summary: "[DiskBBQ] Fix bug in `NeighborQueue#popRawAndAddRaw`"
-type: bug

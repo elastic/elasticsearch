@@ -14,6 +14,7 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -74,6 +75,20 @@ public class PushTopNToSourceTests extends ESTestCase {
     public void testSimpleScoreSortField() {
         // FROM index METADATA _score | SORT _score | LIMIT 10
         var query = from("index").metadata("_score", DOUBLE, false).scoreSort().limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testSimpleScoreSortFieldAscending() {
+        // FROM index METADATA _score | SORT _score ASC | LIMIT 10
+        var query = from("index").metadata("_score", DOUBLE, false).scoreSort(Order.OrderDirection.ASC).limit(10);
+        assertPushdownSort(query);
+        assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
+    }
+
+    public void testScoreSortAscendingAndField() {
+        // FROM index METADATA _score | SORT _score ASC, field | LIMIT 10
+        var query = from("index").metadata("_score", DOUBLE, false).scoreSort(Order.OrderDirection.ASC).sort("field").limit(10);
         assertPushdownSort(query);
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -202,8 +217,11 @@ public class PushTopNToSourceTests extends ESTestCase {
     public void testPartiallyPushableSort() {
         // FROM index | EVAL sum = 1 + integer | SORT integer, sum, field | LIMIT 10
         var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").sort("sum").sort("field").limit(10);
-        // Both integer and field can be pushed down, but we can only push down the leading sortable fields, so the 'sum' blocks 'field'
-        assertPushdownSort(query, List.of(query.orders.get(0)), null, List.of(EvalExec.class, EsQueryExec.class));
+        // 'integer' and 'field' are pushable but the non-pushable 'sum' sits between them. Pushing only the leading 'integer'
+        // sort together with the limit would let Lucene truncate to 10 documents ordered by 'integer' alone, dropping documents
+        // that the full 'integer, sum, field' sort would rank into the top-10 whenever 'integer' ties straddle the limit. Since
+        // the sort keys are not fully pushable, nothing is pushed and the compute-layer TopN stays authoritative.
+        assertNoPushdownSort(query, "when a non-pushable sort key prevents full sort pushdown");
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
@@ -583,6 +601,8 @@ public class PushTopNToSourceTests extends ESTestCase {
                 assertThat("Expect sort[" + i + "] name to match", fieldName, is(sortName(name, fieldMap)));
             }
             assertThat("Expect sort[" + i + "] direction to match", sort.direction(), is(expectedSorts.get(i).direction()));
+            SortOrder expectedOrder = expectedSorts.get(i).direction() == Order.OrderDirection.ASC ? SortOrder.ASC : SortOrder.DESC;
+            assertThat("Expect sort[" + i + "] Lucene sort order to match", sort.sortBuilder().order(), is(expectedOrder));
         }
     }
 

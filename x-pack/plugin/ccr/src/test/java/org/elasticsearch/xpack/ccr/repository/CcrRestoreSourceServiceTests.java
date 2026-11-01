@@ -24,7 +24,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xpack.ccr.CcrSettings;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,22 +39,13 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     private DeterministicTaskQueue taskQueue;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeRestoreSourceService() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             CcrSettings.getSettings().stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet())
         );
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
-    }
-
-    @After
-    public void assertWarnings() {
-        assertWarnings(
-            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the breaking changes documentation for the next major version."
-        );
     }
 
     public void testOpenSession() throws IOException {

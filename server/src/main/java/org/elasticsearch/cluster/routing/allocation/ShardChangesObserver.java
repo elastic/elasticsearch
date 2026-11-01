@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -28,17 +30,35 @@ class ShardChangesObserver implements RoutingChangesObserver {
 
     static final String UNASSIGNED_TO_INITIALIZING_METRIC = "es.allocator.shards.unassigned_to_initializing.duration.histogram";
     static final String UNASSIGNED_TO_STARTED_METRIC = "es.allocator.shards.unassigned_to_started.duration.histogram";
+    static final String RELOCATION_STARTED_METRIC = "es.allocator.shards.relocation_started.total";
+    static final String SHARD_INITIALIZING_METRIC = "es.allocator.shards.initializing.total";
 
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
+    // Pre-calculate attributes for the most common move reasons
+    static final Map<String, Map<String, Object>> PRIMARY_RELOCATION_ATTRIBUTES = buildRelocationAttributes(true);
+    static final Map<String, Map<String, Object>> REPLICA_RELOCATION_ATTRIBUTES = buildRelocationAttributes(false);
 
     private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary) {
         return Arrays.stream(UnassignedInfo.Reason.values())
             .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name())));
     }
 
+    private static Map<String, Map<String, Object>> buildRelocationAttributes(boolean primary) {
+        return Map.of(
+            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.REBALANCE.reason(), "es_shard_primary", primary),
+            BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(),
+            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(), "es_shard_primary", primary),
+            BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(),
+            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(), "es_shard_primary", primary)
+        );
+    }
+
     private final LongHistogram unassignedToInitializingDuration;
     private final LongHistogram unassignedToStartedDuration;
+    private final LongCounter shardInitializingCounter;
+    private final LongCounter relocationStartedCounter;
     private final LongSupplier currentTimeMillisSupplier;
 
     ShardChangesObserver(MeterRegistry meterRegistry) {
@@ -56,6 +76,16 @@ class ShardChangesObserver implements RoutingChangesObserver {
             "Total duration from when a shard became UNASSIGNED to when it became STARTED",
             "ms"
         );
+        this.shardInitializingCounter = meterRegistry.registerLongCounter(
+            SHARD_INITIALIZING_METRIC,
+            "Total number of shards moved from UNASSIGNED to INITIALIZING by the allocator",
+            "{shard}"
+        );
+        this.relocationStartedCounter = meterRegistry.registerLongCounter(
+            RELOCATION_STARTED_METRIC,
+            "Total number of shard relocations started by the allocator",
+            "{shard}"
+        );
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
     }
 
@@ -70,7 +100,9 @@ class ShardChangesObserver implements RoutingChangesObserver {
         UnassignedInfo info = unassignedShard.unassignedInfo();
         if (info != null) {
             long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
-            unassignedToInitializingDuration.record(Math.max(0, durationMillis), attributes(info, initializedShard));
+            final var attrs = attributes(info, initializedShard);
+            unassignedToInitializingDuration.record(Math.max(0, durationMillis), attrs);
+            shardInitializingCounter.incrementBy(1, attrs);
         }
     }
 
@@ -99,6 +131,15 @@ class ShardChangesObserver implements RoutingChangesObserver {
             startedShard.currentNodeId(),
             targetRelocatingShard.currentNodeId()
         );
+        relocationStartedCounter.incrementBy(1, relocationAttributes(reason, startedShard.primary()));
+    }
+
+    private static Map<String, Object> relocationAttributes(String reason, boolean primary) {
+        final var attrs = (primary ? PRIMARY_RELOCATION_ATTRIBUTES : REPLICA_RELOCATION_ATTRIBUTES).get(reason);
+        if (attrs != null) {
+            return attrs;
+        }
+        return Map.of("es_relocation_reason", reason, "es_shard_primary", primary);
     }
 
     @Override

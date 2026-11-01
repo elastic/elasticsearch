@@ -32,6 +32,10 @@
         "type": "string",
         "description": "Restricts the set of transformed entities to those changed after this time"
       },
+      "initial_delay": {
+        "type": "time",
+        "description": "One-time reduced sync delay applied until the transform has processed its first document, then it reverts to the steady-state sync.time.delay"
+      },
       "timeout": {
         "type": "time",
         "default": "30s",

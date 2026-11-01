@@ -1,0 +1,42 @@
+{
+  "_doc": {
+    "properties": {
+      "body": {
+        "type": "text",
+        "copy_to": ["field-sparse-vector", "field-semantic", "field-semantic-disk_bbq"]
+      },
+      "field-sparse-vector": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elasticsearch",
+        "model_settings": {
+          "task_type": "sparse_embedding"
+        }
+      },
+      "field-semantic": {
+        "type": "semantic_text",
+        "inference_id": ".multilingual-e5-small-elasticsearch",
+        "model_settings": {
+          "task_type": "text_embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        }
+      },
+      "field-semantic-disk_bbq": {
+        "type": "semantic_text",
+        "inference_id": ".multilingual-e5-small-elasticsearch",
+        "model_settings": {
+          "task_type": "text_embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        },
+        "index_options": {
+          "dense_vector": {
+            "type": "bbq_disk"
+          }
+        }
+      }
+    }
+  }
+}

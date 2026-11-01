@@ -123,35 +123,41 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
-                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
+                SearchHit h = response.getHits().getAt(0);
+                h.mustIncRef();
+                searchHitReference.set(h);
             } finally {
                 response.decRef();
             }
         });
 
         final SearchHit hit = searchHitReference.get();
-        final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
+        try {
+            final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
-        for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
-            final Map<String, Object> action = (Map<String, Object>) actions.get(i);
-            final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
-            final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
+            for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
+                final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+                final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+                final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
 
-            assertThat(action.get("id"), is("action" + i));
+                assertThat(action.get("id"), is("action" + i));
 
-            if (i == failedIndex) {
-                assertThat(action.get("status"), is("condition_failed"));
-                assertThat(action.get("reason"), is("condition failed. skipping: [expected] failed hard"));
-                assertThat(condition, nullValue());
-                assertThat(logging, nullValue());
-            } else {
-                assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).type()));
+                if (i == failedIndex) {
+                    assertThat(action.get("status"), is("condition_failed"));
+                    assertThat(action.get("reason"), is("condition failed. skipping: [expected] failed hard"));
+                    assertThat(condition, nullValue());
+                    assertThat(logging, nullValue());
+                } else {
+                    assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).type()));
 
-                assertThat(action.get("status"), is("success"));
-                assertThat(condition.get("met"), is(true));
-                assertThat(action.get("reason"), nullValue());
-                assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                    assertThat(action.get("status"), is("success"));
+                    assertThat(condition.get("met"), is(true));
+                    assertThat(action.get("reason"), nullValue());
+                    assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                }
             }
+        } finally {
+            hit.decRef();
         }
     }
 
@@ -177,34 +183,40 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
-                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
+                SearchHit h = response.getHits().getAt(0);
+                h.mustIncRef();
+                searchHitReference.set(h);
             } finally {
                 response.decRef();
             }
         });
 
         final SearchHit hit = searchHitReference.get();
-        final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
+        try {
+            final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
-        for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
-            final Map<String, Object> action = (Map<String, Object>) actions.get(i);
-            final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
-            final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
+            for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
+                final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+                final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+                final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
 
-            assertThat(action.get("id"), is("action" + i));
-            assertThat(condition.get("type"), is(actionConditionsWithFailure[i].type()));
+                assertThat(action.get("id"), is("action" + i));
+                assertThat(condition.get("type"), is(actionConditionsWithFailure[i].type()));
 
-            if (i == failedIndex) {
-                assertThat(action.get("status"), is("condition_failed"));
-                assertThat(condition.get("met"), is(false));
-                assertThat(action.get("reason"), is("condition not met. skipping"));
-                assertThat(logging, nullValue());
-            } else {
-                assertThat(action.get("status"), is("success"));
-                assertThat(condition.get("met"), is(true));
-                assertThat(action.get("reason"), nullValue());
-                assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                if (i == failedIndex) {
+                    assertThat(action.get("status"), is("condition_failed"));
+                    assertThat(condition.get("met"), is(false));
+                    assertThat(action.get("reason"), is("condition not met. skipping"));
+                    assertThat(logging, nullValue());
+                } else {
+                    assertThat(action.get("status"), is("success"));
+                    assertThat(condition.get("met"), is(true));
+                    assertThat(action.get("reason"), nullValue());
+                    assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                }
             }
+        } finally {
+            hit.decRef();
         }
     }
 
@@ -237,26 +249,32 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
-                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
+                SearchHit h = response.getHits().getAt(0);
+                h.mustIncRef();
+                searchHitReference.set(h);
             } finally {
                 response.decRef();
             }
         });
 
         final SearchHit hit = searchHitReference.get();
-        final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
+        try {
+            final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
-        for (int i = 0; i < actionConditions.size(); ++i) {
-            final Map<String, Object> action = (Map<String, Object>) actions.get(i);
-            final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
-            final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
+            for (int i = 0; i < actionConditions.size(); ++i) {
+                final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+                final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+                final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
 
-            assertThat(action.get("id"), is("action" + i));
-            assertThat(action.get("status"), is("success"));
-            assertThat(condition.get("type"), is(actionConditions.get(i).type()));
-            assertThat(condition.get("met"), is(true));
-            assertThat(action.get("reason"), nullValue());
-            assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                assertThat(action.get("id"), is("action" + i));
+                assertThat(action.get("status"), is("success"));
+                assertThat(condition.get("type"), is(actionConditions.get(i).type()));
+                assertThat(condition.get("met"), is(true));
+                assertThat(action.get("reason"), nullValue());
+                assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+            }
+        } finally {
+            hit.decRef();
         }
     }
 

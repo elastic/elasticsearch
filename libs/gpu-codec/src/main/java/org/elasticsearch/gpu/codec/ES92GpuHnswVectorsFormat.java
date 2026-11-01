@@ -43,7 +43,6 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public static final int DEFAULT_MAX_CONN = (2 + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN * 2 / 3); // graph degree
     public static final int DEFAULT_BEAM_WIDTH = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN
         * Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH / 256; // intermediate graph degree
-    static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
 
     private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
@@ -58,6 +57,10 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
 
     public ES92GpuHnswVectorsFormat() {
         this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+    }
+
+    public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth);
     }
 
     public ES92GpuHnswVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth) {
@@ -85,6 +88,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state)
         );
     }
@@ -97,6 +101,30 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     @Override
     public int getMaxDimensions(String fieldName) {
         return MAX_DIMS_COUNT;
+    }
+
+    /**
+     * Translates an HNSW {@code m} parameter to the CAGRA graph degree.
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraGraphDegree(int m) {
+        return 2 + m * 2 / 3;
+    }
+
+    /**
+     * Translates HNSW {@code m} and {@code efConstruction} parameters to the CAGRA intermediate graph degree.
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraIntermediateGraphDegree(int m, int efConstruction) {
+        return m + m * efConstruction / 256;
+    }
+
+    /**
+     * Translates HNSW {@code efConstruction} to the CAGRA NN-Descent max iterations,
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraNNDescentNumIterations(int efConstruction) {
+        return 5 + efConstruction / 16;
     }
 
     @Override

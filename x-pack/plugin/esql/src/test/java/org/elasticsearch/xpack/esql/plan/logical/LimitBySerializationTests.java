@@ -10,16 +10,17 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class LimitBySerializationTests extends AbstractLogicalPlanSerializationTests<LimitBy> {
     @Override
     protected LimitBy createTestInstance() {
         Source source = randomSource();
-        Expression limitPerGroup = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression limitPerGroup = createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomGroupings();
         return new LimitBy(source, limitPerGroup, child, groupings, randomBoolean());
@@ -32,7 +33,7 @@ public class LimitBySerializationTests extends AbstractLogicalPlanSerializationT
         List<Expression> groupings = instance.groupings();
         boolean duplicated = instance.duplicated();
         switch (randomIntBetween(0, 3)) {
-            case 0 -> limitPerGroup = randomValueOtherThan(limitPerGroup, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 0 -> limitPerGroup = randomValueOtherThan(limitPerGroup, () -> createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 2 -> groupings = randomValueOtherThan(groupings, LimitBySerializationTests::randomGroupings);
             case 3 -> duplicated = duplicated == false;
@@ -53,6 +54,6 @@ public class LimitBySerializationTests extends AbstractLogicalPlanSerializationT
     }
 
     private static List<Expression> randomGroupings() {
-        return randomList(1, 3, () -> FieldAttributeTests.createFieldAttribute(0, false));
+        return randomList(1, 3, () -> createFieldAttribute(0, false));
     }
 }

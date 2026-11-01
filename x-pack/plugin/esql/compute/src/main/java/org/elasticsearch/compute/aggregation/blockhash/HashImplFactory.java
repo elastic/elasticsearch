@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LongHash;
@@ -37,6 +40,21 @@ public class HashImplFactory {
             return SWISS_HASH_FACTORY.newLongSwissHash(bf.bigArrays().recycler(), bf.breaker());
         } else {
             return new LongHash(1, bf.bigArrays());
+        }
+    }
+
+    /**
+     * Creates a new {@link LongHashTable} using only a {@link BigArrays} for memory accounting.
+     * Used by aggregator state classes that don't have a {@link BlockFactory} in scope.
+     */
+    public static LongHashTable newLongHash(BigArrays bigArrays) {
+        if (SWISS_HASH_FACTORY != null) {
+            CircuitBreaker breaker = bigArrays.breakerService() != null
+                ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST)
+                : new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+            return SWISS_HASH_FACTORY.newLongSwissHash(bigArrays.recycler(), breaker);
+        } else {
+            return new LongHash(1, bigArrays);
         }
     }
 

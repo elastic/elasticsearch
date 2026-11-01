@@ -1,4 +1,4 @@
-This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `securitymanager-scanner` and `jdk-api-extractor` tools),
+This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `jdk-api-extractor` tool),
 and looks for the "public surface" of these methods (i.e. any class/method accessible from regular Java code that calls into the original list, directly or transitively).
 
 It acts basically as a recursive "Find Usages" in Intellij, stopping at the first fully accessible point (public method on a public class).

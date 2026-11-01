@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Strings;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -49,7 +51,9 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -67,6 +71,14 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     private final ClusterService clusterService;
     private final Client client;
     private final TransformParsingContext transformParsingContext;
+    private final ProjectResolver projectResolver;
+    /**
+     * Returns {@code true} when CPS is enabled, the transform cross-project feature flag is on,
+     * and the current project has at least one linked project. Used to determine whether to display
+     * a default {@code project_routing} of {@link ProjectRoutingResolver#LOCAL_ONLY} for unmigrated
+     * transforms on GET.
+     */
+    private final BooleanSupplier shouldDisplayLocalOnlyDefault;
 
     @Inject
     public TransportGetTransformAction(
@@ -75,29 +87,41 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ClusterService clusterService,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        TransformServices transformServices
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
         this.client = client;
-        this.transformParsingContext = new TransformParsingContext(
-            transformServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
-        );
+        boolean crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        this.transformParsingContext = new TransformParsingContext(crossProjectEnabled);
+        this.projectResolver = projectResolver;
+        this.shouldDisplayLocalOnlyDefault = crossProjectEnabled
+            ? () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId())
+            : () -> false;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         RemainingTime remainingTime = RemainingTime.from(Instant::now, request.timeout());
 
+        // When CPS is enabled and there are linked projects, unmigrated transforms (no credentialId, no explicit
+        // project_routing) display a default of LOCAL_ONLY so users understand their effective search scope.
+        // This is a display-only default: it is never persisted. Once a transform is migrated to a UIAM token
+        // the default is persisted by TransformUpdater, so this code path only applies to legacy/API-key transforms.
+        final boolean applyDisplayDefault = shouldDisplayLocalOnlyDefault.getAsBoolean();
+
         // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
+            List<TransformConfig> configs = applyDisplayDefault ? withLocalOnlyDisplayDefault(r.results()) : r.results();
             if (request.checkForDanglingTasks()) {
                 getAllTransformIds(request, r, remainingTime, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
-                    var errors = TransformTask.findTransformTasks(request.getId(), clusterState)
+                    var errors = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
                         .stream()
                         .map(PersistentTasksCustomMetadata.PersistentTask::getId)
                         .filter(not(transformConfigIds::contains))
@@ -108,10 +132,10 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                             )
                         )
                         .toList();
-                    ll.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
+                    ll.onResponse(new Response(configs, r.count(), errors.isEmpty() ? null : errors));
                 }));
             } else {
-                l.onResponse(new Response(r.results(), r.count(), null));
+                l.onResponse(new Response(configs, r.count(), null));
             }
         });
 
@@ -122,6 +146,23 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     @Override
     protected ParseField getResultsField() {
         return TransformField.TRANSFORMS;
+    }
+
+    /**
+     * For each config in {@code configs}, if the transform has not yet been migrated to a UIAM
+     * credential (no {@code credentialId}) and has no explicit {@code project_routing}, returns a
+     * copy with {@code project_routing} defaulted to {@link ProjectRoutingResolver#LOCAL_ONLY}.
+     * This is a display-only operation: the returned configs are never persisted.
+     */
+    private static List<TransformConfig> withLocalOnlyDisplayDefault(List<TransformConfig> configs) {
+        return configs.stream().map(config -> {
+            if (config.getCredentialId() == null && config.getSource().getProjectRouting() == null) {
+                return new TransformConfig.Builder(config).setSource(
+                    config.getSource().withProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+                ).build();
+            }
+            return config;
+        }).toList();
     }
 
     @Override

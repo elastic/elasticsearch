@@ -19,12 +19,22 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.CopyWriter;
+import com.google.cloud.storage.HttpStorageOptions;
+import com.google.cloud.storage.MultipartUploadClient;
+import com.google.cloud.storage.MultipartUploadSettings;
+import com.google.cloud.storage.RequestBody;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadResponse;
+import com.google.cloud.storage.multipartupload.model.CompleteMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.CreateMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.CreateMultipartUploadResponse;
+import com.google.cloud.storage.multipartupload.model.UploadPartRequest;
+import com.google.cloud.storage.multipartupload.model.UploadPartResponse;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -32,6 +42,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.gcs.StorageOperation.COPY;
@@ -49,18 +60,21 @@ public class MeteredStorage {
     private final Storage storage;
     private final com.google.api.services.storage.Storage storageRpc;
     private final GcsRepositoryStatsCollector statsCollector;
+    private final MultipartUploadClient multipartUploadClient;
 
     public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
-        SpecialPermission.check();
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
+        this.multipartUploadClient = MultipartUploadClient.create(MultipartUploadSettings.of((HttpStorageOptions) storage.getOptions()));
     }
 
+    // for testing
     MeteredStorage(Storage storage, com.google.api.services.storage.Storage storageRpc, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
         this.storageRpc = storageRpc;
         this.statsCollector = statsCollector;
+        this.multipartUploadClient = null;
     }
 
     @SuppressForbidden(reason = "need access to storage client")
@@ -112,13 +126,18 @@ public class MeteredStorage {
         return new MeteredObjectsGetRequest(statsCollector, purpose, storageRpc.objects().get(bucket, blob));
     }
 
-    public MeteredWriteChannel meteredWriter(OperationPurpose purpose, BlobInfo blobInfo, Storage.BlobWriteOption... writeOptions)
-        throws IOException {
+    public MeteredWriteChannel meteredWriter(
+        OperationPurpose purpose,
+        BlobInfo blobInfo,
+        OptionalInt resumableWriteBufferSize,
+        Storage.BlobWriteOption... writeOptions
+    ) throws IOException {
         var initStats = new OperationStats(purpose, INSERT);
-        return statsCollector.continueWithIOSupplier(
-            initStats,
-            () -> new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions))
-        );
+        return statsCollector.continueWithIOSupplier(initStats, () -> {
+            var channel = new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions));
+            resumableWriteBufferSize.ifPresent(channel::setChunkSize);
+            return channel;
+        });
     }
 
     public MeteredReadChannel meteredReader(OperationPurpose purpose, BlobId blobId, Storage.BlobSourceOption... options) {
@@ -338,11 +357,28 @@ public class MeteredStorage {
         }
     }
 
-    public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobId blobId, long megabytesCopiedPerChunk) {
+    public CreateMultipartUploadResponse meteredCreateMultipartUpload(OperationPurpose purpose, CreateMultipartUploadRequest request)
+        throws IOException {
+        return statsCollector.collectIOSupplier(purpose, INSERT, () -> multipartUploadClient.createMultipartUpload(request));
+    }
+
+    public UploadPartResponse meteredUploadPart(OperationPurpose purpose, UploadPartRequest request, RequestBody body) throws IOException {
+        return statsCollector.collectIOSupplier(purpose, INSERT, () -> multipartUploadClient.uploadPart(request, body));
+    }
+
+    public void meteredCompleteMultipartUpload(OperationPurpose purpose, CompleteMultipartUploadRequest request) throws IOException {
+        statsCollector.collectIORunnable(purpose, INSERT, () -> multipartUploadClient.completeMultipartUpload(request));
+    }
+
+    public AbortMultipartUploadResponse meteredAbortMultipartUpload(OperationPurpose purpose, AbortMultipartUploadRequest request) {
+        return statsCollector.collectSupplier(purpose, DELETE, () -> multipartUploadClient.abortMultipartUpload(request));
+    }
+
+    public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobInfo targetBlobInfo, long megabytesCopiedPerChunk) {
         var stats = new OperationStats(purpose, COPY);
         var copyRequest = Storage.CopyRequest.newBuilder()
             .setSource(sourceBlobId)
-            .setTarget(blobId)
+            .setTarget(targetBlobInfo)
             .setMegabytesCopiedPerChunk(megabytesCopiedPerChunk)
             .build();
         CopyWriter copyWriter = statsCollector.continueWithSupplier(stats, () -> storage.copy(copyRequest));

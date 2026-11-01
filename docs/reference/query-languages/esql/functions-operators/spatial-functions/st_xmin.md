@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_XMIN` function [esql-st_xmin]
 
-:::{include} ../../_snippets/functions/layout/st_xmin.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_xmin.md
 :::

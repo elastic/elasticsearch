@@ -7,19 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 
@@ -31,10 +30,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public abstract class CohereRequest implements Request, ToXContentObject {
+public abstract class CohereRequest implements OutboundRequest, ToXContentObject {
 
-    public static void decorateWithAuthHeader(HttpPost request, CohereAccount account) {
-        request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+    public static void decorateWithAuthHeader(SimpleHttpRequest request, CohereAccount account) {
         request.setHeader(createAuthBearerHeader(account.apiKey()));
         request.setHeader(CohereUtils.createRequestSourceHeader());
     }
@@ -53,10 +51,9 @@ public abstract class CohereRequest implements Request, ToXContentObject {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(getURI());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(this).getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
+        httpPost.setBody(Strings.toString(this).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         decorateWithAuthHeader(httpPost, account);
 
@@ -101,7 +98,7 @@ public abstract class CohereRequest implements Request, ToXContentObject {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // no truncation
         return this;
     }

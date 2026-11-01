@@ -164,6 +164,7 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> {
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
+            createKeystoreIfMissing();
             // prevent modifications to the config directory
             sh.run(
                 String.format(
@@ -178,7 +179,10 @@ public class ArchiveTests extends PackagingTestCase {
                 )
             );
         });
-        Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
+        Platforms.onLinux(() -> {
+            createKeystoreIfMissing();
+            sh.run("chmod u-w " + installation.config);
+        });
         try {
             startElasticsearch();
             verifySecurityNotAutoConfigured(installation);
@@ -206,21 +210,24 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    private void createKeystoreIfMissing() {
+        if (Files.exists(installation.config("elasticsearch.keystore")) == false) {
+            final Installation.Executables bin = installation.executables();
+            bin.keystoreTool.run("create");
+        }
+    }
+
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
-        Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.79.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.79.jar")
-        );
+        // the certificate generation code and the Bouncy Castle classes it uses are shaded into the security-cli-bc jar
+        final String securityCliBcJar = "elasticsearch-security-cli-bc-" + FileUtils.getCurrentVersion() + ".jar";
+        Files.move(installation.lib.resolve("tools").resolve("security-cli").resolve(securityCliBcJar), tempDir.resolve(securityCliBcJar));
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
-        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
-        Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.79.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.79.jar")
-        );
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/elasticsearch/xpack/security/cli/bc/", null);
+        Files.move(tempDir.resolve(securityCliBcJar), installation.lib.resolve("tools").resolve("security-cli").resolve(securityCliBcJar));
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
     }
@@ -231,8 +238,12 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
-        Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
+        Platforms.onLinux(() -> {
+            createKeystoreIfMissing();
+            bin.keystoreTool.run("passwd", password + "\n" + password + "\n");
+        });
         Platforms.onWindows(() -> {
+            createKeystoreIfMissing();
             sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
         });
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
@@ -242,7 +253,7 @@ public class ArchiveTests extends PackagingTestCase {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
-        verifySecurityAutoConfigured(installation);
+        verifySecurityAutoConfigured(installation, password);
 
         stopElasticsearch();
 
@@ -580,7 +591,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         String nodeTool = installation.executables().nodeTool.toString();
         if (Platforms.WINDOWS == false) {
-            nodeTool = "sudo -E -u " + ARCHIVE_OWNER + " " + nodeTool;
+            nodeTool = "sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u " + ARCHIVE_OWNER + " " + nodeTool;
         }
 
         Result result = sh.run("echo y | " + nodeTool + " unsafe-bootstrap");

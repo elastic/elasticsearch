@@ -1,0 +1,3 @@
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
+| STATS t1 = SUM(s1 + 3), t2 = SUM(s1 + 4), t3 = SUM(s2 + 5), t4 = SUM(s2 + 6)

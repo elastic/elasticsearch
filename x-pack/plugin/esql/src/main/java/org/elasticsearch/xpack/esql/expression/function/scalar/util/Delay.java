@@ -42,7 +42,11 @@ public class Delay extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delay", Delay::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Delay.class).unary(Delay::new).name("delay");
 
-    @FunctionInfo(returnType = { "boolean" }, description = "Sleeps for a duration for every row. For debug purposes only.")
+    @FunctionInfo(
+        returnType = { "boolean" },
+        briefSummary = "Sleeps for a duration for every row, for debug purposes only.",
+        description = "Sleeps for a duration for every row. For debug purposes only."
+    )
     public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
         super(source, ms);
     }

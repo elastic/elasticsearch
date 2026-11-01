@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
@@ -32,15 +34,30 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends AbstractBWCSerializationTestCase<
     ElasticInferenceServiceSparseEmbeddingsServiceSettings> {
 
     @Override
     protected Writeable.Reader<ElasticInferenceServiceSparseEmbeddingsServiceSettings> instanceReader() {
         return ElasticInferenceServiceSparseEmbeddingsServiceSettings::new;
+    }
+
+    private final boolean ignoreUnknownFields = randomBoolean();
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return ignoreUnknownFields;
+    }
+
+    @Override
+    protected ElasticInferenceServiceSparseEmbeddingsServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return ElasticInferenceServiceSparseEmbeddingsServiceSettings.createParser(true, ConfigurationParseContext.PERSISTENT)
+            .apply(parser, ConfigurationParseContext.PERSISTENT)
+            .build();
     }
 
     @Override
@@ -70,16 +87,41 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
 
     public void testFromMap() {
         var modelId = "my-model-id";
+        var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, modelId));
 
-        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-            ConfigurationParseContext.REQUEST
-        );
+        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
+        assertThat(map, is(anEmptyMap()));
     }
 
-    public void testFromMap_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_PersistentContext() {
+    public void testFromMap_ThrowsIllegalArgumentException_WhenModelIdIsMissing() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [model_id]"));
+    }
+
+    public void testFromMap_ThrowsOnInvalidMaxBatchSize() {
+        final int invalidBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
+        var map = new HashMap<String, Object>(
+            Map.of(ServiceFields.MODEL_ID, "my-model-id", ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE, invalidBatchSize)
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Invalid value [" + invalidBatchSize + "]. [max_batch_size] must be a positive integer")
+        );
+    }
+
+    public void testFromMap_IgnoresRateLimitField_PersistentContext() {
         var modelId = "my-model-id";
         var map = new HashMap<String, Object>(
             Map.of(
@@ -91,7 +133,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         );
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
@@ -101,7 +142,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, modelId));
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(map, anEmptyMap());
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
@@ -117,17 +157,17 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             )
         );
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
+        assertThat(exception.getCause(), instanceOf(ElasticsearchParseException.class));
         assertThat(
-            exception.getMessage(),
+            exception.getCause().getMessage(),
             containsString(
                 "[service_settings] rate limit settings are not permitted for service [elastic] and task type [sparse_embedding]"
             )
         );
-        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
     }
 
     public void testToXContent_WritesAllFields() throws IOException {
@@ -151,34 +191,36 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
         );
 
-        ServiceSettings updated = original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)));
+        var map = new HashMap<String, Object>(Map.of("max_batch_size", newBatchSize));
+        ServiceSettings updated = original.updateServiceSettings(map);
 
         assertThat(
             updated,
             is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(original.modelId(), original.maxInputTokens(), newBatchSize))
         );
+        assertThat(map, is(anEmptyMap()));
     }
 
     public void testUpdateServiceSettings_GivenInvalidMaxBatchSize() {
         ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
 
         {
-            ValidationException e = expectThrows(
-                ValidationException.class,
+            var e = expectThrows(
+                XContentParseException.class,
                 () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", 0)))
             );
-            assertThat(e.getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer;"));
+            assertThat(e.getCause().getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer"));
         }
 
         {
             final int newBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
-            ValidationException e = expectThrows(
-                ValidationException.class,
+            var e = expectThrows(
+                XContentParseException.class,
                 () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)))
             );
             assertThat(
-                e.getMessage(),
-                containsString("Invalid value [" + newBatchSize + "]. [max_batch_size] must be a positive integer;")
+                e.getCause().getMessage(),
+                containsString("Invalid value [" + newBatchSize + "]. [max_batch_size] must be a positive integer")
             );
         }
 
@@ -187,21 +229,54 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND + 1,
                 Integer.MAX_VALUE
             );
-            ValidationException e = expectThrows(
-                ValidationException.class,
+            var e = expectThrows(
+                XContentParseException.class,
                 () -> original.updateServiceSettings(new HashMap<>(Map.of("max_batch_size", newBatchSize)))
             );
             assertThat(
-                e.getMessage(),
+                e.getCause().getMessage(),
                 containsString(
                     "Invalid value ["
                         + Strings.format("%s", (double) newBatchSize)
                         + "]. [max_batch_size] must be less than or equal to ["
                         + (double) ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND
-                        + "];"
+                        + "]"
                 )
             );
         }
+    }
+
+    public void testUpdateServiceSettings_RejectsImmutableAndUnknownFields() {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
+        var immutableOrUnknownField = randomFrom(ServiceFields.MODEL_ID, ServiceFields.MAX_INPUT_TOKENS, "unknown_field");
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> original.updateServiceSettings(new HashMap<>(Map.of(immutableOrUnknownField, "some-value")))
+        );
+
+        assertThat(e.getMessage(), containsString("unknown field [" + immutableOrUnknownField + "]"));
+    }
+
+    public void testUpdateServiceSettings_KeepsExistingMaxBatchSize_WhenAbsent() {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
+
+        ServiceSettings updated = original.updateServiceSettings(new HashMap<>());
+
+        assertThat(updated, is(original));
+    }
+
+    public void testUpdateServiceSettings_ClearsMaxBatchSize_WhenSetToNull() {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
+        var map = new HashMap<String, Object>();
+        map.put("max_batch_size", null);
+
+        ServiceSettings updated = original.updateServiceSettings(map);
+
+        assertThat(
+            updated,
+            is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(original.modelId(), original.maxInputTokens(), null))
+        );
     }
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings createRandom() {

@@ -10,6 +10,16 @@
               "index": false
             }
           }
+        },
+        {
+          "elasticsearch_querylog_esql_profile_longs": {
+            "path_match": "elasticsearch.querylog.esql.profile.*",
+            "match_mapping_type": "long",
+            "mapping": {
+              "type": "long",
+              "index": false
+            }
+          }
         }
       ],
       "properties": {
@@ -93,6 +103,10 @@
                     }
                   }
                 },
+                "settings": {
+                  "dynamic": true,
+                  "type": "object"
+                },
                 "esql": {
                   "properties": {
                     "profile": {
@@ -132,7 +146,21 @@
                 "query": {
                   "type": "keyword",
                   "index": false,
-                  "ignore_above": 2147483647
+                  "ignore_above": 32765
+                },
+                "filter": {
+                  "type": "keyword",
+                  "index": false,
+                  "ignore_above": 32765
+                },
+                "params": {
+                  "type": "flattened",
+                  "preserve_leaf_arrays": "exact",
+                  "ignore_above": 32765
+                },
+                "view_settings": {
+                  "type": "flattened",
+                  "ignore_above": 256
                 },
                 "result_count": {
                   "type": "long",

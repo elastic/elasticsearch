@@ -16,13 +16,17 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
@@ -31,13 +35,25 @@ import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -49,24 +65,32 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.knn.data.DataGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.DoubleSummaryStatistics;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -82,8 +106,6 @@ public class KnnIndexTester {
     public static final Logger logger;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-
         // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
         ProcessInfo pinfo = ProcessInfo.fromSystem();
         Map<String, String> sysprops = pinfo.sysprops();
@@ -101,6 +123,22 @@ public class KnnIndexTester {
         HNSW,
         IVF,
         GPU_HNSW
+    }
+
+    enum QuantizationType {
+        OSQ,
+        ASH;
+
+        static QuantizationType fromString(String name) {
+            if (name == null) {
+                return OSQ;
+            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "ash" -> ASH;
+                case "osq" -> OSQ;
+                default -> throw new IllegalArgumentException("Unknown quantization_type: '" + name + "'. Known types: ash, osq");
+            };
+        }
     }
 
     public enum VectorEncoding {
@@ -136,47 +174,47 @@ public class KnnIndexTester {
         Directory create(Path indexPath) throws IOException;
     }
 
-    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+    /**
+     * @param shared             when true a single directory instance serves indexing, merging and searching, instead of one
+     *                           per phase
+     * @param preWarm            when true the directory's cache is filled by reading every file before searching
+     * @param requiresFreshIndex when true the directory cannot reuse an index it did not write itself, so the index is built
+     *                           from scratch on every run and gets an index path of its own
+     */
+    record DirectoryTypeConfig(
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        BiConsumer<Directory, String> diagnosticLogger,
+        boolean requiresFreshIndex
+    ) {
         private static final BiConsumer<Directory, String> NOOP = (a, b) -> {};
 
         DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
-            this(factory, shared, preWarm, NOOP);
+            this(factory, shared, preWarm, NOOP, false);
+        }
+
+        DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+            this(factory, shared, preWarm, diagnosticLogger, false);
         }
     }
 
-    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>();
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(4);
 
     static {
         directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
         directoryTypeRegistry.put("frozen", new DirectoryTypeConfig(KnnIndexer::openFrozenDirectory, false, true));
-    }
-
-    /**
-     * Registers a custom directory type that can be referenced via {@code "directory_type"}
-     * in the test configuration JSON.
-     *
-     * @param name    the name used in configuration (e.g. "serverless")
-     * @param factory creates a Directory for the given index path
-     * @param shared  if true, a single directory instance is used for both write and read phases
-     * @param preWarm if true, the directory is pre-warmed before search
-     */
-    static void registerDirectoryType(String name, DirectoryFactory factory, boolean shared, boolean preWarm) {
-        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm));
-    }
-
-    /**
-     * Registers a custom directory type with an optional diagnostic logger.
-     *
-     * @param diagnosticLogger called with (directory, label) at key points (before/after prewarm, after search)
-     */
-    static void registerDirectoryType(
-        String name,
-        DirectoryFactory factory,
-        boolean shared,
-        boolean preWarm,
-        BiConsumer<Directory, String> diagnosticLogger
-    ) {
-        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm, diagnosticLogger));
+        directoryTypeRegistry.put(
+            "stateless",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessDirectory, true, true, KnnIndexer::logStatelessCacheStats)
+        );
+        // "stateless-index" uses `shared = true` because the directory only serves reads for files it created itself, and
+        // it wipes the index path when opened: a second instance for the force merge would destroy the index and then find
+        // nothing to merge.
+        directoryTypeRegistry.put(
+            "stateless-index",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessIndexDirectory, true, false, DirectoryTypeConfig.NOOP, true)
+        );
     }
 
     static DirectoryTypeConfig getDirectoryTypeConfig(String name) {
@@ -187,22 +225,37 @@ public class KnnIndexTester {
         return config;
     }
 
-    private static String formatIndexPath(TestConfiguration args) {
+    static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
         List<String> suffix = new ArrayList<>();
         switch (args.indexType()) {
             case FLAT -> suffix.add("flat");
             case GPU_HNSW -> suffix.add("gpu_hnsw");
             case IVF -> {
-                suffix.add("ivf");
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
+                suffix.add(isAsh ? "ash" : "ivf");
                 suffix.add(Integer.toString(args.ivfClusterSize()));
-                suffix.add(
-                    Integer.toString(
-                        args.secondaryClusterSize() == -1
-                            ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                            : args.secondaryClusterSize()
-                    )
-                );
-                suffix.add(Integer.toString(args.quantizeBits()));
+                if (isAsh) {
+                    int bits = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                    suffix.add(Integer.toString(bits));
+                    if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != 4) {
+                        suffix.add("q" + args.queryQuantizeBits());
+                    }
+                    if (args.projectedDimsFraction() != 0.5f) {
+                        suffix.add("p" + String.format(Locale.ROOT, "%.2f", args.projectedDimsFraction()));
+                    }
+                } else {
+                    suffix.add(
+                        Integer.toString(
+                            args.secondaryClusterSize() == -1
+                                ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                                : args.secondaryClusterSize()
+                        )
+                    );
+                    suffix.add(Integer.toString(args.quantizeBits()));
+                    if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
+                        suffix.add("q" + args.queryQuantizeBits());
+                    }
+                }
             }
             case HNSW -> {
                 suffix.add(Integer.toString(args.hnswM()));
@@ -212,51 +265,117 @@ public class KnnIndexTester {
                 }
             }
         }
+        if (args.usesSlicedIvf()) {
+            // Keep cached indices built with the old raw-partition layout separate from the hash-prefixed slice-key layout.
+            suffix.add("slice-key-v1");
+        }
+        if (dirConfig.requiresFreshIndex()) {
+            // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
+            // types that can reuse an index built by "default".
+            suffix.add(args.directoryType());
+        }
 
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args, @Nullable ExecutorService exec) {
+    static Codec createCodec(TestConfiguration args, ExecutorService mergeExec, ExecutorService quantExec) {
         final KnnVectorsFormat format;
         Integer quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = args.vectorEncoding().elementType;
-        int mergeWorkers = exec != null ? args.numMergeWorkers() : 1;
+        int mergeWorkers = mergeExec != null ? args.numMergeWorkers() : 1;
 
         format = switch (args.indexType()) {
             case IVF -> {
-                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
-                // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
-                yield new ESNextDiskBBQVectorsFormat(
-                    encoding,
-                    args.ivfClusterSize(),
-                    args.secondaryClusterSize() == -1
-                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                        : args.secondaryClusterSize(),
-                    elementType,
-                    args.onDiskRescore(),
-                    exec,
-                    mergeWorkers,
-                    args.doPrecondition(),
-                    args.preconditioningBlockDims(),
-                    flatVectorThreshold
-                );
+                int centroidsPerParentCluster = args.secondaryClusterSize() == -1
+                    ? (isAsh
+                        ? ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                        : ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER)
+                    : args.secondaryClusterSize();
+                String sliceField = args.usesSlicedIvf() ? SliceIndexing.SLICE_KEY_FIELD_NAME : null;
+
+                if (isAsh) {
+                    int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
+                    int queryBits = Objects.requireNonNullElse(
+                        args.queryQuantizeBits(),
+                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM
+                    );
+                    var ashConfig = IvfSegmentConfig.AshConfig.of(
+                        bitsPerDim,
+                        queryBits,
+                        args.projectedDimsFraction(),
+                        args.maxProjectedDims()
+                    );
+                    yield new ESNextDiskASHVectorsFormat(
+                        ashConfig,
+                        args.ivfClusterSize(),
+                        centroidsPerParentCluster,
+                        elementType,
+                        false,
+                        mergeExec,
+                        mergeWorkers,
+                        quantExec,
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        IvfMergeConfigResolver.useCodecDefault(),
+                        false
+                    );
+                } else {
+                    var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
+                    IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize(), args.autoCalibrationProfile())
+                        : IvfMergeConfigResolver.useCodecDefault();
+                    yield new ESNextDiskBBQVectorsFormat(
+                        encoding,
+                        args.ivfClusterSize(),
+                        centroidsPerParentCluster,
+                        elementType,
+                        args.onDiskRescore(),
+                        mergeExec,
+                        mergeWorkers,
+                        args.doPrecondition(),
+                        args.preconditioningBlockDims(),
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        mergeConfigResolver,
+                        false
+                    );
+                }
             }
-            case GPU_HNSW -> switch (quantizeBits) {
-                case null -> new ES92GpuHnswVectorsFormat();
-                case 7 -> new ES92GpuHnswSQVectorsFormat();
-                default -> throw new IllegalArgumentException(
-                    "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+            case GPU_HNSW -> {
+                int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(args.hnswM());
+                int intermediateGraphDegree = ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(
+                    args.hnswM(),
+                    args.hnswEfConstruction()
                 );
-            };
+                yield switch (quantizeBits) {
+                    case null -> new ES92GpuHnswVectorsFormat(graphDegree, intermediateGraphDegree);
+                    case 1 -> new ES97GpuHnswBBQVectorsFormat(
+                        CuVSGPUSupport.instance().getTotalGpuMemory(),
+                        graphDegree,
+                        intermediateGraphDegree,
+                        args.onDiskRescore(),
+                        args.flatVectorThreshold(),
+                        args.onDiskMerge()
+                    );
+                    case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);
+                    default -> throw new IllegalArgumentException(
+                        "GPU HNSW index type only supports 1 or 7 bits quantization, but got: " + quantizeBits
+                    );
+                };
+            }
             case HNSW -> switch (quantizeBits) {
                 case null -> new ES93HnswVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
                     mergeWorkers,
-                    exec,
-                    args.flatVectorThreshold()
+                    mergeExec,
+                    args.flatVectorThreshold(),
+                    false
                 );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
@@ -264,8 +383,9 @@ public class KnnIndexTester {
                     elementType,
                     false,
                     mergeWorkers,
-                    exec,
-                    args.flatVectorThreshold()
+                    mergeExec,
+                    args.flatVectorThreshold(),
+                    false
                 );
                 default -> new ES94HnswScalarQuantizedVectorsFormat(
                     args.hnswM(),
@@ -274,18 +394,19 @@ public class KnnIndexTester {
                     quantizeBits,
                     false,
                     mergeWorkers,
-                    exec,
-                    args.flatVectorThreshold()
+                    mergeExec,
+                    args.flatVectorThreshold(),
+                    false
                 );
             };
             case FLAT -> switch (quantizeBits) {
-                case null -> new ES93FlatVectorFormat(elementType);
-                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
-                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false);
+                case null -> new ES93FlatVectorFormat(elementType, false);
+                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false, false);
+                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false, false);
             };
         };
 
-        logger.info("Using format {}", format.getName());
+        logger.info("Using format {} (via {})", format.getName(), format.getClass().getName());
 
         return new Lucene104Codec() {
             @Override
@@ -384,7 +505,9 @@ public class KnnIndexTester {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
 
+        reportMemoryAndProcesses();
         logger.info("Using configuration file: " + jsonConfigPath);
+        String rawConfigJson = Files.readString(jsonConfigPath);
         // Parse the JSON config file to get command line arguments
         // This assumes that the JSON file is the correct format
         List<TestConfiguration> testConfigurationList = new ArrayList<>();
@@ -405,28 +528,30 @@ public class KnnIndexTester {
             }
         }
         FormattedResults formattedResults = new FormattedResults();
+        LocalDateTime runStart = LocalDateTime.now();
 
         for (TestConfiguration testConfiguration : testConfigurationList) {
             // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
             checkQuantizeBits(testConfiguration);
-            String indexPathName = formatIndexPath(testConfiguration);
+            DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
+            checkCanReuseIndex(testConfiguration, dirConfig);
+            String indexPathName = formatIndexPath(testConfiguration, dirConfig);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
             Arrays.setAll(results, i -> new Results(indexPathName, indexType, testConfiguration.numDocs()));
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            final ExecutorService exec;
-            if (testConfiguration.numMergeWorkers() > 1) {
-                exec = Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"));
-            } else {
-                exec = null;
-            }
+            ExecutorService mergeExec = testConfiguration.numMergeWorkers() > 1
+                ? Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"))
+                : null;
+            ExecutorService quantExec = testConfiguration.numQuantizerWorkers() > 1
+                ? Executors.newFixedThreadPool(testConfiguration.numQuantizerWorkers(), new NamedThreadFactory("quantization"))
+                : null;
             try {
-                Codec codec = createCodec(testConfiguration, exec);
+                Codec codec = createCodec(testConfiguration, mergeExec, quantExec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-                DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
 
                 runTestConfiguration(
                     testConfiguration,
@@ -443,12 +568,24 @@ public class KnnIndexTester {
                 formattedResults.queryResults.addAll(List.of(results));
                 formattedResults.indexResults.add(indexResults);
             } finally {
-                if (exec != null) {
-                    exec.shutdown();
+                if (mergeExec != null) {
+                    mergeExec.shutdown();
+                }
+                if (quantExec != null) {
+                    quantExec.shutdown();
                 }
             }
         }
         logger.info("Results: \n" + formattedResults);
+        GitInfo gitInfo = captureGitInfo();
+        Path dumpFile = writeResultsDump(jsonConfigPath, rawConfigJson, formattedResults, gitInfo, runStart);
+        Path csvFile = appendResultsCsv(jsonConfigPath, testConfigurationList, formattedResults, gitInfo, runStart);
+        List<String> outputPaths = new ArrayList<>();
+        if (dumpFile != null) outputPaths.add(dumpFile.toString());
+        if (csvFile != null) outputPaths.add(csvFile.toString());
+        if (outputPaths.isEmpty() == false) {
+            logger.info("Output files written:\n  {}", String.join("\n  ", outputPaths));
+        }
     }
 
     /**
@@ -521,10 +658,16 @@ public class KnnIndexTester {
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
+                if (testConfiguration.numDeletedDocs() > 0) {
+                    deleteDocuments(knnIndexer, indexResults, sharedDir, testConfiguration);
+                }
             }
             numSegments(indexPath, indexResults, sharedDir);
+            if (testConfiguration.autoCalibrate() && testConfiguration.indexType() == IndexType.IVF) {
+                logAutoCalibrationSegmentReport(indexPath, sharedDir);
+            }
 
-            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.hasQueries();
+            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {
@@ -562,8 +705,106 @@ public class KnnIndexTester {
         }
     }
 
+    static void deleteDocuments(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.deleteDocuments(
+                sharedDir,
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        } else {
+            knnIndexer.deleteDocuments(
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        }
+    }
+
+    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
+
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
         dirConfig.diagnosticLogger().accept(dir, label);
+        logDiskStats(label);
+    }
+
+    private static void logDiskStats(String label) {
+        Path diskstats = Path.of("/proc/diskstats");
+        if (Files.exists(diskstats) == false) {
+            return;
+        }
+        try {
+            for (String line : Files.readAllLines(diskstats)) {
+                String[] fields = line.trim().split("\\s+");
+                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
+                    logger.info("DISKSTATS[{}] device={} reads={} sectors_read={}", label, DISKSTATS_DEVICE, fields[3], fields[5]);
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
+        }
+    }
+
+    // Log system memory and other Java processes to help identify page-cache starvation early.
+    private static void reportMemoryAndProcesses() {
+        Path meminfo = Path.of("/proc/meminfo");
+        if (Files.exists(meminfo)) {
+            try {
+                String text = Files.readString(meminfo);
+                long totalMB = parseMeminfoKB(text, "MemTotal") / 1024;
+                long availMB = parseMeminfoKB(text, "MemAvailable") / 1024;
+                long cacheMB = parseMeminfoKB(text, "Cached") / 1024;
+
+                long myPid = ProcessHandle.current().pid();
+                List<String> otherJavaProcs = ProcessHandle.allProcesses()
+                    .filter(p -> p.pid() != myPid)
+                    .filter(p -> p.info().command().orElse("").contains("java"))
+                    .map(p -> {
+                        String cmdLine = p.info().commandLine().orElse("");
+                        return "  PID " + p.pid() + " (" + javaProcessLabel(cmdLine) + ")";
+                    })
+                    .toList();
+
+                logger.info(
+                    "MEMORY: total={}MB, available={}MB, page_cache={}MB, other_java_procs={}",
+                    totalMB,
+                    availMB,
+                    cacheMB,
+                    otherJavaProcs.size()
+                );
+                for (String proc : otherJavaProcs) {
+                    logger.info(proc);
+                }
+                if (availMB > 0 && availMB < 4096) {
+                    logger.warn("Only {}MB available — benchmark may be dominated by page faults!", availMB);
+                }
+            } catch (IOException e) {
+                logger.warn("Failed to read /proc/meminfo: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static long parseMeminfoKB(String text, String key) {
+        int idx = text.indexOf(key + ":");
+        if (idx < 0) return -1;
+        int start = idx + key.length() + 1;
+        int end = text.indexOf('\n', start);
+        String line = text.substring(start, end).trim();
+        return Long.parseLong(line.split("\\s+")[0]);
+    }
+
+    private static String javaProcessLabel(String cmdLine) {
+        if (cmdLine.contains("GradleWorkerMain")) return "GradleWorker";
+        if (cmdLine.contains("GradleDaemon")) return "GradleDaemon";
+        if (cmdLine.contains("gradle-wrapper")) return "GradleWrapper";
+        if (cmdLine.contains("KnnIndexTester")) return "KnnIndexTester";
+        if (cmdLine.contains("org.elasticsearch")) return "Elasticsearch";
+        return "java[" + cmdLine.substring(0, Math.min(cmdLine.length(), 80)) + "]";
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
@@ -592,29 +833,72 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
+        }
+    }
+
+    private static int defaultQueryQuantizeBits(int docQuantizeBits) {
+        return switch (docQuantizeBits) {
+            case 1, 2 -> 4;
+            case 4 -> 4;
+            case 7 -> 7;
+            default -> throw new IllegalArgumentException("Unsupported document quantize bits: " + docQuantizeBits);
+        };
+    }
+
+    private static QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+        if (queryQuantizeBits == null) {
+            return QuantEncoding.fromBits((byte) docQuantizeBits);
+        }
+        return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+    }
+
+    /**
+     * Fails fast rather than silently reporting nothing. A directory type that only tracks the files it wrote itself cannot see
+     * an index left on disk by a previous run: it would open the empty bootstrap commit, the force merge would find no segments
+     * and report close to zero milliseconds, and the searches would run against no documents.
+     */
+    private static void checkCanReuseIndex(TestConfiguration args, DirectoryTypeConfig dirConfig) {
+        if (dirConfig.requiresFreshIndex() && args.reindex() == false) {
+            throw new IllegalArgumentException(
+                "directory_type '"
+                    + args.directoryType()
+                    + "' cannot reuse an existing index: it only reads files it wrote itself, so an index on disk is invisible to "
+                    + "it and the force merge would silently be a no-op. Set \"reindex\": true. Note this rebuilds, and therefore "
+                    + "wipes, the index path on every run."
+            );
         }
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
-                    throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
+                if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
+                    // AshConfig.of validates bitsPerDim, queryBitsPerDim, and projectedDimsFraction
+                    IvfSegmentConfig.AshConfig.of(
+                        Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
+                        Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+                        args.projectedDimsFraction(),
+                        args.maxProjectedDims()
                     );
+                } else {
+                    if (args.quantizeBits() == null) {
+                        throw new IllegalArgumentException("IVF index type requires quantize_bits to be set");
+                    }
+                    // QuantEncoding.fromBits / fromDocAndQueryBits validates the combination
+                    resolveQuantEncoding(args.quantizeBits(), args.queryQuantizeBits());
                 }
                 break;
             case GPU_HNSW: {
-                if (args.quantizeBits() != null && args.quantizeBits() != 7) {
+                if (args.quantizeBits() != null && args.quantizeBits() != 1 && args.quantizeBits() != 7) {
                     throw new IllegalArgumentException(
-                        "GPU HNSW index type only supports 7 bits quantization, but got: " + args.quantizeBits()
+                        "GPU HNSW index type only supports 1 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
                 }
             }
@@ -647,6 +931,111 @@ public class KnnIndexTester {
         }
     }
 
+    /**
+     * Logs a concise per-segment summary of the auto-calibrated IVF configuration: quantization
+     * encoding, rescore oversample factor, and whether preconditioning is active. Only meaningful
+     * when auto-calibration is enabled and the index type is IVF.
+     */
+    static void logAutoCalibrationSegmentReport(Path indexPath, Directory sharedDir) throws IOException {
+        Directory dir = sharedDir != null ? sharedDir : KnnIndexer.getDirectory(indexPath);
+        boolean ownsDir = sharedDir == null;
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            List<LeafReaderContext> leaves = reader.leaves();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Auto-calibration segment distribution [field=")
+                .append(KnnIndexer.VECTOR_FIELD)
+                .append(", ")
+                .append(leaves.size())
+                .append(" segment(s)]\n");
+            sb.append(
+                String.format(Locale.ROOT, "  %4s  %7s  %-22s  %10s  %12s%n", "seg", "docs", "quantization", "oversample", "precondition")
+            );
+            sb.append(
+                String.format(
+                    Locale.ROOT,
+                    "  %4s  %7s  %-22s  %10s  %12s%n",
+                    "---",
+                    "-------",
+                    "----------------------",
+                    "----------",
+                    "------------"
+                )
+            );
+
+            Map<String, Integer> encodingCounts = new LinkedHashMap<>();
+            List<Double> oversamples = new ArrayList<>();
+            int preconditionTrue = 0;
+            int calibrated = 0;
+
+            for (LeafReaderContext ctx : leaves) {
+                var lr = ctx.reader();
+                FieldInfo fi = lr.getFieldInfos().fieldInfo(KnnIndexer.VECTOR_FIELD);
+                if (fi == null) {
+                    sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no vector field)%n", ctx.ord, lr.numDocs()));
+                    continue;
+                }
+                SegmentReader sr = Lucene.tryUnwrapSegmentReader(lr);
+                KnnVectorsReader vr = sr != null ? sr.getVectorReader() : null;
+                if (vr instanceof PerFieldKnnVectorsFormat.FieldsReader pfr) {
+                    vr = pfr.getFieldReader(KnnIndexer.VECTOR_FIELD);
+                }
+                if (vr instanceof CalibrationAwareReader car) {
+                    SegmentCalibrationParameters calibrationParameters = car.getCalibrationParameters(fi);
+                    switch (calibrationParameters) {
+                        case SegmentCalibrationParameters.Osq osq -> {
+                            boolean precondition = osq.precondition();
+                            String encName = osq.encoding().name();
+                            float oversample = osq.oversample();
+
+                            encodingCounts.merge(encName, 1, Integer::sum);
+                            if (Float.isFinite(oversample)) {
+                                oversamples.add((double) oversample);
+                            }
+                            if (precondition) {
+                                preconditionTrue++;
+                            }
+                            calibrated++;
+
+                            sb.append(
+                                String.format(
+                                    Locale.ROOT,
+                                    "  %4d  %7d  %-22s  %10s  %12b%n",
+                                    ctx.ord,
+                                    lr.numDocs(),
+                                    encName,
+                                    String.format(Locale.ROOT, "%.2f", osq.oversample()),
+                                    precondition
+                                )
+                            );
+                        }
+
+                        case null -> throw new IllegalArgumentException("No calibration parameters returned");
+                    }
+                } else {
+                    sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no calibration data)%n", ctx.ord, lr.numDocs()));
+                }
+            }
+
+            if (calibrated > 0) {
+                DoubleSummaryStatistics stats = oversamples.stream().mapToDouble(Double::doubleValue).summaryStatistics();
+                sb.append("  Summary: encodings=");
+                encodingCounts.forEach((enc, count) -> sb.append(enc).append("×").append(count).append(" "));
+                if (oversamples.isEmpty() == false) {
+                    sb.append(
+                        String.format(Locale.ROOT, " oversample=[%.2f, %.2f] avg=%.2f", stats.getMin(), stats.getMax(), stats.getAverage())
+                    );
+                }
+                sb.append(String.format(Locale.ROOT, "  precondition=%d/%d segments", preconditionTrue, calibrated));
+            }
+
+            logger.info("{}", sb);
+        } finally {
+            if (ownsDir) {
+                dir.close();
+            }
+        }
+    }
+
     static class FormattedResults {
         List<Results> indexResults = new ArrayList<>();
         List<Results> queryResults = new ArrayList<>();
@@ -661,6 +1050,7 @@ public class KnnIndexTester {
                 "index_name",
                 "index_type",
                 "num_docs",
+                "num_deleted_docs",
                 "doc_add_time(ms)",
                 "total_index_time(ms)",
                 "force_merge_time(ms)",
@@ -681,12 +1071,16 @@ public class KnnIndexTester {
                 "avg_cpu_count",
                 "QPS",
                 "recall",
+                "top_k",
                 "visited",
                 "filter_selectivity",
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination"
+                "early_termination",
+                "post_filter",
+                "exact",
+                "exact_quantized"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -704,6 +1098,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Integer.toString(indexResult.numDeletedDocs),
                     Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
@@ -724,12 +1119,16 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                    String.format(Locale.ROOT, "%d", queryResult.topK),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination)
+                    Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.postFilter),
+                    Boolean.toString(queryResult.exact),
+                    Boolean.toString(queryResult.exactQuantized)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";
@@ -811,6 +1210,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
+        int numDeletedDocs;
         float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
@@ -827,7 +1227,11 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean postFilter;
+        boolean exact;
+        boolean exactQuantized;
         int numCandidates;
+        int topK;
         Map<String, Float> perPartitionRecall;
 
         Results(String indexName, String indexType, int numDocs) {
@@ -850,5 +1254,284 @@ public class KnnIndexTester {
             cpuTimesNS = threadBean.getThreadCpuTime(threadIDs);
             threadInfos = threadBean.getThreadInfo(threadIDs);
         }
+    }
+
+    private record GitInfo(String branch, String commit) {}
+
+    private static GitInfo captureGitInfo() {
+        try {
+            String branch = runProcess("git", "branch", "--show-current").trim();
+            String commit = runProcess("git", "log", "-1", "--format=%h %s").trim();
+            return new GitInfo(branch, commit);
+        } catch (Exception e) {
+            logger.debug("Could not capture git info: {}", e.getMessage());
+            return new GitInfo("", "");
+        }
+    }
+
+    private static String runProcess(String... command) throws IOException, InterruptedException {
+        Process p = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        p.waitFor();
+        return output;
+    }
+
+    private static Path writeResultsDump(
+        Path configFilePath,
+        String rawConfigJson,
+        FormattedResults formattedResults,
+        GitInfo gitInfo,
+        LocalDateTime timestamp
+    ) {
+        try {
+            Path outDir = PathUtils.get("target/knn_results");
+            Files.createDirectories(outDir);
+            String configFileName = configFilePath.getFileName().toString();
+            int dotIdx = configFileName.lastIndexOf('.');
+            String configBaseName = dotIdx > 0 ? configFileName.substring(0, dotIdx) : configFileName;
+            String fileTs = timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+            Path outFile = outDir.resolve(fileTs + "_" + configBaseName + ".txt");
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("=".repeat(80)).append("\n");
+            sb.append("  KNN Index Tester Results\n");
+            sb.append("=".repeat(80)).append("\n");
+            sb.append("Timestamp:   ").append(timestamp.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\n");
+            sb.append("Config file: ").append(configFilePath.toAbsolutePath()).append("\n\n");
+
+            sb.append("--- System Information ").append("-".repeat(58)).append("\n");
+            sb.append("OS:          ")
+                .append(System.getProperty("os.name"))
+                .append(" ")
+                .append(System.getProperty("os.version"))
+                .append(" (")
+                .append(System.getProperty("os.arch"))
+                .append(")\n");
+            sb.append("JVM:         ")
+                .append(System.getProperty("java.vm.name"))
+                .append(" ")
+                .append(System.getProperty("java.version"))
+                .append(" (")
+                .append(System.getProperty("java.vendor"))
+                .append(")\n");
+            sb.append("Processors:  ").append(Runtime.getRuntime().availableProcessors()).append("\n");
+            sb.append("Heap max:    ").append(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024 * 1024)).append(" MB\n\n");
+
+            sb.append("--- Git Information ").append("-".repeat(61)).append("\n");
+            if (gitInfo.branch().isEmpty() && gitInfo.commit().isEmpty()) {
+                sb.append("(unavailable)\n\n");
+            } else {
+                sb.append("Branch: ").append(gitInfo.branch()).append("\n");
+                sb.append("Commit: ").append(gitInfo.commit()).append("\n\n");
+            }
+
+            sb.append("--- Configuration ").append("-".repeat(62)).append("\n");
+            sb.append(rawConfigJson).append("\n\n");
+
+            sb.append("--- Results ").append("-".repeat(68)).append("\n");
+            sb.append(formattedResults);
+            sb.append("\n").append("=".repeat(80)).append("\n");
+
+            Files.writeString(outFile, sb.toString());
+            return outFile.toAbsolutePath();
+        } catch (IOException e) {
+            logger.warn("Failed to write results dump: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static final String[] CSV_HEADERS = {
+        "timestamp",
+        "config_file",
+        "git_branch",
+        "git_commit",
+        "os",
+        "jvm_version",
+        "processors",
+        "heap_max_mb",
+        "index_name",
+        "index_type",
+        "num_docs",
+        "num_deleted_docs",
+        "num_segments",
+        "quantize_bits",
+        "query_quantize_bits",
+        "vector_encoding",
+        "vector_space",
+        "hnsw_m",
+        "hnsw_ef_construction",
+        "ivf_cluster_size",
+        "secondary_cluster_size",
+        "merge_policy",
+        "on_disk_rescore",
+        "precondition",
+        "flat_vector_threshold",
+        "top_k",
+        "num_candidates",
+        "visit_percentage",
+        "over_sampling_factor",
+        "early_termination",
+        "post_filter",
+        "exact",
+        "exact_quantized",
+        "filter_selectivity",
+        "filter_cached",
+        "search_threads",
+        "num_searchers",
+        "doc_add_time_ms",
+        "index_time_ms",
+        "force_merge_time_ms",
+        "recall",
+        "qps",
+        "avg_latency_ms",
+        "net_cpu_time_ms",
+        "avg_cpu_count",
+        "visited",
+        "visit_pct_configured",
+        "visit_pct_actual",
+        "partition_recall_min",
+        "partition_recall_max",
+        "partition_recall_avg" };
+
+    private static Path appendResultsCsv(
+        Path configFilePath,
+        List<TestConfiguration> configs,
+        FormattedResults formattedResults,
+        GitInfo gitInfo,
+        LocalDateTime timestamp
+    ) {
+        try {
+            Path outDir = PathUtils.get("target/knn_results");
+            Files.createDirectories(outDir);
+            Path csvFile = outDir.resolve("results.csv");
+            boolean writeHeader = Files.exists(csvFile) == false || Files.size(csvFile) == 0;
+
+            if (writeHeader == false) {
+                String existingHeader;
+                try (var lines = Files.lines(csvFile, StandardCharsets.UTF_8)) {
+                    existingHeader = lines.findFirst().orElse("");
+                }
+                if (existingHeader.equals(buildCsvRow(CSV_HEADERS)) == false) {
+                    String archiveTs = timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+                    Path archiveFile = outDir.resolve("results_archived_" + archiveTs + ".csv");
+                    Files.move(csvFile, archiveFile);
+                    logger.info("CSV headers changed — archived existing results to: {}", archiveFile.getFileName());
+                    writeHeader = true;
+                }
+            }
+
+            String ts = timestamp.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            String configPath = configFilePath.toAbsolutePath().toString();
+            String os = System.getProperty("os.name") + " " + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")";
+            String jvmVersion = System.getProperty("java.vm.name") + " " + System.getProperty("java.version");
+            String processors = Integer.toString(Runtime.getRuntime().availableProcessors());
+            String heapMaxMb = Long.toString(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024 * 1024));
+
+            try (
+                BufferedWriter writer = Files.newBufferedWriter(
+                    csvFile,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.APPEND,
+                    StandardOpenOption.CREATE
+                )
+            ) {
+                if (writeHeader) {
+                    writer.write(buildCsvRow(CSV_HEADERS));
+                    writer.newLine();
+                }
+                int queryResultIdx = 0;
+                for (int configIdx = 0; configIdx < configs.size(); configIdx++) {
+                    TestConfiguration config = configs.get(configIdx);
+                    Results indexResult = formattedResults.indexResults.get(configIdx);
+                    for (int searchIdx = 0; searchIdx < config.numberOfSearchRuns(); searchIdx++) {
+                        Results qr = formattedResults.queryResults.get(queryResultIdx++);
+                        SearchParameters sp = config.searchParams().get(searchIdx);
+
+                        String partMin = "", partMax = "", partAvg = "";
+                        if (qr.perPartitionRecall != null && qr.perPartitionRecall.isEmpty() == false) {
+                            var stats = qr.perPartitionRecall.values().stream().mapToDouble(Float::doubleValue).summaryStatistics();
+                            partMin = String.format(Locale.ROOT, "%.4f", stats.getMin());
+                            partMax = String.format(Locale.ROOT, "%.4f", stats.getMax());
+                            partAvg = String.format(Locale.ROOT, "%.4f", stats.getAverage());
+                        }
+
+                        String[] row = {
+                            ts,
+                            configPath,
+                            gitInfo.branch(),
+                            gitInfo.commit(),
+                            os,
+                            jvmVersion,
+                            processors,
+                            heapMaxMb,
+                            qr.indexName,
+                            qr.indexType,
+                            Integer.toString(qr.numDocs),
+                            Integer.toString(indexResult.numDeletedDocs),
+                            Integer.toString(qr.numSegments),
+                            config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
+                            config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",
+                            config.vectorEncoding().name().toLowerCase(Locale.ROOT),
+                            config.vectorSpace() != null ? config.vectorSpace().name().toLowerCase(Locale.ROOT) : "",
+                            Integer.toString(config.hnswM()),
+                            Integer.toString(config.hnswEfConstruction()),
+                            Integer.toString(config.ivfClusterSize()),
+                            Integer.toString(config.secondaryClusterSize()),
+                            config.mergePolicy() != null ? config.mergePolicy().name().toLowerCase(Locale.ROOT) : "",
+                            Boolean.toString(config.onDiskRescore()),
+                            Boolean.toString(config.doPrecondition()),
+                            Integer.toString(config.flatVectorThreshold()),
+                            Integer.toString(sp.topK()),
+                            Integer.toString(sp.numCandidates()),
+                            String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
+                            String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
+                            Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.postFilter()),
+                            Boolean.toString(sp.exact()),
+                            Boolean.toString(sp.exactQuantized()),
+                            String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
+                            Boolean.toString(sp.filterCached()),
+                            Integer.toString(sp.searchThreads()),
+                            Integer.toString(sp.numSearchers()),
+                            Long.toString(indexResult.docAddTimeMS),
+                            Long.toString(indexResult.indexTimeMS),
+                            Long.toString(indexResult.forceMergeTimeMS),
+                            String.format(Locale.ROOT, "%.4f", qr.avgRecall),
+                            String.format(Locale.ROOT, "%.2f", qr.qps),
+                            String.format(Locale.ROOT, "%.2f", qr.avgLatency),
+                            String.format(Locale.ROOT, "%.2f", qr.netCpuTimeMS),
+                            String.format(Locale.ROOT, "%.2f", qr.avgCpuCount),
+                            String.format(Locale.ROOT, "%.2f", qr.averageVisited),
+                            String.format(Locale.ROOT, "%.4f", qr.visitPercentage),
+                            String.format(Locale.ROOT, "%.4f", qr.actualVisitPercentage),
+                            partMin,
+                            partMax,
+                            partAvg };
+                        writer.write(buildCsvRow(row));
+                        writer.newLine();
+                    }
+                }
+            }
+            return csvFile.toAbsolutePath();
+        } catch (IOException e) {
+            logger.warn("Failed to append results to CSV: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static String buildCsvRow(String[] values) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(csvQuote(values[i]));
+        }
+        return sb.toString();
+    }
+
+    private static String csvQuote(String value) {
+        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 }

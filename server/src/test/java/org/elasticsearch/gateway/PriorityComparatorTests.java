@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
@@ -45,21 +44,17 @@ public class PriorityComparatorTests extends ESTestCase {
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
         }
-        shards.sort(new PriorityComparator() {
-            @Override
-            protected IndexMetadata getMetadata(Index index) {
-                Settings settings;
-                if ("oldest".equals(index.getName())) {
-                    settings = buildSettings(10, 1);
-                } else if ("newest".equals(index.getName())) {
-                    settings = buildSettings(100, 1);
-                } else {
-                    settings = Settings.EMPTY;
-                }
-
-                return IndexMetadata.builder(index.getName()).settings(settings).build();
+        shards.sort(PriorityComparator.getShardRoutingComparator(index -> {
+            Settings settings;
+            if ("oldest".equals(index.getName())) {
+                settings = buildSettings(10, 1);
+            } else if ("newest".equals(index.getName())) {
+                settings = buildSettings(100, 1);
+            } else {
+                settings = Settings.EMPTY;
             }
-        });
+            return IndexMetadata.builder(index.getName()).settings(settings).build();
+        }));
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
         assertEquals("newest", next.getIndexName());
@@ -82,21 +77,17 @@ public class PriorityComparatorTests extends ESTestCase {
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
         }
-        shards.sort(new PriorityComparator() {
-            @Override
-            protected IndexMetadata getMetadata(Index index) {
-                Settings settings;
-                if ("oldest".equals(index.getName())) {
-                    settings = buildSettings(10, 100);
-                } else if ("newest".equals(index.getName())) {
-                    settings = buildSettings(100, 1);
-                } else {
-                    settings = Settings.EMPTY;
-                }
-
-                return IndexMetadata.builder(index.getName()).settings(settings).build();
+        shards.sort(PriorityComparator.getShardRoutingComparator(index -> {
+            Settings settings;
+            if ("oldest".equals(index.getName())) {
+                settings = buildSettings(10, 100);
+            } else if ("newest".equals(index.getName())) {
+                settings = buildSettings(100, 1);
+            } else {
+                settings = Settings.EMPTY;
             }
-        });
+            return IndexMetadata.builder(index.getName()).settings(settings).build();
+        }));
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
         assertEquals("oldest", next.getIndexName());
@@ -119,23 +110,19 @@ public class PriorityComparatorTests extends ESTestCase {
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
         }
-        shards.sort(new PriorityComparator() {
-            @Override
-            protected IndexMetadata getMetadata(Index index) {
-                Settings settings;
-                boolean isSystem = false;
-                if ("oldest".equals(index.getName())) {
-                    settings = buildSettings(10, 100);
-                    isSystem = true;
-                } else if ("newest".equals(index.getName())) {
-                    settings = buildSettings(100, 1);
-                } else {
-                    settings = Settings.EMPTY;
-                }
-
-                return IndexMetadata.builder(index.getName()).system(isSystem).settings(settings).build();
+        shards.sort(PriorityComparator.getShardRoutingComparator(index -> {
+            Settings settings;
+            boolean isSystem = false;
+            if ("oldest".equals(index.getName())) {
+                settings = buildSettings(10, 100);
+                isSystem = true;
+            } else if ("newest".equals(index.getName())) {
+                settings = buildSettings(100, 1);
+            } else {
+                settings = Settings.EMPTY;
             }
-        });
+            return IndexMetadata.builder(index.getName()).system(isSystem).settings(settings).build();
+        }));
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
         ShardRouting next = iterator.next();
         assertEquals("oldest", next.getIndexName());
@@ -184,12 +171,7 @@ public class PriorityComparatorTests extends ESTestCase {
                 ).withUnassignedInfo(randomUnassignedInfo("foobar")).build()
             );
         }
-        shards.sort(new PriorityComparator() {
-            @Override
-            protected IndexMetadata getMetadata(Index index) {
-                return map.get(index.getName());
-            }
-        });
+        shards.sort(PriorityComparator.getShardRoutingComparator(index -> map.get(index.getName())));
         ShardRouting previous = null;
         for (ShardRouting routing : shards) {
             if (previous != null) {

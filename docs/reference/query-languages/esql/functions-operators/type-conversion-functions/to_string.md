@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_STRING` function [esql-to_string]
 
-:::{include} ../../_snippets/functions/layout/to_string.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_string.md
 :::

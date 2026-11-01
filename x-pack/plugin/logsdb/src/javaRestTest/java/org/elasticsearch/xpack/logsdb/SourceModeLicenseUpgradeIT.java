@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase {
@@ -21,9 +22,38 @@ public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase 
         startTrial();
     }
 
+    /**
+     * Builds one TestCase for each strict-columnar index mode: all of them start out on columnar_stored rather than stored.
+     */
+    private List<TestCase> columnarCases() {
+        return List.of(
+            new SourceModeTestCase(
+                "columnar-test",
+                "columnar",
+                SourceFieldMapper.Mode.COLUMNAR_STORED,
+                SourceFieldMapper.Mode.SYNTHETIC,
+                () -> isColumnarIndexModeSupported() == false
+            ),
+            new SourceModeTestCase(
+                "logsdb-columnar-test",
+                "logsdb_columnar",
+                SourceFieldMapper.Mode.COLUMNAR_STORED,
+                SourceFieldMapper.Mode.SYNTHETIC,
+                () -> isColumnarIndexModeSupported() == false
+            ),
+            new SourceModeTestCase(
+                "vectordb-columnar-test",
+                "vectordb_columnar",
+                SourceFieldMapper.Mode.COLUMNAR_STORED,
+                SourceFieldMapper.Mode.SYNTHETIC,
+                () -> isVectordbColumnarIndexModeSupported() == false
+            )
+        );
+    }
+
     @Override
     protected List<TestCase> cases() {
-        return List.of(new TestCase() {
+        var cases = new ArrayList<>(List.of(new TestCase() {
             @Override
             public String dataStreamName() {
                 return "logs-test-regular";
@@ -482,6 +512,8 @@ public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase 
                     return SourceFieldMapper.Mode.STORED;
                 }
             }
-        );
+        ));
+        cases.addAll(columnarCases());
+        return cases;
     }
 }

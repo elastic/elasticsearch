@@ -1,0 +1,4 @@
+from all_types
+| rename integer as language_code
+| lookup join languages_lookup on language_code
+| stats count(*) by x = round_to(date, "2023-10-20", "2023-10-21", "2023-10-22", "2023-10-23")

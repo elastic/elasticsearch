@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.openshiftai.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
 
 import java.net.URI;
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the OpenShift AI chat completion model.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class OpenShiftAiChatCompletionRequest implements Request {
+public class OpenShiftAiChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final OpenShiftAiChatCompletionModel model;
     private final UnifiedChatInput chatInput;
@@ -47,15 +48,14 @@ public class OpenShiftAiChatCompletionRequest implements Request {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.getServiceSettings().uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.getServiceSettings().uri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(new OpenShiftAiChatCompletionRequestEntity(chatInput, model.getServiceSettings().modelId()))
-                .getBytes(StandardCharsets.UTF_8)
+                .getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
@@ -67,7 +67,7 @@ public class OpenShiftAiChatCompletionRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for OpenShift AI chat completions
         return this;
     }
@@ -81,6 +81,11 @@ public class OpenShiftAiChatCompletionRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 
     @Override

@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
-public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
@@ -83,7 +83,8 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             random().nextBoolean(),
             numMergeWorkers,
             service,
-            hnswGraphThreshold
+            hnswGraphThreshold,
+            false
         );
     }
 
@@ -150,7 +151,8 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             random().nextBoolean(),
             1,
             null,
-            0
+            0,
+            false
         );
         config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap

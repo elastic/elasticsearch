@@ -7,18 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 
 import java.net.URI;
@@ -28,67 +25,50 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class ContextualAiRerankRequest implements Request {
-
-    private static final Logger logger = LogManager.getLogger(ContextualAiRerankRequest.class);
+public class ContextualAiRerankRequest implements OutboundRerankRequest {
 
     private final String query;
     private final List<String> documents;
     private final Integer topN;
-    private final String instruction;
     private final ContextualAiRerankModel model;
 
-    public ContextualAiRerankRequest(
-        String query,
-        List<String> documents,
-        @Nullable Integer topN,
-        @Nullable String instruction,
-        ContextualAiRerankModel model
-    ) {
+    public ContextualAiRerankRequest(String query, List<String> documents, @Nullable Integer topN, ContextualAiRerankModel model) {
         this.query = Objects.requireNonNull(query);
         this.documents = Objects.requireNonNull(documents);
         this.topN = topN;
-        this.instruction = instruction;
         this.model = Objects.requireNonNull(model);
     }
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        var requestEntity = new ContextualAiRerankRequestEntity(query, documents, getTopN(), instruction, model);
-        String requestJson;
-        try {
-            requestJson = Strings.toString(requestEntity);
-            logger.debug("ContextualAI JSON Request: {}", requestJson);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize ContextualAI request entity", e);
-        }
+        httpPost.setBody(
+            Strings.toString(
+                new ContextualAiRerankRequestEntity(
+                    model.getServiceSettings().modelId(),
+                    query,
+                    documents,
+                    getTopN(),
+                    model.getTaskSettings().getInstruction()
+                )
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
+        );
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestJson.getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
-
-        decorateWithAuth(httpPost);
+        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
-    void decorateWithAuth(HttpPost httpPost) {
-        SecureString apiKey = model.apiKey();
-        if (apiKey != null) {
-            httpPost.setHeader(createAuthBearerHeader(apiKey));
-        }
-    }
-
     @Override
     public String getInferenceEntityId() {
-        return model != null ? model.getInferenceEntityId() : "unknown";
+        return model.getInferenceEntityId();
     }
 
     @Override
     public URI getURI() {
-        return model != null ? model.uri() : null;
+        return model.uri();
     }
 
     public Integer getTopN() {
@@ -96,7 +76,7 @@ public class ContextualAiRerankRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Not applicable for rerank, only used in text embedding requests
         return this;
     }

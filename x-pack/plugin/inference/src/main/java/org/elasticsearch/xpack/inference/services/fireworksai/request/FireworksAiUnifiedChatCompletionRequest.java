@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.fireworksai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModel;
 
 import java.net.URI;
@@ -24,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class FireworksAiUnifiedChatCompletionRequest implements Request {
+public class FireworksAiUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final UnifiedChatInput unifiedChatInput;
     private final FireworksAiChatCompletionModel model;
@@ -36,13 +37,12 @@ public class FireworksAiUnifiedChatCompletionRequest implements Request {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new FireworksAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
+        httpPost.setBody(
+            Strings.toString(new FireworksAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         if (model.getTaskSettings().headers() != null) {
@@ -60,7 +60,7 @@ public class FireworksAiUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 
@@ -72,6 +72,11 @@ public class FireworksAiUnifiedChatCompletionRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 
     @Override

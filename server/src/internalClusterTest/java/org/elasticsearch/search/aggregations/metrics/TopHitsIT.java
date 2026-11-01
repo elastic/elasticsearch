@@ -83,11 +83,11 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -134,6 +134,8 @@ public class TopHitsIT extends ESIntegTestCase {
             prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"),
             prepareCreate("field-collapsing").setMapping("group", "type=keyword"),
             prepareCreate("empty"),
+            prepareCreate("top_hits_float").setMapping("brand_id", "type=float"),
+            prepareCreate("top_hits_long").setMapping("brand_id", "type=long"),
             prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -171,7 +173,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        ensureGreen("idx", "empty", "articles");
+        ensureGreen("idx", "empty", "top_hits_float", "top_hits_long", "articles");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -311,6 +313,11 @@ public class TopHitsIT extends ESIntegTestCase {
         );
 
         indexRandom(true, builders);
+
+        prepareIndex("top_hits_float").setId("1").setSource("brand_id", 1.5).get();
+        prepareIndex("top_hits_long").setId("1").setSource("brand_id", 1).get();
+        refresh("top_hits_float", "top_hits_long");
+
         ensureSearchable();
     }
 
@@ -353,24 +360,15 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testMixedSortFieldTypes() {
-        assertAcked(
-            prepareCreate("top_hits_float").setMapping("brand_id", "type=float"),
-            prepareCreate("top_hits_long").setMapping("brand_id", "type=long")
+        assertNoFailuresAndResponse(
+            prepareSearch("top_hits_float", "top_hits_long").setSize(0)
+                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("brand_id").order(SortOrder.ASC)).size(2)),
+            response -> {
+                TopHits topHits = response.getAggregations().get("hits");
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(topHits.getHits().getHits().length, equalTo(2));
+            }
         );
-
-        prepareIndex("top_hits_float").setId("1").setSource("brand_id", 1.5).get();
-        prepareIndex("top_hits_long").setId("1").setSource("brand_id", 1).get();
-        refresh("top_hits_float", "top_hits_long");
-
-        SearchPhaseExecutionException exc = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> prepareSearch("top_hits_float", "top_hits_long").setSize(0)
-                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("brand_id").order(SortOrder.ASC)).size(1))
-                .get()
-        );
-
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getCause().getMessage(), containsString("Can't sort on field [brand_id]; the field has incompatible sort types"));
     }
 
     public void testIssue11119() throws Exception {
@@ -1070,6 +1068,38 @@ public class TopHitsIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Two buckets fetch through the single inner hits context the aggregator forks. The articles own disjoint comment
+     * dates, so a leak across buckets shows up as a bucket reporting the other article's dates.
+     */
+    public void testTopHitsWithInnerHitsInsideTerms() {
+        QueryBuilder nestedQuery = nestedQuery("comments", matchQuery("comments.message", "comment"), ScoreMode.Avg).innerHit(
+            new InnerHitBuilder().setSize(5)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(nestedQuery)
+                .addAggregation(terms("title").field("title.keyword").subAggregation(topHits("top").size(1))),
+            response -> {
+                Terms terms = response.getAggregations().get("title");
+                assertThat(terms.getBuckets().size(), equalTo(2));
+                assertArticleInnerHits(terms, "title 1", "1", 1L, 2L);
+                assertArticleInnerHits(terms, "title 2", "2", 3L, 4L);
+            }
+        );
+    }
+
+    private static void assertArticleInnerHits(Terms terms, String bucketKey, String articleId, Long... commentDates) {
+        SearchHits hits = ((TopHits) terms.getBucketByKey(bucketKey).getAggregations().get("top")).getHits();
+        assertThat(hits.getHits().length, equalTo(1));
+        assertThat(hits.getAt(0).getId(), equalTo(articleId));
+        SearchHits innerHits = hits.getAt(0).getInnerHits().get("comments");
+        List<Long> dates = new ArrayList<>();
+        for (SearchHit innerHit : innerHits) {
+            dates.add(((Number) innerHit.getSourceAsMap().get("date")).longValue());
+        }
+        assertThat(dates, containsInAnyOrder(commentDates));
+    }
+
     public void testUseMaxDocInsteadOfSize() throws Exception {
         updateIndexSettings(
             Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
@@ -1140,6 +1170,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testNoStoredFields() throws Exception {
+        assumeNoColumnarId("test relies on not loading id by setting stored field spect to _none_", "idx");
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())

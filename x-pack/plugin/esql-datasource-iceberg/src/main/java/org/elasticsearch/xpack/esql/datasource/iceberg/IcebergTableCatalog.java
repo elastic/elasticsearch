@@ -15,6 +15,9 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 
@@ -23,12 +26,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Iceberg table catalog implementation.
  * Provides metadata resolution and scan planning for Iceberg tables stored in S3.
  */
 public class IcebergTableCatalog implements TableCatalog {
+
+    private static final Logger logger = LogManager.getLogger(IcebergTableCatalog.class);
 
     private static final String CATALOG_TYPE = "iceberg";
 
@@ -45,13 +51,24 @@ public class IcebergTableCatalog implements TableCatalog {
     }
 
     @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        // Iceberg claims no per-query configuration keys today, except "region" which is a
+        // dataset-level key accepted by S3 datasets (including those resolved via Iceberg).
+        // Claim it here so dataset-level region values are not rejected as "unknown option".
+        ConfigKeyValidator.check(config, List.of(Set.of("region")));
+    }
+
+    @Override
     public SourceMetadata metadata(String tablePath, Map<String, Object> config) throws IOException {
         S3Configuration s3Config = extractS3Config(config);
         try {
             IcebergTableMetadata metadata = IcebergCatalogAdapter.resolveTable(tablePath, s3Config);
             return new IcebergSourceMetadata(metadata);
         } catch (Exception e) {
-            throw new IOException("Failed to resolve Iceberg table metadata: " + tablePath, e);
+            // Log the full exception (which may embed the table path via Iceberg internals) at DEBUG
+            // for diagnostics on this node, but do not chain it so the path never appears in caused_by.
+            logger.debug("Failed to resolve Iceberg table metadata for [{}]", tablePath, e);
+            throw new IOException("Failed to resolve Iceberg table metadata");
         }
     }
 
@@ -86,7 +103,8 @@ public class IcebergTableCatalog implements TableCatalog {
 
             return dataFiles;
         } catch (Exception e) {
-            throw new IOException("Failed to plan Iceberg table scan: " + tablePath, e);
+            logger.debug("Failed to plan Iceberg table scan for [{}]", tablePath, e);
+            throw new IOException("Failed to plan Iceberg table scan");
         } finally {
             IOUtils.closeWhileHandlingException(fileIO);
         }
@@ -98,19 +116,27 @@ public class IcebergTableCatalog implements TableCatalog {
     }
 
     /**
-     * Extract S3 configuration from the config map.
+     * Extract S3 configuration from the config map. Secret values may arrive as
+     * {@link org.elasticsearch.common.settings.SecureString} (dataset path) or {@link String}
+     * (inline {@code EXTERNAL}); {@link Object#toString()} via {@link #stringOrNull} handles both.
+     * The plaintext {@link String} the SDK consumes lives on the heap until GC — bounding that
+     * lifetime is out of scope here.
      */
     private S3Configuration extractS3Config(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return null;
         }
 
-        String accessKey = (String) config.get("access_key");
-        String secretKey = (String) config.get("secret_key");
-        String endpoint = (String) config.get("endpoint");
-        String region = (String) config.get("region");
+        String accessKey = stringOrNull(config.get("access_key"));
+        String secretKey = stringOrNull(config.get("secret_key"));
+        String endpoint = stringOrNull(config.get("endpoint"));
+        String region = stringOrNull(config.get("region"));
 
         return S3Configuration.fromFields(accessKey, secretKey, endpoint, region);
+    }
+
+    private static String stringOrNull(Object value) {
+        return value == null ? null : value.toString();
     }
 
     /**

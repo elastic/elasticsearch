@@ -29,6 +29,11 @@ public final class AppendTokenFilter extends TokenFilter {
             public TokenStream create(TokenStream tokenStream) {
                 return new AppendTokenFilter(tokenStream, suffix);
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
     }
 

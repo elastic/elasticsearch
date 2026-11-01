@@ -32,7 +32,7 @@ public final class TransformInternalIndexConstants {
 
     // version is not a rollover pattern, however padded because sort is string based
     public static final TransformConfigVersion INDEX_VERSION_LAST_CHANGED = TransformConfigVersion.V_7_13_0;
-    public static final String INDEX_VERSION = "007";
+    public static final String INDEX_VERSION = "008";
     public static final String INDEX_PATTERN = TRANSFORM_PREFIX + "internal-";
     public static final String INDEX_PATTERN_DEPRECATED = TRANSFORM_PREFIX_DEPRECATED + "internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;

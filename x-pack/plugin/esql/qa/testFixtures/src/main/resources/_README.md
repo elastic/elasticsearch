@@ -10,10 +10,8 @@ As such, most of ESQL's integration tests are CSV-SPEC tests.
 ## Running
 
 CSV-SPEC tests run in lots of different ways. The simplest way to run a
-CSV-SPEC test is to open ESQL's CsvTests.java and run it right in IntelliJ using
-the unit runner. As of this writing that runs 1,350 tests in about 35 seconds.
-It's fast because it doesn't stand up an Elasticsearch node at all. It runs
-like a big unit test
+CSV-SPEC test is to open ESQL's `CsvIT.java` and run it right in IntelliJ using
+the unit runner. As of this writing that runs 6,123 tests in less than 2 minutes.
 
 The second-simplest way to run the CSV-SPEC tests is to run `EsqlSpecIT` in
 `:x-pack:plugin:esql:qa:server:single-node` via the Gradle runner in IntelliJ
@@ -225,3 +223,72 @@ null
 ;
 ```
 
+### Approximate knn
+
+`knn` uses approximate nearest-neighbour search (HNSW) when pushed to Lucene.
+`LIMIT` after `knn` is pushed into the function as `k`. The result is a
+top-k **set**, not a unique ranked table: approximation may omit a true
+neighbour, and equal scores at the `k` cut pick an arbitrary document.
+
+Do **not** assert an exact top-k table (specific colors in specific slots).
+`ignoreOrder` does not help: it only reorders rows, it does not stabilize
+which rows knn kept.
+
+For tests of knn together with other operators (`RENAME`, `MV_EXPAND`,
+`EVAL`, …), pin the result with a filter on a uniquely nearest document:
+
+```csv-spec
+from colors metadata _score
+| rename rgb_vector as vec
+| where knn(vec, [0, 120, 0]) and color == "green"
+| keep color, vec
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+;
+```
+
+Asserting `count(*)` or using `{any}` (below) is also fine. Docs snippets
+may show a representative ranking on this tiny fixture; do not copy that
+pattern into new tests.
+
+### Non-deterministic results: ranges and wildcards
+
+When a result is not exactly predictable (approximate aggregations, similarity
+scores, sampling, etc.) two matchers are available in place of a literal value:
+
+* **Numeric range** `lower..upper` — matches any value in the closed interval
+  `[lower, upper]`. Works for any numeric column type, including `double` and
+  `float`; scientific notation is accepted (`1.0E-4..2.0E-4`). Bounds must be
+  finite — `NaN` and `Infinity` are not supported as bounds.
+* **`{any}`** — matches any value of the column's declared type.
+
+Both can be used inside multi-value cells. Example:
+
+```csv-spec
+similarityScore:double | topIds:long
+0.9..1.0               | [100..200, {any}]
+;
+```
+
+### Query pragmas
+
+Query pragmas can also be provided with the `pragma: pragma_name=value` directive.
+In the following example, we use the `runtime_lexical_search` pragma:
+
+```csv-spec
+matchOnTextWithRow
+required_capability: match_support_runtime_text
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE match(content, "dog")
+| SORT content
+;
+content:text
+This dog is really brown
+This is a brown dog
+;
+```

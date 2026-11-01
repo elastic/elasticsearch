@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -491,6 +493,20 @@ public class IndexRoutingTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("routing is required for [test]/[id]"));
     }
 
+    public void testRequiredRoutingUsesSliceMessageWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())
+                .numberOfShards(2)
+                .numberOfReplicas(1)
+                .putMapping("{\"_routing\":{\"required\": true}}")
+                .build()
+        );
+        Exception e = expectThrows(SliceMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
+        assertThat(e.getMessage(), equalTo("slice is required for [test]/[id]"));
+    }
+
     /**
      * Extract a shardId from a "simple" {@link IndexRouting} using a randomly
      * chosen method. All of the random methods <strong>should</strong> return the
@@ -736,6 +752,144 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
+    /**
+     * Series with dimensions matching the OTel templates' tsid prefixed dimensions: the prefixed-dimensions hash changes the
+     * tsid, and with it the shard, of indices created on or after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, while
+     * series without such dimensions keep the shard of the previous layout.
+     */
+    public void testRoutingWithPrefixedDimensionsHash() throws IOException {
+        TimeSeriesRoutingFixture before = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TSID_SINGLE_PREFIX_BYTE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH)
+            ),
+            8,
+            "resource.attributes.*,attributes.*,_metric_names_hash",
+            randomBoolean()
+        );
+        TimeSeriesRoutingFixture after = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH),
+            8,
+            "resource.attributes.*,attributes.*,_metric_names_hash",
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*").build()
+        );
+        assertNull(((IndexRouting.ExtractFromSource.ForIndexDimensions) before.routing()).tsidLayout.prefixedDimensionMatcher());
+        assertNotNull(((IndexRouting.ExtractFromSource.ForIndexDimensions) after.routing()).tsidLayout.prefixedDimensionMatcher());
+        /*
+         * These are the expected shards. If these values change time series will be routed to unexpected shards.
+         * You may modify them with a new index created version, but when you do you must copy this test and patch
+         * the versions at the top. Because newer versions of Elasticsearch must continue to route based on the
+         * version on the index.
+         */
+        Map<String, Object> withResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-1", "service.name", "service-a")),
+            "attributes",
+            Map.of("operation", "op-1")
+        );
+        Map<String, Object> withFlatResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource.attributes.host.name",
+            "host-1",
+            "resource.attributes.service.name",
+            "service-a",
+            "attributes.operation",
+            "op-1"
+        );
+        Map<String, Object> withOtherResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-2", "service.name", "service-a")),
+            "attributes",
+            Map.of("operation", "op-1")
+        );
+        Map<String, Object> withThirdResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-3", "service.name", "service-b")),
+            "attributes",
+            Map.of("operation", "op-1")
+        );
+        Map<String, Object> withOtherOperation = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-1", "service.name", "service-a")),
+            "attributes",
+            Map.of("operation", "op-2")
+        );
+        Map<String, Object> withoutResource = Map.of("_metric_names_hash", "abc", "attributes", Map.of("operation", "op-1"));
+        assertIndexShard(before, withResource, 1);
+        assertIndexShard(before, withFlatResource, 1);
+        assertIndexShard(before, withOtherResource, 2);
+        assertIndexShard(before, withThirdResource, 0);
+        assertIndexShard(before, withOtherOperation, 3);
+        assertIndexShard(before, withoutResource, 1);
+        assertIndexShard(after, withResource, 4);
+        assertIndexShard(after, withFlatResource, 4);
+        assertIndexShard(after, withOtherResource, 2);
+        assertIndexShard(after, withThirdResource, 3);
+        assertIndexShard(after, withOtherOperation, 4);
+        assertIndexShard(after, withoutResource, 1);
+    }
+
+    /** The tsid prefixed dimensions setting is honored by routing, so the patterns select the shard. */
+    public void testRoutingHonorsTsidPrefixedDimensionsSetting() throws IOException {
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
+        String dimensions = "resource.attributes.*,attributes.*,_metric_names_hash";
+        Map<String, Object> source = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource.attributes.host.name",
+            "host-1",
+            "attributes.operation",
+            "op-1"
+        );
+        TimeSeriesRoutingFixture disabled = indexRoutingForTimeSeriesDimensions(version, 8, dimensions, randomBoolean());
+        TimeSeriesRoutingFixture otel = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*").build()
+        );
+        TimeSeriesRoutingFixture exact = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder()
+                .putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.host.name", "labels.job")
+                .build()
+        );
+        TimeSeriesRoutingFixture custom = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "attributes.*").build()
+        );
+        TimeSeriesRoutingFixture explicitlyDisabled = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), List.of()).build()
+        );
+        assertIndexShard(disabled, source, 6);
+        assertIndexShard(otel, source, 2);
+        // The exact path selects the same dimension as the pattern, so the tsid, and with it the shard, is the same.
+        assertIndexShard(exact, source, 2);
+        assertIndexShard(custom, source, 7);
+        assertIndexShard(explicitlyDisabled, source, 6);
+    }
+
     public void testRoutingPathReadWithInvalidString() {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo").routing();
@@ -801,6 +955,120 @@ public class IndexRoutingTests extends ESTestCase {
             assertNull(req.id());
 
             // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("foo", value), shards);
+            req.source(Map.of("foo", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRoutingPathColumnar() {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                        .build()
+                )
+                .numberOfShards(shards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        IndexRequest req = new IndexRequest();
+        routing.preProcess(req);
+        assertNull(req.id());
+
+        int expectedShard = expectedShard(routing, List.of("foo", "A"), shards);
+        req.source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(req));
+
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testRerouteToTargetColumnar() {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                    .build()
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("foo", value), shards);
+            req.source(Map.of("foo", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRoutingPathColumnarLogsdb() {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+                        .build()
+                )
+                .numberOfShards(shards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        IndexRequest req = new IndexRequest();
+        routing.preProcess(req);
+        assertNull(req.id());
+
+        int expectedShard = expectedShard(routing, List.of("foo", "A"), shards);
+        req.source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(req));
+
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testRerouteToTargetColumnarLogsdb() {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+                    .build()
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
             String value = randomAlphaOfLength(20);
             int expectedShard = expectedShard(routing, List.of("foo", value), shards);
             req.source(Map.of("foo", value, "bar", "B"));
@@ -1109,7 +1377,24 @@ public class IndexRoutingTests extends ESTestCase {
         String path,
         boolean useSyntheticId
     ) {
-        return getIndexRoutingWithSetting(createdVersion, shards, path, IndexMetadata.INDEX_DIMENSIONS.getKey(), useSyntheticId);
+        return indexRoutingForTimeSeriesDimensions(createdVersion, shards, path, useSyntheticId, Settings.EMPTY);
+    }
+
+    private TimeSeriesRoutingFixture indexRoutingForTimeSeriesDimensions(
+        IndexVersion createdVersion,
+        int shards,
+        String path,
+        boolean useSyntheticId,
+        Settings extraSettings
+    ) {
+        return getIndexRoutingWithSetting(
+            createdVersion,
+            shards,
+            path,
+            IndexMetadata.INDEX_DIMENSIONS.getKey(),
+            useSyntheticId,
+            extraSettings
+        );
     }
 
     /**
@@ -1122,11 +1407,23 @@ public class IndexRoutingTests extends ESTestCase {
         String setting,
         boolean useSyntheticId
     ) {
+        return getIndexRoutingWithSetting(indexVersion, shards, path, setting, useSyntheticId, Settings.EMPTY);
+    }
+
+    private static TimeSeriesRoutingFixture getIndexRoutingWithSetting(
+        IndexVersion indexVersion,
+        int shards,
+        String path,
+        String setting,
+        boolean useSyntheticId,
+        Settings extraSettings
+    ) {
         if (useSyntheticId) {
             assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) : "Can't use synthetic id with this index version";
         }
         Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(extraSettings);
         if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }

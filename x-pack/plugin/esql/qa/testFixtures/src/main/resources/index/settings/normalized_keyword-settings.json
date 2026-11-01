@@ -1,0 +1,12 @@
+{
+  "index": {
+    "analysis": {
+      "normalizer": {
+        "test_lowercase": {
+          "type": "custom",
+          "filter": ["lowercase"]
+        }
+      }
+    }
+  }
+}

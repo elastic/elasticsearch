@@ -23,6 +23,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -47,10 +49,9 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
     private InetSocketAddress serverAddress;
     private Channel serverChannel;
 
-    @Override
+    @Before
     @SuppressForbidden(reason = "calls getLocalHost")
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServerBootstrap() throws Exception {
         eventLoopGroup = new NioEventLoopGroup(1);
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.channel(CopyBytesServerSocketChannel.class);
@@ -79,9 +80,8 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         serverChannel = bindFuture.channel();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void shutdownServer() throws Exception {
         try {
             assertTrue(serverChannel.close().await(10, TimeUnit.SECONDS));
         } finally {

@@ -1,5 +1,0 @@
-pr: 143449
-summary: Fix CSV-escaped quotes rendering in generated ES|QL docs examples
-area: ES|QL
-type: bug
-issues: []

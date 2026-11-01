@@ -29,7 +29,6 @@ public class DynamicInstrumentationUtils {
      * or alternatively the system property `es.entitlements.dump`.
      */
     public static void main(String[] args) throws Exception {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
 
         var path = requireNonNull(args.length > 0 ? args[0] : System.getProperty("es.entitlements.dump"), "destination for dump required");
@@ -44,7 +43,12 @@ public class DynamicInstrumentationUtils {
         return instrumentationRegistry.getInstrumentedMethods()
             .entrySet()
             .stream()
-            .map(entry -> new Descriptor(entry.getKey().className(), entry.getKey().methodName(), entry.getKey().parameterTypes()))
+            .flatMap(
+                classEntry -> classEntry.getValue()
+                    .keySet()
+                    .stream()
+                    .map(sig -> new Descriptor(classEntry.getKey(), sig.methodName(), sig.parameterTypes()))
+            )
             .toList();
     }
 

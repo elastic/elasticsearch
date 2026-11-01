@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -25,7 +25,7 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private String calendarId;
         private String jobIdsToAddExpression;

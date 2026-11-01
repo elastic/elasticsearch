@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -93,6 +94,9 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
                     ScriptedMetricAggContexts.ReduceScript.Factory factory = reduceContext.scriptService()
                         .compile(reduceScript, ScriptedMetricAggContexts.ReduceScript.CONTEXT);
                     ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, aggregationObjects);
+                    script._setCancellationCheck(
+                        () -> { if (reduceContext.isCanceled().get()) throw new TaskCancelledException("Cancelled"); }
+                    );
 
                     Object scriptResult = script.execute();
                     CollectionUtils.ensureNoSelfReferences(scriptResult, "reduce script");

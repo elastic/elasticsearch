@@ -19,7 +19,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     private final Runnable original;
     private final long creationTimeNanos;
     private long beforeExecuteTime = -1;
-    private long startTimeNanos;
+    private long startTimeNanos = -1;
     private long finishTimeNanos = -1;
     private boolean failedOrRejected = false;
 
@@ -29,20 +29,20 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     @Override
-    public void doRun() {
-        try {
-            startTimeNanos = System.nanoTime();
+    public void doRun() throws Exception {
+        startTimeNanos = System.nanoTime();
+        if (original instanceof AbstractRunnable abstractRunnable) {
+            abstractRunnable.doRun();
+        } else {
             original.run();
-        } finally {
-            finishTimeNanos = System.nanoTime();
         }
     }
 
     @Override
     public void onRejection(final Exception e) {
         this.failedOrRejected = true;
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onRejection(e);
+        if (original instanceof AbstractRunnable abstractRunnable) {
+            abstractRunnable.onRejection(e);
         } else {
             ExceptionsHelper.reThrowIfNotNull(e);
         }
@@ -51,12 +51,27 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     @Override
     public void onFailure(final Exception e) {
         this.failedOrRejected = true;
-        ExceptionsHelper.reThrowIfNotNull(e);
+        if (original instanceof AbstractRunnable abstractRunnable) {
+            abstractRunnable.onFailure(e);
+        } else {
+            ExceptionsHelper.reThrowIfNotNull(e);
+        }
+    }
+
+    @Override
+    public void onAfter() {
+        try {
+            if (original instanceof AbstractRunnable abstractRunnable) {
+                abstractRunnable.onAfter();
+            }
+        } finally {
+            finishTimeNanos = System.nanoTime();
+        }
     }
 
     @Override
     public boolean isForceExecution() {
-        return original instanceof AbstractRunnable && ((AbstractRunnable) original).isForceExecution();
+        return original instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
     }
 
     /**
@@ -96,6 +111,20 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
      */
     public void beforeExecute() {
         beforeExecuteTime = System.nanoTime();
+    }
+
+    /**
+     * Get the {@link System#nanoTime()} when the task completed.
+     * <p>
+     * Note that this method will return -1 if the task has not yet completed, but it could also
+     * return -1 if the task has completed, because the Java standard library makes no guarantees about
+     * the {@link System#nanoTime()} origin (it can be in the future). It is therefore not reliable to use the
+     * returned value to determine if the task has completed.
+     *
+     * @return The time in nanoseconds or -1 if the task has not yet completed
+     */
+    public long getFinishTimeNanos() {
+        return finishTimeNanos;
     }
 
     /**

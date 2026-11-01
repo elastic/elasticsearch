@@ -67,15 +67,21 @@ public class EsqlPartitioningIT extends ESRestTestCase {
                     new Case("| WHERE a == 1", "SHARD"),
                     new Case("| STATS SUM(a)", "DOC"),
                     new Case("| MV_EXPAND a | STATS SUM(a)", "DOC"),
-                    new Case("| WHERE a == 1 | STATS SUM(a)", "DOC"),
+                    // The visitor walks past IndexSortSortedNumericDocValuesRangeQuery into its
+                    // PointRangeQuery fallback — `== 1` is now classified as costly (SEGMENT),
+                    // matching the behavior of `>= 1`.
+                    new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE a >= 1  | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE a >= 0  | STATS SUM(a)", "DOC"),
-                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "DOC"),
+                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE a IN (1,2, 3) | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE MATCH(a, \"1\")", "SHARD"),
                     new Case("| WHERE QSTR(\"a:1\")", "SHARD"),
                     new Case("| WHERE KQL(\"a:1\")", "SHARD"),
                     new Case("| WHERE a:\"1\"", "SHARD"),
+                    // TopN keeps SEGMENT under AUTO (sub-segment slicing breaks Lucene's sorted-segment
+                    // short-circuit; the scan-dominant TopN wins under DOC don't outweigh the sort-dominant
+                    // TopN losses). Users opt in to DOC via the data_partitioning pragma if needed.
                     new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SEGMENT", true),
                     new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SEGMENT", true),
                     new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SEGMENT", true),
@@ -201,10 +207,12 @@ public class EsqlPartitioningIT extends ESRestTestCase {
             {
               "settings": {
                 "index": {
-                  "number_of_shards": 1
+                  "number_of_shards": 1,
+                  "translog.flush_threshold_size": "1mb"
                 }
               }
-            }""");  // Use a single shard to get consistent results.
+            }""");  // Use a single shard to get consistent results. Low flush threshold to keep
+        // seenSequenceNumbers bounded in TranslogWriter when assertions are enabled.
         client().performRequest(create);
         StringBuilder bulk = new StringBuilder();
         for (int d = 0; d < docs; d++) {

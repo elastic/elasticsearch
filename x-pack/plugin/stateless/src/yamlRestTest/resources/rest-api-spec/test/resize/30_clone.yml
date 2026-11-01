@@ -1,0 +1,132 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 2
+            index.number_of_replicas: 1
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: source
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      index:
+        index: source
+        id:    "3"
+        body:  { "foo": "hello world 3" }
+
+---
+"Clone index via API":
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  - do:
+      indices.clone:
+        index: "source"
+        target: "target"
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_shards: 2
+            index.number_of_replicas: 1
+            index.blocks.write: null
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  - do:
+      get:
+        index: target
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+  - do:
+      get:
+        index: target
+        id:    "3"
+
+  - match: { _index:   target }
+  - match: { _id:      "3"     }
+  - match: { _source:  { foo: "hello world 3" } }
+
+  - do:
+      indices.get_settings:
+        index: target
+
+  - match: { target.settings.index.number_of_shards: "2"}
+
+  - do:
+      index:
+        index: target
+        id:    "4"
+        body:  { "foo": "hello world 4" }
+
+  - do:
+      get:
+        index: target
+        id:    "4"
+
+  - match: { _index:   target }
+  - match: { _id:      "4"     }
+  - match: { _source:  { foo: "hello world 4" } }
+
+  - do:
+      indices.refresh:
+        index: target
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: source
+  - match: { hits.total.value: 3 }
+
+---
+"Create illegal clone indices":
+  # try to do an illegal clone with illegal number_of_shards
+  - do:
+      catch: /illegal_argument_exception/
+      indices.clone:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 1
+            index.number_of_shards: 6

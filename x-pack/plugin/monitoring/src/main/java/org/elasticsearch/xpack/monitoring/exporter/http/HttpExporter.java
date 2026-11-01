@@ -157,7 +157,7 @@ public class HttpExporter extends Exporter {
                 return settings.iterator();
             }
 
-        }, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        }, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
 
@@ -167,7 +167,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "bulk.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -176,7 +176,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "connection.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -185,7 +185,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<TimeValue> CONNECTION_READ_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "connection.read_timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -224,7 +224,7 @@ public class HttpExporter extends Exporter {
                 return settings.iterator();
             }
 
-        }, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.DeprecatedWarning),
+        }, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -233,7 +233,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<SecureString> AUTH_SECURE_PASSWORD_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "auth.secure_password",
-        key -> SecureSetting.secureString(key, null, Setting.Property.DeprecatedWarning),
+        key -> SecureSetting.secureString(key, null, Setting.Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -244,7 +244,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<Settings> SSL_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "ssl",
-        (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered, Property.DeprecatedWarning),
+        (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
 
@@ -263,7 +263,7 @@ public class HttpExporter extends Exporter {
                     throw new SettingsException("[" + concreteSetting.getKey() + "] is malformed [" + value + "]", e);
                 }
             }
-        }, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        }, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -272,7 +272,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "sniff.enabled",
-        (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -293,7 +293,7 @@ public class HttpExporter extends Exporter {
                     throw new SettingsException("headers must have values, missing for setting [" + fullSetting + "]");
                 }
             }
-        }, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        }, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -308,7 +308,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "index.template.master_timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**
@@ -750,19 +750,18 @@ public class HttpExporter extends Exporter {
         final Setting<Settings> concreteSetting,
         final SSLService sslService
     ) {
-        final SSLIOSessionStrategy sslStrategy;
+        final SslProfile profile;
         if (SSLConfigurationSettings.withoutPrefix(true).getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
             // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
-            sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+            profile = sslService.profileForSettings(sslSettings);
         } else {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
-            final SslProfile profile = sslService.profile(concreteSetting.getKey());
-            sslStrategy = profile.ioSessionStrategy();
+            profile = sslService.profile(concreteSetting.getKey());
         }
-        return sslStrategy;
+        return SSLIOSessionStrategyBuilder.INSTANCE.build(profile.configuration(), profile.sslContext());
     }
 
     /**

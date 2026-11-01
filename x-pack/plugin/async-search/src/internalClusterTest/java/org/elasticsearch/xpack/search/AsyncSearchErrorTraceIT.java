@@ -281,12 +281,8 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
             return;
         }
 
-        // Make sure the .async-search system index is green before deleting it
-        try {
-            ensureGreen(".async-search");
-        } catch (Exception ignore) {
-            // the index may not exist
-        }
+        awaitIndexExists(".async-search");
+        ensureGreen(".async-search");
 
         Response response = getRestClient().performRequest(new Request("DELETE", "/_async_search/" + id));
         HttpEntity entity = response.getEntity();

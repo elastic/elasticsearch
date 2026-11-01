@@ -1,0 +1,2 @@
+FROM employees, (ROW emp_no = "1" | EVAL emp_no = emp_no::integer)
+| WHERE emp_no > 0

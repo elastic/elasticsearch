@@ -24,6 +24,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -33,12 +34,15 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -54,6 +58,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -61,6 +66,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -112,6 +118,55 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    public void testLongTermsQueryWithIntegralBoxedTypes() {
+        MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
+        List<Number> values = new ArrayList<>();
+        values.add(Integer.MIN_VALUE);
+        values.add(Integer.MAX_VALUE);
+        values.add(Short.MIN_VALUE);
+        values.add(Short.MAX_VALUE);
+        values.add(Byte.MIN_VALUE);
+        values.add(Byte.MAX_VALUE);
+        int randomValues = randomIntBetween(0, 100);
+        for (int i = 0; i < randomValues; i++) {
+            values.add(randomFrom(Integer.valueOf(randomInt()), Short.valueOf(randomShort()), Byte.valueOf(randomByte())));
+        }
+        long[] expected = values.stream().mapToLong(Number::longValue).toArray();
+
+        assertEquals(LongPoint.newSetQuery("field", expected), ft.termsQuery(values, MOCK_CONTEXT));
+    }
+
+    public void testLongTermsQueryWithMixedValueTypes() {
+        MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
+        List<Object> values = Arrays.asList(
+            1,
+            2.5d,
+            3L,
+            (short) 4,
+            (byte) 5,
+            6.0f,
+            new BigDecimal("7.5"),
+            "8",
+            new BytesRef("9"),
+            9007199254740993L,
+            Double.NaN
+        );
+        assertEquals(LongPoint.newSetQuery("field", 1, 3, 4, 5, 6, 8, 9, 9007199254740993L), ft.termsQuery(values, MOCK_CONTEXT));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.termsQuery(Arrays.asList(1, new BigInteger("18446744073709551616")), MOCK_CONTEXT)
+        );
+        assertThat(e.getMessage(), equalTo("Value [18446744073709551616] is out of range for a long"));
+    }
+
+    public void testLongTermQueryRejectsOversizedString() {
+        // A quoted numeric value long enough to be costly to parse is rejected rather than coerced.
+        MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> ft.termQuery(oversized, MOCK_CONTEXT));
+    }
+
     public void testByteTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE, true, true);
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
@@ -156,6 +211,133 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private static NumberFieldType indexTermsIntegerFieldType() {
+        return new NumberFieldType(
+            "field",
+            NumberType.INTEGER,
+            IndexType.terms(true, true),
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null,
+            false,
+            false,
+            true
+        );
+    }
+
+    private static BytesRef sortableBytesTerm(int value) {
+        byte[] bytes = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(value, bytes, 0);
+        return new BytesRef(bytes);
+    }
+
+    public void testIndexTermsIntegerTermQuery() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        // The query value is redirected to the sortable-bytes term in the inverted index.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(42))), ft.termQuery(42, MOCK_CONTEXT));
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(42))), ft.termQuery("42", MOCK_CONTEXT));
+        // Negative values are indexed and searchable too.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(-1))), ft.termQuery(-1, MOCK_CONTEXT));
+    }
+
+    public void testIndexTermsIntegerTermQueryNonMatchingValues() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        // Decimal and out-of-int-range values cannot match any document and are turned into a
+        // match-no-docs query.
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(2147483648L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(-2147483649L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIndexTermsIntegerTermsQuery() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        assertEquals(
+            new TermInSetQuery("field", Arrays.asList(sortableBytesTerm(1), sortableBytesTerm(-2))),
+            ft.termsQuery(Arrays.asList(1, -2), MOCK_CONTEXT)
+        );
+        // Non-matching values (decimal, out-of-range) are dropped; matching ones remain.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTerm(3))),
+            ft.termsQuery(Arrays.asList(3, 2.1, 2147483648L), MOCK_CONTEXT)
+        );
+        // If no value can match, a match-no-docs query is returned.
+        assertTrue(ft.termsQuery(Arrays.asList(2.1, 2147483648L), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    private static NumberFieldType indexTermsLongFieldType() {
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            IndexType.terms(true, true),
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null,
+            false,
+            false,
+            true
+        );
+    }
+
+    private static BytesRef sortableBytesTermLong(long value) {
+        byte[] bytes = new byte[Long.BYTES];
+        NumericUtils.longToSortableBytes(value, bytes, 0);
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * A query value reaches the term through a different branch depending on its java type, so each
+     * is checked here. Values above 2^53 are not exactly representable as a double, so the string
+     * branch in particular must parse as a long rather than route through one: Long.MAX_VALUE and
+     * its neighbour share a double, and would otherwise collapse onto the same term.
+     */
+    public void testIndexTermsLongTermQuery() {
+        NumberFieldType ft = indexTermsLongFieldType();
+        for (long value : new long[] { 42, -1, Long.MAX_VALUE, Long.MAX_VALUE - 1, Long.MIN_VALUE, (1L << 53) + 1 }) {
+            TermQuery expected = new TermQuery(new Term("field", sortableBytesTermLong(value)));
+            assertEquals("long value [" + value + "]", expected, ft.termQuery(value, MOCK_CONTEXT));
+            assertEquals("string value [" + value + "]", expected, ft.termQuery(Long.toString(value), MOCK_CONTEXT));
+        }
+        // An int-typed value widens to the same term a long-typed one produces.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTermLong(42))), ft.termQuery(42, MOCK_CONTEXT));
+    }
+
+    public void testIndexTermsLongTermQueryNonMatchingValues() {
+        NumberFieldType ft = indexTermsLongFieldType();
+        // Decimal and out-of-long-range values cannot match any document.
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery("9223372036854775808", MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery("-9223372036854775809", MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIndexTermsLongTermsQuery() {
+        NumberFieldType ft = indexTermsLongFieldType();
+        assertEquals(
+            new TermInSetQuery("field", Arrays.asList(sortableBytesTermLong(1), sortableBytesTermLong(-2))),
+            ft.termsQuery(Arrays.asList(1, -2), MOCK_CONTEXT)
+        );
+        // Values that fit a long but not an integer are matchable here, unlike on an integer field.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTermLong(2147483648L))),
+            ft.termsQuery(Collections.singletonList(2147483648L), MOCK_CONTEXT)
+        );
+        // Non-matching values (decimal, out-of-range) are dropped; matching ones remain.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTermLong(3))),
+            ft.termsQuery(Arrays.asList(3, 2.1, "9223372036854775808"), MOCK_CONTEXT)
+        );
+        assertTrue(ft.termsQuery(Arrays.asList(2.1, "9223372036854775808"), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
     private static MappedFieldType unsearchable() {
         return new NumberFieldType(
             "field",
@@ -169,6 +351,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             null,
+            false,
+            false,
             false
         );
     }
@@ -179,7 +363,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         Query[] expectedIntegerQueries = new Query[] {
             IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
-            SortedNumericDocValuesField.newSlowExactQuery("field", 42) };
+            SortedNumericDocValuesField.newSlowRangeQuery("field", 42, 42) };
         List<TermQueryTestCase> testCases = List.of(
             new TermQueryTestCase(NumberType.BYTE, expectedIntegerQueries),
             new TermQueryTestCase(NumberType.SHORT, expectedIntegerQueries),
@@ -189,31 +373,47 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new Query[] {
                     LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", 42) }
+                    SortedNumericDocValuesField.newSlowRangeQuery("field", 42, 42) }
             ),
             new TermQueryTestCase(
                 NumberType.FLOAT,
                 new Query[] {
                     FloatField.newExactQuery("field", 42),
                     FloatPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.floatToSortableInt(42)) }
+                    SortedNumericDocValuesField.newSlowRangeQuery(
+                        "field",
+                        NumericUtils.floatToSortableInt(42),
+                        NumericUtils.floatToSortableInt(42)
+                    ) }
             ),
             new TermQueryTestCase(
                 NumberType.DOUBLE,
                 new Query[] {
                     DoubleField.newExactQuery("field", 42),
                     DoublePoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.doubleToSortableLong(42)) }
+                    SortedNumericDocValuesField.newSlowRangeQuery(
+                        "field",
+                        NumericUtils.doubleToSortableLong(42),
+                        NumericUtils.doubleToSortableLong(42)
+                    ) }
             ),
             new TermQueryTestCase(
                 NumberType.HALF_FLOAT,
                 new Query[] {
                     new IndexOrDocValuesQuery(
                         HalfFloatPoint.newExactQuery("field", 42),
-                        SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42))
+                        SortedNumericDocValuesField.newSlowRangeQuery(
+                            "field",
+                            HalfFloatPoint.halfFloatToSortableShort(42),
+                            HalfFloatPoint.halfFloatToSortableShort(42)
+                        )
                     ),
                     HalfFloatPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42)) }
+                    SortedNumericDocValuesField.newSlowRangeQuery(
+                        "field",
+                        HalfFloatPoint.halfFloatToSortableShort(42),
+                        HalfFloatPoint.halfFloatToSortableShort(42)
+                    ) }
             )
         );
 
@@ -691,6 +891,103 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(-4115420654264075766L, NumberType.LONG.parse(-4115420654264075766L, true));
     }
 
+    public void testObjectToLongWithIntegralBoxedTypes() {
+        for (boolean coerce : new boolean[] { true, false }) {
+            assertEquals(Integer.MIN_VALUE, NumberType.objectToLong(Integer.MIN_VALUE, coerce));
+            assertEquals(Integer.MAX_VALUE, NumberType.objectToLong(Integer.MAX_VALUE, coerce));
+            assertEquals(Short.MIN_VALUE, NumberType.objectToLong(Short.MIN_VALUE, coerce));
+            assertEquals(Short.MAX_VALUE, NumberType.objectToLong(Short.MAX_VALUE, coerce));
+            assertEquals(Byte.MIN_VALUE, NumberType.objectToLong(Byte.MIN_VALUE, coerce));
+            assertEquals(Byte.MAX_VALUE, NumberType.objectToLong(Byte.MAX_VALUE, coerce));
+
+            int intValue = randomInt();
+            assertEquals(intValue, NumberType.objectToLong(intValue, coerce));
+            short shortValue = randomShort();
+            assertEquals(shortValue, NumberType.objectToLong(shortValue, coerce));
+            byte byteValue = randomByte();
+            assertEquals(byteValue, NumberType.objectToLong(byteValue, coerce));
+        }
+    }
+
+    public void testObjectToLongWithOtherValueTypes() {
+        for (boolean coerce : new boolean[] { true, false }) {
+            assertObjectToLong(Long.MAX_VALUE, coerce, Long.MAX_VALUE);
+            assertObjectToLong(Long.MIN_VALUE, coerce, Long.MIN_VALUE);
+            assertObjectToLong(9007199254740993L, coerce, 9007199254740993L);
+            assertObjectToLong(new BigInteger("9007199254740993"), coerce, 9007199254740993L);
+            assertObjectToLong(2.0d, coerce, 2L);
+            assertObjectToLong(6.0f, coerce, 6L);
+            assertObjectToLong("42", coerce, 42L);
+            assertObjectToLong("-9223372036854775808", coerce, Long.MIN_VALUE);
+            assertObjectToLong(new BytesRef("42"), coerce, 42L);
+
+            assertObjectToLongFails(
+                new BigInteger("9223372036854775808"),
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [9223372036854775808] is out of range for a long")
+            );
+            assertObjectToLongFails(
+                new BigInteger("18446744073709551616"),
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [18446744073709551616] is out of range for a long")
+            );
+            assertObjectToLongFails(1e19d, coerce, IllegalArgumentException.class, equalTo("Value [1.0E19] is out of range for a long"));
+            assertObjectToLongFails(
+                Double.POSITIVE_INFINITY,
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [Infinity] is out of range for a long")
+            );
+            assertObjectToLongFails(
+                Float.NEGATIVE_INFINITY,
+                coerce,
+                IllegalArgumentException.class,
+                equalTo("Value [-Infinity] is out of range for a long")
+            );
+            assertObjectToLongFails("abc", coerce, NumberFormatException.class, containsString("abc"));
+            assertObjectToLongFails(new BytesRef("abc"), coerce, NumberFormatException.class, containsString("abc"));
+        }
+
+        assertObjectToLong(3.5f, true, 3L);
+        assertObjectToLong(-3.5d, true, -3L);
+        assertObjectToLong(new BigDecimal("3.5"), true, 3L);
+        assertObjectToLong("42.7", true, 42L);
+        assertObjectToLong(new BytesRef("42.7"), true, 42L);
+        assertObjectToLongFails(Double.NaN, true, IllegalArgumentException.class, equalTo("For input string: \"NaN\""));
+        assertObjectToLongFails(Float.NaN, true, IllegalArgumentException.class, equalTo("For input string: \"NaN\""));
+
+        assertObjectToLongFails(3.5f, false, IllegalArgumentException.class, equalTo("Value [3.5] has a decimal part"));
+        assertObjectToLongFails(-3.5d, false, IllegalArgumentException.class, equalTo("Value [-3.5] has a decimal part"));
+        assertObjectToLongFails(new BigDecimal("3.5"), false, IllegalArgumentException.class, equalTo("Value [3.5] has a decimal part"));
+        assertObjectToLongFails("42.7", false, IllegalArgumentException.class, equalTo("Value [42.7] has a decimal part"));
+        BytesRef fractionalBytes = new BytesRef("42.7");
+        assertObjectToLongFails(
+            fractionalBytes,
+            false,
+            IllegalArgumentException.class,
+            equalTo("Value [" + fractionalBytes + "] has a decimal part")
+        );
+        assertObjectToLongFails(Double.NaN, false, IllegalArgumentException.class, equalTo("Value [NaN] has a decimal part"));
+        assertObjectToLongFails(Float.NaN, false, IllegalArgumentException.class, equalTo("Value [NaN] has a decimal part"));
+    }
+
+    private static void assertObjectToLong(Object value, boolean coerce, long expected) {
+        assertEquals("objectToLong(" + value + ", " + coerce + ")", expected, NumberType.objectToLong(value, coerce));
+    }
+
+    private static void assertObjectToLongFails(
+        Object value,
+        boolean coerce,
+        Class<? extends IllegalArgumentException> expectedType,
+        Matcher<String> expectedMessage
+    ) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.objectToLong(value, coerce));
+        assertSame("objectToLong(" + value + ", " + coerce + ")", expectedType, e.getClass());
+        assertThat("objectToLong(" + value + ", " + coerce + ")", e.getMessage(), expectedMessage);
+    }
+
     public void testHalfFloatRange() throws IOException {
         // make sure the accuracy loss of half floats only occurs at index time
         // this test checks that searching half floats yields the same results as
@@ -728,7 +1025,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 includeUpper,
                 randomBoolean(),
                 MOCK_CONTEXT,
-                randomBoolean()
+                randomBoolean(),
+                false
             );
             Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery(
                 "half_float",
@@ -738,7 +1036,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 includeUpper,
                 randomBoolean(),
                 MOCK_CONTEXT,
-                randomBoolean()
+                randomBoolean(),
+                false
             );
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
@@ -748,16 +1047,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed)
+            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed, false),
+            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed, false)
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
+            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
+            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
+            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
+            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
         );
 
         final boolean hasDocValues = isIndexed == false || randomBoolean(); // at least one should be true
@@ -827,7 +1126,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 true,
                 MOCK_CONTEXT,
-                true
+                true,
+                false
             );
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
@@ -887,7 +1187,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 true,
                 context,
-                isIndexed
+                isIndexed,
+                false
             );
             assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
             Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();

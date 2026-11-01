@@ -67,6 +67,81 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
             }));
         }
 
+        // The DEFAULT metric (index 4) has no dedicated sub-block; it's computed on the fly as sum / count.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            double sum = randomDoubleBetween(-1000, 1000, true);
+            int count = randomIntBetween(1, 1000);
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                sum,
+                count
+            );
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+            double expectedValue = sum / count;
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
+            );
+        }));
+
+        // DEFAULT metric with count == 0: result is null and a warning is logged.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(-1000, 1000, true),
+                0
+            );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.nullValue()
+            ).withWarning("Line 1:1: warnings during evaluation of [source]. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: [aggregate_metric_double] fields has a non-positive count"
+                        + " [value_count=0], so it cannot fallback to a single average value, treating result as null"
+                );
+        }));
+
+        // DEFAULT metric with count < 0: result is null and a warning is logged.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+            int count = randomIntBetween(-100, -1);
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(-1000, 1000, true),
+                count
+            );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.nullValue()
+            ).withWarning("Line 1:1: warnings during evaluation of [source]. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: [aggregate_metric_double] fields has a non-positive count"
+                        + " [value_count="
+                        + count
+                        + "], so it cannot fallback to a single average value, treating result as null"
+                );
+        }));
+
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,

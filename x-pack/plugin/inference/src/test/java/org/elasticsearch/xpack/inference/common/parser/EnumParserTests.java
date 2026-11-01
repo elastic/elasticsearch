@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.test.ESTestCase;
 
@@ -15,6 +17,7 @@ import java.util.HashMap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EnumParserTests extends ESTestCase {
@@ -89,5 +92,22 @@ public class EnumParserTests extends ESTestCase {
         var result = EnumParser.extractEnum(map, STATUS, ROOT, StatusHeuristic::fromString, EnumSet.allOf(StatusHeuristic.class));
 
         assertThat(result, equalTo(StatusHeuristic.BETA));
+    }
+
+    public void testParseSimilarity_ReturnsNull_WhenValueNull() {
+        assertThat(EnumParser.parseSimilarity(null), nullValue());
+    }
+
+    public void testParseSimilarity_ValidValues_ReturnsEnum() {
+        for (SimilarityMeasure measure : SimilarityMeasure.values()) {
+            assertThat(EnumParser.parseSimilarity(measure.toString()), is(measure));
+            assertThat(EnumParser.parseSimilarity(measure.name()), is(measure));
+        }
+    }
+
+    public void testParseSimilarity_InvalidValue_ThrowsExceptionWithAcceptedValues() {
+        var invalidValue = randomAlphaOfLength(8);
+        var e = expectThrows(IllegalArgumentException.class, () -> EnumParser.parseSimilarity(invalidValue));
+        assertThat(e.getMessage(), is(Strings.format("Invalid value [%s]; expected one of [cosine, dot_product, l2_norm]", invalidValue)));
     }
 }

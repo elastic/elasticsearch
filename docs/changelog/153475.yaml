@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147856
+pr: 153475
+summary: Support == and != for histogram types
+type: enhancement

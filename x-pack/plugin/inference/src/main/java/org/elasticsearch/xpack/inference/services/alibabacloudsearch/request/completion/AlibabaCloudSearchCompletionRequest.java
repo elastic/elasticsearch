@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
@@ -31,7 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchRequest {
+public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchRequest implements OutboundCompletionRequest {
     private final AlibabaCloudSearchAccount account;
     private final List<String> input;
     private final URI uri;
@@ -64,14 +64,13 @@ public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchReque
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(uri);
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(uri).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new AlibabaCloudSearchCompletionRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+        httpPost.setBody(
+            Strings.toString(new AlibabaCloudSearchCompletionRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
@@ -88,7 +87,7 @@ public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchReque
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

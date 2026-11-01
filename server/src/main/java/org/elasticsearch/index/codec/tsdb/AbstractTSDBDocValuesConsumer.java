@@ -53,10 +53,12 @@ import java.util.List;
 import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 
 /**
- * Abstract base class for TSDB doc values consumers. Owns the shared wire-format logic
- * for writing numeric, binary, sorted, sorted-numeric, and sorted-set doc values.
- * Concrete subclasses provide the numeric encoding strategy via
- * {@link #createNumericFieldWriter(NumericWriteContext)}.
+ * Base class for TSDB doc values consumers.
+ *
+ * <p>Owns the wire-format writing for numeric, binary, sorted, sorted-numeric, and sorted-set
+ * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec} and an
+ * {@link OrdinalBlockCodec}; those codecs supply the per-field writers and encoders the wire-format
+ * code drives during segment write.
  */
 public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
@@ -76,9 +78,33 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     /** Index block shift sentinel indicating ordinal range encoding. */
     public static final int INDEX_ORDINAL_RANGE = -2;
 
+    /**
+     * Sentinel passed as {@code maxOrd} to mark a field as numeric (no ordinal stream).
+     * Ordinal fields pass their actual maximum ordinal value, which is always non-negative.
+     */
+    public static final long NO_MAX_ORD = -1L;
+
+    /**
+     * Callback that receives the number of doc values per document during the field write loop.
+     *
+     * <p>The write loop in {@link TSDBDocValuesBlockWriter} calls {@link #accept} once per
+     * document with that document's value count. Implementations accumulate these counts to
+     * build the per-doc offset table that multi-valued fields (sorted-numeric, sorted-set)
+     * need to locate the values for a given document.
+     *
+     * @see OffsetsAccumulator
+     */
+    @FunctionalInterface
+    public interface DocValueCountConsumer {
+        /**
+         * @param docValueCount number of doc values for the current document
+         */
+        void accept(int docValueCount) throws IOException;
+    }
+
     final Directory dir;
     final IOContext context;
-    IndexOutput data, meta;
+    IndexOutput data, meta, skip;
     final int maxDoc;
     byte[] termsDictBuffer;
     final boolean enableOptimizedMerge;
@@ -91,6 +117,9 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     final long[] skipIndexJumpLengthPerLevel;
     private final DocOffsetsCodec.Encoder docOffsetsEncoder;
     private final SortedFieldObserverFactory sortedFieldObserverFactory;
+    private final NumericBlockCodec numericCodec;
+    private final OrdinalBlockCodec ordinalCodec;
+    private final NumericWriteContext writeContext;
 
     /**
      * Construct a new consumer that writes doc values in the TSDB wire format.
@@ -104,6 +133,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
      * @param formatConfig                format-specific configuration for this codec version
      * @param docOffsetsEncoder           encoder for doc offsets in compressed binary blocks
      * @param sortedFieldObserverFactory  factory for creating observers during sorted field writes
+     * @param numericCodec                codec for numeric doc values (NUMERIC and SORTED_NUMERIC)
+     * @param ordinalCodec                codec for ordinal doc values (SORTED and SORTED_SET)
      */
     @SuppressWarnings("this-escape")
     protected AbstractTSDBDocValuesConsumer(
@@ -113,13 +144,19 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final String dataExtension,
         final String metaCodec,
         final String metaExtension,
+        final String skipCodec,
+        final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Encoder docOffsetsEncoder,
-        final SortedFieldObserverFactory sortedFieldObserverFactory
+        final SortedFieldObserverFactory sortedFieldObserverFactory,
+        final NumericBlockCodec numericCodec,
+        final OrdinalBlockCodec ordinalCodec
     ) throws IOException {
         this.state = state;
         this.docOffsetsEncoder = docOffsetsEncoder;
         this.sortedFieldObserverFactory = sortedFieldObserverFactory;
+        this.numericCodec = numericCodec;
+        this.ordinalCodec = ordinalCodec;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.primarySortFieldNumber = AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
@@ -133,15 +170,47 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
             data = state.directory.createOutput(dataName, state.context);
-            CodecUtil.writeIndexHeader(data, dataCodec, formatConfig.versionCurrent(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                data,
+                dataCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             final String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
             meta = state.directory.createOutput(metaName, state.context);
-            CodecUtil.writeIndexHeader(meta, metaCodec, formatConfig.versionCurrent(), state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                meta,
+                metaCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             meta.writeByte((byte) formatConfig.numericBlockShift());
+
+            final String skipName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, skipExtension);
+            skip = state.directory.createOutput(skipName, state.context);
+            CodecUtil.writeIndexHeader(
+                skip,
+                skipCodec,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             maxDoc = state.segmentInfo.maxDoc();
             this.enableOptimizedMerge = enableOptimizedMerge;
+            this.writeContext = new NumericWriteContext(
+                meta,
+                data,
+                dir,
+                context,
+                maxDoc,
+                numericBlockSize,
+                primarySortFieldNumber,
+                formatConfig
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -181,19 +250,6 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         return jumpLengths;
     }
 
-    /**
-     * Creates a numeric field writer for this segment.
-     *
-     * <p>Each codec version provides its own encoding strategy. The returned writer owns the
-     * full numeric field lifecycle: stats, ordinal detection, codec-specific metadata,
-     * block encoding, offsets, and DISI.
-     *
-     * @param ctx the shared write context for this segment
-     * @return a writer for numeric fields
-     * @see NumericFieldWriter
-     */
-    protected abstract NumericFieldWriter createNumericFieldWriter(NumericWriteContext ctx);
-
     @Override
     public void addNumericField(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
@@ -207,34 +263,33 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, producer);
         }
-        writeField(field, producer, -1, null, numericBlockSize, null);
+        writeNumericField(field, producer, null);
     }
 
-    private long[] writeField(
+    private DocValueFieldCountStats writeNumericField(
+        final FieldInfo field,
+        final TsdbDocValuesProducer valuesSource,
+        final OffsetsAccumulator offsetsAccumulator
+    ) throws IOException {
+        return numericCodec.createWriter(writeContext)
+            .writeFieldEntry(field, valuesSource, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, null);
+    }
+
+    private DocValueFieldCountStats writeOrdinalField(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         long maxOrd,
         final OffsetsAccumulator offsetsAccumulator,
-        int blockSize,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
-        final NumericWriteContext ctx = new NumericWriteContext(
-            meta,
-            data,
-            dir,
-            context,
-            maxDoc,
-            blockSize,
-            primarySortFieldNumber,
-            formatConfig
-        );
-        return createNumericFieldWriter(ctx).writeField(
-            field,
-            valuesSource,
-            maxOrd,
-            offsetsAccumulator != null ? offsetsAccumulator::addDoc : null,
-            sortedFieldObserver
-        );
+        return ordinalCodec.createWriter(writeContext)
+            .writeFieldEntry(
+                field,
+                valuesSource,
+                maxOrd,
+                offsetsAccumulator != null ? offsetsAccumulator::addDoc : null,
+                sortedFieldObserver
+            );
     }
 
     @Override
@@ -292,7 +347,31 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                     binaryWriter = new CompressedBinaryBlockWriter(formatConfig.binaryCompressionMode());
                 }
 
+                // Gate: only probe for raw blocks if the field can contain an oversized value and
+                // the writer is a CompressedBinaryBlockWriter. mergeStats.maxLength() is the max
+                // over all source segments' BinaryEntry.maxLength, so this is exact — no probe on
+                // fields that never produce single-doc blocks. The MergedBinaryDocValues wrapper
+                // exposes the current sub; Lucene's view (fallback branch) does not.
+                final int blockBytesThreshold = formatConfig.blockBytesThreshold();
+                final MergedBinaryDocValues mergedView = values instanceof MergedBinaryDocValues mv ? mv : null;
+                final boolean mayCopyVerbatim = mergedView != null
+                    && binaryWriter instanceof CompressedBinaryBlockWriter
+                    && maxLength >= blockBytesThreshold;
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    if (mayCopyVerbatim) {
+                        AbstractTSDBDocValuesProducer.TSDBBinaryDocValues sub = mergedView.currentValues();
+                        if (sub != null) {
+                            RawBinaryBlock raw = sub.rawSingleValueBlock(blockBytesThreshold);
+                            if (raw != null && binaryWriter.addRawBlock(raw)) {
+                                // Block copied verbatim — no decompression on the read side, no
+                                // re-compression here, and neither side materializes the value.
+                                if (disiAccumulator != null) {
+                                    disiAccumulator.addDocId(doc);
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     BytesRef v = values.binaryValue();
                     binaryWriter.addDoc(v);
                     if (disiAccumulator != null) {
@@ -395,6 +474,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         default void writeAddressMetadata(int minLength, int maxLength, int numDocsWithField) throws IOException {}
 
+        /**
+         * Attempts to copy a raw compressed block from a source segment verbatim into the target,
+         * bypassing decompression and re-compression. Returns {@code true} when the block was
+         * copied; {@code false} when it was rejected (caller must fall back to {@link #addDoc}).
+         */
+        default boolean addRawBlock(RawBinaryBlock raw) throws IOException {
+            return false;
+        }
+
         @Override
         default void close() throws IOException {}
     }
@@ -452,8 +540,13 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
         final Compressor compressor;
+        final BinaryDVCompressionMode compressionMode;
 
         final int[] docOffsets = new int[formatConfig.blockCountThreshold() + 1];
+
+        // Two-element scratch used by addRawBlock to re-encode offsets for a single-doc block.
+        // Must not reuse docOffsets because DocOffsetsCodec encoders delta-mutate the array in place.
+        final int[] rawBlockOffsets = new int[2];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -466,6 +559,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final BlockMetadataAccumulator blockMetaAcc;
 
         CompressedBinaryBlockWriter(final BinaryDVCompressionMode compressionMode) throws IOException {
+            this.compressionMode = compressionMode;
             this.compressor = compressionMode.compressionMode().newCompressor();
             long blockAddressesStart = data.getFilePointer();
             this.blockMetaAcc = new BlockMetadataAccumulator(
@@ -474,13 +568,22 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 data,
                 blockAddressesStart,
                 metaCodecName,
-                formatConfig.versionCurrent(),
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
                 formatConfig.directMonotonicBlockShift()
             );
         }
 
         @Override
         public void addDoc(final BytesRef v) throws IOException {
+            // If this value is already above the byte threshold, flush whatever is pending first so
+            // the oversized value lands in a block of its own. Block boundaries carry no format
+            // meaning — per-block doc counts and byte lengths are monotonic deltas — so this is a
+            // layout change only: no new metadata, no version bump, readable by every existing
+            // reader. Benefit: (1) merges of such segments can copy the single-doc block verbatim;
+            // (2) reading a neighbour value no longer decompresses the outlier alongside it.
+            if (numDocsInCurrentBlock > 0 && v.length >= formatConfig.blockBytesThreshold()) {
+                flushData();
+            }
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;
@@ -523,6 +626,70 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
             blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);
             numDocsInCurrentBlock = uncompressedBlockLength = 0;
+        }
+
+        /**
+         * Copies a compressed block from a source segment verbatim into the target, without
+         * decompressing it. Only legal for a block that held exactly one document in the source,
+         * because block boundaries carry no doc-order meaning in this format — per-block doc counts
+         * and byte lengths are both recorded as monotonic deltas by {@link BlockMetadataAccumulator},
+         * so a single-doc block may be inserted at any point in the target's block stream.
+         *
+         * <p>The doc offsets are re-encoded with this writer's {@link DocOffsetsCodec}, not copied,
+         * so the copy is independent of whichever codec the source segment used (ES819 v2 uses
+         * {@code GROUPED_VINT}, ES819-v3 and ES95 use {@code BITPACKING}).
+         *
+         * @return {@code true} if the block was copied verbatim; {@code false} if the source and
+         *         target compression modes or per-block flags differ and the caller must fall back
+         *         to {@link #addDoc}
+         */
+        @Override
+        public boolean addRawBlock(RawBinaryBlock raw) throws IOException {
+            // The payload is only interchangeable if the target would hand it to the same
+            // decompressor. Vacuous today (COMPRESSED_ZSTD_LEVEL_1 is the only compressed mode, and
+            // NO_COMPRESS sources route through getUncompressedBinary, which never produces a raw
+            // block), but the algorithm identity lives in the per-field meta byte, not in the
+            // per-block header, so this check keeps the copy honest when a second mode lands.
+            //
+            // This if statement is a policy gate, not a correctness one — the reader dispatches per-block,
+            // so a mixed stream is readable. Requiring equality means the verbatim-copied block is
+            // byte-identical to what re-compression would have produced, and avoids silently
+            // re-introducing (or removing) compression the operator configured.
+            assert raw.compression() != BinaryDVCompressionMode.NO_COMPRESS;
+            if (raw.compression() != compressionMode || raw.compressed() != formatConfig.enablePerBlockCompression()) {
+                return false;
+            }
+
+            // Flush any pending partial block so the verbatim copy starts cleanly on a boundary.
+            flushData();
+
+            totalChunks++;
+            long thisBlockStartPointer = data.getFilePointer();
+
+            data.writeByte(new BinaryDVCompressionMode.BlockHeader(raw.compressed()).toByte());
+            data.writeVInt(raw.uncompressedLength());
+
+            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, raw.uncompressedLength());
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, 1);
+
+            // Re-encode the two doc offsets with this writer's codec. rawBlockOffsets[0] stays 0;
+            // the encoder's delta loop only touches indices 1..numDocs.
+            rawBlockOffsets[0] = 0;
+            rawBlockOffsets[1] = raw.uncompressedLength();
+            docOffsetsEncoder.encode(rawBlockOffsets, 1, data);
+
+            // Stream the compressed payload through DataOutput's 16 KB copy buffer. This is two
+            // memcpys, not zero-copy, but neither side allocates an outlier-sized buffer — the saving
+            // is the zstd CPU and the two big heap allocations, not the byte movement.
+            data.copyBytes(raw.payload(), raw.payloadLength());
+
+            long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
+            blockMetaAcc.addDoc(1, blockLenBytes);
+
+            if (state.infoStream.isEnabled("TS_DV")) {
+                state.infoStream.message("TS_DV", "copied binary block of [" + raw.uncompressedLength() + "] uncompressed bytes verbatim");
+            }
+            return true;
         }
 
         void compress(final byte[] data, int uncompressedLength, final DataOutput output) throws IOException {
@@ -620,7 +787,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final int maxOrd = sorted.getValueCount();
         addTermsDict(DocValues.singleton(sorted), observer);
         observer.prepareForDocs();
-        writeField(field, producer, maxOrd, null, numericBlockSize, observer);
+        writeOrdinalField(field, producer, maxOrd, null, observer);
         if (primarySortFieldNumber == field.number) {
             meta.writeByte(observer != SortedFieldObserver.NOOP ? (byte) 1 : (byte) 0);
         }
@@ -770,23 +937,51 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     public void addSortedNumericField(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(SORTED_NUMERIC);
-        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer), -1);
+        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer));
     }
 
-    private void writeSortedNumericField(final FieldInfo field, final TsdbDocValuesProducer valuesSource, long maxOrd) throws IOException {
+    private void writeSortedNumericField(final FieldInfo field, final TsdbDocValuesProducer valuesSource) throws IOException {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, valuesSource);
         }
-        if (maxOrd > -1) {
-            meta.writeByte((byte) 1); // multiValued (1 = multiValued)
-        }
+        writeEntry(field, valuesSource, accumulator -> writeNumericField(field, valuesSource, accumulator));
+    }
 
-        final int blockSize = numericBlockSize;
+    private void writeSortedSetMultiValueField(final FieldInfo field, final TsdbDocValuesProducer valuesSource, long maxOrd)
+        throws IOException {
+        if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+            writeSkipIndex(field, valuesSource);
+        }
+        meta.writeByte((byte) 1); // multiValued (1 = multiValued)
+        writeEntry(field, valuesSource, accumulator -> writeOrdinalField(field, valuesSource, maxOrd, accumulator, null));
+    }
+
+    /**
+     * Writes one field's doc values and returns its {@link DocValueFieldCountStats}.
+     *
+     * <p>Multi-valued fields need a per-doc address table so the reader can locate each
+     * document's values. Building this table requires knowing the value count per document.
+     * During merges, re-iterating the merge-sorted values to collect these counts is
+     * expensive, so an {@link OffsetsAccumulator} is passed to collect them in a single
+     * pass. This callback isolates the part that differs between numeric and ordinal
+     * writing, while {@link #writeEntry} owns the shared logic: deciding whether an
+     * accumulator is needed and building the address table.
+     *
+     * <p>{@link #writeEntry} calls {@link #write} with a non-null accumulator during
+     * optimized merges when the field is multi-valued, or {@code null} otherwise.
+     */
+    @FunctionalInterface
+    private interface DocValueWriter {
+        DocValueFieldCountStats write(OffsetsAccumulator accumulator) throws IOException;
+    }
+
+    private void writeEntry(final FieldInfo field, final TsdbDocValuesProducer valuesSource, final DocValueWriter docValueWriter)
+        throws IOException {
         if (valuesSource.mergeStats.supported()) {
             int numDocsWithField = valuesSource.mergeStats.sumNumDocsWithField();
             long numValues = valuesSource.mergeStats.sumNumValues();
             if (numDocsWithField == numValues) {
-                writeField(field, valuesSource, maxOrd, null, blockSize, null);
+                docValueWriter.write(null);
             } else {
                 assert numValues > numDocsWithField;
                 try (
@@ -798,17 +993,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                         formatConfig.directMonotonicBlockShift()
                     )
                 ) {
-                    writeField(field, valuesSource, maxOrd, accumulator, blockSize, null);
+                    docValueWriter.write(accumulator);
                     accumulator.build(meta, data);
                 }
             }
         } else {
-            long[] stats = writeField(field, valuesSource, maxOrd, null, blockSize, null);
-            int numDocsWithField = Math.toIntExact(stats[0]);
-            long numValues = stats[1];
-            assert numValues >= numDocsWithField;
+            DocValueFieldCountStats stats = docValueWriter.write(null);
+            assert stats.numValues() >= stats.numDocsWithField();
 
-            if (numValues > numDocsWithField) {
+            if (stats.numValues() > stats.numDocsWithField()) {
                 long start = data.getFilePointer();
                 meta.writeLong(start);
                 meta.writeVInt(formatConfig.directMonotonicBlockShift());
@@ -816,7 +1009,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
                     meta,
                     data,
-                    numDocsWithField + 1L,
+                    stats.numDocsWithField() + 1L,
                     formatConfig.directMonotonicBlockShift()
                 );
                 long addr = 0;
@@ -891,7 +1084,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         SortedSetDocValues values = valuesProducer.getSortedSet(field);
         long maxOrd = values.getValueCount();
-        writeSortedNumericField(field, new TsdbDocValuesProducer(source.mergeStats) {
+        writeSortedSetMultiValueField(field, new TsdbDocValuesProducer(source.mergeStats) {
             @Override
             public SortedNumericDocValues getSortedNumeric(final FieldInfo field) throws IOException {
                 SortedSetDocValues values = valuesProducer.getSortedSet(field);
@@ -961,14 +1154,17 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             if (data != null) {
                 CodecUtil.writeFooter(data); // write checksum
             }
+            if (skip != null) {
+                CodecUtil.writeFooter(skip);
+            }
             success = true;
         } finally {
             if (success) {
-                IOUtils.close(data, meta);
+                IOUtils.close(data, meta, skip);
             } else {
-                IOUtils.closeWhileHandlingException(data, meta);
+                IOUtils.closeWhileHandlingException(data, meta, skip);
             }
-            meta = data = null;
+            meta = data = skip = null;
         }
     }
 
@@ -1022,18 +1218,21 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private void writeSkipIndex(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         assert field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
-        final long start = data.getFilePointer();
+        final long start = skip.getFilePointer();
         final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
         long globalMaxValue = Long.MIN_VALUE;
         long globalMinValue = Long.MAX_VALUE;
         int globalDocCount = 0;
         int maxDocId = -1;
+        int globalMaxValueCount = 0;
         final List<SkipAccumulator> accumulators = new ArrayList<>();
         SkipAccumulator accumulator = null;
         final int maxAccumulators = 1 << (formatConfig.skipIndexLevelShift() * (formatConfig.skipIndexMaxLevel() - 1));
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             final long firstValue = values.nextValue();
-            if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), values.docValueCount(), firstValue, doc)) {
+            final int valueCount = values.docValueCount();
+            globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
+            if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), valueCount, firstValue, doc)) {
                 globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
                 globalMinValue = Math.min(globalMinValue, accumulator.minValue);
                 globalDocCount += accumulator.docCount;
@@ -1050,7 +1249,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             }
             accumulator.nextDoc(doc);
             accumulator.accumulate(firstValue);
-            for (int i = 1, end = values.docValueCount(); i < end; ++i) {
+            for (int i = 1; i < valueCount; ++i) {
                 accumulator.accumulate(values.nextValue());
             }
         }
@@ -1063,13 +1262,14 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             writeLevels(accumulators);
         }
         meta.writeLong(start); // record the start in meta
-        meta.writeLong(data.getFilePointer() - start); // record the length
+        meta.writeLong(skip.getFilePointer() - start); // record the length
         assert globalDocCount == 0 || globalMaxValue >= globalMinValue;
         meta.writeLong(globalMaxValue);
         meta.writeLong(globalMinValue);
         assert globalDocCount <= maxDocId + 1;
         meta.writeInt(globalDocCount);
         meta.writeInt(maxDocId);
+        meta.writeInt(globalMaxValueCount);
     }
 
     private void writeLevels(final List<SkipAccumulator> accumulators) throws IOException {
@@ -1081,14 +1281,14 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         int totalAccumulators = accumulators.size();
         for (int index = 0; index < totalAccumulators; index++) {
             final int levels = getLevels(index, totalAccumulators);
-            data.writeByte((byte) levels);
+            skip.writeByte((byte) levels);
             for (int level = levels - 1; level >= 0; level--) {
                 final SkipAccumulator acc = accumulatorsLevels.get(level).get(index >> (formatConfig.skipIndexLevelShift() * level));
-                data.writeInt(acc.maxDocID);
-                data.writeInt(acc.minDocID);
-                data.writeLong(acc.maxValue);
-                data.writeLong(acc.minValue);
-                data.writeInt(acc.docCount);
+                skip.writeInt(acc.maxDocID);
+                skip.writeInt(acc.minDocID);
+                skip.writeLong(acc.maxValue);
+                skip.writeLong(acc.minValue);
+                skip.writeInt(acc.docCount);
             }
         }
     }

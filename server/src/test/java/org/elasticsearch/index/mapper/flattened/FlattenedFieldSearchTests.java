@@ -14,9 +14,12 @@ import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -181,6 +184,58 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers")), 1L);
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.content-type")), 1L);
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.nonexistent")), 0L);
+    }
+
+    public void testExistsOnDocValuesOnlyKeyedField() throws Exception {
+        // index:false -> SortedSet doc-values only, no inverted terms. Key-specific exists must scan doc-values (newSlowRangeQuery branch).
+        String index = "test-noindex-exists";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(index, Settings.EMPTY, mapping);
+        prepareIndex(index).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("labels").field("a", "x").endObject().endObject())
+            .get();
+
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.a")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.b")), 0L);
+    }
+
+    public void testExistsOnColumnarKeyedField() throws Exception {
+        // Columnar mode stores flattened values as array-order binary doc-values with no inverted terms; key-specific exists scans them
+        // via the ScanningBinaryDocValuesPrefixQuery branch. A prefix collision ("a" vs "ab") must not be matched by exists on "a".
+        String index = "test-columnar-exists";
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(index, settings, mapping);
+        prepareIndex(index).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("labels").field("ab", "x").endObject().endObject())
+            .get();
+
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.ab")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.a")), 0L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.missing")), 0L);
     }
 
     public void testCardinalityAggregation() throws IOException {
@@ -492,7 +547,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             for (var leaf : searcher.getDirectoryReader().leaves()) {
                 for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
                     if (fieldInfo.name.equals("labels")) {
@@ -697,6 +752,46 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
         // Unmapped key still works as flattened
         assertHitCount(client().prepareSearch("range_test").setQuery(termQuery("metrics.label", "req-0")), 1L);
+    }
+
+    /**
+     * End-to-end {@code _search} coverage for {@code KeyedFlattenedFieldType.rangeQuery} on an
+     * unmapped sub-key of a {@code flattened} root. The unit tests in
+     * {@code KeyedFlattenedFieldTypeTests} pin the {@code TermRangeQuery} the field type produces,
+     * but this is the only place that confirms a real {@code _search} request flowing through
+     * {@code RangeQueryBuilder} actually hits the keyed code path and returns the right hits for
+     * closed and one-sided ranges. The one-sided cases are the ones the range query implementation
+     * recently opened up by substituting a {@code <key>\0}/{@code <key>\1} sentinel for the
+     * missing bound; before that, an open-bound range over a keyed sub-field threw at parse time.
+     */
+    public void testKeyedSubFieldRangeQuery() throws Exception {
+        BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        bulk.add(client().prepareIndex().setId("error").setSource("""
+            {"labels": {"severity": "error", "region": "ap-south"}}""", XContentType.JSON));
+        bulk.add(client().prepareIndex().setId("info").setSource("""
+            {"labels": {"severity": "info", "region": "eu-west"}}""", XContentType.JSON));
+        bulk.add(client().prepareIndex().setId("warn").setSource("""
+            {"labels": {"severity": "warn", "region": "us-east"}}""", XContentType.JSON));
+        assertNoFailures(bulk.get());
+
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("a").lte("g")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("a").lte("z")), 3L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gt("info").lt("zzz")), 1L);
+
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lte("h")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lt("info")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lte("info")), 2L);
+
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("info")), 2L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gt("info")), 1L);
+
+        // The {@code <key>\1} upper-bound sentinel keeps the open-upper range strictly inside
+        // the {@code severity} key's term slice. If it ever leaked past the next key boundary,
+        // the {@code region} values ("ap-south", "eu-west", "us-east") would be matched here.
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("warn")), 1L);
+        // Symmetric guard for the lower-bound sentinel: an open-lower range under {@code "a"}
+        // must not pick up terms from a sibling key with a lexicographically smaller name.
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lt("a")), 0L);
     }
 
     public void testMappedPropertyExistsQuery() throws Exception {

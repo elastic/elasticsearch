@@ -12,15 +12,17 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -36,7 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -54,6 +56,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private boolean includeEmptyFields = true;
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects = null;
     /**
      * Controls whether the field caps response should always include the list of indices
      * where a field is defined. This flag is only used locally on the coordinating node,
@@ -271,6 +275,17 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return resolvedIndexExpressions;
     }
 
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
+    }
+
     public void projectRouting(@Nullable String projectRouting) {
         if (this.projectRouting != null) {
             throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
@@ -407,5 +422,17 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    boolean cacheable() {
+        return fields.length <= FieldCapsCache.MAX_FIELDS
+            && filters.length <= FieldCapsCache.MAX_FILTERS
+            && types.length == 0
+            && includeEmptyFields
+            && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
+            && runtimeFields.isEmpty()
+            // This cache targets low-latency local requests. Requests that are part of a cross-cluster request
+            // already pay a remote round trip, so the saving is negligible; keep the slots for local requests.
+            && Strings.isEmpty(clusterAlias);
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -105,6 +107,10 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    @Nullable
+    private DirectoryMetricsAwareExecutor metricsAwareExecutor;
+    private final DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture;
+    private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -173,11 +179,13 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
         long memoryAccountingBufferSize,
-        @Nullable CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker,
+        DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.currentThreadDirectoryMetricsCapture = currentThreadDirectoryMetricsCapture;
         boolean success = false;
         try {
             this.searchType = request.searchType();
@@ -194,7 +202,8 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null || maximumNumberOfSlices <= 1) {
+            boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
+            if (searcherRequiresExecutor == false) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -203,6 +212,10 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                // Always wrap: cache and directory metrics must be collected on worker threads.
+                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
+                executor = this.metricsAwareExecutor;
+
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -213,6 +226,9 @@ final class DefaultSearchContext extends SearchContext {
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
+            }
+            if (circuitBreaker != null) {
+                this.searcher.setCircuitBreaker(circuitBreaker);
             }
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
@@ -228,6 +244,10 @@ final class DefaultSearchContext extends SearchContext {
                 indexShard.shardSearchStats()
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
+            if (searchExecutionContext != null) {
+                // The slices the request names, for the field mappers that build its queries.
+                searchExecutionContext.setSliceSelection(SliceSelection.fromSearchSlice(request.sliceRouting()));
+            }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
             success = true;
@@ -235,6 +255,28 @@ final class DefaultSearchContext extends SearchContext {
             if (success == false) {
                 close();
             }
+        }
+    }
+
+    @Override
+    public DirectoryMetrics getWorkerThreadsMetrics() {
+        return metricsAwareExecutor == null ? DirectoryMetrics.EMPTY : metricsAwareExecutor.workerMetrics();
+    }
+
+    @Override
+    public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
+        return currentThreadDirectoryMetricsCapture;
+    }
+
+    @Override
+    public DirectoryMetrics getFetchThreadsMetrics() {
+        return fetchThreadsMetrics;
+    }
+
+    @Override
+    public void addFetchThreadsMetrics(DirectoryMetrics metrics) {
+        if (metrics != null && metrics.isEmpty() == false) {
+            fetchThreadsMetrics = fetchThreadsMetrics.isEmpty() ? metrics : fetchThreadsMetrics.merge(metrics);
         }
     }
 
@@ -473,6 +515,10 @@ final class DefaultSearchContext extends SearchContext {
             } else {
                 filters.add(slicedQuery);
             }
+        }
+        final Query sliceFilter = searchExecutionContext.sliceFilter();
+        if (sliceFilter != null) {
+            filters.add(sliceFilter);
         }
 
         if (filters.isEmpty()) {

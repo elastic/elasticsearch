@@ -56,13 +56,20 @@ setup:
             - fn_byte_length
             - match_function_options
             - ts_command_v0
+            - time_series_translation_in_analyzer
             - cosine_vector_similarity_function
             - inline_stats
             - promql_command_v0
             - uri_parts_command
             - registered_domain_command
             - user_agent_command
+            - ip_location_command
             - fn_json_extract
+            - esql_limit_by
+            - dedup_command
+            - highlight_v6
+            - dense_vector_command
+            - fillnull
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -74,10 +81,10 @@ setup:
   - set: { esql.features.eval: eval_counter }
   - set: { esql.features.enrich: enrich_counter }
   - set: { esql.features.from: from_counter }
-  - set: { esql.features.ts: ts_counter }
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.limit_by: limit_by_counter }
   - set: { esql.features.mv_expand: mv_expand_counter }
   - set: { esql.features.rename: rename_counter }
   - set: { esql.features.row: row_counter }
@@ -92,7 +99,6 @@ setup:
   - set: { esql.features.change_point: change_point_counter }
   - set: { esql.features.inline_stats: inline_stats_counter }
   - set: { esql.features.rerank: rerank_counter }
-  - set: { esql.features.insist: insist_counter }
   - set: { esql.features.fork: fork_counter }
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
@@ -102,7 +108,12 @@ setup:
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.user_agent: user_agent_counter }
+  - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
+  - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.fillnull: fillnull_counter }
+  - set: { esql.features.highlight: highlight_counter }
+  - set: { esql.features.dense_vector: dense_vector_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -137,7 +148,9 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - gt: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - gt: { esql.features.where: $where_counter }
@@ -147,13 +160,15 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
-  - match: { esql.features.ts: $ts_counter }
   - match: { esql.features.mmr: $mmr_counter }
+  - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
+  - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -176,7 +191,7 @@ setup:
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries._all.total: all_total_counter }
   - set: { esql.functions.min: functions_min }
-  - set: { esql.functions.avg_over_time: functions_avg_over_time }
+  - set: { esql.functions.avg: functions_avg }
 
   - do:
       esql.query:
@@ -193,7 +208,9 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.where: $where_counter }
@@ -203,13 +220,15 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
-  - gt: { esql.features.ts: $ts_counter }
+  - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
+  - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -217,13 +236,52 @@ setup:
   - gt: { esql.queries._all.total: $all_total_counter }
   - match: { esql.queries._all.failed: $all_failed_counter }
   - gt: { esql.functions.min: $functions_min }
-  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
+  - gt: { esql.functions.avg: $functions_avg }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - exists: esql.functions.delay
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
+
+  - set: { esql.features.limit_by: limit_by_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | sort count desc
+            | limit 3 by message
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.limit_by: $limit_by_counter }
+
+  - set: { esql.features.dedup: dedup_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | dedup
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.dedup: $dedup_counter }
+
+  - set: { esql.features.fillnull: fillnull_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | fillnull "n/a" ON *
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.fillnull: $fillnull_counter }
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -233,7 +291,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0 ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
@@ -248,6 +306,7 @@ setup:
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.limit_by: limit_by_counter }
   - set: { esql.features.mv_expand: mv_expand_counter }
   - set: { esql.features.rename: rename_counter }
   - set: { esql.features.row: row_counter }
@@ -262,7 +321,6 @@ setup:
   - set: { esql.features.change_point: change_point_counter }
   - set: { esql.features.inline_stats: inline_stats_counter }
   - set: { esql.features.rerank: rerank_counter }
-  - set: { esql.features.insist: insist_counter }
   - set: { esql.features.fork: fork_counter }
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
@@ -271,7 +329,12 @@ setup:
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.user_agent: user_agent_counter }
+  - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
+  - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.fillnull: fillnull_counter }
+  - set: { esql.features.highlight: highlight_counter }
+  - set: { esql.features.dense_vector: dense_vector_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -305,7 +368,9 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - gt: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.promql: $promql_counter }
@@ -316,12 +381,15 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.ts: $ts_counter }
   - match: { esql.features.mmr: $mmr_counter }
+  - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
+  - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -340,11 +408,10 @@ setup:
   - set: { esql.features.sort: sort_counter }
   - set: { esql.features.stats: stats_counter }
   - set: { esql.features.where: where_counter }
-  - set: { esql.features.ts: ts_counter }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries._all.total: all_total_counter }
   - set: { esql.functions.min: functions_min }
-  - set: { esql.functions.avg_over_time: functions_avg_over_time }
+  - set: { esql.functions.avg: functions_avg }
 
   - do:
       esql.query:
@@ -360,7 +427,9 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.where: $where_counter }
@@ -370,13 +439,15 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
-  - gt: { esql.features.ts: $ts_counter }
+  - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
+  - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -384,14 +455,28 @@ setup:
   - gt: { esql.queries._all.total: $all_total_counter }
   - match: { esql.queries._all.failed: $all_failed_counter }
   - gt: { esql.functions.min: $functions_min }
-  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
+  - gt: { esql.functions.avg: $functions_avg }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
   - exists: esql.functions.json_extract
+  - exists: esql.functions.json_string
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
+
+  - set: { esql.features.limit_by: limit_by_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | sort count desc
+            | limit 3 by message
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.limit_by: $limit_by_counter }
 
 ---
 took:
@@ -416,7 +501,7 @@ took:
   - exists: esql.took.gt_1d
 
 ---
-"Views telemetry (snapshot only)":
+"Views telemetry":
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
@@ -427,7 +512,7 @@ took:
         - method: GET
           path: /_query/view
           capabilities: [ view_index_abstraction ]
-      reason: "Views telemetry test requires snapshot build with views enabled"
+      reason: "Views telemetry test requires views enabled"
 
   - do: { xpack.usage: { } }
   - set: { esql.features.view: view_counter }
@@ -451,3 +536,269 @@ took:
   - do:
       esql.delete_view:
         name: test_view_for_telemetry
+
+---
+"Datasource telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources ]
+      reason: "Datasource phone-home telemetry keys present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-type storage counters
+  - exists: esql.datasources.storage.requests.total.s3
+  - exists: esql.datasources.storage.requests.total.gcs
+  - exists: esql.datasources.storage.requests.total.azure
+  - exists: esql.datasources.storage.requests.total.http
+  - exists: esql.datasources.storage.requests.total.local
+  - is_false: esql.datasources.storage.requests.total.file
+  - exists: esql.datasources.storage.requests.total.unknown
+  - exists: esql.datasources.storage.bytes_read.total.s3
+  - exists: esql.datasources.storage.errors.total.s3
+  - exists: esql.datasources.storage.throttled.total.s3
+  # unattributed counters
+  - exists: esql.datasources.storage.retries.total
+  - exists: esql.datasources.queries.cancelled.total
+  - exists: esql.datasources.queries.partial.total
+  - exists: esql.datasources.discovery.failures.total
+  - exists: esql.datasources.parse.rows.total
+  - exists: esql.datasources.reader.pool.rejected.total
+  - exists: esql.datasources.breaker.tripped.total
+  # per-outcome query counters
+  - exists: esql.datasources.queries.by_outcome.success
+  - exists: esql.datasources.queries.by_outcome.failure
+  - exists: esql.datasources.queries.by_outcome.cancelled
+  # time histogram buckets (storage request duration)
+  - exists: esql.datasources.storage.requests.duration.lt_10ms
+  - exists: esql.datasources.storage.requests.duration.lt_1s
+  - exists: esql.datasources.storage.requests.duration.gt_1d
+  # time histogram buckets (query duration and time-to-first-row — note plural "queries")
+  - exists: esql.datasources.queries.duration.lt_10ms
+  - exists: esql.datasources.queries.time_to_first_row.lt_10ms
+  # count histogram buckets (files scanned)
+  - exists: esql.datasources.discovery.files_scanned.lt_1
+  - exists: esql.datasources.discovery.files_scanned.gt_100M
+  # bytes histogram buckets (bytes scanned — uses the same count ladder as files_scanned)
+  - exists: esql.datasources.discovery.bytes_scanned.lt_1
+  - exists: esql.datasources.discovery.bytes_scanned.gt_100M
+  # splits scanned histogram
+  - exists: esql.datasources.parse.splits_scanned.lt_1
+  # cluster-state inventory counters — no datasource registered in this test, so counts are 0
+  # and by_type keys are absent (they only appear when at least one datasource is registered).
+  - match: { esql.datasources.config.datasources.count: 0 }
+  - match: { esql.datasources.config.datasets.count: 0 }
+
+---
+"Datasource query CPU telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_cpu ]
+      reason: "Datasource per-component CPU counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-component CPU counters (ns); always emitted, values are 0 if no external-source queries ran
+  - exists: esql.datasources.queries.cpu_nanos.execution
+  - exists: esql.datasources.queries.cpu_nanos.read
+  - exists: esql.datasources.queries.cpu_nanos.planning
+  - exists: esql.datasources.queries.cpu_nanos.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.total
+
+---
+"Datasource failure reason telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_failure_reasons ]
+      reason: "Datasource failure-reason counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # failed external-source queries by error_type (always emitted, 0 when no query failed)
+  - exists: esql.datasources.queries.failures.by_error_type.verification
+  - exists: esql.datasources.queries.failures.by_error_type.storage_auth
+  - exists: esql.datasources.queries.failures.by_error_type.storage_not_found
+  - exists: esql.datasources.queries.failures.by_error_type.storage_throttled
+  - exists: esql.datasources.queries.failures.by_error_type.storage_unavailable
+  - exists: esql.datasources.queries.failures.by_error_type.format
+  - exists: esql.datasources.queries.failures.by_error_type.discovery
+  - exists: esql.datasources.queries.failures.by_error_type.circuit_breaker
+  - exists: esql.datasources.queries.failures.by_error_type.timeout
+  - exists: esql.datasources.queries.failures.by_error_type.resource_limit
+  - exists: esql.datasources.queries.failures.by_error_type.other
+  # failed discovery attempts by error_type
+  - exists: esql.datasources.discovery.failures.by_error_type.storage_auth
+  - exists: esql.datasources.discovery.failures.by_error_type.discovery
+  - exists: esql.datasources.discovery.failures.by_error_type.other
+  # rejected data source / dataset changes by reason
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.validation
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.not_found
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.already_exists
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.max_count
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.unknown_type
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.unavailable
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.has_dependents
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.other
+  - exists: esql.datasources.config.datasets.changes.rejected.by_reason.validation
+  - exists: esql.datasources.config.datasets.changes.rejected.by_reason.other
+  # data source / dataset changes by storage type
+  - exists: esql.datasources.config.datasources.changes.by_type.s3
+  - exists: esql.datasources.config.datasources.changes.by_type.gcs
+  - exists: esql.datasources.config.datasources.changes.by_type.azure
+  - exists: esql.datasources.config.datasources.changes.by_type.http
+  - exists: esql.datasources.config.datasources.changes.by_type.local
+  - exists: esql.datasources.config.datasources.changes.by_type.unknown
+  - exists: esql.datasources.config.datasets.changes.by_type.s3
+  - exists: esql.datasources.config.datasets.changes.by_type.unknown
+
+---
+"Datasource client telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_client ]
+      reason: "Datasource per-client query counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # external-source queries by client (always emitted, 0 when no query came from that client)
+  - exists: esql.datasources.queries.by_client.kibana
+  - exists: esql.datasources.queries.by_client.none
+  - exists: esql.datasources.queries.by_client.other
+
+---
+"Datasource query type and format telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_by_type_format ]
+      reason: "Datasource per-storage-type and per-format query counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # external-source queries by storage type and by format, split by outcome (always emitted, 0 when none ran)
+  - exists: esql.datasources.queries.by_type.s3.by_outcome.success
+  - exists: esql.datasources.queries.by_type.local.by_outcome.failure
+  - exists: esql.datasources.queries.by_type.unknown.by_outcome.cancelled
+  - exists: esql.datasources.queries.by_type.mixed.by_outcome.success
+  - exists: esql.datasources.queries.by_format.parquet.by_outcome.success
+  - exists: esql.datasources.queries.by_format.csv.by_outcome.failure
+  - exists: esql.datasources.queries.by_format.unresolved.by_outcome.success
+  - exists: esql.datasources.queries.by_format.mixed.by_outcome.success
+
+---
+"Datasource storage error types":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_storage_error_types ]
+      reason: "Datasource storage give-up counters by error type present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # terminal object-store give-ups by failure category (always emitted, 0 when none gave up)
+  - exists: esql.datasources.storage.errors.by_error_type.storage_unavailable
+  - exists: esql.datasources.storage.errors.by_error_type.storage_throttled
+  - exists: esql.datasources.storage.errors.by_error_type.other
+
+---
+"Datasource inventory marginals":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_inventory_marginals ]
+      reason: "Datasource inventory marginals present and dense in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.config.datasources.by_type.s3
+  - exists: esql.datasources.config.datasources.by_type.unknown
+  - exists: esql.datasources.config.datasets.by_datasource_type.s3
+  - exists: esql.datasources.config.datasources.by_auth.anonymous
+  - exists: esql.datasources.config.datasources.by_auth.static_credentials
+  - exists: esql.datasources.config.datasources.by_auth.federated_identity
+  - exists: esql.datasources.config.datasources.by_auth.managed_identity
+  - exists: esql.datasources.config.datasources.by_auth.unknown
+  - exists: esql.datasources.config.datasets.by_format.parquet
+  - exists: esql.datasources.config.datasets.by_format.csv
+  - exists: esql.datasources.config.datasets.by_format.tsv
+  - exists: esql.datasources.config.datasets.by_format.ndjson
+  - exists: esql.datasources.config.datasets.by_format.orc
+  - exists: esql.datasources.config.datasets.by_format.other
+  - exists: esql.datasources.config.datasets.by_format.unresolved
+  - exists: esql.datasources.config.datasets.by_schema.inferred
+  - exists: esql.datasources.config.datasets.by_schema.declared_dynamic
+  - exists: esql.datasources.config.datasets.by_schema.declared_strict
+  - exists: esql.datasources.config.datasets.by_partitioning.auto
+  - exists: esql.datasources.config.datasets.by_partitioning.hive
+  - exists: esql.datasources.config.datasets.by_partitioning.template
+  - exists: esql.datasources.config.datasets.by_partitioning.none
+  - exists: esql.datasources.config.datasets.by_compression.gzip
+  - exists: esql.datasources.config.datasets.by_compression.snappy
+  - exists: esql.datasources.config.datasets.by_compression.zstd
+  - exists: esql.datasources.config.datasets.by_compression.brotli
+  - exists: esql.datasources.config.datasets.by_compression.lz4
+  - exists: esql.datasources.config.datasets.by_compression.bzip2
+  - exists: esql.datasources.config.datasets.by_compression.uncompressed
+  - exists: esql.datasources.config.datasets.by_compression.other
+  - exists: esql.datasources.config.datasets.by_compression.unknown
+
+---
+"Datasource parse.rows.by_format telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_parse_by_format ]
+      reason: "Datasource parse.rows.by_format phone-home keys present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.parse.rows.by_format.parquet
+  - exists: esql.datasources.parse.rows.by_format.csv
+  - exists: esql.datasources.parse.rows.by_format.tsv
+  - exists: esql.datasources.parse.rows.by_format.ndjson
+  - exists: esql.datasources.parse.rows.by_format.orc
+  - exists: esql.datasources.parse.rows.by_format.other
+  - exists: esql.datasources.parse.rows.by_format.unresolved
+  # The unattributed leaf is unchanged and still gated by usage_contains_datasources.
+  - exists: esql.datasources.parse.rows.total
+
+---
+"Datasource config.changes telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_config_changes ]
+      reason: "Datasource config.changes phone-home keys present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.config.datasources.changes.by_op.created
+  - exists: esql.datasources.config.datasources.changes.by_op.updated
+  - exists: esql.datasources.config.datasources.changes.by_op.deleted
+  - exists: esql.datasources.config.datasources.changes.by_op.rejected
+  - exists: esql.datasources.config.datasets.changes.by_op.created
+  - exists: esql.datasources.config.datasets.changes.by_op.updated
+  - exists: esql.datasources.config.datasets.changes.by_op.deleted
+  - exists: esql.datasources.config.datasets.changes.by_op.rejected

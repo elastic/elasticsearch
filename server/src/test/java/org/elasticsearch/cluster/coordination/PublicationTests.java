@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +24,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 
 import java.util.ArrayList;
@@ -516,6 +521,106 @@ public class PublicationTests extends ESTestCase {
         nonCommittedNodes.stream().collect(shuffle()).forEach(n -> publication.pendingCommits.get(n).onResponse(null));
 
         assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
+    }
+
+    @TestLogging(
+        reason = "verifying that transient network failures in PublishResponseHandler are logged at DEBUG",
+        value = "org.elasticsearch.cluster.coordination:DEBUG"
+    )
+    public void testPublishResponseHandlerLogsDebugOnConnectTransportException() {
+        VotingConfiguration config = VotingConfiguration.of(n1);
+        initializeCluster(config);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).localNodeId(n1.getId()).build();
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, config, config, 42L),
+            new AssertingAckListener(1),
+            Collections.emptySet()
+        );
+
+        String loggerName = publication.logger.getName();
+        try (var mockLog = MockLog.capture(loggerName)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "ConnectTransportException should be logged at DEBUG",
+                    loggerName,
+                    Level.DEBUG,
+                    "publication failed for node"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "ConnectTransportException should not be logged at WARN",
+                    loggerName,
+                    Level.WARN,
+                    "publication failed for node"
+                )
+            );
+            publication.pendingPublications.get(n1).onFailure(new ConnectTransportException(n1, "disconnected"));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(
+        reason = "verifying that expected election-related rejections in PublishResponseHandler are logged at DEBUG",
+        value = "org.elasticsearch.cluster.coordination:DEBUG"
+    )
+    public void testPublishResponseHandlerLogsDebugOnCoordinationStateRejected() {
+        VotingConfiguration config = VotingConfiguration.of(n1);
+        initializeCluster(config);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).localNodeId(n1.getId()).build();
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, config, config, 42L),
+            new AssertingAckListener(1),
+            Collections.emptySet()
+        );
+
+        String loggerName = publication.logger.getName();
+        try (var mockLog = MockLog.capture(loggerName)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "CoordinationStateRejectedException should be logged at DEBUG",
+                    loggerName,
+                    Level.DEBUG,
+                    "publication failed for node"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "CoordinationStateRejectedException should not be logged at WARN",
+                    loggerName,
+                    Level.WARN,
+                    "publication failed for node"
+                )
+            );
+            publication.pendingPublications.get(n1)
+                .onFailure(new RemoteTransportException("publish failed", new CoordinationStateRejectedException("stale term")));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testPublishResponseHandlerLogsWarnOnUnexpectedException() {
+        VotingConfiguration config = VotingConfiguration.of(n1);
+        initializeCluster(config);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).localNodeId(n1.getId()).build();
+        MockPublication publication = node1.publish(
+            CoordinationStateTests.clusterState(1L, 2L, discoveryNodes, config, config, 42L),
+            new AssertingAckListener(1),
+            Collections.emptySet()
+        );
+
+        String loggerName = publication.logger.getName();
+        try (var mockLog = MockLog.capture(loggerName)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "unexpected exception should be logged at WARN",
+                    loggerName,
+                    Level.WARN,
+                    "publication unexpectedly failed for node"
+                )
+            );
+            publication.pendingPublications.get(n1).onFailure(new RuntimeException("unexpected failure"));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {

@@ -21,8 +21,6 @@ import org.junit.runners.model.Statement;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Objects;
 
 public class Ec2ImdsHttpFixture extends ExternalResource {
@@ -73,17 +71,15 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
      */
     @SuppressForbidden(reason = "deliberately adjusting system property for endpoint override for use in internal-cluster tests")
     public static Releasable withEc2MetadataServiceEndpointOverride(String endpointOverride) {
-        final PrivilegedAction<String> resetProperty = System.getProperty(
-            ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2
-        ) instanceof String originalValue
-            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, originalValue)
-            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
-        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, endpointOverride));
-        return () -> doPrivileged(resetProperty);
-    }
-
-    private static void doPrivileged(PrivilegedAction<?> privilegedAction) {
-        AccessController.doPrivileged(privilegedAction);
+        final String originalValue = System.getProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
+        System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, endpointOverride);
+        return () -> {
+            if (originalValue != null) {
+                System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, originalValue);
+            } else {
+                System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
+            }
+        };
     }
 
     /**

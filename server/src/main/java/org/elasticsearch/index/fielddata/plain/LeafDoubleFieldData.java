@@ -9,10 +9,11 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -30,7 +31,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final SortedBinaryDocValues getBytesValues() {
+    public final SortableBinaryDocValues getBytesValues() {
         return FieldData.toString(getDoubleValues());
     }
 
@@ -56,6 +57,11 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
             @Override
             public Object nextValue() throws IOException {
                 return format.format(values.nextValue());
+            }
+
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return values.docIdIterator();
             }
         };
     }

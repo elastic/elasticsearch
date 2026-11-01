@@ -19,6 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Loads values from a chunk of lucene documents into a "Block" for the compute engine.
@@ -123,6 +125,10 @@ import java.util.Map;
  *         from {@code doc_values}.
  *     </li>
  *     <li>
+ *         {@link BlockStoredFieldsReader.LongsFromNumbersBlockLoader} to read from a named
+ *         {@code stored} field.
+ *     </li>
+ *     <li>
  *         {@link org.elasticsearch.index.mapper.BlockSourceReader.LongsBlockLoader} to read from
  *         {@code _source}.
  *     </li>
@@ -139,13 +145,6 @@ import java.util.Map;
  *         {@code doc_values}.
  *     </li>
  * </ul>
- * <p>
- *     NOTE: We can't read from {@code long}s from {@code stored} fields which is a
- *     <a href="https://github.com/elastic/elasticsearch/issues/138019">bug</a>, but maybe not
- *     a terrible one because it's very uncommon to configure {@code long} to be {@code stored}
- *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
- *     code.
- * </p>
  * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
  *     Readers may load {@link ColumnAtATimeReader column-at-a-time} or {@link RowStrideReader row-by-row}.
@@ -249,8 +248,31 @@ public interface BlockLoader {
         /**
          * Returns a {@link DocIdSetIterator} that matches documents whose value contains the given term,
          * or {@code null} if this optimization is not supported by the underlying data.
+         *
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) so that Lucene's default BulkScorer drives the
+         * dense {@code approximation} forward and calls {@code matches()} per doc within the caller's
+         * {@code [min, max)} window — sub-segment slicing (e.g. {@code DataPartitioning.DOC}) then
+         * pays cost proportional to slice size, with no over-scan into adjacent slices when matches
+         * are sparse.
          */
         default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
+
+        /**
+         * Returns a {@link DocIdSetIterator} that matches documents whose value is exactly equal to
+         * the given term, or {@code null} if this optimization is not supported by the underlying data.
+         *
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) — see the rationale on
+         * {@link #tryContainsIterator}.
+         *
+         * <p>This optimization is only valid for single-valued fields. Callers must gate on
+         * {@code countsSkipper == null || countsSkipper.maxValue() == 1} before invoking this method
+         * and fall back to the slow per-doc predicate path for multi-valued fields.
+         */
+        default DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
             return null;
         }
     }
@@ -284,8 +306,11 @@ public interface BlockLoader {
         NumericDocValues toLengthValues();
 
         /**
-         * Creates a {@link DocIdSetIterator} that matches documents based on the specified length value.
-         * The returned iterator will iterate over all documents whose length value equals the given length.
+         * Creates a {@link DocIdSetIterator} that matches documents whose length equals {@code length}.
+         *
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) — see the rationale on
+         * {@link OptionalColumnAtATimeReader#tryContainsIterator}.
          *
          * @param length the length value to match against the documents.
          * @return a {@link DocIdSetIterator} to iterate over documents matching the specified length value.
@@ -305,6 +330,22 @@ public interface BlockLoader {
                     return 10;
                 }
             });
+        }
+    }
+
+    /**
+     * Optional capability of a binary doc-values reader: reports the real peak heap bytes one decode of this
+     * field's storage on this segment can allocate, so a caller building a worst-case memory estimate (see
+     * {@code BinaryDocValuesScanCost}) can use the segment's actual bound instead of a fixed, codec-wide constant.
+     */
+    interface OptionalDecodeMemoryUsageEstimator {
+        /**
+         * @return the largest number of bytes a single decode of this reader's storage can allocate, {@code 0} if
+         *         this reader's storage never buffers more than the value's own bytes (e.g. uncompressed storage),
+         *         or {@code -1} if this instance can't provide an estimate.
+         */
+        default long maxDecodeBytes() {
+            return -1;
         }
     }
 
@@ -329,6 +370,17 @@ public interface BlockLoader {
         Source source() throws IOException;
 
         /**
+         * The source paths {@link #source()} is restricted to, empty meaning the whole document. Every reader of a read shares one
+         * source, so this is the merge of what all of them asked for in {@link BlockLoader#rowStrideStoredFieldSpec()} and can be
+         * wider than what any single one of them did. Readers that pull one value out of the source do not care, but a reader that
+         * returns the source itself has to narrow it to its own paths. Defaults to the whole document, the safe answer for a caller
+         * that does not track it.
+         */
+        default Set<String> sourcePaths() {
+            return Set.of();
+        }
+
+        /**
          * @return the ID for the current document
          */
         String id() throws IOException;
@@ -348,6 +400,12 @@ public interface BlockLoader {
          * If the stored fields are not loaded yet, the block loader might avoid loading them when not needed.
          */
         boolean loaded();
+
+        /**
+         * Returns what {@code compute} returns for the current document. It is called once for each {@code key} and
+         * document, so that the loaders of a document can share what they read from it.
+         */
+        <T> T shared(Object key, IOFunction<StoredFields, T> compute) throws IOException;
     }
 
     /**
@@ -700,6 +758,12 @@ public interface BlockLoader {
         Block constantInt(int value, int count);
 
         /**
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
+         */
+        Block constantLong(long value, int count);
+
+        /**
          * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
@@ -709,11 +773,45 @@ public interface BlockLoader {
          */
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
+        /**
+         * Build a reader that emits an ord-encoded BytesRef block that preserves append order (duplicates retained, no sort/dedupe). Use
+         * this when the caller drives ord ordering from a companion offsets doc value, rather than reading the natural sorted-deduped
+         * stream from {@link SortedSetDocValues}.
+         */
+        SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count);
+
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
         LongRangeBuilder longRangeBuilder(int count);
 
+        DoubleRangeBuilder doubleRangeBuilder(int count);
+
         Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
+        /**
+         * A block of bytes named by ordinals into a dictionary the block carries with it, so a consumer resolves each
+         * distinct value once and compares ints for the rest.
+         *
+         * <p>Unlike the ordinals builders above, which read a column's own ordinals through {@link SortedDocValues} and
+         * remap them to the page, this takes a page that already arrived in that shape - a doc-values format that
+         * stores its values by ordinal internally can hand the page over as it is, with no lookup per distinct value
+         * and no remapping.
+         *
+         * @param ordinals       one entry per value, indexing {@code dictionary}, {@code valueCount} of them
+         * @param valueCount     values across every position
+         * @param valueCounts    values per position, or null when every position holds exactly one; a zero is a
+         *                       position with no value at all
+         * @param positionCount  positions the block covers
+         * @param dictionary     the distinct values, {@code dictionarySize} of them, copied by this call
+         */
+        Block buildOrdinalBytesRefDirect(
+            int[] ordinals,
+            int valueCount,
+            @Nullable int[] valueCounts,
+            int positionCount,
+            BytesRef[] dictionary,
+            int dictionarySize
+        );
 
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
 
@@ -782,6 +880,12 @@ public interface BlockLoader {
          * Appends a BytesRef to the current entry.
          */
         BytesRefBuilder appendBytesRef(BytesRef value);
+
+        /**
+         * Appends all chunks as one value in the current entry, without first materializing a contiguous copy.
+         * The bytes are copied into the builder, so the caller may release or reuse the input after this returns.
+         */
+        BytesRefBuilder appendBytesReference(BytesReference value);
     }
 
     /**
@@ -792,12 +896,12 @@ public interface BlockLoader {
          * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
          * The length of the offsets array is one more than the number of BytesRefs.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) throws IOException;
 
         /**
          * Append multiple BytesRefs, all with the same length.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {
@@ -889,6 +993,12 @@ public interface BlockLoader {
         LongBuilder from();
 
         LongBuilder to();
+    }
+
+    interface DoubleRangeBuilder extends Builder {
+        DoubleBuilder from();
+
+        DoubleBuilder to();
     }
 
     interface ExponentialHistogramBuilder extends Builder {

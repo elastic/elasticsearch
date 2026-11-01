@@ -35,8 +35,18 @@ public interface TableCatalog extends ExternalSourceFactory, Closeable {
 
     boolean canHandle(String path);
 
+    /**
+     * @param config configuration map. Values are typed as {@code Object}: secret values may arrive
+     * as {@link org.elasticsearch.common.settings.SecureString}, non-secrets retain their underlying
+     * type ({@code String}, {@code Integer}, {@code Long}, {@code Boolean}). Use
+     * {@code Objects.toString(config.get(key), null)} or pattern-match on type — casting directly
+     * to {@code String} will throw {@link ClassCastException} on non-String values.
+     */
     SourceMetadata metadata(String tablePath, Map<String, Object> config) throws IOException;
 
+    /**
+     * @param config configuration map; see {@link #metadata(String, Map)} for typing rules.
+     */
     List<DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) throws IOException;
 
     @Override
@@ -49,7 +59,9 @@ public interface TableCatalog extends ExternalSourceFactory, Closeable {
         try {
             return metadata(location, config);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+            // Types the catalog's I/O failure as client-caused and keeps its diagnosis rather than replacing it with
+            // a constant. Same rule as FileSourceFactory#resolveMetadata.
+            throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         }
     }
 

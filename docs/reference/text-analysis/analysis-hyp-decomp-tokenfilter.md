@@ -9,7 +9,7 @@ mapped_pages:
 
 Uses XML-based hyphenation patterns to find potential subwords in compound words. These subwords are then checked against the specified word list. Subwords not in the list are excluded from the token output.
 
-This filter uses Lucene’s [HyphenationCompoundWordTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/compound/HyphenationCompoundWordTokenFilter.md), which was built for Germanic languages.
+This filter uses Lucene’s [HyphenationCompoundWordTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/compound/HyphenationCompoundWordTokenFilter.html), which was built for Germanic languages.
 
 ## Example [analysis-hyp-decomp-tokenfilter-analyze-ex]
 

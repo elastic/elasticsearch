@@ -161,7 +161,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException(
@@ -209,6 +209,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         } finally {
             context.path().setWithinLeafObject(false);
         }
+        return new ParseResult.Indexed();
     }
 
     @Override

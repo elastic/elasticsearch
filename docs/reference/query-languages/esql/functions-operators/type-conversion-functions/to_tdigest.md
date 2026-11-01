@@ -6,5 +6,7 @@ mapped_pages:
 
 # ES|QL `TO_TDIGEST` function [esql-to_tdigest]
 
-:::{include} ../../_snippets/functions/layout/to_tdigest.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_tdigest.md
 :::
+
+For when and why to convert between histogram types, refer to [](/reference/query-languages/esql/esql-histogram-fields.md#cast-between-histogram-types).

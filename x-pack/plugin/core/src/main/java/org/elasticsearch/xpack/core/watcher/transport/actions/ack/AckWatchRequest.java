@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,7 @@ import java.util.Locale;
 /**
  * A ack watch request to ack a watch by name (id)
  */
-public class AckWatchRequest extends LegacyActionRequest {
+public class AckWatchRequest extends UntypedActionRequest {
 
     private String watchId;
     private String[] actionIds = Strings.EMPTY_ARRAY;

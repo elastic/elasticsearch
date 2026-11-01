@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -21,28 +26,36 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
+import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -55,6 +68,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOptimizerTests {
     private TestPlannerOptimizer allTypesPlannerOptimizer;
     private TestPlannerOptimizer tsPlannerOptimizer;
+    private TestPlannerOptimizer flattenedPlannerOptimizer;
 
     public PushExpressionsToFieldLoadTests(String name, Configuration config) {
         super(name, config);
@@ -68,6 +82,12 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             .buildAnalyzer();
         allTypesPlannerOptimizer = new TestPlannerOptimizer(config, allTypesAnalyzer);
 
+        Analyzer flattenedAnalyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("test", "mapping-flattened_keyed.json")
+            .buildAnalyzer();
+        flattenedPlannerOptimizer = new TestPlannerOptimizer(config, flattenedAnalyzer);
+
         Analyzer tsAnalyzer = EsqlTestUtils.analyzer()
             .configuration(config)
             .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
@@ -76,7 +96,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         tsPlannerOptimizer = new TestPlannerOptimizer(
             config,
             tsAnalyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
     }
 
@@ -195,6 +215,244 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
         assertThat(lastNamePushed, hasSize(1));
         assertThat(firstNamePushed, hasSize(1));
+    }
+
+    // ---- ROUND_TO push tests ----
+
+    public void testRoundToInEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | EVAL r = ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP r
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testRoundToInWhere() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime) > "2023-01-01"::datetime
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+
+        FilterExec filterExec = findFirst(plan, FilterExec.class);
+        assertNotNull("Should find FilterExec", filterExec);
+        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
+        assertRoundToPushdown(gt.left(), "hire_date");
+    }
+
+    public void testRoundToInEvalWithLongField() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL r = ROUND_TO(long, 100, 200, 300)
+            | SORT integer
+            | LIMIT 10
+            | KEEP r
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testRoundToInEvalAfterManyRenames() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | EVAL h1 = hire_date
+            | EVAL h2 = h1
+            | EVAL h3 = h2
+            | EVAL r = ROUND_TO(h3, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP r
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testRoundToInWhereAndEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime) > "2023-01-01"::datetime
+            | EVAL r = ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat("Duplicate ROUND_TO(hire_date, ...) should be deduplicated to one pushed field", pushed, hasSize(1));
+    }
+
+    public void testRoundToPushdownZoo() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL a1 = ROUND_TO(long, 100, 200, 300), a2 = ROUND_TO(long, 100, 200, 300), a3 = ROUND_TO(long, 100, 200, 300),
+                   a4 = abs(ROUND_TO(long, 100, 200, 300)) + a1,
+                   b1 = ROUND_TO(date, "2023-01-01"::date, "2024-01-01"::date)
+            | WHERE a1 > 1 AND ROUND_TO(long, 100, 200, 300) > 1
+            | SORT integer
+            | LIMIT 10
+            | KEEP a1, a2, a3, a4, b1
+            """);
+
+        List<FieldAttribute> longPushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        List<FieldAttribute> datePushed = findPushedFields(plan, "date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+
+        assertThat("All ROUND_TO(long, ...) should share one pushed field", longPushed, hasSize(1));
+        assertThat("ROUND_TO(date, ...) should have its own pushed field", datePushed, hasSize(1));
+    }
+
+    public void testRoundToInEvalTwice() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL l1 = ROUND_TO(long, 100, 200, 300), l2 = ROUND_TO(long, 100, 200, 300) + 1
+            | SORT integer
+            | LIMIT 10
+            | KEEP l1, l2
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat("Duplicate ROUND_TO(long, ...) should share one pushed field", pushed, hasSize(1));
+    }
+
+    public void testRoundToTwoFields() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL d = ROUND_TO(date, "2023-01-01"::date, "2024-01-01"::date),
+                  l = ROUND_TO(long, 100, 200, 300)
+            | SORT integer
+            | LIMIT 10
+            | KEEP d, l
+            """);
+
+        List<FieldAttribute> datePushed = findPushedFields(plan, "date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        List<FieldAttribute> longPushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+
+        assertThat(datePushed, hasSize(1));
+        assertThat(longPushed, hasSize(1));
+    }
+
+    // ---- ROUND_TO push tests (TS mode) ----
+    //
+    // These tests verify that ROUND_TO is NOT pushed to the block loader in TS
+    // mode. The TS command uses a different execution strategy for ROUND_TO
+    // (query-and-tags rewrite via {@link ReplaceRoundToWithQueryAndTags}), so the
+    // block loader push must be skipped.
+
+    /**
+     * Verifies ROUND_TO on a long field is NOT pushed to the block loader in TS mode.
+     */
+    public void testRoundToInTsEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP r
+            """, tsSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(0));
+    }
+
+    /**
+     * Verifies ROUND_TO on a datetime field ({@code @timestamp}) is NOT pushed
+     * to the block loader in TS mode.
+     */
+    public void testRoundToTimestampInTsEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | EVAL r = ROUND_TO(@timestamp, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP r
+            """, tsSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "@timestamp", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(0));
+    }
+
+    /**
+     * Verifies ROUND_TO in a WHERE filter is NOT pushed to the block loader in TS mode.
+     */
+    public void testRoundToInTsWhere() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | WHERE ROUND_TO(events_received, 100, 200, 300) > 100
+            """, tsSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(0));
+    }
+
+    /**
+     * Verifies that ROUND_TO in both WHERE and EVAL is NOT pushed in TS mode.
+     */
+    public void testRoundToInTsWhereAndEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | WHERE ROUND_TO(events_received, 100, 200, 300) > 100
+            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
+            """, tsSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(0));
+    }
+
+    /**
+     * Verifies that ROUND_TO on two different fields is NOT pushed in TS mode.
+     */
+    public void testRoundToTwoFieldsInTs() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | EVAL t = ROUND_TO(@timestamp, "2023-01-01"::datetime, "2024-01-01"::datetime),
+                  e = ROUND_TO(events_received, 100, 200, 300)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP t, e
+            """, tsSearchStats());
+
+        List<FieldAttribute> timestampPushed = findPushedFields(plan, "@timestamp", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        List<FieldAttribute> eventsPushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+
+        assertThat(timestampPushed, hasSize(0));
+        assertThat(eventsPushed, hasSize(0));
+    }
+
+    /**
+     * Verifies ROUND_TO is NOT pushed when using FROM against a time-series index.
+     * The check is based on index metadata, not the source command, so FROM queries
+     * targeting time-series indices are also skipped.
+     */
+    public void testRoundToInFromAgainstTimeSeriesIndex() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            FROM k8s
+            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP r
+            """, tsSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(0));
     }
 
     // ---- Vector function push tests ----
@@ -466,6 +724,283 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat("LENGTH(text) in subquery should be pushed", textLengthPushed, hasSize(1));
     }
 
+    // ---- field_extract into DISSECT / GROK input (RegexExtractExec) ----
+
+    public void testFieldExtractInDissect() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // The trailing SORT/LIMIT pushes the DISSECT into the data-node fragment where the rule runs. The DISSECT
+        // input is field_extract(data, "host.name"); it must fuse into a keyed sub-field load rather than survive
+        // as a per-row evaluator feeding the RegexExtractExec.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | DISSECT field_extract(data, "host.name") "%{a} %{b}"
+            | SORT id
+            | LIMIT 10
+            | KEEP a, b
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding DISSECT should fuse", pushed, hasSize(1));
+
+        RegexExtractExec dissect = findFirst(plan, RegexExtractExec.class);
+        assertNotNull("Should find a RegexExtractExec (DISSECT)", dissect);
+        FieldAttribute input = as(dissect.inputExpression(), FieldAttribute.class);
+        assertThat(
+            as(input.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+    }
+
+    public void testFieldExtractInGrok() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | GROK field_extract(data, "host.name") "%{WORD:a}"
+            | SORT id
+            | LIMIT 10
+            | KEEP a
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding GROK should fuse", pushed, hasSize(1));
+    }
+
+    // ---- field_extract into URI_PARTS / REGISTERED_DOMAIN / USER_AGENT / IP_LOCATION input (CompoundOutputEvalExec) ----
+
+    public void testFieldExtractInUriParts() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("URI_PARTS must be enabled", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        // URI_PARTS (a CompoundOutputEvalExec) carries its parsed value in input(); the field_extract there must fuse
+        // into a keyed sub-field load rather than survive as a per-row evaluator feeding the command.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | URI_PARTS p = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP p.domain
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding URI_PARTS should fuse", pushed, hasSize(1));
+
+        CompoundOutputEvalExec command = findFirst(plan, CompoundOutputEvalExec.class);
+        assertNotNull("Should find a CompoundOutputEvalExec (URI_PARTS)", command);
+        FieldAttribute input = as(command.input(), FieldAttribute.class);
+        assertThat(
+            as(input.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+    }
+
+    public void testFieldExtractInRegisteredDomain() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("REGISTERED_DOMAIN must be enabled", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | REGISTERED_DOMAIN rd = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP rd.domain
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding REGISTERED_DOMAIN should fuse", pushed, hasSize(1));
+    }
+
+    public void testFieldExtractInUserAgent() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("USER_AGENT must be enabled", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | USER_AGENT ua = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP ua.name
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding USER_AGENT should fuse", pushed, hasSize(1));
+    }
+
+    public void testFieldExtractInIpLocation() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("IP_LOCATION must be enabled", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // IP_LOCATION is an IpLocationExec, a subclass of CompoundOutputEvalExec, so it also carries its lookup key
+        // in input(); the field_extract there must fuse into a keyed sub-field load rather than survive as a per-row
+        // evaluator feeding the command.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | IP_LOCATION g = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP g.city_name
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding IP_LOCATION should fuse", pushed, hasSize(1));
+
+        IpLocationExec command = findFirst(plan, IpLocationExec.class);
+        assertNotNull("Should find an IpLocationExec (IP_LOCATION)", command);
+        FieldAttribute input = as(command.input(), FieldAttribute.class);
+        assertThat(
+            as(input.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+    }
+
+    // ---- field_extract into a full-text function (must fuse the loader but stay a runtime match) ----
+
+    public void testFieldExtractIntoMatchPhraseFusesButStaysRuntime() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("match_phrase must be enabled", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        // MATCH_PHRASE over a flattened field_extract: the field_extract must fuse into a keyed sub-field load
+        // (EXTRACT_FLATTENED_SUBFIELD), but MATCH_PHRASE itself has no indexed Lucene field behind the fused value,
+        // so it must run at runtime (isRuntimeSearch) rather than being pushed to Lucene.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | WHERE MATCH_PHRASE(field_extract(data, "host.name"), "some host")
+            | SORT id
+            | LIMIT 10
+            | KEEP id
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding MATCH_PHRASE should fuse", pushed, hasSize(1));
+
+        List<MatchPhrase> matchPhrases = new ArrayList<>();
+        plan.forEachExpressionDown(MatchPhrase.class, matchPhrases::add);
+        assertThat("MATCH_PHRASE must survive as a runtime expression, not be pushed to Lucene", matchPhrases, hasSize(1));
+        MatchPhrase matchPhrase = matchPhrases.get(0);
+
+        // Its field argument is the fused field_extract, backed by a FunctionEsField carrying EXTRACT_FLATTENED_SUBFIELD.
+        FieldAttribute field = as(matchPhrase.field(), FieldAttribute.class);
+        assertThat(
+            as(field.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+        assertTrue("MATCH_PHRASE over a fused field_extract must run at runtime, not be pushed", matchPhrase.isRuntimeSearch());
+    }
+
+    public void testLengthIntoMatchFusesButStaysRuntime() {
+        // LENGTH fuses into the field load like field_extract above, and the fused value has no indexed Lucene field
+        // behind it either, so MATCH must still run at runtime.
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE MATCH(LENGTH(last_name), 5)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP emp_no
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        assertThat("LENGTH feeding MATCH should fuse", pushed, hasSize(1));
+
+        List<Match> matches = new ArrayList<>();
+        plan.forEachExpressionDown(Match.class, matches::add);
+        assertThat("MATCH must survive as a runtime expression, not be pushed to Lucene", matches, hasSize(1));
+
+        Match match = matches.get(0);
+        FieldAttribute field = as(match.field(), FieldAttribute.class);
+        assertThat(as(field.field(), FunctionEsField.class).functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
+        assertTrue("MATCH over a fused LENGTH must run at runtime, not be pushed", match.isRuntimeSearch());
+    }
+
+    // ---- field_extract into a function that requires an exact string argument ----
+
+    public void testFieldExtractIntoExactStringArgumentIsFused() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // DATE_UNIT_COUNT type-checks its unit arguments with isStringAndExact. A fused field_extract produces an
+        // attribute backed by a FunctionEsField, which reports itself as exact (its value is a keyword extracted by
+        // the block loader), so DATE_UNIT_COUNT stays resolved after fusion and both field_extract invocations fuse.
+        // Pushdown exactness is decoupled from type-check exactness, so this no longer leaves the plan unresolved.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | EVAL n = DATE_UNIT_COUNT(field_extract(data, "to"), field_extract(data, "from"), "2024-01-01T00:00:00Z"::datetime)
+            | SORT id
+            | KEEP n
+            """);
+
+        // Both field_extract(data, "to") and field_extract(data, "from") fuse into the data field load.
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("both field_extract invocations feeding DATE_UNIT_COUNT should fuse", pushed, hasSize(2));
+
+        // The whole point of decoupling: fusion must not invalidate an expression that resolved during analysis.
+        assertResolved(plan);
+    }
+
+    // ---- MV_MAX / MV_MIN fused into an argument that is type-checked as exact ----
+
+    public void testMvMaxIntoIpPrefixIsFused() {
+        // IP_PREFIX type-checks its address with isIPAndExact. The fused MV_MAX(ip) is backed by a FunctionEsField, which
+        // reports itself as exact, so x stays resolved and the WHERE that reads it still finds it.
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL x = IP_PREFIX(MV_MAX(ip), 13, 70)
+            | WHERE x IS NOT NULL
+            | SORT long
+            | KEEP x
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxInWhereIntoIpPrefixIsFused() {
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | WHERE IP_PREFIX(MV_MAX(ip), 13, 70) IS NOT NULL
+            | SORT long
+            | KEEP long
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxAndMvMinIntoNetworkDirectionAreFused() {
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL d = NETWORK_DIRECTION(MV_MAX(ip), MV_MIN(ip), "10.0.0.0/8")
+            | WHERE d == "internal"
+            | SORT long
+            | KEEP d
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MIN), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxIntoInOverLongIsFused() {
+        // IN checks a non-string value with EsqlTypeResolutions.isExact, which reads the same exactness as the IP functions.
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL x = MV_MAX(long) IN (1, 2)
+            | WHERE x
+            | SORT integer
+            | KEEP x
+            """);
+
+        assertThat(findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
+    public void testMvMaxThroughUserAgentAndLimitByIsFused() {
+        assumeTrue("USER_AGENT must be enabled", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        assumeTrue("LIMIT BY must be enabled", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        // The shape this was first reported with: USER_AGENT reads the alias over the fused MV_MAX.
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL t = TO_STRING(NETWORK_DIRECTION(MV_MAX(ip), IP_PREFIX(ip, 13, 70), "10.0.0.0/8"))
+            | USER_AGENT ua = t
+            | LIMIT 3 BY ua.name, ua.os.version
+            | KEEP ua.name, ua.os.version
+            """);
+
+        assertThat(findPushedFields(plan, "ip", BlockLoaderFunctionConfig.Function.MV_MAX), hasSize(1));
+        assertResolved(plan);
+    }
+
     // ---- Lookup join test (Primaries check) ----
 
     public void testPushDownFunctionsLookupJoin() {
@@ -539,6 +1074,15 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         return attr;
     }
 
+    private Attribute assertRoundToPushdown(Expression e, String fieldName) {
+        FieldAttribute attr = as(e, FieldAttribute.class);
+        assertThat(attr.name(), startsWith("$$" + fieldName + "$ROUND_TO$"));
+        FunctionEsField field = as(attr.field(), FunctionEsField.class);
+        assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.ROUND_TO));
+        assertThat(field.getName(), equalTo(fieldName));
+        return attr;
+    }
+
     private List<FieldAttribute> findPushedFields(PhysicalPlan plan, String fieldName, BlockLoaderFunctionConfig.Function function) {
         List<FieldAttribute> result = new ArrayList<>();
         plan.forEachDown(PhysicalPlan.class, node -> {
@@ -553,6 +1097,10 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             });
         });
         return result;
+    }
+
+    private static void assertResolved(PhysicalPlan plan) {
+        plan.forEachExpressionDown(Expression.class, e -> assertThat("plan must stay resolved after fusion", e.resolved(), is(true)));
     }
 
     private List<FieldAttribute> findAllPushedFields(PhysicalPlan plan) {
@@ -589,5 +1137,17 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         List<T> result = new ArrayList<>();
         plan.forEachDown(type, result::add);
         return result;
+    }
+
+    private static SearchStats tsSearchStats() {
+        return new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public Map<ShardId, IndexMetadata> targetShards() {
+                IndexMetadata indexMetadata = IndexMetadata.builder("k8s")
+                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name()))
+                    .build();
+                return Map.of(new ShardId(new Index("k8s", "n/a"), 0), indexMetadata);
+            }
+        };
     }
 }

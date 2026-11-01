@@ -104,8 +104,9 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * Test that the explicit and wildcard IDs are requested.
      */
     public void testGetPipelinesByExplicitAndWildcardIds() {
+        SearchHits hits = prepareSearchHits();
         SearchResponse searchResponse = new SearchResponse(
-            prepareSearchHits(),
+            hits,
             null,
             null,
             false,
@@ -123,10 +124,13 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             null,
             null
         );
+        hits.decRef(); // transfer ownership to searchResponse
         try {
 
             SearchResponse mockResponse = mock(SearchResponse.class);
-            when(mockResponse.getHits()).thenReturn(prepareSearchHits());
+            SearchHits mockHits = prepareSearchHits();
+            when(mockResponse.getHits()).thenReturn(mockHits);
+            mockHits.decRef(); // mockResponse is never used; release initial ref
 
             GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2", "3*"));
             AtomicReference<Exception> failure = new AtomicReference<>();
@@ -213,18 +217,18 @@ public class TransportGetPipelineActionTests extends ESTestCase {
     }
 
     private SearchHits prepareSearchHits() {
-        SearchHit hit1 = SearchHit.unpooled(0, "1");
+        SearchHit hit1 = new SearchHit(0, "1");
         hit1.score(1f);
         hit1.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchHit hit2 = SearchHit.unpooled(0, "2");
+        SearchHit hit2 = new SearchHit(0, "2");
         hit2.score(1f);
         hit2.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchHit hit3 = SearchHit.unpooled(0, "3*");
+        SearchHit hit3 = new SearchHit(0, "3*");
         hit3.score(1f);
         hit3.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        return SearchHits.unpooled(new SearchHit[] { hit1, hit2, hit3 }, new TotalHits(3L, TotalHits.Relation.EQUAL_TO), 1f);
+        return new SearchHits(new SearchHit[] { hit1, hit2, hit3 }, new TotalHits(3L, TotalHits.Relation.EQUAL_TO), 1f);
     }
 }

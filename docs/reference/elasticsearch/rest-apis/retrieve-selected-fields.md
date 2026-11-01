@@ -258,6 +258,8 @@ However, when the `fields` pattern targets the nested `user` field directly, no 
 
 ### Retrieve unmapped fields [retrieve-unmapped-fields]
 
+{{esql}} provides an equivalent capability with the `SET unmapped_fields` directive. To query unmapped fields in {{esql}}, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+
 ::::{dropdown}
 By default, the `fields` parameter returns only values of mapped fields. However, {{es}} allows storing fields in `_source` that are unmapped, such as setting [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md) to `false` or by using an object field with `enabled: false`. These options disable parsing and indexing of the object content.
 

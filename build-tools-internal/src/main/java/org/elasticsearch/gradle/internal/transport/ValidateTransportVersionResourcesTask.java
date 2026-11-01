@@ -69,6 +69,25 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
     @Input
     public abstract Property<Boolean> getCI();
 
+    @Input
+    public abstract Property<Integer> getIncrement();
+
+    /**
+     * The name of the branch which tracks what is currently deployed to serverless production. New transport
+     * versions on that branch must be patch ids. When this is unset, the repository has no such branch.
+     */
+    @Input
+    @Optional
+    public abstract Property<String> getPatchBranchName();
+
+    /**
+     * Whether the change being validated targets the serverless patch branch. This is detected from the branch
+     * the change targets, but can be set explicitly when validating outside of CI.
+     */
+    @Input
+    @Optional
+    public abstract Property<Boolean> getPatchBranch();
+
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
 
     @ServiceReference("transportVersionResources")
@@ -77,6 +96,7 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
     @TaskAction
     public void validateTransportVersions() throws IOException {
         TransportVersionResourcesService resources = getResources().get();
+        boolean onPatchBranch = resources.resolveTargetsPatchBranch(getPatchBranchName().getOrNull(), getPatchBranch().getOrNull());
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         Map<String, TransportVersionDefinition> referableDefinitions = resources.getReferableDefinitions();
         Map<String, TransportVersionDefinition> unreferableDefinitions = resources.getUnreferableDefinitions();
@@ -88,7 +108,7 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
         boolean validateModifications = onReleaseBranch == false || getCI().get();
 
         for (var definition : referableDefinitions.values()) {
-            validateNamedDefinition(definition, referencedNames, validateModifications);
+            validateNamedDefinition(definition, referencedNames, validateModifications, onPatchBranch);
         }
 
         for (var definition : unreferableDefinitions.values()) {
@@ -111,6 +131,9 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
                 validateUpperBound(upperBound, allDefinitions, idsByBase, validateModifications);
             }
 
+            if (validateModifications) {
+                validateResourceChanges(resources, referableDefinitions, upperBounds);
+            }
             validatePrimaryIds(resources, upperBounds, allDefinitions);
         }
     }
@@ -133,7 +156,8 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
     private void validateNamedDefinition(
         TransportVersionDefinition definition,
         Set<String> referencedNames,
-        boolean validateModifications
+        boolean validateModifications,
+        boolean onPatchBranch
     ) {
         if (referencedNames.contains(definition.name()) == false) {
             throwDefinitionFailure(definition, "is not referenced");
@@ -147,17 +171,10 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
         if (Comparators.isInOrder(definition.ids(), Comparator.naturalOrder()) == false) {
             throwDefinitionFailure(definition, "does not have ordered ids");
         }
-        for (int ndx = 0; ndx < definition.ids().size(); ++ndx) {
+        for (int ndx = 1; ndx < definition.ids().size(); ++ndx) {
             TransportVersionId id = definition.ids().get(ndx);
-
-            if (ndx == 0) {
-                if (getShouldValidatePrimaryIdNotPatch().get() && id.patch() != 0) {
-                    throwDefinitionFailure(definition, "has patch version " + id.complete() + " as primary id");
-                }
-            } else {
-                if (id.patch() == 0) {
-                    throwDefinitionFailure(definition, "contains bwc id [" + id + "] with a patch part of 0");
-                }
+            if (id.patch() == 0) {
+                throwDefinitionFailure(definition, "contains bwc id [" + id + "] with a patch part of 0");
             }
         }
 
@@ -183,7 +200,41 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
                         throwDefinitionFailure(definition, "has removed id " + originalId);
                     }
                 }
+            } else {
+                validateNewPrimaryId(definition, onPatchBranch);
             }
+        }
+    }
+
+    /**
+     * Validate the shape of the primary id of a newly added definition. Note this is only checked when the
+     * definition is added, since an id which was valid when it was created must remain valid afterwards. In
+     * particular, a patch id created on the serverless patch branch stays a patch id once merged back.
+     */
+    private void validateNewPrimaryId(TransportVersionDefinition definition, boolean onPatchBranch) {
+        TransportVersionId primaryId = definition.ids().getFirst();
+
+        if (onPatchBranch) {
+            // The patch branch tracks what is deployed to serverless production, so it is behind the branch it
+            // will be merged back into. A new base there would take an id that branch has likely already used.
+            if (primaryId.patch() == 0) {
+                throwDefinitionFailure(
+                    definition,
+                    "has primary id "
+                        + primaryId
+                        + " which is not a patch id. Transport versions added on the serverless patch branch must be"
+                        + " patch ids. Run ./gradlew generateTransportVersion --patch"
+                );
+            }
+            return;
+        }
+
+        if (getShouldValidatePrimaryIdNotPatch().get() && primaryId.patch() != 0) {
+            throwDefinitionFailure(definition, "has patch version " + primaryId + " as primary id");
+        }
+        int increment = getIncrement().get();
+        if (primaryId.complete() % increment != 0) {
+            throwDefinitionFailure(definition, "has primary id " + primaryId + " which is not aligned to increment " + increment);
         }
     }
 
@@ -328,6 +379,23 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
             highestDefinition,
             "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
         );
+    }
+
+    private void validateResourceChanges(
+        TransportVersionResourcesService resources,
+        Map<String, TransportVersionDefinition> referableDefinitions,
+        Map<String, TransportVersionUpperBound> upperBounds
+    ) {
+        Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
+        for (String name : changedDefinitionNames) {
+            TransportVersionDefinition definition = referableDefinitions.get(name);
+            if (definition != null && resources.getReferableDefinitionFromGitBase(name) == null) {
+                boolean hasUpperBound = upperBounds.values().stream().anyMatch(ub -> ub.definitionName().equals(name));
+                if (hasUpperBound == false) {
+                    throwDefinitionFailure(definition, "was added but no corresponding upper bounds file was changed");
+                }
+            }
+        }
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

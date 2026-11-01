@@ -1,0 +1,4 @@
+FROM employees
+| sort emp_no
+| ip_location g = first_name
+| sort g.city_name

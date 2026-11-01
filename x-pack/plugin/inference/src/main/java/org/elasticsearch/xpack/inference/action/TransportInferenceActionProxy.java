@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,13 +20,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.action.DecisionAction;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -37,10 +38,6 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
-    public static final ElasticsearchStatusException CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION = new ElasticsearchStatusException(
-        "The [chat_completion] task type only supports streaming, please try again with the _stream API",
-        RestStatus.BAD_REQUEST
-    );
     private final ModelRegistry modelRegistry;
     private final Client client;
 
@@ -70,15 +67,22 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 switch (unparsedModel.taskType()) {
                     case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, l);
                     case EMBEDDING -> sendEmbeddingRequest(request, l);
-                    case null, default -> sendInferenceActionRequest(request, l);
+                    case RERANK -> sendRerankRequest(request, l);
+                    case DECISION -> sendDecisionRequest(request, l);
+                    case DOCUMENT_EXTRACTION -> sendDocumentExtractionRequest(request, l);
+                    default -> sendInferenceActionRequest(request, l);
                 }
             });
 
-            switch (request.getTaskType()) {
+            var taskType = request.getTaskType();
+            switch (taskType) {
                 case ANY -> modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
                 case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, listener);
                 case EMBEDDING -> sendEmbeddingRequest(request, listener);
-                case null, default -> sendInferenceActionRequest(request, listener);
+                case RERANK -> sendRerankRequest(request, listener);
+                case DECISION -> sendDecisionRequest(request, listener);
+                case DOCUMENT_EXTRACTION -> sendDocumentExtractionRequest(request, listener);
+                default -> sendInferenceActionRequest(request, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -90,10 +94,6 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         var unifiedErrorFormatListener = listener.delegateResponse((l, e) -> l.onFailure(UnifiedChatCompletionException.fromThrowable(e)));
 
         try {
-            if (request.isStreaming() == false) {
-                throw CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION;
-            }
-
             UnifiedCompletionAction.Request unifiedRequest;
             try (
                 var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())
@@ -101,6 +101,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 unifiedRequest = UnifiedCompletionAction.Request.parseRequest(
                     request.getInferenceEntityId(),
                     request.getTaskType(),
+                    request.isStreaming(),
                     request.getTimeout(),
                     request.getContext(),
                     parser
@@ -127,6 +128,51 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         }
 
         execute(EmbeddingAction.INSTANCE, embeddingRequest, listener);
+    }
+
+    private void sendRerankRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        RerankAction.Request rerankRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            rerankRequest = RerankAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(RerankAction.INSTANCE, rerankRequest, listener);
+    }
+
+    private void sendDecisionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        DecisionAction.Request decisionRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            decisionRequest = DecisionAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(DecisionAction.INSTANCE, decisionRequest, listener);
+    }
+
+    private void sendDocumentExtractionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        DocumentExtractionAction.Request documentExtractionRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            documentExtractionRequest = DocumentExtractionAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(DocumentExtractionAction.INSTANCE, documentExtractionRequest, listener);
     }
 
     private void sendInferenceActionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)

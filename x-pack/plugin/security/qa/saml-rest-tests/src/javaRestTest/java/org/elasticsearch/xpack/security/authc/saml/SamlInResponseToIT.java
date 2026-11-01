@@ -13,6 +13,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +29,9 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class SamlInResponseToIT extends SamlRestTestCase {
+
+    @ClassRule
+    public static TestRule ruleChain = buildRuleChain(true);
 
     private static final int REALM_NUMBER = 1;
 

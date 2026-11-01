@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -15,8 +17,10 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -188,6 +192,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return anyMatch(Predicate.not(predicate)) == false;
     }
 
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is false for all nodes
+     */
+    public boolean noneMatch(Predicate<? super T> predicate) {
+        return anyMatch(predicate) == false;
+    }
+
     public List<T> collect(Predicate<? super T> predicate) {
         List<T> l = new ArrayList<>();
         forEachDown(n -> {
@@ -283,18 +298,39 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
+     * Number of descent levels between executor bounces in the async {@link #transformDown}.
+     * Small enough that each stretch of recursion stays well within the default {@code -Xss1m} thread stack,
+     * large enough that ordinary (shallow) plans never bounce.
+     */
+    private static final int ASYNC_TRANSFORM_STACK_DEPTH_LIMIT = 100;
+
+    /**
      * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
      * async I/O operations (e.g., transport actions) without blocking the caller thread.
      * <p>
      * Children are transformed sequentially, not concurrently, one after another in order.
      * This method is intended for cases where async I/O is needed during transformation, not for parallel
      * processing.
+     * <p>
+     * The provided executor is used to bounce the recursion every {@link #ASYNC_TRANSFORM_STACK_DEPTH_LIMIT}
+     * levels to avoid stack overflow.
      */
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, ActionListener<T> listener) {
+        transformDown(rule, executor, 0, listener);
+    }
+
     @SuppressWarnings("unchecked")
-    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+    void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, int depth, ActionListener<T> listener) {
         rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
             Node<T> node = this.equals(root) ? this : root;
-            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+            node.transformChildren((child, childListener) -> {
+                if (depth > 0 && depth % ASYNC_TRANSFORM_STACK_DEPTH_LIMIT == 0) {
+                    ActionListener<T> bounced = new ThreadedActionListener<>(executor, childListener);
+                    executor.execute(ActionRunnable.wrap(bounced, l -> child.transformDown(rule, executor, depth + 1, l)));
+                } else {
+                    child.transformDown(rule, executor, depth + 1, childListener);
+                }
+            }, originalListener);
         }));
     }
 
@@ -331,6 +367,33 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         T transformed = transformChildren(child -> child.transformUp(rule));
         T node = this.equals(transformed) ? (T) this : transformed;
         return rule.apply(node);
+    }
+
+    /**
+     * Bottom-up counterpart of {@link #transformDownSkipBranch}: like {@link #transformUp(Function)}, but the child at index
+     * {@code i} of a node {@code parent} is left untouched — neither it nor any node beneath it is passed to {@code rule} — if
+     * {@code skipChild.test(parent, i)}. Unlike the top-down variant, the decision must be taken before the subtree is visited,
+     * hence a predicate rather than a flag the rule sets. It is asked of the parent rather than the child because what makes a
+     * branch special can be a property of its position in the parent (e.g. a branch's identity in a union) rather than of the
+     * child node itself; and by index, because equal children can sit at positions the parent tells apart.
+     */
+    @SuppressWarnings("unchecked")
+    public T transformUpSkipBranch(BiPredicate<? super T, Integer> skipChild, Function<? super T, ? extends T> rule) {
+        List<T> transformedChildren = null;
+        for (int i = 0, s = children.size(); i < s; i++) {
+            if (skipChild.test((T) this, i)) {
+                continue;
+            }
+            T child = children.get(i);
+            T next = child.transformUpSkipBranch(skipChild, rule);
+            if (child.equals(next) == false) {
+                if (transformedChildren == null) {
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
+            }
+        }
+        return rule.apply(transformedChildren == null ? (T) this : replaceChildrenSameSize(transformedChildren));
     }
 
     @SuppressWarnings("unchecked")
@@ -450,13 +513,16 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Configuration for rendering the string representation.
+     * Output-shape configuration for the {@code nodeString} render pipeline. Controls truncation,
+     * width, and property-count limits. Orthogonal to identifier mapping — anonymization or any
+     * other identifier-substitution variant flows through a separately-passed
+     * {@link NodeStringMapper}.
      */
     public enum NodeStringFormat {
-        /** No list truncation, no line breaks due to string width. */
-        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
-        /** List truncation, line breaks, and limited number of lines. */
-        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
+        /** Bounded width / lines / property count for human-readable debug toString. The default. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES),
+        /** No truncation; renders everything. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         final int maxProperties;
         final int maxWidth;
@@ -471,39 +537,45 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     /**
      * Render this {@link Node} to a {@link String} with the
-     * {@link NodeStringFormat#LIMITED limited} format. This does not include
-     * this node's {@link #children()}.
+     * {@link NodeStringFormat#LIMITED limited} format and the identity mapper. This does not
+     * include this node's {@link #children()}.
      */
     public final String nodeString() {
         StringBuilder sb = new StringBuilder();
-        nodeString(sb, NodeStringFormat.LIMITED);
+        nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
         return sb.toString();
     }
 
     /**
      * Append this {@link Node}'s string representation to {@code sb}. This
      * does not include this node's {@link #children()}.
-     * @param sb target for the string
-     * @param format configuration for rendering the string representation
+     * @param sb     target for the string
+     * @param format output-shape configuration (width / lines / property count)
+     * @param mapper identifier-mapping strategy (raw via {@link NodeStringMapper#IDENTITY},
+     *               anonymized via the failure-path anonymizer, etc.)
      */
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
         sb.append("[");
-        propertiesToString(sb, true, format);
+        propertiesToString(sb, true, format, mapper);
         sb.append("]");
     }
 
     @Override
     public String toString() {
-        return toString(NodeStringFormat.LIMITED);
+        return toString(NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     public String toString(NodeStringFormat format) {
-        return new NodeToString(format).treeString(this, 0).toString();
+        return toString(format, NodeStringMapper.IDENTITY);
     }
 
-    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
-        new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
+    public String toString(NodeStringFormat format, NodeStringMapper mapper) {
+        return new NodeToString(format, mapper).treeString(this, 0).toString();
+    }
+
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, NodeStringMapper mapper) {
+        new NodePropertiesToString(sb, format, mapper, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {

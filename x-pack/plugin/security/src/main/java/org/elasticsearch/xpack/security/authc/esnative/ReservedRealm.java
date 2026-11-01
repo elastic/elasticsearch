@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -46,7 +48,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -133,12 +134,12 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
-            getUserInfo(token.principal(), (userInfo) -> {
+            getUserInfo(token.principal(), listener.delegateFailureAndWrap((delegate, userInfo) -> {
                 if (userInfo != null) {
                     if (userInfo.hasEmptyPassword()) {
-                        listener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
+                        delegate.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
                     } else {
-                        ActionListener<AuthenticationResult<User>> hashCleanupListener = ActionListener.runBefore(listener, () -> {
+                        ActionListener<AuthenticationResult<User>> hashCleanupListener = ActionListener.runBefore(delegate, () -> {
                             if (userInfo != bootstrapUserInfo && userInfo != autoconfigUserInfo) {
                                 Arrays.fill(userInfo.passwordHash, (char) 0);
                             }
@@ -156,7 +157,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                                     // can't be promoted as the elastic user password, otherwise, such errors will
                                     // implicitly translate to 401s, which is wrong because the presented password was successfully
                                     // verified by the auto-config hash; the client must retry the request.
-                                    listener.onFailure(
+                                    delegate.onFailure(
                                         Exceptions.authenticationProcessError(
                                             "failed to promote the auto-configured " + "elastic password hash",
                                             e
@@ -173,9 +174,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         }
                     }
                 } else {
-                    listener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
+                    delegate.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
                 }
-            });
+            }));
         }
     }
 
@@ -192,14 +193,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
         } else {
-            getUserInfo(username, (userInfo) -> {
+            getUserInfo(username, listener.delegateFailureAndWrap((delegate, userInfo) -> {
                 if (userInfo != null) {
-                    listener.onResponse(getUser(username, userInfo));
+                    delegate.onResponse(getUser(username, userInfo));
                 } else {
                     // this was a reserved username - don't allow this to go to another realm...
-                    listener.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
+                    delegate.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
                 }
-            });
+            }));
         }
     }
 
@@ -263,21 +264,33 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onResponse(users);
             }, (e) -> {
                 logger.error("failed to retrieve reserved users", e);
-                listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
+                if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException) {
+                    // Surface a 503 so callers retry, mirroring getUserInfo.
+                    listener.onFailure(Exceptions.authenticationProcessError("failed to retrieve reserved users", e));
+                } else {
+                    listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
+                }
             }));
         }
     }
 
-    private void getUserInfo(final String username, Consumer<ReservedUserInfo> consumer) {
+    private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
         nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
             if (userInfo == null) {
-                consumer.accept(getDefaultUserInfo(username));
+                listener.onResponse(getDefaultUserInfo(username));
             } else {
-                consumer.accept(userInfo);
+                listener.onResponse(userInfo);
             }
         }, (e) -> {
             logger.error((Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]", e);
-            consumer.accept(null);
+            if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException) {
+                // Surface a 503 so callers retry instead of a 401.
+                listener.onFailure(
+                    Exceptions.authenticationProcessError("failed to retrieve password hash for reserved user [" + username + "]", e)
+                );
+            } else {
+                listener.onResponse(null);
+            }
         }));
     }
 

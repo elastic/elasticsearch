@@ -1,0 +1,6 @@
+id:integer, labels:json
+1,          {"host.ip": "10.0.0.1"\,    "status_code": 200\, "env": "prod"\,    "service": "search"\,   "message": "request processed"}
+2,          {"host.ip": "10.0.0.2"\,    "status_code": 404\, "env": "prod"\,    "service": "search"\,   "message": "resource not found"}
+3,          {"host.ip": "10.0.0.3"\,    "status_code": 500\, "env": "staging"\, "service": "indexing"\, "message": "internal error"}
+4,          {"host.ip": "192.168.0.1"\, "status_code": 200\, "env": "dev"\,     "service": "indexing"\, "message": "request processed"}
+5,          {"host.ip": "10.0.0.1"\,    "status_code": 503\, "env": "prod"\,    "service": "search"\,   "message": "service unavailable"}

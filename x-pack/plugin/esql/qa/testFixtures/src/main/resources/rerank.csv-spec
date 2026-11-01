@@ -329,3 +329,22 @@ FROM books METADATA _id, _index, _score
 book_no:keyword | title:keyword | _score: double
 4289            | null          | null
 ;
+
+rerank with timeout option
+required_capability: rerank
+required_capability: inference_accept_timeout
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC, book_no ASC
+| RERANK "war and peace" ON title WITH { "inference_id": "test_reranker", "timeout": "30s" }
+| EVAL _score=ROUND(_score, 2)
+| KEEP book_no, title, author, _score
+;
+
+book_no:keyword | title:text                                            | author:text                                 | _score:double
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+;

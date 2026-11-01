@@ -66,7 +66,6 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
-import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -286,7 +285,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                rds -> {}
+                rds -> {},
+                List.of()
             )
         );
         userAuthorizedIndices = new String[] {
@@ -406,7 +406,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     fieldPermissionsCache,
                     null,
                     RESTRICTED_INDICES,
-                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure),
+                    List.of(),
+                    false
                 );
             }
             return Void.TYPE;
@@ -439,8 +441,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             settings,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
             indexNameExpressionResolver,
-            crossProjectModeDecider,
-            ProjectRoutingResolver.NOOP
+            crossProjectModeDecider
         );
     }
 
@@ -918,7 +919,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .collect(Collectors.toSet());
             assert matchedIndices.isEmpty() == false;
             return resolvedIndexExpression(pattern, matchedIndices, SUCCESS);
-        }).toList());
+        }).toList(), null);
 
         final String[] expectedIndices = expectedResolvedIndexExpressions.getLocalIndicesList().toArray(String[]::new);
 
@@ -3831,8 +3832,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
 
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
@@ -3900,7 +3916,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             remoteExpressions
         );
     }

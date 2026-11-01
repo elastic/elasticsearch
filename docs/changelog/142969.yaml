@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 142969
-summary: "[Inference API] Add custom headers for Azure OpenAI Service"
-type: enhancement

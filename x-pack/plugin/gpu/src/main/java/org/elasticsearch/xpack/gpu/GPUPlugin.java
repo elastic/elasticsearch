@@ -18,6 +18,7 @@ import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
@@ -146,7 +147,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        return (indexSettings, indexOptions, similarity, elementType, mergingExecutorService, maxMergingWorkers) -> {
+        return (
+            indexSettings,
+            indexOptions,
+            similarity,
+            elementType,
+            mergingExecutorService,
+            maxMergingWorkers,
+            quantizerExecutorService) -> {
             if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType) == false) {
                 return null;
             }
@@ -177,21 +185,24 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         if (elementType != DenseVectorFieldMapper.ElementType.FLOAT) {
             return false;
         }
-        return type == DenseVectorFieldMapper.VectorIndexType.HNSW || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
+        return type == DenseVectorFieldMapper.VectorIndexType.HNSW
+            || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW
+            || type == DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW;
     }
 
     private KnnVectorsFormat getVectorsFormat(
         DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
         DenseVectorFieldMapper.VectorSimilarity similarity
     ) {
-        // TODO: cuvs 2025.12 will provide an API for converting HNSW CPU Params to Cagra params; use that instead
         if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
-            int efConstruction = hnswIndexOptions.efConstruction();
             int m = hnswIndexOptions.m();
-            int gpuM = 2 + m * 2 / 3;
-            int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswVectorsFormat(gpuSupport.getTotalGpuMemory(), gpuM, gpuEfConstruction);
+            int efConstruction = hnswIndexOptions.efConstruction();
+            return new ES92GpuHnswVectorsFormat(
+                gpuSupport.getTotalGpuMemory(),
+                ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
+                ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction)
+            );
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             if (similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
                 throw new IllegalArgumentException(
@@ -205,17 +216,27 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 );
             }
             DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
-            int efConstruction = int8HnswIndexOptions.efConstruction();
             int m = int8HnswIndexOptions.m();
-            int gpuM = 2 + m * 2 / 3;
-            int gpuEfConstruction = m + m * efConstruction / 256;
+            int efConstruction = int8HnswIndexOptions.efConstruction();
             return new ES92GpuHnswSQVectorsFormat(
                 gpuSupport.getTotalGpuMemory(),
-                gpuM,
-                gpuEfConstruction,
+                ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
+                ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction),
                 int8HnswIndexOptions.confidenceInterval(),
                 7,
                 false
+            );
+        } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW) {
+            DenseVectorFieldMapper.BBQHnswIndexOptions bbqHnswIndexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) indexOptions;
+            int m = bbqHnswIndexOptions.m();
+            int efConstruction = bbqHnswIndexOptions.efConstruction();
+            return new ES97GpuHnswBBQVectorsFormat(
+                gpuSupport.getTotalGpuMemory(),
+                ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
+                ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction),
+                bbqHnswIndexOptions.onDiskRescore(),
+                bbqHnswIndexOptions.flatIndexThreshold(),
+                bbqHnswIndexOptions.isOnDiskMerge()
             );
         } else {
             throw new IllegalArgumentException(

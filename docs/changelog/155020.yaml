@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154413
+pr: 155020
+summary: Unmapped_fields=LOAD_ALL POC/MVP
+type: feature

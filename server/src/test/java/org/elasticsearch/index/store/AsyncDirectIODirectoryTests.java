@@ -49,7 +49,6 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

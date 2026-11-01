@@ -258,6 +258,11 @@ public class ClusterServiceUtils {
         clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
     }
 
+    /**
+     * Blocks until {@code clusterService} applies a {@link ClusterState} matching {@code statePredicate}. Prefer this over
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} in unit tests that hold a {@link ClusterService} when the wait
+     * condition only inspects cluster state. In integration tests, use {@link ESIntegTestCase#awaitClusterState(Predicate)}.
+     */
     public static void awaitClusterState(Predicate<ClusterState> statePredicate, ClusterService clusterService) {
         ESTestCase.safeAwait(addTemporaryStateListener(clusterService, statePredicate, TimeValue.THIRTY_SECONDS), TimeValue.THIRTY_SECONDS);
     }

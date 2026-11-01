@@ -18,7 +18,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,9 +39,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME;
+
 public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
-    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider();
+    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider(
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+    );
     private final Index index = new Index(randomIdentifier(), randomUUID());
     private final ShardId shardId = new ShardId(index, 0);
     private final String repositoryName = randomIdentifier();
@@ -149,8 +157,79 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testThrottleWhenSnapshotInProgress() {
+        final var shardState = randomFrom(
+            SnapshotsInProgress.ShardState.INIT,
+            SnapshotsInProgress.ShardState.WAITING,
+            SnapshotsInProgress.ShardState.ABORTED,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
+        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(makeClusterState(shardId, shardState))
+            .allocationDeciders(decider)
+            .build();
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decision = decider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocation
+        );
+
+        assertEquals(decision.getExplanation(), Decision.Type.THROTTLE, decision.type());
+        assertEquals(
+            "waiting for snapshot ["
+                + SnapshotsInProgress.get(routingAllocation.getClusterState()).asStream().findFirst().orElseThrow().snapshot().toString()
+                + "] of shard ["
+                + shardId
+                + "] to complete on node ["
+                + nodeId
+                + "]",
+            decision.getExplanation()
+        );
+    }
+
+    public void testThrottleWhenActiveShardAlongsideCompletedPeers() {
+        final var activeShardState = randomFrom(
+            SnapshotsInProgress.ShardState.WAITING,
+            SnapshotsInProgress.ShardState.ABORTED,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
+        );
+        final var completedPeerState = randomFrom(
+            Arrays.stream(SnapshotsInProgress.ShardState.values()).filter(SnapshotsInProgress.ShardState::completed).toList()
+        );
+        final var peerShardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+
+        final var entry = SnapshotsInProgress.Entry.snapshot(
+            snapshot,
+            randomBoolean(),
+            randomBoolean(),
+            activeShardState == SnapshotsInProgress.ShardState.ABORTED
+                ? SnapshotsInProgress.State.ABORTED
+                : SnapshotsInProgress.State.STARTED,
+            Map.of(
+                shardId.getIndexName(),
+                new IndexId(shardId.getIndexName(), randomUUID()),
+                peerShardId.getIndexName(),
+                new IndexId(peerShardId.getIndexName(), randomUUID())
+            ),
+            List.of(),
+            List.of(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            Map.of(shardId, shardSnapshotStatus(activeShardState), peerShardId, shardSnapshotStatus(completedPeerState)),
+            null,
+            Map.of(),
+            IndexVersion.current()
+        );
+        assertTrue(entry.hasActiveShards());
+        assertFalse(entry.hasShardsInInitState());
+
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
-            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT)
+            ClusterState.builder(ClusterName.DEFAULT)
+                .putCustom(
+                    SnapshotsInProgress.TYPE,
+                    SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repositoryName, List.of(entry))
+                )
+                .build()
         ).allocationDeciders(decider).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
@@ -173,11 +252,52 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         );
     }
 
+    public void testYesWhenAllShardsQueued() {
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            makeClusterState(shardId, SnapshotsInProgress.ShardState.QUEUED)
+        ).allocationDeciders(decider).build();
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decision = decider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocation
+        );
+
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals("the shard is not being snapshotted", decision.getExplanation());
+    }
+
+    public void testYesWhenRelocationIsDecoupledFromSnapshots() {
+        final Setting<Boolean> setting = Setting.boolSetting(
+            RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME,
+            false,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+        ;
+        final var decoupledDecider = new SnapshotInProgressAllocationDecider(
+            new ClusterSettings(
+                Settings.builder().put(setting.getKey(), true).build(),
+                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, setting)
+            )
+        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT)
+        ).allocationDeciders(decoupledDecider).build();
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decision = decoupledDecider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocation
+        );
+
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals("relocation is decoupled from snapshots", decision.getExplanation());
+    }
+
     public void testYesWhenSnapshotInProgressButShardIsPausedDueToShutdown() {
-
-        // need to have a shard in INIT state to avoid the fast-path
-        final var otherIndex = randomIdentifier();
-
         final var clusterStateWithShutdownMetadata = SnapshotsInProgressSerializationTests.CLUSTER_STATE_FOR_NODE_SHUTDOWNS
             .copyAndUpdateMetadata(
                 mdb -> mdb.putCustom(
@@ -208,12 +328,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         SnapshotsInProgress.State.STARTED,
-                        Map.of(
-                            shardId.getIndexName(),
-                            new IndexId(shardId.getIndexName(), randomUUID()),
-                            otherIndex,
-                            new IndexId(otherIndex, randomUUID())
-                        ),
+                        Map.of(shardId.getIndexName(), new IndexId(shardId.getIndexName(), randomUUID())),
                         List.of(),
                         List.of(),
                         randomNonNegativeLong(),
@@ -223,12 +338,6 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                             new SnapshotsInProgress.ShardSnapshotStatus(
                                 nodeId,
                                 SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
-                                ShardGeneration.newGeneration(random())
-                            ),
-                            new ShardId(otherIndex, randomUUID(), 0),
-                            new SnapshotsInProgress.ShardSnapshotStatus(
-                                nodeId,
-                                SnapshotsInProgress.ShardState.INIT,
                                 ShardGeneration.newGeneration(random())
                             )
                         ),
@@ -282,24 +391,6 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     private SnapshotsInProgress makeSnapshotsInProgress(ShardId snapshotShardId, SnapshotsInProgress.ShardState shardState) {
-        final SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus;
-        if (shardState == SnapshotsInProgress.ShardState.SUCCESS) {
-            shardSnapshotStatus = SnapshotsInProgress.ShardSnapshotStatus.success(
-                nodeId,
-                new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 1)
-            );
-        } else if (shardState == SnapshotsInProgress.ShardState.QUEUED) {
-            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(null, shardState, null);
-        } else if (shardState.failed()) {
-            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
-                nodeId,
-                shardState,
-                ShardGeneration.newGeneration(random()),
-                randomAlphaOfLength(10)
-            );
-        } else {
-            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, ShardGeneration.newGeneration(random()));
-        }
         return SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(
             repositoryName,
             List.of(
@@ -307,18 +398,40 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                     snapshot,
                     randomBoolean(),
                     randomBoolean(),
-                    shardState.completed() ? SnapshotsInProgress.State.SUCCESS : SnapshotsInProgress.State.STARTED,
+                    shardState.completed() ? SnapshotsInProgress.State.SUCCESS
+                        : shardState == SnapshotsInProgress.ShardState.ABORTED ? SnapshotsInProgress.State.ABORTED
+                        : SnapshotsInProgress.State.STARTED,
                     Map.of(snapshotShardId.getIndexName(), new IndexId(snapshotShardId.getIndexName(), randomUUID())),
                     List.of(),
                     List.of(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    Map.of(snapshotShardId, shardSnapshotStatus),
+                    Map.of(snapshotShardId, shardSnapshotStatus(shardState)),
                     null,
                     Map.of(),
                     IndexVersion.current()
                 )
             )
         );
+    }
+
+    private SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus(SnapshotsInProgress.ShardState shardState) {
+        if (shardState == SnapshotsInProgress.ShardState.SUCCESS) {
+            return SnapshotsInProgress.ShardSnapshotStatus.success(
+                nodeId,
+                new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 1)
+            );
+        } else if (shardState == SnapshotsInProgress.ShardState.QUEUED) {
+            return new SnapshotsInProgress.ShardSnapshotStatus(null, shardState, null);
+        } else if (shardState.failed()) {
+            return new SnapshotsInProgress.ShardSnapshotStatus(
+                nodeId,
+                shardState,
+                ShardGeneration.newGeneration(random()),
+                randomAlphaOfLength(10)
+            );
+        } else {
+            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, ShardGeneration.newGeneration(random()));
+        }
     }
 }

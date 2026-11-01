@@ -42,6 +42,10 @@ import static org.hamcrest.Matchers.notNullValue;
  * Test suite for Lucene indices backward compatibility with N-2 versions during rolling upgrades. The test suite creates a cluster in N-2
  * version, then upgrades each node sequentially to N-1 version and finally upgrades each node sequentially to the current version. Test
  * methods are executed after each node upgrade.
+ * <p>
+ * A project hosting this suite must opt out of smart retry's individual test pruning in its {@code build.gradle}, otherwise a phase that
+ * passed in an earlier build attempt is skipped on retry and a later phase fails:
+ * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
  */
 @TestCaseOrdering(RollingUpgradeIndexCompatibilityTestCase.TestCaseOrdering.class)
 public abstract class RollingUpgradeIndexCompatibilityTestCase extends AbstractIndexCompatibilityTestCase {

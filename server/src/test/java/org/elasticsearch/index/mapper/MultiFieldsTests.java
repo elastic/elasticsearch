@@ -38,14 +38,15 @@ public class MultiFieldsTests extends ESTestCase {
         var isStored = randomBoolean();
         var hasNormalizer = randomBoolean();
 
-        var builder = new TextFieldMapper.Builder("text_field", createDefaultIndexAnalyzers());
+        var builder = new TextFieldMapper.Builder("text_field", defaultIndexSettings(), createDefaultIndexAnalyzers(), false);
         assertFalse(builder.multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField());
 
         var keywordFieldMapperBuilder = getKeywordFieldMapperBuilder(isStored, hasNormalizer);
 
-        var incoming = new TextFieldMapper.Builder("text_field", createDefaultIndexAnalyzers()).addMultiField(keywordFieldMapperBuilder);
+        var incoming = new TextFieldMapper.Builder("text_field", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+            .addMultiField(keywordFieldMapperBuilder);
 
-        builder.mergeWith(incoming, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
+        builder.mergeWith(incoming, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build());
 
         var expected = hasNormalizer == false;
         assertEquals(expected, builder.multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField());

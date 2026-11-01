@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154304
+pr: 154323
+summary: Fix unknown column error when the `IN` subquery is after `Fork` or `UnionAll`
+type: bug

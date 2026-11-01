@@ -115,7 +115,7 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
     }
 
     private static void storePreRecoveryData(IngestDocument document) {
-        Map<String, Object> sourceAndMetadataMap = document.getSourceAndMetadata();
+        Map<String, Object> sourceAndMetadataMap = document.getCtxMap();
 
         // Create the pre_recovery data structure
         Map<String, Object> preRecoveryData = new HashMap<>();

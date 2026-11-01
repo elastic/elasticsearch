@@ -10,20 +10,28 @@ package org.elasticsearch.xpack.esql.tree;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator.DefaultValue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -39,7 +47,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
@@ -48,7 +60,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -56,11 +73,22 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -70,7 +98,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -108,10 +135,11 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -171,15 +199,27 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         CIDRMatch.class,
         Fork.class,
         UnionAll.class,
-        ViewUnionAll.class
+        BranchPlan.class
     );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
-    private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
+    private static final List<Class<?>> UNRESOLVED_EXPRESSIONS = List.of(
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
         UnresolvedNamedExpression.class
+    );
+
+    /**
+     * A {@link ResolvingProject} takes its auxiliary state as a record holding a resolver, so it cannot be mocked; the resolver returns
+     * its input so that the projections it derives describe the child. One shared instance means {@code randomValueOtherThanMaxTries}
+     * can never produce a different value, which keeps {@link #testTransform} honest: the command is not a node property, so no
+     * transform can reach it.
+     */
+    private static final ResolvingProject.Command RESOLVING_PROJECT_COMMAND = new ResolvingProject.Command(
+        ResolvingProject.Kind.KEEP,
+        List.of(),
+        inputAttributes -> inputAttributes
     );
 
     private final Class<T> subclass;
@@ -373,6 +413,26 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     /**
+     * The {@link JoinType} a join plan node expects in its {@link JoinConfig}. SemiJoin/AntiJoin/MarkJoin
+     * assert that their config carries the matching type, so the generic LEFT default we use elsewhere would
+     * trip those assertions when the node is rebuilt (e.g. via {@code replaceChildren}).
+     */
+    private static JoinType joinTypeFor(Class<? extends Node<?>> toBuildClass) {
+        if (toBuildClass == SemiJoin.class) {
+            return JoinTypes.SEMI;
+        } else if (toBuildClass == AntiJoin.class) {
+            return JoinTypes.ANTI;
+        } else if (toBuildClass == MarkJoin.class) {
+            return JoinTypes.MARK;
+        } else if (toBuildClass == InnerJoin.class) {
+            return JoinTypes.INNER;
+        } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
+            return JoinTypes.LEFT;
+        }
+        throw new IllegalArgumentException("Unknown join plan node [" + toBuildClass.getName() + "]; no JoinType mapping defined");
+    }
+
+    /**
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
@@ -384,6 +444,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             }
             if (pt.getRawType() == Map.class) {
                 return makeMap(toBuildClass, pt);
+            }
+            if (pt.getRawType() == AttributeMap.class) {
+                return makeAttributeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {
                 return makeList(toBuildClass, pt);
@@ -406,9 +469,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                         // do nothing
                     }
                 };
-            }
-            if (toBuildClass == ResolvingProject.class && pt.getRawType() == java.util.function.Function.class) {
-                return java.util.function.Function.identity();
             }
 
             throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "], for " + toBuildClass.getSimpleName());
@@ -465,9 +525,44 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == FileList.class) {
             // FileList implementations are package-private; use coordinator sentinel.
             return FileList.UNRESOLVED;
+        } else if (argClass == StoragePath.class) {
+            // StoragePath has no public no-arg ctor and is final; provide a deterministic instance.
+            return StoragePath.of("s3://bucket/" + randomAlphaOfLength(8));
+        } else if (argClass == SchemaReconciliation.FileSchemaInfo.class) {
+            // Record with unmockable list-of-attribute parts; build a trivial instance for tree tests.
+            return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
+        } else if (argClass == ExternalSchema.class) {
+            return new ExternalSchema(List.of());
+        } else if (argClass == DeclaredReadSpec.class) {
+            // Typed carrier record; populate every component (renames, dateFormats, declaredTypeColumns) so
+            // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.
+            return DeclaredReadSpec.of(
+                Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
+                Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
+                Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
+            );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
+        } else if (argClass == DefaultValue.class) {
+            // DefaultValue is a record, cannot be mocked.
+            ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
+            Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
+            return new DefaultValue(type, value);
+        } else if (argClass == DenseVector.OutputNaming.class) {
+            // DenseVector.OutputNaming is a record and cannot be mocked. Build it through its factories so the value is a
+            // legitimate naming — the explicit-name and suffix forms are mutually exclusive — with enough variety that a
+            // caller needing a value different from the current one does not run out of retries.
+            return randomFrom(
+                DenseVector.OutputNaming.DEFAULT,
+                DenseVector.OutputNaming.explicit(randomAlphaOfLength(5)),
+                DenseVector.OutputNaming.suffixed(randomAlphaOfLength(4))
+            );
+        } else if (argClass == ResolvingProject.Command.class) {
+            return RESOLVING_PROJECT_COMMAND;
+        } else if (argClass == AttributeSet.class) {
+            // AttributeSet has a private constructor / cannot be mocked.
+            return makeAttributeSet(toBuildClass);
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();
@@ -481,11 +576,22 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Stat.class) {
             // record field
             return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
+        } else if (argClass == BranchIdentity.class) {
+            // BranchIdentity is a record (final), so the mock fallback cannot proxy it; build a real one. BranchPlan's
+            // constructor normalizes the identity map against the branch map, so random keys are fine.
+            return randomFrom(BranchIdentity.INDEX, BranchIdentity.SUBQUERY, BranchIdentity.view(randomIdentifier()));
         } else if (argClass == Integer.class) {
             return randomInt();
+        } else if (argClass == Double.class) {
+            return randomDouble();
         } else if (argClass == JoinType.class) {
-            return JoinTypes.LEFT;
-        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
+            // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
+            return joinTypeFor(toBuildClass);
+        } else if (toBuildClass == ResolvingProject.class && argType == LogicalPlan.class) {
+            // ResolvingProject's ctor asserts at most one _unmapped_fields in the child output. randomResolvedExpression can draw
+            // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.
+            return randomEsRelation();
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, BranchPlan.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors
                 return randomEsRelation();
@@ -529,6 +635,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == long.class) {
             return randomLong();
         }
+        if (argClass == double.class) {
+            return randomDouble();
+        }
         if (argClass == String.class) {
             // Nor strings
             return randomAlphaOfLength(5);
@@ -545,14 +654,27 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomConfiguration();
         }
         if (argClass == EsField.class) {
-            return EsFieldTests.randomEsField(4);
+            return randomEsField(4);
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();
         }
+        if (argClass == SliceSelection.class) {
+            // a record, which cannot be mocked
+            return randomFrom(
+                SliceSelection.UNSPECIFIED,
+                SliceSelection.ALL,
+                SliceSelection.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 8)))
+            );
+        }
+        if (argClass == IndexProperties.class) {
+            IndexMode mode = randomFrom(IndexMode.availableModes());
+            return new IndexProperties(mode, between(0, 10));
+        }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
-                JoinTypes.LEFT,
+                // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
+                joinTypeFor(toBuildClass),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 randomJoinOnExpression()
@@ -565,6 +687,26 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         if (argClass == Rounding.Prepared.class) {
             return Rounding.builder(TimeValue.timeValueHours(1)).build().prepareForUnknown();
+        }
+
+        if (argClass == PromqlFunctionDefinition.class) {
+            return PromqlBuiltinFunctionDefinitions.VECTOR;
+        }
+
+        if (argClass == UnmappedFieldsPattern.class) {
+            // UnmappedFieldsPattern is final; cannot be mocked
+            return randomBoolean() ? UnmappedFieldsPattern.ALL : UnmappedFieldsPattern.NONE;
+        }
+
+        if (argClass == DatasetMapping.class) {
+            // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation).
+            // Two components only: Mappings carries a dynamic mode and per-column properties, nothing else.
+            return new DatasetMapping(
+                new DatasetMapping.Mappings(
+                    randomFrom(DatasetMapping.Dynamic.values()),
+                    Map.of(randomAlphaOfLength(5), new DatasetFieldMapping("keyword", randomBoolean() ? null : randomAlphaOfLength(4)))
+                )
+            );
         }
 
         try {
@@ -620,6 +762,25 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return map;
     }
 
+    private static AttributeSet makeAttributeSet(Class<? extends Node<?>> toBuildClass) throws Exception {
+        return AttributeSet.of(makeAttributeMap(toBuildClass, Integer.class).keySet());
+    }
+
+    private static Object makeAttributeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+        return makeAttributeMap(toBuildClass, pt.getActualTypeArguments()[0]);
+    }
+
+    private static AttributeMap<?> makeAttributeMap(Class<? extends Node<?>> toBuildClass, Type valueType) throws Exception {
+        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        int size = randomSizeForCollection(toBuildClass);
+        while (builder.keySet().size() < size) {
+            Attribute key = (Attribute) makeArg(toBuildClass, Attribute.class);
+            Object value = makeArg(toBuildClass, valueType);
+            builder.put(key, value);
+        }
+        return builder.build();
+    }
+
     private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         if (CompoundOutputEval.class.isAssignableFrom(toBuildClass) || CompoundOutputEvalExec.class.isAssignableFrom(toBuildClass)) {
             // subclasses of CompoundOutputEval/Exec must have map and list that match in size
@@ -650,8 +811,25 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+        if (nodeClass.equals(UnresolvedPromqlFunction.class)) {
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            throw new IllegalArgumentException("can't make an UnresolvedPromqlFunction");
+        }
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
-            nodeClass = randomFrom(innerSubclassesOf(nodeClass));
+            var subclasses = innerSubclassesOf(nodeClass);
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            subclasses.remove(UnresolvedPromqlFunction.class);
+            // Histogram functions require scalar parameters and delegate output() to their children; see their node tests.
+            subclasses.remove(HistogramFraction.class);
+            subclasses.remove(HistogramQuantile.class);
+            // It *is* safe to build an UnresoledRelation here because it is a leaf node.
+            nodeClass = randomFrom(subclasses);
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {
@@ -702,20 +880,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             Type[] argTypes = ctor.getGenericParameterTypes();
             Object[] args = new Object[argTypes.length];
 
-            if (transformed instanceof ResolvingProject transformedProject && changedArgValue instanceof LogicalPlan newChild) {
-                for (int i = 0; i < argTypes.length; i++) {
-                    if (i == changedArgOffset) {
-                        args[i] = changedArgValue;
-                    } else if (i == changedArgOffset + 2) {
-                        args[i] = transformedProject.resolver().apply(newChild.output());
-                    } else {
-                        args[i] = nodeCtorArgs[i];
-                    }
-                }
-            } else {
-                for (int i = 0; i < argTypes.length; i++) {
-                    args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
-                }
+            for (int i = 0; i < argTypes.length; i++) {
+                args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
             }
 
             T reflectionTransformed = ctor.newInstance(args);
@@ -760,7 +926,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (Modifier.isAbstract(argClass.getModifiers())) {
             while (true) {
                 var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
-                if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
+                if (UNRESOLVED_EXPRESSIONS.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
                     asNodeSubclass = candidate;
                     break;
                 }
@@ -805,10 +971,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return new EsRelation(
             SourceTests.randomSource(),
             randomIdentifier(),
-            randomFrom(IndexMode.values()),
+            randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
-            randomIndexNameWithModes(),
+            randomIndexProperties(),
             randomFieldAttributes(0, 10, false)
         );
     }

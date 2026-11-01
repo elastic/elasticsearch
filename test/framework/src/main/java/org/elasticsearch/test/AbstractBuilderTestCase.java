@@ -29,7 +29,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -114,7 +112,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -125,6 +127,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
@@ -213,6 +217,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {}
+
+    /**
+     * Whether to rebuild the {@link ServiceHolder} instances before every test method. Defaults to
+     * {@code false}, meaning the holders are built once per class and shared across all test methods
+     * (faster). Override to return {@code true} for tests that require fresh, isolated services per
+     * test method — at the cost of rebuilding on every test.
+     */
+    protected boolean rebuildServiceHolderForEachTest() {
+        return false;
+    }
 
     @BeforeClass
     public static void beforeClass() {
@@ -310,10 +324,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
         serviceHolder.clientInvocationHandler.delegate = null;
         serviceHolderWithNoType.clientInvocationHandler.delegate = null;
         testThreadPool.shutdown();
+        if (rebuildServiceHolderForEachTest()) {
+            IOUtils.close(serviceHolder, serviceHolderWithNoType);
+            serviceHolder = null;
+            serviceHolderWithNoType = null;
+        }
     }
 
     /**
@@ -474,15 +493,23 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * Asserts that building the supplied query trips the circuit breaker with a "Data too large" message.
      */
     protected static void assertCircuitBreakerTripsOnQueryConstruction(String breakerLimit, Supplier<QueryBuilder> querySupplier) {
-        SearchExecutionContext context = new SearchExecutionContext(
-            createSearchExecutionContext(),
-            createCircuitBreakerService(breakerLimit)
-        );
+        CircuitBreaker breaker = createCircuitBreakerService(breakerLimit);
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
 
         try {
             QueryBuilder query = querySupplier.get();
+            long beforeUsed = breaker.getUsed();
+            long beforeContextTally = context.getQueryConstructionMemoryUsed();
             CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
             assertThat(exception.getMessage(), containsString("Data too large"));
+
+            context.releaseQueryConstructionMemory();
+            assertEquals("breaker must not retain bytes after releasing query-construction memory", beforeUsed, breaker.getUsed());
+            assertEquals(
+                "query-construction tally must not retain bytes after release",
+                beforeContextTally,
+                context.getQueryConstructionMemoryUsed()
+            );
         } finally {
             context.releaseQueryConstructionMemory();
         }
@@ -510,6 +537,96 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         } finally {
             context.releaseQueryConstructionMemory();
         }
+    }
+
+    protected static void assertCircuitBreakerContinuouslyAccountsDuringConstruction(Function<SearchExecutionContext, Query> queryBuilder) {
+        CircuitBreaker breaker = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        try {
+            long before = breaker.getUsed();
+            Query query = queryBuilder.apply(context);
+            assertThat("test query must be Accountable", query, instanceOf(Accountable.class));
+            long retained = ((Accountable) query).ramBytesUsed();
+            assertThat(
+                "automaton retained memory must stay charged after construction (no release-before-commit window)",
+                breaker.getUsed() - before,
+                greaterThanOrEqualTo(retained)
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    protected static void assertNoBreakerDipUnderConcurrentConstruction(Function<SearchExecutionContext, Query> queryBuilder)
+        throws Exception {
+        CircuitBreaker breaker = createCircuitBreakerService();
+        SearchExecutionContext contextA = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        SearchExecutionContext contextB = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+
+        CountDownLatch built = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicLong retainedA = new AtomicLong();
+        AtomicLong retainedB = new AtomicLong();
+        AtomicReference<Exception> workerFailure = new AtomicReference<>();
+
+        class Worker extends Thread {
+            private final SearchExecutionContext context;
+            private final AtomicLong retained;
+
+            Worker(SearchExecutionContext context, AtomicLong retained) {
+                this.context = context;
+                this.retained = retained;
+            }
+
+            @Override
+            public void run() {
+                boolean signaledBuilt = false;
+                try {
+                    Query query = queryBuilder.apply(context);
+                    retained.set(((Accountable) query).ramBytesUsed());
+
+                    built.countDown();
+                    signaledBuilt = true;
+                    if (release.await(30, TimeUnit.SECONDS) == false) {
+                        workerFailure.compareAndSet(null, new IllegalStateException("worker timed out awaiting release signal"));
+                    }
+                } catch (Exception e) {
+                    workerFailure.compareAndSet(null, e);
+                } finally {
+                    if (signaledBuilt == false) {
+                        built.countDown();
+                    }
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        }
+
+        Worker a = new Worker(contextA, retainedA);
+        Worker b = new Worker(contextB, retainedB);
+        a.start();
+        b.start();
+        try {
+            assertTrue("workers did not finish building within timeout", built.await(30, TimeUnit.SECONDS));
+            if (workerFailure.get() == null) {
+                assertThat(
+                    "breaker used must cover both live automata (no release-before-commit dip)",
+                    breaker.getUsed(),
+                    greaterThanOrEqualTo(retainedA.get() + retainedB.get())
+                );
+            }
+        } catch (Exception e) {
+            workerFailure.compareAndSet(null, e);
+        } finally {
+            release.countDown();
+        }
+        a.join(TimeUnit.SECONDS.toMillis(30));
+        b.join(TimeUnit.SECONDS.toMillis(30));
+        assertFalse("worker A did not terminate within timeout", a.isAlive());
+        assertFalse("worker B did not terminate within timeout", b.isAlive());
+        if (workerFailure.get() != null) {
+            throw workerFailure.get();
+        }
+        assertEquals("breaker must be fully released after both requests end", 0L, breaker.getUsed());
     }
 
     private static class ServiceHolder implements Closeable {
@@ -542,14 +659,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             });
             PluginsService pluginsService;
             pluginsService = new MockPluginsService(nodeSettings, env, plugins);
-
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            ClusterService clusterService = new ClusterService(
-                Settings.EMPTY,
-                clusterSettings,
-                new DeterministicTaskQueue().getThreadPool(),
-                null
-            );
 
             this.circuitBreakerService = testCase.createCircuitBreakerService(nodeSettings, clusterSettings);
 
@@ -589,14 +699,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             this.bitsetFilterCache = new BitsetFilterCache(idxSettings, BitsetFilterCache.Listener.NOOP);
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
-                clusterService,
+                TransportVersion::current,
+                f -> true,
                 idxSettings,
                 indexAnalyzers,
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                idxSettings.getMode().idFieldMapperWithoutFieldData(),
+                () -> false,
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP,

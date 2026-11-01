@@ -42,9 +42,8 @@ public class ComputeSearchContextByShardIdTests extends ESTestCase {
     private static final int CHUNK_SIZE = 10;
 
     @After
-    public void tearDown() throws Exception {
+    public void shutdownExecutor() throws Exception {
         executorService.shutdown();
-        super.tearDown();
     }
 
     public void testMultithreadedSafety() throws Exception {

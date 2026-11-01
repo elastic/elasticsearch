@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.request.embeddings;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating Hugging Face embeddings HTTP requests.
  * It handles the truncation of input data and prepares the HTTP request with the necessary headers and body.
  */
-public class HuggingFaceEmbeddingsRequest implements Request {
+public class HuggingFaceEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
     private final HuggingFaceAccount account;
@@ -49,13 +50,12 @@ public class HuggingFaceEmbeddingsRequest implements Request {
      */
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(account.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(account.uri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new HuggingFaceEmbeddingsRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
+        httpPost.setBody(
+            Strings.toString(new HuggingFaceEmbeddingsRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
@@ -71,7 +71,7 @@ public class HuggingFaceEmbeddingsRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncateResult = truncator.truncate(truncationResult.input());
 
         return new HuggingFaceEmbeddingsRequest(truncator, truncateResult, model);
@@ -80,5 +80,10 @@ public class HuggingFaceEmbeddingsRequest implements Request {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

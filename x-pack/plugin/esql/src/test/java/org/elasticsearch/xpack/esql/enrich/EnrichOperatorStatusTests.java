@@ -29,44 +29,56 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomLongBetween(1, TimeValue.timeValueHours(1).millis())
+            randomLongBetween(1, TimeValue.timeValueHours(1).millis()),
+            randomNonNegativeLong()
         );
     }
 
     @Override
     protected EnrichLookupOperator.Status mutateInstance(EnrichLookupOperator.Status in) throws IOException {
-        int field = randomIntBetween(0, 3);
+        int field = randomIntBetween(0, 4);
         return switch (field) {
             case 0 -> new EnrichLookupOperator.Status(
                 randomValueOtherThan(in.receivedPages(), ESTestCase::randomNonNegativeLong),
                 in.completedPages(),
+                in.processNanos(),
                 in.totalTerms,
-                in.processNanos()
+                in.bytesRead
             );
             case 1 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 randomValueOtherThan(in.completedPages(), ESTestCase::randomNonNegativeLong),
+                in.processNanos(),
                 in.totalTerms,
-                in.processNanos()
+                in.bytesRead
             );
             case 2 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
+                in.processNanos(),
                 randomValueOtherThan(in.totalTerms, ESTestCase::randomNonNegativeLong),
-                in.processNanos()
+                in.bytesRead
             );
             case 3 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
+                randomValueOtherThan(in.processNanos(), ESTestCase::randomNonNegativeLong),
                 in.totalTerms,
-                randomValueOtherThan(in.processNanos(), ESTestCase::randomNonNegativeLong)
+                in.bytesRead
+            );
+            case 4 -> new EnrichLookupOperator.Status(
+                in.receivedPages(),
+                in.completedPages(),
+                in.processNanos(),
+                in.totalTerms,
+                randomValueOtherThan(in.bytesRead, ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("unknown ");
         };
     }
 
     public void testToXContent() {
-        var status = new EnrichLookupOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120);
+        var status = new EnrichLookupOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120, 4096);
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
@@ -74,7 +86,8 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
               "process_time" : "10micros",
               "pages_received" : 100,
               "pages_completed" : 50,
-              "total_terms" : 120
+              "total_terms" : 120,
+              "bytes_read" : 4096
             }"""));
     }
 }

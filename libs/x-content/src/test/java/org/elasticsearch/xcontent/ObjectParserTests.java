@@ -8,9 +8,7 @@
  */
 package org.elasticsearch.xcontent;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
@@ -231,10 +229,7 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareField((i, v, c) -> v.test = i.text(), new ParseField("test", "old_test"), ObjectParser.ValueType.STRING);
         objectParser.parse(parser, s, null);
         assertEquals("foo", s.test);
-        assertWarnings(
-            false,
-            new DeprecationWarning(Level.WARN, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead")
-        );
+        assertWarnings(false, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead");
     }
 
     public void testFailOnValueType() throws IOException {
@@ -1184,10 +1179,7 @@ public class ObjectParserTests extends ESTestCase {
             assertEquals(1, o.intField);
             assertWarnings(
                 false,
-                new DeprecationWarning(
-                    DeprecationLogger.CRITICAL,
-                    "[struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
-                )
+                "[struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
             );
 
         }

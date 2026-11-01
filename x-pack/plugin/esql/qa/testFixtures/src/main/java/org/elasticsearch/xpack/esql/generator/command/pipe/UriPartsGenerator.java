@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -71,7 +72,8 @@ public class UriPartsGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         String inputExpression = pickUriInput(previousOutput);
         if (inputExpression == null) {

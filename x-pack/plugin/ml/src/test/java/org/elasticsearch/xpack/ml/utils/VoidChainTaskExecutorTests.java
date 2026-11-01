@@ -25,14 +25,9 @@ public class VoidChainTaskExecutorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final CountDownLatch latch = new CountDownLatch(1);
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        try {
-            terminate(threadPool);
-        } finally {
-            super.tearDown();
-        }
+    public void terminateThreadPool() throws Exception {
+        terminate(threadPool);
     }
 
     public void testExecute() throws InterruptedException {

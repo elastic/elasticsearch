@@ -15,6 +15,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -25,16 +27,14 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
 
     private TestThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testIdempotencyIsEnforced() {

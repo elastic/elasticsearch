@@ -13,11 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -25,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
@@ -59,9 +63,31 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
-        String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+        String expectedStr = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, "
             + "maxConn=12, beamWidth=22, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+    }
+
+    @Override
+    public void testKnnBBQHNSWVectorsFormat() throws IOException {
+        KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("bbq_hnsw");
+        String expectedStr = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, "
+            + "maxConn=12, beamWidth=22, hnswGraphThreshold=300, flatVectorFormat=ES93BinaryQuantizedVectorsFormat";
+        assertThat(knnVectorsFormat, instanceOf(ES97GpuHnswBBQVectorsFormat.class));
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
+        if (randomBoolean()) {
+            // GPU int8_hnsw does not support max_inner_product
+            VectorSimilarity similarity = randomValueOtherThan(
+                VectorSimilarity.MAX_INNER_PRODUCT,
+                () -> randomFrom(VectorSimilarity.values())
+            );
+            b.field("index", true).field("similarity", similarity.toString());
+        }
     }
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {
@@ -77,10 +103,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 }

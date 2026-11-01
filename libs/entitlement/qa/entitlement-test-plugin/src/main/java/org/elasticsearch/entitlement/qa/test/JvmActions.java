@@ -13,6 +13,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledPlugin;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Locale;
@@ -22,6 +23,7 @@ import javax.xml.parsers.SAXParserFactory;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ES_MODULES_ONLY;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressForbidden(reason = "testing entitlements")
@@ -106,6 +108,21 @@ class JvmActions {
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void thread$$setDefaultUncaughtExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
+    }
+
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
+    static void defineClass() throws IllegalAccessException {
+        MethodHandles.lookup().defineClass(new byte[0]);
+    }
+
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
+    static void defineHiddenClass() throws IllegalAccessException {
+        MethodHandles.lookup().defineHiddenClass(new byte[0], false);
+    }
+
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
+    static void defineHiddenClassWithClassData() throws IllegalAccessException {
+        MethodHandles.lookup().defineHiddenClassWithClassData(new byte[0], "data", false);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)

@@ -1,0 +1,2 @@
+FROM employees
+| INLINE STATS cnt = COUNT(*) WHERE salary IN (TS k8s | KEEP network.eth0.tx)

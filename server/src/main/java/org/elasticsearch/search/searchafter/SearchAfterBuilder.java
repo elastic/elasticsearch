@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.searchafter;
 
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -117,7 +118,20 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] != null) {
                 fieldValues[i] = convertValueFromSortField(values[i], sortField, format);
             } else {
-                fieldValues[i] = null;
+                SortField.Type sortType = extractSortType(sortField);
+                if (sortType == SortField.Type.STRING || sortType == SortField.Type.STRING_VAL) {
+                    fieldValues[i] = null;
+                } else {
+                    throw new IllegalArgumentException(
+                        "[search_after] value at position "
+                            + i
+                            + " cannot be null for sort field ["
+                            + sortField.getField()
+                            + "] of type ["
+                            + sortType
+                            + "]."
+                    );
+                }
             }
         }
         /*
@@ -134,6 +148,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
         } else if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof BinarySortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();

@@ -16,9 +16,7 @@ base {
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+  implementation project(path: "bc", configuration: 'shadow')
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"
@@ -26,10 +24,10 @@ dependencies {
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
-}
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
+  testImplementation "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -39,7 +37,6 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named("test").configure {
   environment 'HOSTNAME', 'dummy.test.hostname' // some tests rely on this being set, which it always is for the code running in main
-  systemProperty 'tests.security.manager', 'false' // the main code under test runs without the SecurityManager
 }
 
 if (buildParams.inFipsJvm) {
@@ -52,9 +49,8 @@ if (buildParams.inFipsJvm) {
   // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
   // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
   tasks.withType(CheckForbiddenApisTask).configureEach {
-    modifyBundledSignatures { bundledSignatures ->
-      bundledSignatures -= "jdk-non-portable"
-      bundledSignatures
+    configureBundledSignaturesFromDefaults {
+      remove 'jdk-non-portable'
     }
   }
 }

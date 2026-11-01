@@ -56,12 +56,13 @@ public final class DfsSearchResult extends SearchPhaseResult {
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
-        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        readShardSearchRequest(in);
         knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
         searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             searchTimedOut = in.readBoolean();
         }
+        readDirectoryMetrics(in);
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -138,12 +139,13 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
-        out.writeOptionalWriteable(getShardSearchRequest());
+        writeShardSearchRequest(out);
         out.writeOptionalCollection(knnResults);
         out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             out.writeBoolean(searchTimedOut);
         }
+        writeDirectoryMetrics(out);
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

@@ -19,6 +19,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -27,6 +28,7 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -275,5 +277,32 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testTermClauseChargesPerClauseFloor() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long before = cb.getUsed();
+            new TermQueryBuilder(KEYWORD_FIELD_NAME, "value").toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            assertTrue("a term clause must contribute strictly positive bytes to the breaker", delta > 0);
+            assertEquals(
+                "term clauses must charge only the per-clause constant — no parameter-driven dynamic cost",
+                delta,
+                context.getQueryConstructionMemoryUsed()
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    public void testManyCheapClausesTripBreakerBeforeMaxClauseCap() {
+        assertCircuitBreakerTripsOnQueryConstruction("4kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 1000).forEach(i -> boolQuery.should(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value" + i)));
+            return boolQuery;
+        });
     }
 }

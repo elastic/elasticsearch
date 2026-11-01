@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.openshiftai.request.rarank;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModel;
 
 import java.net.URI;
@@ -40,7 +40,7 @@ public record OpenShiftAiRerankRequest(
     @Nullable Boolean returnDocuments,
     @Nullable Integer topN,
     OpenShiftAiRerankModel model
-) implements Request {
+) implements OutboundRerankRequest {
 
     public OpenShiftAiRerankRequest {
         Objects.requireNonNull(input);
@@ -50,15 +50,14 @@ public record OpenShiftAiRerankRequest(
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(getURI());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new OpenShiftAIRerankRequestEntity(model.getServiceSettings().modelId(), query, input, returnDocuments(), topN())
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
 
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
@@ -84,7 +83,7 @@ public record OpenShiftAiRerankRequest(
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Not applicable for rerank, only used in text embedding requests
         return this;
     }

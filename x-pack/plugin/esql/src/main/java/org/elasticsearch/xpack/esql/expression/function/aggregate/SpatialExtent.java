@@ -58,6 +58,7 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         returnType = { "geo_shape", "cartesian_shape" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Calculates the spatial extent bounding box over a field with geometry type.",
         description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
@@ -81,11 +82,6 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    public SpatialExtent withFilter(Expression filter) {
-        return new SpatialExtent(source(), field(), filter, window(), fieldExtractPreference);
     }
 
     @Override

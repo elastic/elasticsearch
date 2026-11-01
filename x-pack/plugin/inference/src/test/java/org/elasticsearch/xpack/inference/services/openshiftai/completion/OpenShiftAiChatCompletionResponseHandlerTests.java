@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openshiftai.completion;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
@@ -17,7 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -126,20 +125,17 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
         );
     }
 
-    private static Request mockRequest() throws URISyntaxException {
-        var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
-        when(request.isStreaming()).thenReturn(true);
-        when(request.getURI()).thenReturn(new URI(URL_VALUE));
-        return request;
+    private static OutboundRequest mockRequest() throws URISyntaxException {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+        when(outboundRequest.isStreaming()).thenReturn(true);
+        when(outboundRequest.getURI()).thenReturn(new URI(URL_VALUE));
+        return outboundRequest;
     }
 
     private static HttpResponse mockErrorResponse(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(statusCode);
 
         return response;
     }

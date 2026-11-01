@@ -27,11 +27,9 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -43,12 +41,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public abstract class BaseHnswVectorsFormatTestCase extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
@@ -64,13 +57,10 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
     private KnnVectorsFormat format;
 
     @Override
-    public void setUp() throws Exception {
-        format = createFormat();
-        super.setUp();
-    }
-
-    @Override
-    protected Codec getCodec() {
+    protected final Codec getCodec() {
+        if (format == null) {
+            format = createFormat();
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -89,7 +79,12 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
             try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
                 Document doc = new Document();
-                if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                // DOT_PRODUCT and COSINE scorers clamp the quantized score to [-1, 1] before normalization (following apache/lucene#15411),
+                // VectorSimilarityFunction.{DOT_PRODUCT,COSINE}.compare() performs no such clamp, so for unnormalized inputs with |dot| > 1
+                // the
+                // scorer's output and the reference compare() diverge.
+                // To avoid that, use l2-normalized inputs.
+                if (similarityFunction == VectorSimilarityFunction.COSINE || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
                     VectorUtil.l2normalize(vector);
                 }
                 doc.add(new KnnFloatVectorField("f", vector, similarityFunction));
@@ -104,7 +99,8 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
                         assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
                     float[] randomVector = randomVector(vector.length);
-                    if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                    if (similarityFunction == VectorSimilarityFunction.COSINE
+                        || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
                         VectorUtil.l2normalize(randomVector);
                     }
                     float trueScore = similarityFunction.compare(vector, randomVector);

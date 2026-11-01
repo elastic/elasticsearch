@@ -31,14 +31,15 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
-import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -149,15 +150,32 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider() {
-        return context -> {
-            var docValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
-            return docId -> {
-                if (docValues != null && docValues.advanceExact(docId)) {
-                    return List.of(docValues.binaryValue().utf8ToString());
+        return context -> new CheckedIntFunction<>() {
+            boolean initialized;
+            BinaryDocValues binaryDocValues;
+
+            @Override
+            public List<Object> apply(int docId) throws IOException {
+                if (initialized == false) {
+                    binaryDocValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
+                    initialized = true;
+                }
+                if (binaryDocValues != null && binaryDocValues.advanceExact(docId)) {
+                    return List.of(binaryDocValues.binaryValue().utf8ToString());
                 }
                 return List.of();
-            };
+            }
         };
+    }
+
+    /**
+     * Every positional query this field answers reads its values, which carry the positions, so a query built for it
+     * may ask about them. The values come from this field's own doc values rather than from {@code _source}, so they
+     * are readable whatever the source is mapped as.
+     */
+    @Override
+    public boolean answersPositionsFromValues(SearchExecutionContext context) {
+        return true;
     }
 
     private Query maybeSourceConfirmQuery(Query query, SearchExecutionContext context) {
@@ -165,12 +183,12 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         if (hasPositions) {
             return new ConstantScoreQuery(query);
         } else {
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
         }
     }
 
     private IntervalsSource toIntervalsSource(IntervalsSource source, Query approximation, SearchExecutionContext searchExecutionContext) {
-        return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
+        return new ReanalyzingIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
     }
 
     @Override
@@ -222,13 +240,15 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean transpositions,
         SearchExecutionContext context
     ) {
-        FuzzyQuery fuzzyQuery = new FuzzyQuery(
+        FuzzyQuery fuzzyQuery = FuzzyQueries.create(
             new Term(name(), term),
             maxDistance,
             prefixLength,
             IndexSearcher.getMaxClauseCount(),
             transpositions,
-            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+            context,
+            name()
         );
         IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
         return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);

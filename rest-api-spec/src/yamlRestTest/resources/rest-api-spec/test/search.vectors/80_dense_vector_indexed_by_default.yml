@@ -1,8 +1,3 @@
-setup:
-  - requires:
-      cluster_features: "gte_v8.11.0"
-      reason: 'dense_vector indexed by default was added in 8.11'
-
 ---
 "Indexed by default with cosine similarity":
   - do:
@@ -122,39 +117,7 @@ setup:
                   m: 32
                   ef_construction: 200
 ---
-"Default index options for dense_vector":
-  - requires:
-      cluster_features: "gte_v8.14.0"
-      reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
-  - skip:
-      cluster_features: "search.default_disk_bbq"
-      reason: 'dense_vector indexed as bbq_disk but only when under license'
-  - do:
-      indices.create:
-        index: test_default_index_options
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 5
-
-  - match: { acknowledged: true }
-
-  - do:
-      indices.get_mapping:
-        index: test_default_index_options
-
-  - match: { test_default_index_options.mappings.properties.vector.type: dense_vector }
-  - match: { test_default_index_options.mappings.properties.vector.dims: 5 }
-  - match: { test_default_index_options.mappings.properties.vector.index: true }
-  - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
-  - match: { test_default_index_options.mappings.properties.vector.index_options.type: int8_hnsw }
----
 "Default index options for dense_vector element type byte":
-  - requires:
-      cluster_features: "gte_v8.14.0"
-      reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
   - do:
       indices.create:
         index: test_default_index_options

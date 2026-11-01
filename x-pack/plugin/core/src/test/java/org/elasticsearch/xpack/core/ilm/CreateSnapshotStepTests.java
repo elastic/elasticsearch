@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,12 +20,17 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -135,6 +141,90 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
     }
 
+    public void testFailedSnapshotMovesToIncompleteStep() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        String snapshotName = indexName + "-" + policyName;
+        String repository = "repository";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(
+                LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                Map.of("snapshot_name", snapshotName, "snapshot_repository", repository)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+        try (var threadPool = createThreadPool()) {
+            NoOpClient client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertThat(action, is(TransportCreateSnapshotAction.TYPE));
+                    assertTrue(request instanceof CreateSnapshotRequest);
+                    listener.onResponse(
+                        (Response) new CreateSnapshotResponse(snapshotInfo(SnapshotState.FAILED, List.of(indexName), 1, 0))
+                    );
+                }
+            };
+            StepKey nextKeyOnComplete = randomStepKey();
+            StepKey nextKeyOnIncomplete = randomStepKey();
+            CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client);
+
+            step.performAction(indexMetadata, state, null, ActionListener.noop());
+
+            assertThat(step.getNextStepKey(), is(nextKeyOnIncomplete));
+        }
+    }
+
+    public void testEmptySnapshotMovesToIncompleteStep() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        String snapshotName = indexName + "-" + policyName;
+        String repository = "repository";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(
+                LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                Map.of("snapshot_name", snapshotName, "snapshot_repository", repository)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+        try (var threadPool = createThreadPool()) {
+            NoOpClient client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertThat(action, is(TransportCreateSnapshotAction.TYPE));
+                    assertTrue(request instanceof CreateSnapshotRequest);
+                    listener.onResponse(
+                        (Response) new CreateSnapshotResponse(snapshotInfo(SnapshotState.SUCCESS, List.of(indexName), 0, 0))
+                    );
+                }
+            };
+            StepKey nextKeyOnComplete = randomStepKey();
+            StepKey nextKeyOnIncomplete = randomStepKey();
+            CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client);
+
+            step.performAction(indexMetadata, state, null, ActionListener.noop());
+
+            assertThat(step.getNextStepKey(), is(nextKeyOnIncomplete));
+        }
+    }
+
     public void testNextStepKey() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
@@ -211,6 +301,55 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
     }
 
+    public void testSnapshotCompletedSuccessfullyRequiresCompleteTargetSnapshot() {
+        String indexName = randomAlphaOfLength(10);
+
+        assertThat(
+            CreateSnapshotStep.snapshotCompletedSuccessfully(snapshotInfo(SnapshotState.SUCCESS, List.of(indexName), 0, 1), indexName),
+            is(true)
+        );
+        assertThat(
+            CreateSnapshotStep.snapshotCompletedSuccessfully(snapshotInfo(SnapshotState.FAILED, List.of(indexName), 0, 1), indexName),
+            is(false)
+        );
+        assertThat(
+            CreateSnapshotStep.snapshotCompletedSuccessfully(snapshotInfo(SnapshotState.SUCCESS, List.of(), 0, 1), indexName),
+            is(false)
+        );
+        assertThat(
+            CreateSnapshotStep.snapshotCompletedSuccessfully(snapshotInfo(SnapshotState.SUCCESS, List.of(indexName), 0, 0), indexName),
+            is(false)
+        );
+        assertThat(
+            CreateSnapshotStep.snapshotCompletedSuccessfully(snapshotInfo(SnapshotState.SUCCESS, List.of(indexName), 1, 0), indexName),
+            is(false)
+        );
+    }
+
+    private SnapshotInfo snapshotInfo(SnapshotState state, List<String> indices, int failedShards, int successfulShards) {
+        return new SnapshotInfo(
+            new Snapshot(
+                randomProjectIdOrDefault(),
+                randomAlphaOfLength(10),
+                new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))
+            ),
+            indices,
+            List.of(),
+            List.of(),
+            state == SnapshotState.FAILED ? "simulated failure" : null,
+            IndexVersion.current(),
+            0L,
+            0L,
+            successfulShards + failedShards,
+            successfulShards,
+            List.of(),
+            false,
+            null,
+            state,
+            Map.of()
+        );
+    }
+
     private NoOpClient getCreateSnapshotRequestAssertingClient(
         ThreadPool threadPool,
         String expectedRepoName,
@@ -241,6 +380,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                     createSnapshotRequest.includeGlobalState(),
                     is(false)
                 );
+                assertThat("ILM generated snapshots should use partial snapshots", createSnapshotRequest.partial(), is(true));
             }
         };
     }

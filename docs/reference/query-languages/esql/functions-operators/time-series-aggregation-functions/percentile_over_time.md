@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `PERCENTILE_OVER_TIME` function [esql-percentile_over_time]
 
-:::{include} ../../_snippets/functions/layout/percentile_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/percentile_over_time.md
 :::

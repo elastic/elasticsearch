@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157920
+summary: Cap Parquet prefetch by queued bytes
+type: enhancement

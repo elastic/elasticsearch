@@ -31,7 +31,7 @@ public class FunctionDefinition {
     /**
      * Create a builder for a {@link FunctionDefinition}.
      */
-    public static <T extends Function> FunctionDefinition.Builder<T> def(Class<T> function) {
+    public static <T extends Function> Builder<T> def(Class<T> function) {
         return new Builder<>(function);
     }
 
@@ -41,6 +41,7 @@ public class FunctionDefinition {
     private final BiConsumer<Source, List<Expression>> validate;
     private final FunctionBuilder builder;
     private final List<String> subCapabilities;
+    private final List<String> snapshotSubCapabilities;
 
     private FunctionDefinition(
         String name,
@@ -48,7 +49,8 @@ public class FunctionDefinition {
         Class<? extends Function> clazz,
         BiConsumer<Source, List<Expression>> validate,
         FunctionBuilder builder,
-        List<String> subCapabilities
+        List<String> subCapabilities,
+        List<String> snapshotSubCapabilities
     ) {
         this.name = name;
         this.aliases = aliases;
@@ -56,6 +58,7 @@ public class FunctionDefinition {
         this.validate = validate;
         this.builder = builder;
         this.subCapabilities = subCapabilities;
+        this.snapshotSubCapabilities = snapshotSubCapabilities;
     }
 
     public String name() {
@@ -86,6 +89,10 @@ public class FunctionDefinition {
         return subCapabilities;
     }
 
+    public List<String> snapshotCapabilities() {
+        return snapshotSubCapabilities;
+    }
+
     @Override
     public String toString() {
         return format(null, "{}({})", name, aliases.isEmpty() ? "" : aliases.size() == 1 ? aliases.get(0) : aliases);
@@ -99,6 +106,7 @@ public class FunctionDefinition {
         private BiConsumer<Source, List<Expression>> validate;
         private FunctionDefinition.FunctionBuilder builder;
         private List<String> capabilities = List.of();
+        private List<String> snapshotCapabilities = List.of();
 
         Builder(Class<T> function) {
             this.function = function;
@@ -106,13 +114,19 @@ public class FunctionDefinition {
 
         /**
          * Adds capabilities to mark changes or fixes to the function. Use it like:
-         * {@snippet :
+         * {@snippet lang="java" :
          * public static final FunctionDefinition DEFINITION = FunctionDefinition.def(IpPrefix.class)
          *     .ternary(IpPrefix::new)
          *     // Fix a bug leading to the scratch leaking data to other rows.
          *     .capabilities("fix_dirty_scratch_leak")
          *     .name("ip_prefix");
          * }
+         * to make a capability that looks like {@code fn_ip_prefix_fix_dirty_scratch_leak}.
+         *
+         * <p>Use this when the capability is specific to one function or a small number of
+         * functions. If the capability applies across ES|QL generally, or touches many functions
+         * at once, add it to {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap}
+         * instead.
          */
         public Builder<T> capabilities(String... capabilities) {
             this.capabilities = List.of(capabilities);
@@ -120,10 +134,21 @@ public class FunctionDefinition {
         }
 
         /**
+         * Like {@link #capabilities}, but the resulting capability is only enabled in snapshot builds, even when
+         * the function itself is released. Use it for function features that are still under development: gate the
+         * new behavior on {@link org.elasticsearch.Build#isSnapshot()} and gate its tests on the capability. When
+         * the feature is released, move the name to {@link #capabilities} and remove the behavior gate.
+         */
+        public Builder<T> snapshotCapabilities(String... capabilities) {
+            this.snapshotCapabilities = List.of(capabilities);
+            return this;
+        }
+
+        /**
          * Build the {@link FunctionDefinition} with the given primary name and optional aliases.
          */
         public FunctionDefinition name(String name, String... aliases) {
-            return new FunctionDefinition(name, List.of(aliases), function, validate, builder, capabilities);
+            return new FunctionDefinition(name, List.of(aliases), function, validate, builder, capabilities, snapshotCapabilities);
         }
 
         /**
@@ -279,13 +304,29 @@ public class FunctionDefinition {
         /**
          * Build a {@linkplain FunctionDefinition} for a quinary function.
          */
-        public Builder<T> quinary(FunctionDefinition.QuinaryBuilder<T> ctorRef, int numOptionalParams) {
+        public Builder<T> quinary(FunctionDefinition.QuinaryBuilder<T> ctorRef) {
             if (TimestampAware.class.isAssignableFrom(function)) {
-                validate = FunctionArgumentValidation.quinaryTs(function, numOptionalParams);
+                validate = FunctionArgumentValidation.quaternary(function);
                 builder = FunctionCtors.quinaryTs(ctorRef);
             } else {
-                validate = FunctionArgumentValidation.quinary(function, numOptionalParams);
+                validate = FunctionArgumentValidation.quinary(function);
                 builder = FunctionCtors.quinary(ctorRef);
+            }
+            return this;
+        }
+
+        /**
+         * Build a {@linkplain FunctionDefinition} for a quinary function that needs {@link Configuration},
+         * and accepts four (potentially optional) positional arguments plus an optional trailing options map
+         * (a {@link org.elasticsearch.xpack.esql.core.expression.MapExpression}).
+         */
+        public Builder<T> quinaryConfigWithOptions(FunctionDefinition.QuinaryConfigurationAwareBuilder<T> ctorRef) {
+            if (TimestampAware.class.isAssignableFrom(function)) {
+                validate = FunctionArgumentValidation.quaternary(function);
+                builder = FunctionCtors.quinaryTsConfigWithOptions(ctorRef);
+            } else {
+                validate = FunctionArgumentValidation.quinary(function);
+                builder = FunctionCtors.quinaryConfigWithOptions(ctorRef);
             }
             return this;
         }
@@ -346,6 +387,10 @@ public class FunctionDefinition {
 
     public interface QuinaryBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three, Expression four, Expression five);
+    }
+
+    public interface QuinaryConfigurationAwareBuilder<T> {
+        T build(Source source, Expression e1, Expression e2, Expression e3, Expression e4, Expression e5, Configuration configuration);
     }
 
     public interface NaryBuilder<T> {

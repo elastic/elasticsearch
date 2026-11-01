@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
-  - 142499
-pr: 143954
-summary: "ESQL: Preserve type conflict error metadata for subqueries"
-type: bug

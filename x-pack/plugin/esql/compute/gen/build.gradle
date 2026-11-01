@@ -4,6 +4,7 @@ dependencies {
   api project(':x-pack:plugin:esql:compute:ann')
   implementation project(':libs:core')
   api 'com.squareup:javapoet:1.13.0'
+  testImplementation(project(':test:framework'))
 }
 
 tasks.named('forbiddenApisMain').configure {

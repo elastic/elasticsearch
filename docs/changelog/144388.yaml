@@ -1,6 +1,0 @@
-area: Machine Learning
-issues:
- - 142858
-pr: 144388
-summary: Handle null columns in ES|QL CHANGE_POINT
-type: bug

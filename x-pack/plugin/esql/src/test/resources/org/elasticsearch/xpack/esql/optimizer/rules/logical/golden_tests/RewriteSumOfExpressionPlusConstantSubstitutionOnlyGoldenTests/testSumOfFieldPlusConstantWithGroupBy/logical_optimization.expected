@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[s1{r}#0, s2{r}#1, languages{f}#2]]
+  \_Eval[[$$emp_no$MVSINGLEVALUEORNULL$SUM$0{r$}#3 + 1[INTEGER] * $$emp_no$MVSINGLEVALUEORNULL$COUNT$1{r$}#4 AS s1#0, $$emp_no$MVSINGLEVALUEORNULL$SUM$0{r$}#3 + 2[INTEGER] * $$emp_no$MVSINGLEVALUEORNULL$COUNT$1{r$}#4 AS s2#1]]
+    \_Aggregate[[languages{f}#2],[SUM($$emp_no$MVSINGLEVALUEORNULL$2{r$}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$emp_no$MVSINGLEVALUEORNULL$SUM$0#3, COUNT($$emp_no$MVSINGLEVALUEORNULL$2{r$}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$emp_no$MVSINGLEVALUEORNULL$COUNT$1#4, languages{f}#2]]
+      \_Eval[[MVSINGLEVALUEORNULL(emp_no{f}#6) AS $$emp_no$MVSINGLEVALUEORNULL$2#5]]
+        \_EsRelation[employees][avg_worked_seconds{f}#7, birth_date{f}#8, emp_no{f}#6, first_name{f}#9, gender{f}#10, height{f}#11, height.float{f}#12, height.half_float{f}#13, height.scaled_float{f}#14, hire_date{f}#15, is_rehired{f}#16, job_positions{f}#17, languages{f}#2, languages.byte{f}#18, languages.long{f}#19, languages.short{f}#20, last_name{f}#21, salary{f}#22, salary_change{f}#23, salary_change.int{f}#24, salary_change.keyword{f}#25, salary_change.long{f}#26, still_hired{f}#27]

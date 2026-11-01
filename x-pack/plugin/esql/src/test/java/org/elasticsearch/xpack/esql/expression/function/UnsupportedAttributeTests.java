@@ -12,7 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
+
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomUnsupportedEsField;
 
 public class UnsupportedAttributeTests extends AbstractNamedExpressionSerializationTests<UnsupportedAttribute> {
     @Override
@@ -23,7 +24,7 @@ public class UnsupportedAttributeTests extends AbstractNamedExpressionSerializat
     public static UnsupportedAttribute randomUnsupportedAttribute() {
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
-        UnsupportedEsField field = UnsupportedEsFieldTests.randomUnsupportedEsField(4);
+        UnsupportedEsField field = randomUnsupportedEsField(4);
         String customMessage = randomBoolean() ? null : randomAlphaOfLength(9);
         NameId id = new NameId();
         return new UnsupportedAttribute(Source.EMPTY, qualifier, name, field, customMessage, id);
@@ -40,7 +41,7 @@ public class UnsupportedAttributeTests extends AbstractNamedExpressionSerializat
         switch (between(0, 4)) {
             case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
-            case 2 -> field = randomValueOtherThan(field, () -> UnsupportedEsFieldTests.randomUnsupportedEsField(4));
+            case 2 -> field = randomValueOtherThan(field, () -> randomUnsupportedEsField(4));
             case 3 -> customMessage = randomValueOtherThan(customMessage, () -> randomBoolean() ? null : randomAlphaOfLength(9));
             case 4 -> id = new NameId();
         }

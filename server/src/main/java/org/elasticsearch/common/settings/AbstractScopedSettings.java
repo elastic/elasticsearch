@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -196,6 +197,21 @@ public abstract class AbstractScopedSettings {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
+    }
+
+    /**
+     * Similar to {@link #addSettingsUpdateConsumer(Setting, Consumer)} but returns a {@link Releasable} that can be used
+     * to remove the updater registered for the consumer.
+     * NOTE: {@link #settingUpdaters} is a copy-on-write list so that it expects more traversals than modifications.
+     * So this method should be only used when the removal does not happen frequently.
+     */
+    public synchronized <T> Releasable addRemovableSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
+        if (setting != get(setting.getKey())) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        final var updater = setting.newUpdater(consumer, logger, s -> {});
+        addSettingsUpdater(updater);
+        return () -> this.settingUpdaters.remove(updater);
     }
 
     /**
@@ -458,6 +474,21 @@ public abstract class AbstractScopedSettings {
 
         consumer.accept(setting.get(settingsWithValue));
         addSettingsUpdateConsumer(setting, consumer);
+    }
+
+    /**
+     * If setting exists (is registered in {@link org.elasticsearch.cluster.ClusterModule}) and is dynamic, this call
+     * is equivalent to {@link #initializeAndWatch(Setting, Consumer)}.
+     * Otherwise, evaluate the setting value against {@link #settings the Settings instance owned by this class} and
+     * pass it to the consumer. In this case, setting will not be dynamically updated.
+     * Useful for dynamic settings that are registered in some tests but not yet in production.
+     */
+    public synchronized <T> void initializeAndWatchIfRegistered(Setting<T> setting, Consumer<T> consumer) {
+        if (isDynamicSetting(setting.getKey())) {
+            initializeAndWatch(setting, consumer);
+        } else {
+            consumer.accept(setting.get(settings));
+        }
     }
 
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}

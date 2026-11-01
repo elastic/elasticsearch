@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 
 /**
  * This class is {@code public} for testing.
@@ -17,13 +18,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
  * @param dataNodePlan The plan to be executed on the data driver. This may contain a
  * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}.
  */
-public record ReductionPlan(
-    ExchangeSinkExec nodeReducePlan,
-    ExchangeSinkExec dataNodePlan,
-    // TODO This should always be DISABLED; see https://github.com/elastic/elasticsearch/issues/142392.
-    LocalPhysicalOptimization localPhysicalOptimization
-) {
-    public ReductionPlan withoutLocalPhysicalOptimization() {
-        return new ReductionPlan(nodeReducePlan, dataNodePlan, LocalPhysicalOptimization.DISABLED);
+public record ReductionPlan(ExchangeSinkExec nodeReducePlan, ExchangeSinkExec dataNodePlan) {
+
+    public boolean isPassThrough() {
+        return nodeReducePlan.child() instanceof ExchangeSourceExec;
     }
 }

@@ -147,8 +147,8 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [dense_vector_agg_metric_double_if_version, date_range_field_type, histogram_release_version]
-      reason: "fetches dense_vector, histogram field support, date_range field type"
+          capabilities: [dense_vector_agg_metric_double_if_version, date_range_field_type_v3, histogram_release_version, double_range_tech_preview]
+      reason: "fetches dense_vector, histogram field support, date_range and double_range field types"
 
   - do:
       allowed_warnings_regex:
@@ -174,7 +174,7 @@ unsupported:
   - match: { columns.5.name: dense_vector }
   - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
-  - match: { columns.6.type: unsupported }
+  - match: { columns.6.type: double_range }
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
@@ -225,11 +225,13 @@ unsupported:
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
-  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:00.999Z" }
+  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:01.000Z" }
   - match: { values.0.5.0: 0.5 }
   - match: { values.0.5.1: 10.0 }
   - match: { values.0.5.2: 6.0 }
-  - match: { values.0.6: null }
+  # double_range is indexed with an inclusive upper bound (lte: 2.0); ES|QL loads ranges as
+  # half-open [from, to), so the upper bound is bumped to the next representable double.
+  - match: { values.0.6: "1.0..2.0000000000000004" }
   - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }
   - match: { values.0.9: "POINT (10.0 12.0)" }
@@ -275,7 +277,7 @@ unsupported:
   - match: { columns.5.name: dense_vector }
   - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
-  - match: { columns.6.type: unsupported }
+  - match: { columns.6.type: double_range }
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
@@ -344,8 +346,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ dense_vector_agg_metric_double_if_version, date_range_field_type, histogram_release_version]
-      reason: "support for sorting when dense_vector_field_type present, histogram field support, date_range field type"
+          capabilities: [ dense_vector_agg_metric_double_if_version, date_range_field_type_v3, histogram_release_version, double_range_tech_preview]
+      reason: "support for sorting when dense_vector_field_type present, histogram field support, date_range and double_range field types"
 
   - do:
       allowed_warnings_regex:
@@ -368,7 +370,7 @@ unsupported with sort:
   - match: { columns.5.name: dense_vector }
   - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
-  - match: { columns.6.type: unsupported }
+  - match: { columns.6.type: double_range }
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
@@ -419,11 +421,13 @@ unsupported with sort:
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
-  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:00.999Z" }
+  - match: { values.0.4: "2015-10-31T12:00:00.000Z..2050-12-31T12:00:01.000Z" }
   - match: { values.0.5.0: 0.5 }
   - match: { values.0.5.1: 10.0 }
   - match: { values.0.5.2: 6.0 }
-  - match: { values.0.6: null }
+  # double_range is indexed with an inclusive upper bound (lte: 2.0); ES|QL loads ranges as
+  # half-open [from, to), so the upper bound is bumped to the next representable double.
+  - match: { values.0.6: "1.0..2.0000000000000004" }
   - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }
   - match: { values.0.9: "POINT (10.0 12.0)" }

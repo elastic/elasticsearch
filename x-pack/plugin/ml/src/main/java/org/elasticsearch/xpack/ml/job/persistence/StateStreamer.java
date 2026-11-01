@@ -61,7 +61,7 @@ public class StateStreamer {
      * @param restoreStream the stream to write the state to
      */
     public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
+        String[] stateIndexPatterns = AnomalyDetectorsIndex.jobStateIndexPatterns();
 
         // First try to restore model state.
         for (String stateDocId : modelSnapshot.stateDocumentIds()) {
@@ -69,10 +69,10 @@ public class StateStreamer {
                 return;
             }
 
-            LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
+            LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, AnomalyDetectorsIndex.jobStateIndexPattern());
 
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-                SearchResponse stateResponse = client.prepareSearch(indexName)
+                SearchResponse stateResponse = client.prepareSearch(stateIndexPatterns)
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
                     .get();
@@ -105,10 +105,10 @@ public class StateStreamer {
 
             String docId = CategorizerState.documentId(jobId, ++docNum);
 
-            LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
+            LOGGER.trace("ES API CALL: get ID {} from index {}", docId, AnomalyDetectorsIndex.jobStateIndexPattern());
 
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-                SearchResponse stateResponse = client.prepareSearch(indexName)
+                SearchResponse stateResponse = client.prepareSearch(stateIndexPatterns)
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(docId))
                     .get();

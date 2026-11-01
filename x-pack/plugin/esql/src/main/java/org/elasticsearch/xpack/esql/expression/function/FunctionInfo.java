@@ -35,9 +35,26 @@ public @interface FunctionInfo {
     String[] returnType();
 
     /**
+     * Full type signatures (overloads) this function accepts.
+     * <p>
+     *     When non-empty, these are the source of truth for test coverage checks and
+     *     the Supported types / Kibana signature tables. When empty, signatures continue
+     *     to be derived from unit-test cases and validated against per-argument
+     *     {@link Param#type()} unions.
+     * </p>
+     */
+    Signature[] signatures() default {};
+
+    /**
      * Whether this function is a preview (Not ready for production environments) or not.
      */
     boolean preview() default false;
+
+    /**
+     * Whether this function is compatible with the {@code TS} command. By default,
+     * this is {@code true} and not rendered in the docs.
+     */
+    boolean tsdbCompatible() default true;
 
     /**
      * Whether this function applies to particular versions of Elasticsearch.
@@ -75,6 +92,11 @@ public @interface FunctionInfo {
      * Used to create logical nesting between related functions.
      */
     int depthOffset() default 0;
+
+    /**
+     * A verb-first one-liner (~20 words) that opens each function reference page and can be reused to compile list pages.
+     */
+    String briefSummary() default "";
 
     /**
      * The position the function can appear in the language.

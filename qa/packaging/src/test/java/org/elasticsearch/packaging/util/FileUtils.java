@@ -10,6 +10,7 @@
 package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
@@ -76,7 +77,7 @@ public class FileUtils {
 
     public static void rm(Path... paths) {
         if (Platforms.WINDOWS) {
-            rmWithRetries(paths);
+            runWithRetries(() -> IOUtils.rm(paths));
         } else {
             try {
                 IOUtils.rm(paths);
@@ -87,12 +88,12 @@ public class FileUtils {
     }
 
     // windows needs leniency due to asinine releasing of file locking async from a process exiting
-    private static void rmWithRetries(Path... paths) {
+    private static void runWithRetries(CheckedRunnable<IOException> runnable) {
         int tries = 10;
         IOException exception = null;
         while (tries-- > 0) {
             try {
-                IOUtils.rm(paths);
+                runnable.run();
                 return;
             } catch (IOException e) {
                 if (exception == null) {
@@ -136,6 +137,10 @@ public class FileUtils {
     }
 
     public static Path mv(Path source, Path target) {
+        if (Platforms.WINDOWS) {
+            runWithRetries(() -> Files.move(source, target));
+            return target;
+        }
         try {
             return Files.move(source, target);
         } catch (IOException e) {

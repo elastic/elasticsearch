@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -56,7 +57,12 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_doc/{id}"), new Route(PUT, "/{index}/_doc/{id}"));
+        return List.of(
+            new Route(POST, "/{index}/_doc/{id}"),
+            new Route(PUT, "/{index}/_doc/{id}"),
+            new Route(POST, "/{index}/{_slice}/_doc/{id}"),
+            new Route(PUT, "/{index}/{_slice}/_doc/{id}")
+        );
     }
 
     @Override
@@ -78,7 +84,12 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/_create/{id}"), new Route(PUT, "/{index}/_create/{id}"));
+            return List.of(
+                new Route(POST, "/{index}/_create/{id}"),
+                new Route(PUT, "/{index}/_create/{id}"),
+                new Route(POST, "/{index}/{_slice}/_create/{id}"),
+                new Route(PUT, "/{index}/{_slice}/_create/{id}")
+            );
         }
 
         @Override
@@ -109,7 +120,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/_doc"));
+            return List.of(new Route(POST, "/{index}/_doc"), new Route(POST, "/{index}/{_slice}/_doc"));
         }
 
         @Override
@@ -130,7 +141,9 @@ public class RestIndexAction extends BaseRestHandler {
 
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
-        indexRequest.routing(request.param("routing"));
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+        indexRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
+
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.indexSource().source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -18,6 +17,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -35,7 +35,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         super(
@@ -48,7 +47,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             inferenceStats,
             streamingTaskManager,
             InferenceAction.Request::new,
-            nodeClient,
             threadPool
         );
     }
@@ -68,18 +66,17 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         Model model,
         InferenceAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         service.infer(
             model,
-            request.getQuery(),
-            request.getReturnDocuments(),
-            request.getTopN(),
             request.getInput(),
             request.isStreaming(),
             request.getTaskSettings(),
             request.getInputType(),
             request.getInferenceTimeout(),
+            taskId,
             listener
         );
     }

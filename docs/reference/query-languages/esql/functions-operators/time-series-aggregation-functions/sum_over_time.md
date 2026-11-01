@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SUM_OVER_TIME` function [esql-sum_over_time]
 
-:::{include} ../../_snippets/functions/layout/sum_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sum_over_time.md
 :::

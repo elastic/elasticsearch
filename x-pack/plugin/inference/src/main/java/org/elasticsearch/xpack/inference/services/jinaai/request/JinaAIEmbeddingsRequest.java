@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 
@@ -24,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class JinaAIEmbeddingsRequest extends JinaAIRequest {
+import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIRequestUtils.decorateWithAuthHeader;
+
+public class JinaAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final List<InferenceStringGroup> input;
     private final InputType inputType;
@@ -38,12 +42,12 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(getURI());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, model)).getBytes(StandardCharsets.UTF_8)
+        httpPost.setBody(
+            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, model)).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
         decorateWithAuthHeader(httpPost, model.apiKey());
 
@@ -61,7 +65,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 
@@ -70,11 +74,12 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         return null;
     }
 
-    public JinaAIEmbeddingType getEmbeddingType() {
-        return model.getServiceSettings().getEmbeddingType();
-    }
-
+    @Override
     public TaskType getTaskType() {
         return model.getTaskType();
+    }
+
+    public JinaAIEmbeddingType getEmbeddingType() {
+        return model.getServiceSettings().getEmbeddingType();
     }
 }

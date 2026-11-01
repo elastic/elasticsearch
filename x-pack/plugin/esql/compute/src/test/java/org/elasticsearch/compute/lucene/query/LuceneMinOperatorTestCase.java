@@ -24,7 +24,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.SourceOperatorTestCase;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
+public abstract class LuceneMinOperatorTestCase extends LuceneMinMaxOperatorTestCase {
 
     protected interface NumberTypeTest {
 
@@ -125,7 +125,9 @@ public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
             between(1, 8),
             FIELD_NAME,
             getNumberType(),
-            limit
+            limit,
+            () -> 0L,
+            QueryWarnings.EMIT
         );
     }
 
@@ -172,6 +174,10 @@ public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
         DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
         NumberTypeTest numberTypeTest = getNumberTypeTest();
         LuceneMinFactory factory = simple(numberTypeTest, dataPartitioning, size, limit);
+        testMin(contexts, factory, numberTypeTest, size, limit);
+    }
+
+    private void testMin(Supplier<DriverContext> contexts, LuceneMinFactory factory, NumberTypeTest numberTypeTest, int size, int limit) {
         List<Page> results = new CopyOnWriteArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         int taskConcurrency = between(1, 8);
@@ -201,6 +207,51 @@ public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
                 Releasables.close(result);
             }
         }
+    }
+
+    /**
+     * Verifies that the DocValuesSkipper fast path fires for doc-values-only fields with MatchAllDocsQuery and
+     * no limit: {@code getSortedNumericDocValues} must never be called (no per-doc iteration).
+     * This test fails without the skipper fast path because the slow path would call it (which throws).
+     */
+    public void testSkipperFastPathNoDocByDocIteration() throws IOException {
+        int size = between(1_000, 20_000);
+        NumberTypeTest numberTypeTest = getNumberTypeTest();
+        LuceneMinFactory factory = simpleWithSkipperCheck(numberTypeTest, size);
+        testMin(this::driverContext, factory, numberTypeTest, size, Integer.MAX_VALUE);
+    }
+
+    private LuceneMinFactory simpleWithSkipperCheck(NumberTypeTest numberTypeTest, int numDocs) throws IOException {
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            int commitEvery = Math.max(1, numDocs / between(2, 5));
+            for (int d = 0; d < numDocs; d++) {
+                Document doc = new Document();
+                doc.add(numberTypeTest.newDocValuesField());
+                writer.addDocument(doc);
+                if (d % commitEvery == 0) {
+                    writer.commit();
+                }
+            }
+            reader = writer.getReader();
+        }
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(wrapWithNoDocValuesIteration(reader), 0);
+        return new LuceneMinFactory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
+            DataPartitioning.SHARD,
+            1,
+            FIELD_NAME,
+            getNumberType(),
+            Integer.MAX_VALUE,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
     }
 
     @Override

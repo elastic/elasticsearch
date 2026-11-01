@@ -67,6 +67,11 @@ public final class UInt16ArrowBufVector extends AbstractArrowBufVector<IntVector
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }

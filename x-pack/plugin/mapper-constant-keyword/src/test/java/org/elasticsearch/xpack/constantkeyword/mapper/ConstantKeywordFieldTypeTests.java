@@ -58,6 +58,22 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("B*r", null, true, null));
     }
 
+    public void testWildcardQueryWithQuestionMark() {
+        // gh-141785: ? should match exactly one character, not be treated as a literal.
+        ConstantKeywordFieldType foo = new ConstantKeywordFieldType("f", "foo");
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("f?o", null, false, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("F?o", null, true, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("???", null, false, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.wildcardQuery("f?o*", null, false, null));
+        // ? matches exactly one character, so "f?" against "foo" must not match.
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.wildcardQuery("f?", null, false, null));
+        // No match against the constant value.
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.wildcardQuery("b?r", null, false, null));
+
+        ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
+        assertEquals(Queries.NO_DOCS_INSTANCE, none.wildcardQuery("f?o", null, false, null));
+    }
+
     public void testNormalizedWildcardQuery() {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
         assertEquals(Queries.NO_DOCS_INSTANCE, none.normalizedWildcardQuery("f*", null, null));
@@ -136,6 +152,29 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
 
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNoFieldValue, -1, ignoredValues));
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNullFieldValue, -1, ignoredValues));
+    }
+
+    public void testApplyFieldVisibility() {
+        Map<String, String> meta = Map.of("key", "value");
+        var fieldType = new ConstantKeywordFieldType("field", "constant", meta);
+
+        // A visible field is unchanged.
+        assertSame(fieldType, fieldType.applyFieldVisibility(true));
+        assertEquals("constant", fieldType.value());
+
+        // A hidden field retains its mapping identity but loses the constant.
+        var hidden = (ConstantKeywordFieldType) fieldType.applyFieldVisibility(false);
+        assertNotSame(fieldType, hidden);
+        assertEquals("field", hidden.name());
+        assertEquals(meta, hidden.meta());
+        assertNull(hidden.value());
+
+        // Sanitizing the copy did not mutate the mapping's original field type.
+        assertEquals("constant", fieldType.value());
+
+        // Once value-less, applying visibility again cannot restore the value.
+        assertSame(hidden, hidden.applyFieldVisibility(false));
+        assertSame(hidden, hidden.applyFieldVisibility(true));
     }
 
     @Override

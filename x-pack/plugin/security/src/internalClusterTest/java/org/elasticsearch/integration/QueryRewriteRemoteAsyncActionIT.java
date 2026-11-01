@@ -140,9 +140,7 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusters() throws Exception {
         INSTRUMENTED_ACTION_CALL_MAP.clear();
         setupClusters();
     }

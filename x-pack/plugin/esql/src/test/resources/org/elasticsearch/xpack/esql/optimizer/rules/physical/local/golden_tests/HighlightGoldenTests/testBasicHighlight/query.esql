@@ -1,0 +1,2 @@
+FROM employees
+| HIGHLIGHT "elasticsearch" ON first_name

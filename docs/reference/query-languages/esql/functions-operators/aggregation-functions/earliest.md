@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `EARLIEST` function [esql-earliest]
 
-:::{include} ../../_snippets/functions/layout/earliest.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/earliest.md
 :::

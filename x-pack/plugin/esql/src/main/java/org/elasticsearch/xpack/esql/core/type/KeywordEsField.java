@@ -67,6 +67,20 @@ public class KeywordEsField extends EsField {
     }
 
     @Override
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        return new KeywordEsField(
+            getName(),
+            getDataType(),
+            newProperties,
+            isAggregatable(),
+            precision,
+            normalized,
+            isAlias(),
+            getTimeSeriesFieldType()
+        );
+    }
+
+    @Override
     public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));

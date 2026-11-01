@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
@@ -19,8 +22,8 @@ public final class AzureAiStudioProviderCapabilities {
         AzureAiStudioProvider.COHERE
     );
 
-    // these providers have chat completion inference (all providers at the moment)
-    public static final List<AzureAiStudioProvider> chatCompletionProviders = List.of(AzureAiStudioProvider.values());
+    // these providers have completion inference (all providers at the moment)
+    public static final List<AzureAiStudioProvider> completionProviders = List.of(AzureAiStudioProvider.values());
 
     // these providers have rerank inference
     public static final List<AzureAiStudioProvider> rerankProviders = List.of(AzureAiStudioProvider.COHERE);
@@ -52,10 +55,35 @@ public final class AzureAiStudioProviderCapabilities {
         AzureAiStudioProvider.DATABRICKS
     );
 
+    public static void checkProviderAndEndpointTypeForTask(
+        TaskType taskType,
+        AzureAiStudioProvider provider,
+        AzureAiStudioEndpointType endpointType
+    ) {
+        if (providerAllowsTaskType(provider, taskType) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The [%s] task type for provider [%s] is not available", taskType, provider),
+                RestStatus.BAD_REQUEST
+            );
+        }
+
+        if (providerAllowsEndpointTypeForTask(provider, taskType, endpointType) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "The [%s] endpoint type with [%s] task type for provider [%s] is not available",
+                    endpointType,
+                    taskType,
+                    provider
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
     public static boolean providerAllowsTaskType(AzureAiStudioProvider provider, TaskType taskType) {
         switch (taskType) {
             case COMPLETION -> {
-                return chatCompletionProviders.contains(provider);
+                return completionProviders.contains(provider);
             }
             case TEXT_EMBEDDING -> {
                 return embeddingProviders.contains(provider);

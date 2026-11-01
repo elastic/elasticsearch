@@ -93,6 +93,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
+    private final List<AddedTaskListener> addedTaskListeners = new CopyOnWriteArrayList<>();
+
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
@@ -173,6 +175,9 @@ public class TaskManager implements ClusterStateApplier {
             if (traceRequest) {
                 maybeStartTrace(threadContext, task);
             }
+        }
+        for (AddedTaskListener listener : addedTaskListeners) {
+            listener.onAdded(task);
         }
         return task;
     }
@@ -368,6 +373,14 @@ public class TaskManager implements ClusterStateApplier {
         removedTaskListeners.remove(removedTaskListener);
     }
 
+    public void registerAddedTaskListener(AddedTaskListener addedTaskListener) {
+        addedTaskListeners.add(addedTaskListener);
+    }
+
+    public void unregisterAddedTaskListener(AddedTaskListener addedTaskListener) {
+        addedTaskListeners.remove(addedTaskListener);
+    }
+
     /**
      * Register a connection on which a child task will execute on the target connection. The returned {@link Releasable} must be called
      * to unregister the child connection once the child task is completed or failed.
@@ -416,7 +429,7 @@ public class TaskManager implements ClusterStateApplier {
             listener.onFailure(ex);
             return;
         }
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onFailure(error);
@@ -450,7 +463,7 @@ public class TaskManager implements ClusterStateApplier {
             return;
         }
 
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onResponse(response);
@@ -462,6 +475,14 @@ public class TaskManager implements ClusterStateApplier {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void storeTaskResult(Task task, TaskResult taskResult, ActionListener<Void> listener) {
+        if (task.useCreateSemanticsForResultStorage()) {
+            taskResultsService.storeResultIfAbsent(taskResult, listener);
+        } else {
+            taskResultsService.storeResult(taskResult, listener);
+        }
     }
 
     /**
@@ -645,6 +666,10 @@ public class TaskManager implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
     private static class CancellableTaskHolder {

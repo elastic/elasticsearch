@@ -1,0 +1,5 @@
+# @script_aware on a non-augmentation method line: must fail to build because the
+# annotation requires the whitelist line to declare an augmentation class.
+class java.lang.String {
+  String toUpperCase() @script_aware
+}

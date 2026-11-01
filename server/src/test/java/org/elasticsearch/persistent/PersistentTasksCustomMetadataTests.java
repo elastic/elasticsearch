@@ -242,9 +242,9 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "datafeed awaiting job relocation.")
         );
 
-        // Unknown explanation defaults to UNEXPECTED_PRE_9_5
+        // Unknown explanation defaults to UNEXPECTED_PRE_9_7
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "some unknown reason")
         );
 
@@ -263,13 +263,13 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         for (PersistentTasksCustomMetadata.Assignment.Reason reason : PersistentTasksCustomMetadata.Assignment.Reason.values()) {
             assertEquals(reason, PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(reason.ordinal()));
         }
-        // Out of bounds returns UNEXPECTED_PRE_9_5
+        // Out of bounds returns UNEXPECTED_PRE_9_7
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
             PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(-1)
         );
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
             PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(PersistentTasksCustomMetadata.Assignment.Reason.values().length)
         );
     }
@@ -337,7 +337,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
         assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, copy.getAssignment().getReason());
 
-        // Unknown explanation: fromExplanation returns UNEXPECTED_PRE_9_5
+        // Unknown explanation: fromExplanation returns UNEXPECTED_PRE_9_7
         task = new PersistentTasksCustomMetadata.PersistentTask<>(
             "task-id",
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
@@ -345,12 +345,12 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             1L,
             new PersistentTasksCustomMetadata.Assignment(
                 null,
-                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
                 "some dynamic reason"
             )
         );
         copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
-        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5, copy.getAssignment().getReason());
+        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7, copy.getAssignment().getReason());
     }
 
     public void testAssignmentReasonXContentRoundTrip() throws Exception {
@@ -411,7 +411,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         });
         builder.endObject();
 
-        // Remove the reason field to simulate pre-9.5 XContent
+        // Remove the reason field to simulate pre-9.7 XContent
         String json = BytesReference.bytes(builder).utf8ToString();
         json = json.replace("\"reason\":\"TASK_CREATED\",", "");
 
@@ -434,7 +434,7 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             case AWAITING_LAZY_ASSIGNMENT -> "persistent task is awaiting node assignment.";
             case AWAITING_UPGRADE -> "persistent task cannot be assigned while upgrade mode is enabled.";
             case RESET_IN_PROGRESS -> "persistent task will not be assigned as a feature reset is in progress.";
-            case UNEXPECTED_PRE_9_5 -> "some unknown reason";
+            case UNEXPECTED_PRE_9_7 -> "some unknown reason";
         };
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -164,10 +165,10 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareCreate(".ml-state-000001").get();
         client().admin().indices().prepareClose(".ml-state-000001").setWaitForActiveShards(0).get();
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, () -> createJob(jobId));
-        assertThat(
-            ex.getMessage(),
-            containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-state*]")
-        );
+        assertThat(ex.getMessage(), containsString("Cannot create job [job-with-closed-results-index] as it requires closed index ["));
+        for (String stateIndexPattern : AnomalyDetectorsIndex.jobStateIndexPatterns()) {
+            assertThat(ex.getMessage(), containsString(stateIndexPattern));
+        }
         client().admin().indices().prepareDelete(".ml-state-000001").get();
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -321,7 +322,13 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
-        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
+        // A FunctionEsField is synthesized by the block loader and has no indexed Lucene field behind it, so it must not be pushed,
+        // even though it now reports itself as exact (see FunctionEsField).
+        return exp instanceof FieldAttribute fa
+            && fa.field() instanceof FunctionEsField == false
+            && DataType.isSpatial(fa.dataType())
+            && fa.getExactInfo().hasExact()
+            && p.isIndexed(fa);
     }
 
     private static boolean isPushableLiteralAttribute(Expression exp) {

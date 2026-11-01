@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,10 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -56,9 +59,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -95,6 +102,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(TestEncryptionServicePlugin.class);
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(MapperExtrasPlugin.class);
         plugins.add(LocalStateEnrich.class);
@@ -377,33 +385,139 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                 )
             );
 
-            // Verify the correct lookup operator is used: streaming in snapshot builds, non-streaming in release builds
-            assertNotNull("profile should be present", response.profile());
-            List<String> allOperators = response.profile()
+            // Verify the streaming lookup operator is used by default
+            assertLookupOperator(response, true);
+        }
+    }
+
+    /**
+     * Tests that disabling {@code esql.query.lookup_join_streaming} falls back to the non-streaming lookup operator.
+     */
+    public void testLookupJoinStreamingDisabled() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey(), false));
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertLookupOperator(response, false);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey()));
+        }
+    }
+
+    private static void assertLookupOperator(EsqlQueryResponse response, boolean expectStreaming) {
+        assertNotNull("profile should be present", response.profile());
+        List<String> allOperators = response.profile()
+            .drivers()
+            .stream()
+            .flatMap(d -> d.operators().stream())
+            .map(OperatorStatus::operator)
+            .toList();
+        boolean hasStreaming = allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"));
+        boolean hasNonStreaming = allOperators.stream()
+            .anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false);
+        if (expectStreaming) {
+            assertTrue("expected StreamingLookupOperator, got: " + allOperators, hasStreaming);
+            assertFalse("unexpected LookupOperator, got: " + allOperators, hasNonStreaming);
+        } else {
+            assertTrue("expected LookupOperator, got: " + allOperators, hasNonStreaming);
+            assertFalse("unexpected StreamingLookupOperator, got: " + allOperators, hasStreaming);
+        }
+    }
+
+    /**
+     * Verifies that LOOKUP JOIN attributes bytes pulled from the
+     * lookup-side Lucene store to the corresponding lookup operator status, and that
+     * those bytes are reflected in the top-level response {@code bytesRead}.
+     */
+    public void testBytesReadAccountedForLookupJoin() throws IOException {
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).profile(true))) {
+            // Top-level aggregate bytes read should be non-zero — combined data-shard and lookup-shard Lucene I/O.
+            assertThat(resp.bytesRead(), greaterThan(0L));
+
+            assertNotNull("profile should be present", resp.profile());
+            List<OperatorStatus> lookupOperatorStatuses = resp.profile()
                 .drivers()
                 .stream()
                 .flatMap(d -> d.operators().stream())
-                .map(OperatorStatus::operator)
+                .filter(
+                    op -> op.status() instanceof LookupFromIndexOperator.Status
+                        || op.status() instanceof StreamingLookupFromIndexOperator.StreamingLookupStatus
+                )
                 .toList();
-            if (Build.current().isSnapshot()) {
-                assertTrue(
-                    "expected StreamingLookupOperator in snapshot build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
-                );
-                assertFalse(
-                    "unexpected LookupOperator in snapshot build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
-                );
+            assertThat("expected at least one lookup operator in profile", lookupOperatorStatuses, not(Collections.emptyList()));
+
+            long lookupBytesRead = lookupOperatorStatuses.stream().mapToLong(OperatorStatus::bytesRead).sum();
+            assertThat("lookup operator(s) should attribute bytes read from the lookup index", lookupBytesRead, greaterThan(0L));
+            assertThat(resp.bytesRead(), greaterThanOrEqualTo(lookupBytesRead));
+        }
+    }
+
+    public void testLookupChainLongerThanTheRuleExecutionLimit() throws IOException {
+        assertLookupChain(110, false);
+    }
+
+    public void testLookupChainWithSortAndLimit() throws IOException {
+        assertLookupChain(99, true);
+    }
+
+    private void assertLookupChain(int blocks, boolean sortAndLimit) throws IOException {
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        StringBuilder chain = new StringBuilder("FROM ").append(EMPLOYEES_INDEX);
+        for (int i = 0; i < blocks; i++) {
+            chain.append(String.format(Locale.ROOT, """
+
+                | EVAL language_code = languages
+                | LOOKUP JOIN %s ON language_code
+                | RENAME language_name AS lang%d""", LANGUAGES_LOOKUP_INDEX, i));
+            if (sortAndLimit) {
+                chain.append("\n| SORT lang").append(i).append(", emp_no\n| LIMIT 1000");
             } else {
-                assertTrue(
-                    "expected LookupOperator in release build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
-                );
-                assertFalse(
-                    "unexpected StreamingLookupOperator in release build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
-                );
+                chain.append("\n| DROP language_code");
             }
+        }
+        String singleBlock = String.format(Locale.ROOT, """
+            FROM %s
+            | EVAL language_code = languages
+            | LOOKUP JOIN %s ON language_code
+            | RENAME language_name AS lang
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+        if (sortAndLimit) {
+            singleBlock += "\n| SORT lang, emp_no\n| LIMIT 1000";
+        }
+        String last = "lang" + (blocks - 1);
+
+        String stats = "\n| STATS c = COUNT(*) BY %s\n| SORT %s";
+        try (
+            EsqlQueryResponse expected = runQuery(singleBlock + String.format(Locale.ROOT, stats, "lang", "lang"));
+            EsqlQueryResponse actual = runQuery(chain + String.format(Locale.ROOT, stats, last, last))
+        ) {
+            assertThat(getValuesList(actual), equalTo(getValuesList(expected)));
+        }
+
+        String limit = "\n| KEEP emp_no, %s\n| SORT emp_no\n| LIMIT 20";
+        try (
+            EsqlQueryResponse expected = runQuery(singleBlock + String.format(Locale.ROOT, limit, "lang"));
+            EsqlQueryResponse actual = runQuery(chain + String.format(Locale.ROOT, limit, last))
+        ) {
+            assertThat(getValuesList(actual), equalTo(getValuesList(expected)));
         }
     }
 

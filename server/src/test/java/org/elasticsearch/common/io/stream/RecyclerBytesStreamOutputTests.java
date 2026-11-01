@@ -251,6 +251,60 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.close();
     }
 
+    /**
+     * Covers {@link RecyclerBytesStreamOutput#repeatLastBytes} across the page-boundary cases its self-copy has to
+     * handle: a block within one page, a block straddling pages, and a repeat that grows the stream over several pages.
+     */
+    public void testRepeatLastBytes() throws Exception {
+        final int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        for (int prefixLength : new int[] { 0, pageSize - 3 }) {
+            for (int blockLength : new int[] { 1, 8, pageSize + 5 }) {
+                for (int times : new int[] { 0, 1, 3, 17 }) {
+                    try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+                        byte[] prefix = randomizedByteArrayWithSize(prefixLength);
+                        byte[] block = randomizedByteArrayWithSize(blockLength);
+                        out.writeBytes(prefix);
+                        out.writeBytes(block);
+                        out.repeatLastBytes(blockLength, times);
+
+                        byte[] expected = new byte[prefixLength + blockLength * (times + 1)];
+                        System.arraycopy(prefix, 0, expected, 0, prefixLength);
+                        for (int i = 0; i <= times; i++) {
+                            System.arraycopy(block, 0, expected, prefixLength + i * blockLength, blockLength);
+                        }
+                        assertEquals(expected.length, out.size());
+                        assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testRepeatLastBytesOfNothingIsNoop() throws Exception {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(randomizedByteArrayWithSize(32));
+            out.repeatLastBytes(0, between(1, 10));
+            assertEquals(32, out.size());
+        }
+    }
+
+    public void testRepeatLastBytesRejectsBadArguments() throws Exception {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(randomizedByteArrayWithSize(32));
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.repeatLastBytes(-1, 1));
+            assertEquals("length must not be negative, got -1", e.getMessage());
+
+            e = expectThrows(IllegalArgumentException.class, () -> out.repeatLastBytes(1, -1));
+            assertEquals("additionalCopies must not be negative, got -1", e.getMessage());
+
+            e = expectThrows(IllegalArgumentException.class, () -> out.repeatLastBytes(33, 1));
+            assertEquals("cannot repeat the last 33 bytes, only 32 were written", e.getMessage());
+
+            assertEquals(32, out.size());
+        }
+    }
+
     public void testSeek() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 
@@ -739,6 +793,33 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             assertEquals(longPos, input.skip(longPos));
             assertEquals(longValue, input.readLong());
             assertEquals(byteValue, input.readByte());
+        }
+    }
+
+    public void testWriteIntsAndLongsLEAcrossPageBoundaries() throws IOException {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        for (int gap = 0; gap < Long.BYTES; gap++) {
+            int start = pageSize - gap;
+            int[] ints = randomInts(2 * pageSize / Integer.BYTES).toArray();
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+                out.writeBytes(new byte[start]);
+                out.writeIntsLE(ints, 0, ints.length);
+                assertEquals(start + 2L * pageSize, out.position());
+                BytesReference bytes = out.bytes();
+                for (int i = 0; i < ints.length; i++) {
+                    assertEquals("gap " + gap + ", int " + i, ints[i], bytes.getIntLE(start + i * Integer.BYTES));
+                }
+            }
+            long[] longs = randomLongs(2 * pageSize / Long.BYTES).toArray();
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+                out.writeBytes(new byte[start]);
+                out.writeLongsLE(longs, 0, longs.length);
+                assertEquals(start + 2L * pageSize, out.position());
+                BytesReference bytes = out.bytes();
+                for (int i = 0; i < longs.length; i++) {
+                    assertEquals("gap " + gap + ", long " + i, longs[i], bytes.getLongLE(start + i * Long.BYTES));
+                }
+            }
         }
     }
 
@@ -1558,7 +1639,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteAllBytesFrom() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         try (var out = new RecyclerBytesStreamOutput(recycler)) {
             writeAllBytesRandomSlices(out, bytes);
             assertThat(out.bytes(), equalBytes(bytes));
@@ -1566,9 +1647,9 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerTracking() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         final var expectedAllocation = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + between(0, 100)));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + getRandomLeeway()));
         try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             writeAllBytesRandomSlices(out, bytes);
             assertThat(out.bytes(), equalBytes(bytes));
@@ -1579,9 +1660,9 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerMoveToBytesReference() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         final var expectedTracked = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + between(0, 100)));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + getRandomLeeway()));
         final ReleasableBytesReference actualBytes;
         try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             writeAllBytesRandomSlices(out, bytes);
@@ -1597,7 +1678,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerTripping() {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         final var expectedTracked = getExpectedAllocation(bytes.length());
         final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(randomLongBetween(0L, expectedTracked - 1L)));
 
@@ -1610,7 +1691,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerReleaseOnRecyclerFailure() {
-        final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3 + 1, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3, PageCacheRecycler.BYTE_PAGE_SIZE * 4 - 1));
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 4L, getExpectedAllocation(bytes.length()));
         final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(PageCacheRecycler.BYTE_PAGE_SIZE * 4));
 
@@ -1653,8 +1734,25 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    /// @return a random [BytesReference], often with a size close to a multiple of the page size to better exercise corner cases.
+    private static BytesReference randomTestBytesReference() {
+        return randomBytesReference(
+            randomBoolean()
+                ? between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4)
+                : Math.max(0, between(0, 4) * PageCacheRecycler.BYTE_PAGE_SIZE + between(-2, 2))
+        );
+    }
+
+    /// @return the expected allocation size for a [RecyclerBytesStreamOutput] populated using [RecyclerBytesStreamOutput#writeAllBytesFrom]
+    /// with an [java.io.InputStream] of the given length. Always has at least one free byte, even if this means the last page is completely
+    /// empty, because we must allocate the page before performing the final [java.io.InputStream#read] which returns `-1`.
     private static long getExpectedAllocation(int length) {
-        final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE - 1) / PageCacheRecycler.BYTE_PAGE_SIZE);
+        final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE) / PageCacheRecycler.BYTE_PAGE_SIZE);
         return expectedPages * PageCacheRecycler.BYTE_PAGE_SIZE;
+    }
+
+    /// @return a random amount of additional leeway in a circuit breaker, often zero.
+    private static int getRandomLeeway() {
+        return randomBoolean() ? 0 : between(1, 100);
     }
 }

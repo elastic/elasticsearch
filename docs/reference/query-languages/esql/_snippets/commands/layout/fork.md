@@ -52,11 +52,44 @@ data type across all branches; missing columns are filled with `null` values.
 Row order is preserved within each branch, but rows from different branches may be
 interleaved. Use `SORT _fork` to group results by branch.
 
+## Comparing FORK with views and subqueries
+
+`FORK` is one of several ways to branch or combine data in ES|QL. For a detailed comparison with `FROM` subqueries and views, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
+
 ## Limitations
 
+:::::{applies-switch}
+
+::::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+- `FORK` supports at most 8 execution branches by default. The limit is the `esql.query.max_branch_count_per_merge` cluster setting.
+- Multiple user-written `FORK` commands can't occur along the same uninterrupted
+  pipeline. A query can contain multiple `FORK` commands when a view or
+  multi-source `FROM` combines branches between them, or when separate source
+  branches contain their own `FORK` commands.
+
+For example, consecutive `FORK` commands are not supported:
+
+```esql
+FROM employees
+| FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+| FORK (WHERE salary > 50000) (WHERE salary <= 50000)
+```
+
+The following query is supported because the multi-source `FROM` combines its
+branches before the final `FORK`:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/nested_subquery.csv-spec/forkInsideAndAfterMultiSourceFrom.md
+:::
+::::
+
+::::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
 - `FORK` supports at most 8 execution branches.
-- In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
+::::
+
+:::::
+
+- In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 
 ## Examples
 
@@ -67,7 +100,7 @@ The following examples show how to run parallel branches and combine their resul
 Each `FORK` branch returns one row. `FORK` adds a `_fork` column that indicates
 which branch each row came from:
 
-:::{include} ../examples/fork.csv-spec/simpleFork.md
+:::{include} ../../generated/x-pack-esql/commands/examples/fork.csv-spec/simpleFork.md
 :::
 
 ### Return row count alongside top results
@@ -75,5 +108,5 @@ which branch each row came from:
 Returns the total number of rows that match the query along with
 the top five rows sorted by score:
 
-:::{include} ../examples/fork.csv-spec/simpleForkWithStats.md
+:::{include} ../../generated/x-pack-esql/commands/examples/fork.csv-spec/simpleForkWithStats.md
 :::

@@ -28,7 +28,16 @@ public final class RandomShardRoutingMutator {
         switch (randomInt(2)) {
             case 0:
                 if (shardRouting.unassigned() == false && shardRouting.primary() == false) {
-                    shardRouting = shardRouting.moveToUnassigned(randomUnassignedInfo(randomAlphaOfLength(10), false));
+                    shardRouting = shardRouting.moveToUnassigned(
+                        randomUnassignedInfo(randomAlphaOfLength(10), false),
+                        randomFrom(
+                            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                        )
+                    );
                 } else if (shardRouting.unassignedInfo() != null) {
                     shardRouting = shardRouting.updateUnassigned(
                         randomUnassignedInfo(randomAlphaOfLength(10), false),

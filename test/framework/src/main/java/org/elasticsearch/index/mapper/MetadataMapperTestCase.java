@@ -41,6 +41,10 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract boolean isConfigurable();
 
+    protected String notConfigurableErrorMessage() {
+        return "Failed to parse mapping: " + fieldName() + " is not configurable";
+    }
+
     protected boolean isSupportedOn(IndexVersion version) {
         return true;
     }
@@ -255,7 +259,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
         );
-        assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
+        assertEquals(notConfigurableErrorMessage(), exception.getMessage());
     }
 
     public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {

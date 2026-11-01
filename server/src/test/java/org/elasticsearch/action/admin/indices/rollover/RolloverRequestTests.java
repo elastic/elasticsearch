@@ -40,10 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class RolloverRequestTests extends ESTestCase {
     private NamedWriteableRegistry writeableRegistry;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initWriteableRegistry() throws Exception {
         writeableRegistry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 

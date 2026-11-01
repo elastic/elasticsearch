@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.GeometricShapeSyntheticSourc
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS;
@@ -65,6 +66,12 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     @Override
     protected String getFieldName() {
         return "geo_shape";
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        // geo_shape parses GeoJSON objects, so the sample object must be a valid GeoJSON geometry.
+        return Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
     }
 
     @Override
@@ -210,6 +217,15 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     @Override
     protected boolean supportsIgnoreMalformed() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsColumnarIgnoreMalformed() {
+        // GeoShapeParser calls MalformedValueHandler#notify(Exception) without an XContentBuilder, so
+        // AbstractGeometryFieldMapper#onMalformedValue only records the field name in _ignored and nothing reaches
+        // the ._on_failure column. Capturing the raw value requires CopyingXContentParser plumbing analogous to
+        // GeoPointFieldMapper, which is out of scope for this PR.
+        return false;
     }
 
     @Override
@@ -402,7 +418,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             b.field("strategy", "recursive");
             b.field("tree", "geohash");
         }));
-        assertCriticalWarnings(
+        assertWarnings(
             "Parameter [strategy] is deprecated and will be removed in a future version",
             "Parameter [tree] is deprecated and will be removed in a future version"
         );

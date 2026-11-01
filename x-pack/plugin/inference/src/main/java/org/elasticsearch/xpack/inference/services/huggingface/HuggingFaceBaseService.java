@@ -11,16 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -30,9 +26,6 @@ import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFace
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public abstract class HuggingFaceBaseService extends SenderService<HuggingFaceModel> {
 
@@ -51,48 +44,6 @@ public abstract class HuggingFaceBaseService extends SenderService<HuggingFaceMo
     ) {
         super(factory, serviceComponents, clusterService, modelCreators);
     }
-
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            var model = createModel(
-                new HuggingFaceModelParameters(
-                    inferenceEntityId,
-                    taskType,
-                    serviceSettingsMap,
-                    taskSettingsMap,
-                    chunkingSettings,
-                    serviceSettingsMap,
-                    ConfigurationParseContext.REQUEST
-                )
-            );
-
-            throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
-            throwIfNotEmptyMap(taskSettingsMap, name());
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
-    protected abstract HuggingFaceModel createModel(HuggingFaceModelParameters input);
 
     @Override
     public void doInfer(

@@ -10,6 +10,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.minhash.MinHashFilter;
 import org.apache.lucene.analysis.minhash.MinHashFilterFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -25,11 +26,65 @@ import java.util.Map;
  */
 public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    /**
+     * Hard upper bounds for the {@code hash_count}, {@code bucket_count}, and {@code hash_set_size}
+     * parameters. No legitimate MinHash configuration needs values anywhere near these limits (typical
+     * values are in the single digits to low hundreds). The caps exist to prevent integer overflow in
+     * the product check below and to block resource-exhaustion attacks via the {@code _analyze} API.
+     */
+    static final int MAX_HASH_COUNT = 10_000;
+    static final int MAX_BUCKET_COUNT = 10_000;
+    static final int MAX_HASH_SET_SIZE = 10_000;
+
     private final MinHashFilterFactory minHashFilterFactory;
+    private final Object sharingKey;
 
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
+        int hashCount = settings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT);
+        int bucketCount = settings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT);
+        int hashSetSize = settings.getAsInt("hash_set_size", MinHashFilter.DEFAULT_HASH_SET_SIZE);
+        validateParamBound("hash_count", hashCount, MAX_HASH_COUNT, settings);
+        validateParamBound("bucket_count", bucketCount, MAX_BUCKET_COUNT, settings);
+        validateParamBound("hash_set_size", hashSetSize, MAX_HASH_SET_SIZE, settings);
+        // Only validate when the user explicitly configured parameters; eager instantiation with
+        // default settings (empty Settings) is skipped so that an unrelated low max_token_count
+        // on an index that doesn't use min_hash does not cause index creation to fail.
+        if (settings.hasValue("hash_count") || settings.hasValue("bucket_count") || settings.hasValue("hash_set_size")) {
+            long maxTokenCount = indexSettings.getMaxTokenCount();
+            long maxOutputTokens = (long) hashCount * bucketCount * hashSetSize;
+            if (maxOutputTokens > maxTokenCount) {
+                throw new IllegalArgumentException(
+                    "The product of hash_count ["
+                        + hashCount
+                        + "], bucket_count ["
+                        + bucketCount
+                        + "], and hash_set_size ["
+                        + hashSetSize
+                        + "] is ["
+                        + maxOutputTokens
+                        + "], which exceeds the maximum token count limit ["
+                        + maxTokenCount
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_TOKEN_COUNT_SETTING.getKey()
+                        + "] index level setting."
+                );
+            }
+        }
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
+        // MinHashFilterFactory hides its parsed settings, so derive them here the way it does: with_rotation
+        // is parsed leniently (anything but a case-insensitive "true" is false) and defaults to whether there
+        // is more than one bucket.
+        boolean withRotation = settings.hasValue("with_rotation")
+            ? "true".equalsIgnoreCase(settings.get("with_rotation"))
+            : bucketCount > 1;
+        this.sharingKey = new Key(hashCount, bucketCount, hashSetSize, withRotation);
+    }
+
+    private static void validateParamBound(String paramName, int value, int maxValue, Settings settings) {
+        if (settings.hasValue(paramName) && value > maxValue) {
+            throw new IllegalArgumentException("[" + paramName + "] must not exceed [" + maxValue + "] but was [" + value + "]");
+        }
     }
 
     @Override
@@ -53,4 +108,11 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         return settingMap;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int hashCount, int bucketCount, int hashSetSize, boolean withRotation) {}
 }

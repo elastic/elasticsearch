@@ -20,16 +20,26 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Sorts malformed values in the same order as the synthetic source loader, which stores them in binary doc values and sorts by encoded
- * BytesRef (type byte + value bytes). Uses {@link XContentDataHelper#encodeToken(XContentParser)} so the sort order always matches the
- * index.
+ * Sorts malformed values in the order emitted by the synthetic source loader when the index is <em>not</em> in a strict-columnar mode
+ * (i.e. {@code IndexMode.isStrictColumnar() == false}).
+ *
+ * <p>In non-strict-columnar indices, {@code ignore_malformed} values are written to the {@code ._ignore_malformed} sidecar column with
+ * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering#SORTED}, so the loader emits them sorted by
+ * their encoded {@link BytesRef} (type byte + value bytes). This class reproduces that sort order in test expectations using
+ * {@link XContentDataHelper#encodeToken(XContentParser)} so the encoding is identical to the index.
+ *
+ * <p>In strict-columnar indices ({@code IndexMode.COLUMNAR}, {@code IndexMode.LOGSDB_COLUMNAR}), malformed values are instead written to
+ * the {@code ._on_failure} sidecar column with
+ * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering#UNSORTED}, so the loader emits them in document
+ * encounter order. Test expectations for that path must therefore preserve encounter order and must <em>not</em> use this sorter.
  */
 public final class SyntheticSourceMalformedValueSorter {
 
     private SyntheticSourceMalformedValueSorter() {}
 
     /**
-     * Returns a comparator that orders malformed values in the same order as the loader.
+     * Returns a comparator that orders malformed values in the order emitted by the loader in non-strict-columnar indices
+     * (sorted by encoded {@link BytesRef}). Do not use this for strict-columnar indices, where encounter order is preserved.
      */
     public static Comparator<Object> comparator() {
         return (a, b) -> {
@@ -42,7 +52,8 @@ public final class SyntheticSourceMalformedValueSorter {
     }
 
     /**
-     * Sorts the given list of malformed values in place in loader order.
+     * Sorts the given list of malformed values in place in the order emitted by the loader in non-strict-columnar indices.
+     * Do not use this for strict-columnar indices, where encounter order is preserved.
      */
     public static void sort(List<Object> malformedValues) {
         malformedValues.sort(comparator());

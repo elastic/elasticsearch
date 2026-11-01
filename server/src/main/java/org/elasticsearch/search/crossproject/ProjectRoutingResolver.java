@@ -10,16 +10,25 @@
 package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.Closeable;
+import java.io.IOException;
 
 /**
  * Filter for the target projects based on the provided project routing string.
  */
-public interface ProjectRoutingResolver {
+public interface ProjectRoutingResolver extends Closeable {
 
     /**
      * The reserved term for representing the origin project in project routing.
      */
     String ORIGIN = "_origin";
+
+    /**
+     * Project routing expression that limits search to the origin project only.
+     */
+    String LOCAL_ONLY = "_alias:" + ORIGIN;
 
     /**
      * Validates the provided project routing string.
@@ -40,6 +49,9 @@ public interface ProjectRoutingResolver {
      */
     TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects targetProjects);
 
+    @Override
+    default void close() throws IOException {}
+
     /** No-op router - just returns the provided target projects. */
     ProjectRoutingResolver NOOP = new ProjectRoutingResolver() {
         @Override
@@ -50,4 +62,13 @@ public interface ProjectRoutingResolver {
             return targetProjects;
         }
     };
+
+    /**
+     * SPI interface for providing a {@link ProjectRoutingResolver} instance.
+     */
+    interface Provider {
+        Provider NOOP_PROVIDER = pool -> NOOP;
+
+        ProjectRoutingResolver create(ThreadPool threadPool);
+    }
 }

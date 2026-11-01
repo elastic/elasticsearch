@@ -26,6 +26,10 @@ import static org.hamcrest.Matchers.equalTo;
  * Test suite for Lucene indices backward compatibility with N-2 versions after full cluster restart upgrades. The test suite creates a
  * cluster in N-2 version, then upgrades it to N-1 version and finally upgrades it to the current version. Test methods are executed after
  * each upgrade.
+ * <p>
+ * A project hosting this suite must opt out of smart retry's individual test pruning in its {@code build.gradle}, otherwise a parameter
+ * that passed in an earlier build attempt is skipped on retry and the later hop fails:
+ * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
  */
 @TestCaseOrdering(FullClusterRestartIndexCompatibilityTestCase.TestCaseOrdering.class)
 public abstract class FullClusterRestartIndexCompatibilityTestCase extends AbstractIndexCompatibilityTestCase {

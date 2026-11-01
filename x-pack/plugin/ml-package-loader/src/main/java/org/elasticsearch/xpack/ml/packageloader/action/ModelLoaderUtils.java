@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -34,9 +33,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
-import java.security.AccessController;
 import java.security.MessageDigest;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -260,76 +257,55 @@ final class ModelLoaderUtils {
 
     private ModelLoaderUtils() {}
 
-    @SuppressWarnings("'java.lang.SecurityManager' is deprecated and marked for removal ")
     @SuppressForbidden(reason = "we need socket connection to download")
     private static InputStream getHttpOrHttpsInputStream(URI uri, @Nullable RequestRange range) {
 
         assert uri.getUserInfo() == null : "URI's with credentials are not supported";
 
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-
-        PrivilegedAction<InputStream> privilegedHttpReader = () -> {
-            try {
-                HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
-                if (range != null) {
-                    conn.setRequestProperty("Range", range.bytesRange());
-                }
-                switch (conn.getResponseCode()) {
-                    case HTTP_OK:
-                    case HTTP_PARTIAL:
-                        return conn.getInputStream();
-
-                    case HTTP_MOVED_PERM:
-                    case HTTP_MOVED_TEMP:
-                    case HTTP_SEE_OTHER:
-                        throw new IllegalStateException("redirects aren't supported yet");
-                    case HTTP_NOT_FOUND:
-                        throw new ResourceNotFoundException("{} not found", uri);
-                    case 416: // Range not satisfiable, for some reason not in the list of constants
-                        throw new IllegalStateException("Invalid request range [" + range.bytesRange() + "]");
-                    default:
-                        int responseCode = conn.getResponseCode();
-                        throw new ElasticsearchStatusException(
-                            "error during downloading {}. Got response code {}",
-                            RestStatus.fromCode(responseCode),
-                            uri,
-                            responseCode
-                        );
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        try {
+            HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
+            if (range != null) {
+                conn.setRequestProperty("Range", range.bytesRange());
             }
-        };
+            switch (conn.getResponseCode()) {
+                case HTTP_OK:
+                case HTTP_PARTIAL:
+                    return conn.getInputStream();
 
-        return AccessController.doPrivileged(privilegedHttpReader);
+                case HTTP_MOVED_PERM:
+                case HTTP_MOVED_TEMP:
+                case HTTP_SEE_OTHER:
+                    throw new IllegalStateException("redirects aren't supported yet");
+                case HTTP_NOT_FOUND:
+                    throw new ResourceNotFoundException("{} not found", uri);
+                case 416: // Range not satisfiable, for some reason not in the list of constants
+                    throw new IllegalStateException("Invalid request range [" + range.bytesRange() + "]");
+                default:
+                    int responseCode = conn.getResponseCode();
+                    throw new ElasticsearchStatusException(
+                        "error during downloading {}. Got response code {}",
+                        RestStatus.fromCode(responseCode),
+                        uri,
+                        responseCode
+                    );
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    @SuppressWarnings("'java.lang.SecurityManager' is deprecated and marked for removal ")
     @SuppressForbidden(reason = "we need load model data from a file")
     static InputStream getFileInputStream(URI uri) {
-
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+        File file = new File(uri);
+        if (file.exists() == false) {
+            throw new ResourceNotFoundException("{} not found", uri);
         }
 
-        PrivilegedAction<InputStream> privilegedFileReader = () -> {
-            File file = new File(uri);
-            if (file.exists() == false) {
-                throw new ResourceNotFoundException("{} not found", uri);
-            }
-
-            try {
-                return Files.newInputStream(file.toPath());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
-
-        return AccessController.doPrivileged(privilegedFileReader);
+        try {
+            return Files.newInputStream(file.toPath());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

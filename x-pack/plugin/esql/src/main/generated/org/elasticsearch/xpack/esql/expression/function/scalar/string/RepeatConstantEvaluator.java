@@ -71,10 +71,11 @@ public final class RepeatConstantEvaluator implements ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -122,7 +123,7 @@ public final class RepeatConstantEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

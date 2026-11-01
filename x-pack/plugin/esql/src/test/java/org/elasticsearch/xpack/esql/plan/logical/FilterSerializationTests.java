@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class FilterSerializationTests extends AbstractLogicalPlanSerializationTests<Filter> {
     @Override
     protected Filter createTestInstance() {
         LogicalPlan child = randomChild(0);
-        Expression condition = FieldAttributeTests.createFieldAttribute(3, false);
+        Expression condition = createFieldAttribute(3, false);
         return new Filter(randomSource(), child, condition);
     }
 
@@ -27,7 +28,7 @@ public class FilterSerializationTests extends AbstractLogicalPlanSerializationTe
         if (randomBoolean()) {
             child = randomValueOtherThan(child, () -> randomChild(0));
         } else {
-            condition = randomValueOtherThan(condition, () -> FieldAttributeTests.createFieldAttribute(3, false));
+            condition = randomValueOtherThan(condition, () -> createFieldAttribute(3, false));
         }
         return new Filter(instance.source(), child, condition);
     }

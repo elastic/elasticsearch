@@ -105,7 +105,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override
@@ -219,17 +219,17 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
              */
             RESET_IN_PROGRESS,
             /**
-             * Unexpected reason from a pre-9.5 node that does not match a well-known category.
+             * Unexpected reason from a pre-9.7 node that does not match a well-known category.
              */
             @Deprecated(forRemoval = true)
             @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
-            UNEXPECTED_PRE_9_5;
+            UNEXPECTED_PRE_9_7;
 
             private static final Reason[] VALUES = values();
 
             static Reason fromOrdinal(int ordinal) {
                 if (ordinal < 0 || ordinal >= VALUES.length) {
-                    return UNEXPECTED_PRE_9_5;
+                    return UNEXPECTED_PRE_9_7;
                 }
                 return VALUES[ordinal];
             }
@@ -255,7 +255,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
                         "datafeed awaiting job relocation." -> AWAITING_LAZY_ASSIGNMENT;
                     case "persistent task cannot be assigned while upgrade mode is enabled." -> AWAITING_UPGRADE;
                     case "persistent task will not be assigned as a feature reset is in progress." -> RESET_IN_PROGRESS;
-                    default -> UNEXPECTED_PRE_9_5;
+                    default -> UNEXPECTED_PRE_9_7;
                 };
             }
         }
@@ -271,7 +271,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             this.reason = reason;
             assert explanation != null;
             this.explanation = explanation;
-            assert reason == Reason.UNEXPECTED_PRE_9_5
+            assert reason == Reason.UNEXPECTED_PRE_9_7
                 || reason == Reason.NO_NODE_FOUND
                 || reason == Reason.fromExplanation(executorNode, explanation) : "reason does not round-trip via fromExplanation";
         }

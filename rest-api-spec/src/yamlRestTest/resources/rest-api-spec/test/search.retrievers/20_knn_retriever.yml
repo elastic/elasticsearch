@@ -120,6 +120,45 @@ setup:
   - gt: { hits.total.value: 0 }
 
 ---
+"kNN retriever with optional num_candidates":
+  - requires:
+      reason: "optional num_candidates in knn retriever"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_retriever_optional_num_candidates ]
+
+  # Test that visit_percentage is accepted by itself even though it is ignored, since the vector field uses int8_hnsw
+  - do:
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+              visit_percentage: 1.0
+
+  - gt: { hits.total.value: 0 }
+
+  # Test that omitting both num_candidates and visit_percentage uses defaults
+  - do:
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+
+  - gt: { hits.total.value: 0 }
+
+---
 "kNN retriever with filter":
   - do:
       search:

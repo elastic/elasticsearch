@@ -19,8 +19,10 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class ThrottledIterator<T> implements Releasable {
 
@@ -50,7 +52,45 @@ public class ThrottledIterator<T> implements Releasable {
      * @param onCompletion   Executed when all items are completed.
      */
     public static <T> void run(Iterator<T> iterator, BiConsumer<Releasable, T> itemConsumer, int maxConcurrency, Runnable onCompletion) {
-        try (var throttledIterator = new ThrottledIterator<>(iterator, itemConsumer, maxConcurrency, onCompletion)) {
+        run(iterator, itemConsumer, maxConcurrency, onCompletion, EsExecutors.DIRECT_EXECUTOR_SERVICE, e -> {});
+    }
+
+    /**
+     * Like {@link #run(Iterator, BiConsumer, int, Runnable)} but dispatches continuation work to the given executor when an item's
+     * {@link Releasable} is closed after the initial call to {@link #run} has returned. Up to {@code maxConcurrency} items may be
+     * processed on the calling thread before {@link #run} returns; once it has returned, further items are processed on threads
+     * that the supplied executor picks. Note that if an {@code itemConsumer} closes its {@link Releasable} synchronously, the
+     * resulting continuation can be dispatched to the executor even while the initial call is still looping.
+     * <p>
+     * When using {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, exceptions from {@code iterator.hasNext()}/{@code iterator.next()} propagate
+     * directly to the caller of {@link Releasable#close()}, preserving the same behavior as the executor-less overload. With a real
+     * executor, such exceptions cannot propagate across threads; they are surfaced to the caller via {@code onContinuationFailure}
+     * and the iteration terminates.
+     *
+     * @param executor Executor to dispatch {@link #run()} from {@link #onItemRelease()}.
+     *                 Must not be {@code null}. Use {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} for inline execution
+     *                 (same behaviour as the executor-less overload).
+     *
+     * @param onContinuationFailure Invoked when a continuation fails or is rejected by {@code executor}.
+     */
+    public static <T> void run(
+        Iterator<T> iterator,
+        BiConsumer<Releasable, T> itemConsumer,
+        int maxConcurrency,
+        Runnable onCompletion,
+        Executor executor,
+        Consumer<Exception> onContinuationFailure
+    ) {
+        try (
+            var throttledIterator = new ThrottledIterator<>(
+                iterator,
+                itemConsumer,
+                maxConcurrency,
+                onCompletion,
+                executor,
+                onContinuationFailure
+            )
+        ) {
             throttledIterator.run();
         }
     }
@@ -59,9 +99,18 @@ public class ThrottledIterator<T> implements Releasable {
     private final Iterator<T> iterator;
     private final BiConsumer<Releasable, T> itemConsumer;
     private final AtomicInteger permits;
+    private final Executor executor;
+    private final Consumer<Exception> onContinuationFailure;
     private final Releasable itemReleasable = this::onItemRelease;
 
-    private ThrottledIterator(Iterator<T> iterator, BiConsumer<Releasable, T> itemConsumer, int maxConcurrency, Runnable onCompletion) {
+    private ThrottledIterator(
+        Iterator<T> iterator,
+        BiConsumer<Releasable, T> itemConsumer,
+        int maxConcurrency,
+        Runnable onCompletion,
+        Executor executor,
+        Consumer<Exception> onContinuationFailure
+    ) {
         this.iterator = Objects.requireNonNull(iterator);
         this.itemConsumer = Objects.requireNonNull(itemConsumer);
         if (maxConcurrency <= 0) {
@@ -69,6 +118,8 @@ public class ThrottledIterator<T> implements Releasable {
         }
         this.permits = new AtomicInteger(maxConcurrency);
         this.refs = AbstractRefCounted.of(onCompletion);
+        this.executor = Objects.requireNonNull(executor);
+        this.onContinuationFailure = Objects.requireNonNull(onContinuationFailure);
     }
 
     private void run() {
@@ -98,8 +149,32 @@ public class ThrottledIterator<T> implements Releasable {
     private void onItemRelease() {
         try {
             if (permits.getAndIncrement() == 0) {
-                // implies we are not already within an invocation of run(), so there's no risk of a stack overflow
-                run();
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                    run();
+                } else {
+                    refs.mustIncRef();
+                    executor.execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() {
+                            ThrottledIterator.this.run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onContinuationFailure.accept(e);
+                        }
+
+                        @Override
+                        public void onRejection(Exception e) {
+                            onContinuationFailure.accept(e);
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            refs.decRef();
+                        }
+                    });
+                }
             }
         } finally {
             refs.decRef();

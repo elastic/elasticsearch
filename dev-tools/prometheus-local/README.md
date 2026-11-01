@@ -7,6 +7,7 @@ Prometheus scrapes itself and forwards samples to Elasticsearch via the Promethe
 
 - `prometheus.yml` configures `scrape_configs` and `remote_write`.
 - `docker-compose.yml` runs Prometheus, Kibana, and Grafana behind a [Traefik](https://traefik.io/) reverse proxy for convenient local URLs.
+- `docker-compose.yml` also seeds deterministic raw and downsampled TSDB indices for comparing PromQL query behavior.
 
 ## Start
 
@@ -27,6 +28,12 @@ cd dev-tools/prometheus-local
 docker compose up -d
 ```
 
+To reset the PromQL downsample comparison indices, rerun the seed service:
+
+```bash
+docker compose up promql_downsample_data_init
+```
+
 ## Verify
 
 - Prometheus UI: `http://prometheus.localhost`
@@ -35,6 +42,7 @@ docker compose up -d
 - Grafana UI: `http://grafana.localhost` (admin/password)
   - Elasticsearch is pre-configured as a Prometheus data source
   - A Prometheus overview dashboard is automatically imported on first start
+  - PromQL downsample comparison: `http://grafana.localhost/d/promql-downsample-comparison`
 - Traefik dashboard: `http://traefik.localhost`
 - Remote write health in Prometheus UI (example query):
   - `rate(prometheus_remote_storage_samples_total[1m])`

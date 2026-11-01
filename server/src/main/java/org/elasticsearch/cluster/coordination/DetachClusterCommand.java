@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.env.Environment;

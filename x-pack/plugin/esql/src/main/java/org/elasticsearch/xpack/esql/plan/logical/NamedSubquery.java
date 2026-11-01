@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
@@ -17,7 +18,7 @@ import java.util.Objects;
  * Unlike plain {@link Subquery}, the name participates in {@link #equals} and {@link #hashCode},
  * which allows {@code Node.transformDown} to distinguish a newly-tagged subquery from its
  * untagged predecessor. After view resolution, a post-processing pass converts
- * {@link UnionAll} nodes containing {@code NamedSubquery} children into {@link ViewUnionAll}.
+ * {@link UnionAll} nodes containing {@code NamedSubquery} children into {@link BranchPlan}.
  * <p>
  * This class should only be used during query re-writing and not survive in the final query plan.
  * If we decide to keep named subqueries as a feature later, we should add serialization support.
@@ -62,7 +63,7 @@ public class NamedSubquery extends Subquery {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(name).append("]");
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(name)).append(']');
     }
 }

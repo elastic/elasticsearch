@@ -15,14 +15,16 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Utility class to build {@link SearchHit} in tests
+ * Utility class to build pooled {@link SearchHit} instances for tests. Callers must {@link SearchHit#decRef()} the
+ * result of {@link #build()} when finished, or rely on code paths that release {@link org.elasticsearch.search.SearchHits} (e.g. mock
+ * {@link org.elasticsearch.action.search.SearchResponse#decRef()} wired via {@link SearchHitTestUtil#stubSearchResponseDecRefsHits}).
  */
 public class SearchHitBuilder {
 
     private final SearchHit hit;
 
     public SearchHitBuilder(int docId) {
-        hit = SearchHit.unpooled(docId, null);
+        hit = new SearchHit(docId, null);
     }
 
     public SearchHitBuilder addField(String name, Object value) {

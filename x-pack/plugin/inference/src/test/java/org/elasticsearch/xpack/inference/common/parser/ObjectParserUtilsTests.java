@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,6 +18,8 @@ import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ObjectParserUtilsTests extends ESTestCase {
 
@@ -103,5 +107,33 @@ public class ObjectParserUtilsTests extends ESTestCase {
         assertThat(msg, containsString(pathToKey(ROOT, FIELD)));
         assertThat(msg, containsString("bad"));
         assertThat(msg, containsString("Long"));
+    }
+
+    public void testParsePositiveInteger_GivenPositiveInteger() throws IOException {
+        XContentParser parser = mock(XContentParser.class);
+        int value = randomIntBetween(1, Integer.MAX_VALUE);
+        when(parser.intValue()).thenReturn(value);
+
+        assertThat(ObjectParserUtils.parsePositiveInteger(parser, randomAlphaOfLength(10)), equalTo(value));
+    }
+
+    public void testParsePositiveInteger_GivenZero() throws IOException {
+        XContentParser parser = mock(XContentParser.class);
+        when(parser.intValue()).thenReturn(0);
+        String fieldName = randomAlphaOfLength(10);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> ObjectParserUtils.parsePositiveInteger(parser, fieldName));
+
+        assertThat(e.getMessage(), equalTo("[" + fieldName + "] must be a positive integer"));
+    }
+
+    public void testParsePositiveInteger_GivenNegativeInteger() throws IOException {
+        XContentParser parser = mock(XContentParser.class);
+        when(parser.intValue()).thenReturn(randomNegativeInt());
+        String fieldName = randomAlphaOfLength(10);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> ObjectParserUtils.parsePositiveInteger(parser, fieldName));
+
+        assertThat(e.getMessage(), equalTo("[" + fieldName + "] must be a positive integer"));
     }
 }

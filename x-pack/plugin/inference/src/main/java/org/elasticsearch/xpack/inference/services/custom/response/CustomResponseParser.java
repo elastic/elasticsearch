@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 
 import java.io.IOException;
+import java.util.Map;
 
 public interface CustomResponseParser extends ToXContentFragment, NamedWriteable {
     InferenceServiceResults parse(HttpResult response) throws IOException;
@@ -24,4 +26,6 @@ public interface CustomResponseParser extends ToXContentFragment, NamedWriteable
     default CustomServiceEmbeddingType getEmbeddingType() {
         return null;
     }
+
+    CustomResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException);
 }

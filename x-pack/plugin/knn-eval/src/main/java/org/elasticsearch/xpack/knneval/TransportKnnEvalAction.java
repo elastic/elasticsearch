@@ -1,0 +1,677 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.knneval;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/** Compares each candidate's top-k with the baseline's, using one PIT and sequential passes to keep changes and contention out. */
+public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalRequest, KnnEvalResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportKnnEvalAction.class);
+
+    /** Idle gap between searches, not the sweep length: each PIT search renews it. */
+    static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
+    static final long MAX_EXACT_VECTOR_COMPARISONS = 100_000_000L;
+    /** Keeps an error short when a pattern matches many indices; the count is reported in full. */
+    static final int MAX_INDICES_NAMED = 3;
+
+    /** Cluster or evaluation failures, not one query's: every remaining search would fail alike. */
+    private static final Class<?>[] EVALUATION_FAILURES = {
+        SearchContextMissingException.class,
+        NoShardAvailableActionException.class,
+        NodeClosedException.class,
+        ConnectTransportException.class,
+        EsRejectedExecutionException.class,
+        CircuitBreakingException.class,
+        TaskCancelledException.class,
+        ElasticsearchSecurityException.class,
+        IndexNotFoundException.class,
+        ClusterBlockException.class };
+
+    private final Client client;
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    @Inject
+    public TransportKnnEvalAction(
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            KnnEvalPlugin.KNN_EVAL_ACTION.name(),
+            transportService,
+            actionFilters,
+            KnnEvalRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        this.client = client;
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    @Override
+    protected void doExecute(Task task, KnnEvalRequest request, ActionListener<KnnEvalResponse> listener) {
+        if (checkCancelled(task, listener)) {
+            return;
+        }
+        if (clusterService.getClusterSettings().get(KnnEvalPlugin.ENABLED) == false) {
+            listener.onFailure(
+                new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] is disabled by [" + KnnEvalPlugin.ENABLED.getKey() + "]")
+            );
+            return;
+        }
+        ProjectMetadata project;
+        Set<String> indices;
+        try {
+            project = projectResolver.getProjectMetadata(clusterService.state());
+            // data streams included, as the PIT includes them
+            indices = Set.of(indexNameExpressionResolver.concreteIndexNames(project, request.indicesOptions(), true, request.indices()));
+            if (indices.isEmpty()) {
+                throw new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] found no matching indices to evaluate");
+            }
+            rejectDisabledIndices(project, indices);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        resolveField(
+            task,
+            request,
+            project,
+            indices,
+            listener.delegateFailureAndWrap(
+                (delegate, fieldType) -> rejectNestedField(task, request, fieldType, indexInfo(fieldType, project, indices), delegate)
+            )
+        );
+    }
+
+    /** Nested vectors need nested sampling, exact queries and parent-level recall; refused until supported. */
+    private void rejectNestedField(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalFieldType fieldType,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        ActionListener<KnnEvalResponse> listener
+    ) {
+        String field = request.getKnnEvalSpec().getField();
+        FieldCapabilitiesRequest capabilitiesRequest = new FieldCapabilitiesRequest().indices(request.indices())
+            .indicesOptions(request.indicesOptions())
+            .fields(field);
+        setParentTask(task, capabilitiesRequest);
+        client.execute(TransportFieldCapabilitiesAction.TYPE, capabilitiesRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+            String nestedPath = nestedAncestor(field, response.get());
+            if (nestedPath != null) {
+                throw new IllegalArgumentException(
+                    "field ["
+                        + field
+                        + "] is inside the [nested] object ["
+                        + nestedPath
+                        + "], which ["
+                        + RestKnnEvalAction.ENDPOINT
+                        + "] does not support yet"
+                );
+            }
+            openPointInTime(task, request, fieldType, indexInfo, delegate);
+        }));
+    }
+
+    /** Field caps reports a nested ancestor as [nested] under a prefix of the path. */
+    @Nullable
+    static String nestedAncestor(String field, Map<String, Map<String, FieldCapabilities>> capabilities) {
+        for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+            String ancestor = field.substring(0, dot);
+            if (capabilities.getOrDefault(ancestor, Map.of()).containsKey("nested")) {
+                return ancestor;
+            }
+        }
+        return null;
+    }
+
+    /** Checks the field maps to one supported DiskBBQ or HNSW-family config across all of {@code indices}. */
+    private void resolveField(
+        Task task,
+        KnnEvalRequest request,
+        ProjectMetadata project,
+        Set<String> indices,
+        ActionListener<KnnEvalFieldType> listener
+    ) {
+        KnnEvalSpec spec = request.getKnnEvalSpec();
+        String field = spec.getField();
+        GetFieldMappingsRequest mappingsRequest = new GetFieldMappingsRequest().indices(request.indices())
+            .indicesOptions(request.indicesOptions())
+            .fields(field);
+        setParentTask(task, mappingsRequest);
+        client.execute(GetFieldMappingsAction.INSTANCE, mappingsRequest, listener.<GetFieldMappingsResponse>map(response -> {
+            rejectUnreadMappings(field, indices, response.mappings().keySet());
+            return fieldTypeOf(spec, response);
+        }).delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e))));
+    }
+
+    /**
+     * The mappings action drops an index whose lookup failed instead of failing, but the PIT still searches it; evaluating it
+     * unvalidated could mix vector spaces, so the whole request fails. An index without the field is still present, with no
+     * mappings.
+     */
+    private void rejectUnreadMappings(String field, Set<String> indices, Set<String> read) {
+        List<String> unread = indices.stream().filter(index -> read.contains(index) == false).sorted().toList();
+        if (unread.isEmpty() == false) {
+            ElasticsearchException cause = unreadMappingCause(unread);
+            throw new ElasticsearchStatusException(
+                "[{}] could not read the mapping of [{}] on {} to validate it",
+                cause == null ? RestStatus.INTERNAL_SERVER_ERROR : cause.status(),
+                cause,
+                RestKnnEvalAction.ENDPOINT,
+                field,
+                describe(unread)
+            );
+        }
+    }
+
+    /**
+     * The mappings action discards per-index failures, so this rebuilds the failure its per-index lookup throws for the known
+     * causes, from current cluster state; {@code null} if neither applies.
+     */
+    @Nullable
+    private ElasticsearchException unreadMappingCause(List<String> unread) {
+        ClusterState state = clusterService.state();
+        ProjectId projectId = projectResolver.getProjectId();
+        // filtered before capping, since the exception's message names every index it is given
+        String[] blocked = unread.stream()
+            .filter(index -> state.blocks().indexBlocked(projectId, ClusterBlockLevel.METADATA_READ, index))
+            .limit(MAX_INDICES_NAMED)
+            .toArray(String[]::new);
+        if (blocked.length > 0) {
+            return state.blocks().indicesBlockedException(projectId, ClusterBlockLevel.METADATA_READ, blocked);
+        }
+        RoutingTable routing = state.routingTable(projectId);
+        for (String index : unread) {
+            IndexRoutingTable indexRouting = routing.index(index);
+            if (indexRouting != null && indexRouting.randomAllActiveShardsIt().sizeActive() == 0) {
+                return new NoShardAvailableActionException(indexRouting.shard(0).shardId());
+            }
+        }
+        return null;
+    }
+
+    static Map<String, KnnEvalResponse.IndexInfo> indexInfo(KnnEvalFieldType fieldType, ProjectMetadata project, Set<String> indices) {
+        if (fieldType.isGraph() == false) {
+            return Map.of();
+        }
+        return indices.stream()
+            .filter(index -> project.index(index) != null)
+            .collect(
+                Collectors.toMap(
+                    Function.identity(),
+                    index -> new KnnEvalResponse.IndexInfo(
+                        DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.get(project.index(index).getSettings())
+                    )
+                )
+            );
+    }
+
+    private static void rejectDisabledIndices(ProjectMetadata project, Set<String> indices) {
+        List<String> disabled = indices.stream().filter(index -> {
+            IndexMetadata metadata = project.index(index);
+            return metadata != null && KnnEvalPlugin.INDEX_ENABLED.get(metadata.getSettings()) == false;
+        }).sorted().toList();
+        if (disabled.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "[%s] is disabled on %s by [%s]",
+                    RestKnnEvalAction.ENDPOINT,
+                    describe(disabled),
+                    KnnEvalPlugin.INDEX_ENABLED.getKey()
+                )
+            );
+        }
+    }
+
+    /** "index [a]", or "5 indices [a, b, c, ...]": a pattern can match thousands. */
+    private static String describe(List<String> sortedIndices) {
+        if (sortedIndices.size() == 1) {
+            return "index [" + sortedIndices.getFirst() + "]";
+        }
+        String names = String.join(", ", sortedIndices.subList(0, Math.min(sortedIndices.size(), MAX_INDICES_NAMED)));
+        return sortedIndices.size() + " indices [" + names + (sortedIndices.size() > MAX_INDICES_NAMED ? ", ...]" : "]");
+    }
+
+    /** A [read]-only caller is refused by an action they never invoked; name this one. */
+    private static Exception mappingLookupFailure(String field, Exception e) {
+        if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) instanceof ElasticsearchSecurityException security
+            && security.status() == RestStatus.FORBIDDEN) {
+            return new ElasticsearchSecurityException(
+                "[{}] reads the mapping of field [{}] to validate it, which needs the [view_index_metadata] index privilege in "
+                    + "addition to [read]",
+                RestStatus.FORBIDDEN,
+                e,
+                RestKnnEvalAction.ENDPOINT,
+                field
+            );
+        }
+        return e;
+    }
+
+    private static KnnEvalFieldType fieldTypeOf(KnnEvalSpec spec, GetFieldMappingsResponse response) {
+        String field = spec.getField();
+        Map<String, Object> fieldMapping = null;
+        FieldResolution firstResolution = null;
+        for (Map<String, FieldMappingMetadata> indexMappings : response.mappings().values()) {
+            FieldMappingMetadata metadata = indexMappings.get(field);
+            FieldResolution resolution = FieldResolution.UNMAPPED;
+            // keyed by leaf name (emb for obj.emb): take the sole entry
+            Map<String, Object> source = metadata == null ? Map.of() : metadata.sourceAsMap();
+            if (source.size() == 1 && source.values().iterator().next() instanceof Map<?, ?> mapping) {
+                @SuppressWarnings("unchecked") // a field mapping body is always a string-keyed object
+                Map<String, Object> typed = (Map<String, Object>) mapping;
+                fieldMapping = fieldMapping == null ? typed : fieldMapping;
+                resolution = FieldResolution.of(typed);
+            }
+            if (firstResolution == null) {
+                firstResolution = resolution;
+            } else if (firstResolution.equals(resolution) == false) {
+                throw new IllegalArgumentException(
+                    "[" + field + "] resolves differently across indices; evaluate one vector space at a time"
+                );
+            }
+        }
+        // otherwise fromFieldMapping reports a missing [index_options] in mapping [null]
+        if (fieldMapping == null) {
+            throw new IllegalArgumentException("field [" + field + "] is not mapped in any of the target indices");
+        }
+        KnnEvalFieldType fieldType = KnnEvalFieldType.fromFieldMapping(field, fieldMapping);
+        if (spec.getBaseline() != null) {
+            fieldType.validateSettings(spec.getBaseline(), "baseline");
+        }
+        KnnEvalSettings baseline = spec.getBaseline() != null
+            ? spec.getBaseline()
+            : fieldType.defaultBaseline(spec.getK(), spec.getQuerySource() instanceof KnnEvalQuerySource.DocsSource);
+        for (KnnEvalSettings candidate : spec.getKnnSettings()) {
+            fieldType.validateSettings(candidate, "knn_settings entry");
+            fieldType.validateDepth(baseline, candidate, spec.getK());
+        }
+        validateQueryDimensions(field, firstResolution.dims(), spec.getQueries());
+        return fieldType;
+    }
+
+    /** Fails once up front, since every search would fail alike; encoded vectors can't be checked here. */
+    static void validateQueryDimensions(String field, @Nullable Integer dims, @Nullable List<KnnEvalQuery> queries) {
+        if (dims == null || queries == null) {
+            return;
+        }
+        for (KnnEvalQuery query : queries) {
+            VectorData vector = query.getQueryVector();
+            if (vector.isStringVector() == false && vector.size() != dims) {
+                throw new IllegalArgumentException(
+                    "query vector ["
+                        + query.getId()
+                        + "] has ["
+                        + vector.size()
+                        + "] dimensions but field ["
+                        + field
+                        + "] has ["
+                        + dims
+                        + "]"
+                );
+            }
+        }
+    }
+
+    private void openPointInTime(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalFieldType fieldType,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        ActionListener<KnnEvalResponse> listener
+    ) {
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
+            .keepAlive(POINT_IN_TIME_KEEP_ALIVE);
+        setParentTask(task, openRequest);
+        client.execute(TransportOpenPointInTimeAction.TYPE, openRequest, listener.delegateFailureAndWrap((delegate, openResponse) -> {
+            BytesReference pointInTimeId = openResponse.getPointInTimeId();
+            // runAfter always fires and run() routes throws to onFailure, so the PIT always closes
+            ActionListener<KnnEvalResponse> closingListener = ActionListener.runAfter(delegate, () -> closePointInTime(pointInTimeId));
+            ActionListener.run(closingListener, l -> countVectors(task, request, fieldType, indexInfo, pointInTimeId, l));
+        }));
+    }
+
+    private void countVectors(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalFieldType fieldType,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        BytesReference pointInTimeId,
+        ActionListener<KnnEvalResponse> listener
+    ) {
+        KnnEvalSpec spec = request.getKnnEvalSpec();
+        if (spec.hasExactBaseline() == false) {
+            resolveQueries(task, request, fieldType, indexInfo, pointInTimeId, listener);
+            return;
+        }
+        SearchRequest countRequest = KnnEvalSearches.buildVectorCountRequest(spec, pointInTimeId);
+        setParentTask(task, countRequest);
+        client.search(countRequest, listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+            validateExactWorkload(spec, searchResponse.getHits().getTotalHits().value());
+            resolveQueries(task, request, fieldType, indexInfo, pointInTimeId, delegate);
+        }));
+    }
+
+    static void validateExactWorkload(KnnEvalSpec spec, long vectorCount) {
+        if (spec.hasExactBaseline() == false) {
+            return;
+        }
+        long queryCount = switch (spec.getQuerySource()) {
+            case KnnEvalQuerySource.VectorsSource vs -> vs.vectors().size();
+            case KnnEvalQuerySource.DocsSource ds -> ds.sample().getSize();
+        };
+        long comparisons = vectorCount > Long.MAX_VALUE / queryCount ? Long.MAX_VALUE : vectorCount * queryCount;
+        if (comparisons > MAX_EXACT_VECTOR_COMPARISONS) {
+            throw new IllegalArgumentException(
+                "exact baseline would perform approximately ["
+                    + comparisons
+                    + "] full-precision vector comparisons, exceeding the ["
+                    + MAX_EXACT_VECTOR_COMPARISONS
+                    + "] limit; reduce the query count or use a bounded approximate baseline"
+            );
+        }
+    }
+
+    private void closePointInTime(BytesReference pointInTimeId) {
+        client.execute(
+            TransportClosePointInTimeAction.TYPE,
+            new ClosePointInTimeRequest(pointInTimeId),
+            ActionListener.wrap(ignored -> {}, e -> {
+                // the keep-alive expires anyway; costs only search context memory
+                logger.warn("failed to close the point in time opened for kNN evaluation", e);
+            })
+        );
+    }
+
+    private void resolveQueries(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalFieldType fieldType,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        BytesReference pointInTimeId,
+        ActionListener<KnnEvalResponse> listener
+    ) {
+        KnnEvalSpec requested = request.getKnnEvalSpec();
+        KnnEvalSpec spec = requested.getBaseline() == null
+            ? requested.withBaseline(
+                fieldType.defaultBaseline(requested.getK(), requested.getQuerySource() instanceof KnnEvalQuerySource.DocsSource)
+            )
+            : requested;
+        switch (spec.getQuerySource()) {
+            case KnnEvalQuerySource.VectorsSource vs -> evaluate(
+                task,
+                spec,
+                vs.vectors(),
+                false,
+                fieldType,
+                indexInfo,
+                pointInTimeId,
+                listener
+            );
+            case KnnEvalQuerySource.DocsSource ds -> {
+                var sampleRequest = KnnEvalSearches.buildSampleRequest(spec, ds.sample(), pointInTimeId);
+                setParentTask(task, sampleRequest);
+                client.search(sampleRequest, listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+                    List<KnnEvalQuery> sampledQueries = KnnEvalSearches.extractSampledQueries(searchResponse, spec.getField());
+                    if (sampledQueries.isEmpty()) {
+                        // zero recall would look like a terrible candidate, not an empty index or wrong field
+                        throw new IllegalArgumentException(
+                            "sampling query vectors from field ["
+                                + spec.getField()
+                                + "] returned no documents; check that the indices contain documents with that dense_vector field"
+                        );
+                    }
+                    evaluate(task, spec, sampledQueries, true, fieldType, indexInfo, pointInTimeId, delegate);
+                }));
+            }
+        }
+    }
+
+    private void evaluate(
+        Task task,
+        KnnEvalSpec spec,
+        List<KnnEvalQuery> queries,
+        boolean queryIsSampledFromDocuments,
+        KnnEvalFieldType fieldType,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        BytesReference pointInTimeId,
+        ActionListener<KnnEvalResponse> listener
+    ) {
+        new EvaluationRunner(
+            task,
+            new KnnEvalState(spec, queryIsSampledFromDocuments, queries, fieldType, indexInfo),
+            pointInTimeId,
+            listener
+        ).run();
+    }
+
+    private final class EvaluationRunner {
+
+        /** Set once the listener fails (cancellation or evaluation-level failure): nothing further starts. */
+        private volatile boolean stopped;
+        private final Task task;
+        private final KnnEvalState state;
+        private final BytesReference pointInTimeId;
+        private final ActionListener<KnnEvalResponse> listener;
+        private final Client client;
+
+        private EvaluationRunner(Task task, KnnEvalState state, BytesReference pointInTimeId, ActionListener<KnnEvalResponse> listener) {
+            this.task = task;
+            this.state = state;
+            this.pointInTimeId = pointInTimeId;
+            this.listener = listener;
+            this.client = task == null
+                ? TransportKnnEvalAction.this.client
+                : new ParentTaskAssigningClient(TransportKnnEvalAction.this.client, clusterService.localNode(), task);
+        }
+
+        private void run() {
+            runQueries(state.queries, state.spec.getBaseline(), state::addBaseline, () -> runCandidatePass(0));
+        }
+
+        private void runCandidatePass(int candidateIndex) {
+            if (candidateIndex >= state.spec.getKnnSettings().size()) {
+                listener.onResponse(state.buildResponse());
+                return;
+            }
+            runQueries(
+                state.evaluableQueries(),
+                state.spec.getKnnSettings().get(candidateIndex),
+                (query, response) -> state.addCandidate(candidateIndex, query, response),
+                () -> runCandidatePass(candidateIndex + 1)
+            );
+        }
+
+        /**
+         * One search at a time, so each took is shard time without sibling contention. ThrottledIterator loops instead of
+         * recursing, so a full sweep can't overflow the stack.
+         */
+        private void runQueries(
+            List<KnnEvalQuery> queries,
+            KnnEvalSettings knnSettings,
+            BiConsumer<KnnEvalQuery, SearchResponse> consumer,
+            Runnable onComplete
+        ) {
+            Iterator<KnnEvalQuery> remaining = queries.iterator();
+            Iterator<KnnEvalQuery> untilCancelled = new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return stopped == false && remaining.hasNext();
+                }
+
+                @Override
+                public KnnEvalQuery next() {
+                    return remaining.next();
+                }
+            };
+            ThrottledIterator.run(untilCancelled, (ref, query) -> {
+                if (checkCancelled(task, listener)) {
+                    stopped = true;
+                    ref.close();
+                    return;
+                }
+                SearchRequest request = KnnEvalSearches.buildSearch(state.spec, query, knnSettings, state.searchSize, pointInTimeId);
+                client.search(request, ActionListener.releaseAfter(ActionListener.wrap(response -> consumer.accept(query, response), e -> {
+                    if (failsTheEvaluation(e)) {
+                        stop(
+                            new ElasticsearchException(
+                                "["
+                                    + RestKnnEvalAction.ENDPOINT
+                                    + "] stopped at query ["
+                                    + query.getId()
+                                    + "]: the failure is not specific to it",
+                                e
+                            )
+                        );
+                    } else {
+                        // a query's own failure is reported against it; the sweep continues
+                        state.addFailure(query, e);
+                    }
+                }), ref));
+            }, 1, () -> {
+                if (stopped == false) {
+                    onComplete.run();
+                }
+            });
+        }
+
+        private void stop(Exception e) {
+            stopped = true;
+            listener.onFailure(e);
+        }
+    }
+
+    /** Whether a failure is not specific to its query, so per-query reporting would hide it. */
+    static boolean failsTheEvaluation(Exception e) {
+        if (ExceptionsHelper.unwrap(e, EVALUATION_FAILURES) != null) {
+            return true;
+        }
+        if (ExceptionsHelper.unwrapCause(e) instanceof SearchPhaseExecutionException searchFailure) {
+            for (ShardSearchFailure shardFailure : searchFailure.shardFailures()) {
+                if (shardFailure.getCause() != null && ExceptionsHelper.unwrap(shardFailure.getCause(), EVALUATION_FAILURES) != null) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean checkCancelled(Task task, ActionListener<KnnEvalResponse> listener) {
+        return task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener);
+    }
+
+    private void setParentTask(Task task, ActionRequest childRequest) {
+        if (task != null) {
+            childRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        }
+    }
+
+    private record FieldResolution(
+        boolean mapped,
+        @Nullable Integer dims,
+        String similarity,
+        String elementType,
+        Map<String, Object> indexOptions
+    ) {
+        private static final FieldResolution UNMAPPED = new FieldResolution(false, null, "", "", Map.of());
+        private static final String DIMS_FIELD = "dims";
+        private static final String SIMILARITY_FIELD = "similarity";
+        private static final String ELEMENT_TYPE_FIELD = "element_type";
+
+        @SuppressWarnings("unchecked")
+        private static FieldResolution of(Map<String, Object> mapping) {
+            Object dims = mapping.get(DIMS_FIELD);
+            Object similarity = mapping.get(SIMILARITY_FIELD);
+            Object elementType = mapping.get(ELEMENT_TYPE_FIELD);
+            Object indexOptions = mapping.get(KnnEvalFieldType.INDEX_OPTIONS_FIELD);
+            return new FieldResolution(
+                true,
+                dims instanceof Number number ? number.intValue() : null,
+                Objects.toString(similarity, "cosine"),
+                Objects.toString(elementType, "float"),
+                indexOptions instanceof Map<?, ?> map ? Map.copyOf((Map<String, Object>) map) : Map.of()
+            );
+        }
+    }
+}

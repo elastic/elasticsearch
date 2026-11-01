@@ -47,7 +47,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -71,6 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -102,7 +103,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final ClusterService clusterService;
     private final SnapshotFilesProvider snapshotFilesProvider;
 
-    private final RecoveriesCollection onGoingRecoveries;
+    // visible for testing
+    final RecoveriesCollection onGoingRecoveries;
 
     public PeerRecoveryTargetService(
         Client client,
@@ -228,6 +230,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final long clusterStateVersion,
         final RecoveryListener listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Releasable snapshotFileDownloadsPermit = tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(
@@ -238,9 +241,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             listener,
             snapshotFileDownloadsPermit
         );
-        // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
-        // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
-        threadPool.generic().execute(new RecoveryRunner(recoveryId));
+        RecoveryRunner recoveryRunner = new RecoveryRunner(recoveryId);
+        recoveryRunner.run();
     }
 
     protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter) {
@@ -285,7 +287,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             onGoingRecoveries.failRecovery(
                 recoveryId,
                 new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
-                true
+                FAIL_SEND
             );
         }), recoveryRef::close));
 
@@ -332,18 +334,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         @Override
                         public void onFailure(Exception e) {
                             final var cause = ExceptionsHelper.unwrapCause(e);
-                            final var sendShardFailure =
+                            final var failureStrategy =
                                 // these indicate the source shard has already failed, which will independently notify the master and fail
                                 // the target shard
-                                false == (cause instanceof ShardNotFoundException
+                                (cause instanceof ShardNotFoundException
                                     || cause instanceof IndexNotFoundException
-                                    || cause instanceof AlreadyClosedException);
+                                    || cause instanceof AlreadyClosedException) ? FAIL_SILENT : FAIL_SEND;
 
                             // TODO retries? See RecoveryResponseHandler#handleException
                             onGoingRecoveries.failRecovery(
                                 recoveryId,
                                 new RecoveryFailedException(recoveryState, null, e),
-                                sendShardFailure
+                                failureStrategy
                             );
                         }
                     }
@@ -456,9 +458,23 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
                 startingSeqNo = UNASSIGNED_SEQ_NO;
             }
-        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
-            // happens on an empty folder. no need to log
-            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) { // happens on an empty Lucene folder
+            // Normally, an empty index folder implies no translog data either so startingSeqNo should be UNASSIGNED.
+            // But in rare cases (e.g., filesystem corruption or random I/O errors in tests), the Lucene index files
+            // may be lost/deleted/unreadable while reading a sequence number from the translog succeeded. In this
+            // situation we throw an exception to fail the recovery and to remove the inconsistent local shard files.
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
+                logger.error(
+                    "{} index not found but starting seq no is [{}], failing recovery due to inconsistent state",
+                    recoveryTarget,
+                    startingSeqNo
+                );
+                throw new RecoveryFailedException(
+                    recoveryTarget.state(),
+                    "index not found with non-empty starting sequence number [" + startingSeqNo + "]",
+                    e
+                );
+            }
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (final IOException e) {
@@ -506,16 +522,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             ),
             e
         );
-    }
-
-    public interface RecoveryListener {
-        void onRecoveryDone(
-            RecoveryState state,
-            ShardLongFieldRange timestampMillisFieldRange,
-            ShardLongFieldRange eventIngestedMillisFieldRange
-        );
-
-        void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }
 
     class HandoffPrimaryContextRequestHandler implements TransportRequestHandler<RecoveryHandoffPrimaryContextRequest> {
@@ -715,7 +721,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
-                        true // be safe
+                        FAIL_SEND // be safe
                     );
                 } else {
                     logger.debug(() -> "unexpected error during recovery, but recovery id [" + recoveryId + "] is finished", e);
@@ -798,7 +804,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
                 // the node is shutting down, we just fail the recovery to release resources
-                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, "node is shutting down", cause), false);
+                onGoingRecoveries.failRecovery(
+                    recoveryId,
+                    new RecoveryFailedException(request, "node is shutting down", cause),
+                    FAIL_SILENT
+                );
                 return;
             }
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
@@ -806,7 +816,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 onGoingRecoveries.failRecovery(
                     recoveryId,
                     new RecoveryFailedException(request, "source has canceled the recovery", cause),
-                    false
+                    FAIL_SILENT
                 );
                 return;
             }
@@ -851,11 +861,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
 
             if (cause instanceof AlreadyClosedException) {
-                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, "source shard is closed", cause), false);
+                onGoingRecoveries.failRecovery(
+                    recoveryId,
+                    new RecoveryFailedException(request, "source shard is closed", cause),
+                    FAIL_SILENT
+                );
                 return;
             }
 
-            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), true);
+            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), FAIL_SEND);
         }
 
         @Override

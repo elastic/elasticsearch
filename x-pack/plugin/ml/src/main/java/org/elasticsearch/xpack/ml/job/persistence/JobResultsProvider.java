@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -197,14 +198,14 @@ public class JobResultsProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
             .setQuery(
                 QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1), CategorizerState.v54DocumentId(job.getId(), 1))
             )
             .setTrackTotalHits(false)
             .setIndicesOptions(IndicesOptions.strictExpand());
 
-        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
             .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
             .setTrackTotalHits(false)
             .setIndicesOptions(IndicesOptions.strictExpand());
@@ -710,6 +711,81 @@ public class JobResultsProvider {
         );
     }
 
+    /**
+     * Loads the stored ES|QL datafeed source checkpoint for {@code jobId}. Delivers the checkpoint to {@code handler}, or {@code null}
+     * when none is stored. Failures are delivered to {@code errorHandler}.
+     */
+    public void esqlDatafeedSourceCheckpoint(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        GetRequest getRequest = new GetRequest(
+            AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+            EsqlDatafeedSourceCheckpoint.documentId(jobId)
+        );
+        // Persist may use refresh NONE; a non-realtime get would miss that write until refresh.
+        getRequest.realtime(true);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getDocResponse) {
+                try {
+                    if (getDocResponse.isExists() == false) {
+                        esqlDatafeedSourceCheckpointFromAllResultsIndices(jobId, handler, errorHandler);
+                        return;
+                    }
+                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
+                    try (XContentParser parser = createParser(docSource)) {
+                        handler.accept(EsqlDatafeedSourceCheckpoint.PARSER.apply(parser, null));
+                    }
+                } catch (Exception e) {
+                    errorHandler.accept(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    esqlDatafeedSourceCheckpointFromAllResultsIndices(jobId, handler, errorHandler);
+                    return;
+                }
+                errorHandler.accept(e);
+            }
+        }, client::get);
+    }
+
+    /** Copies left in older results indices after the write alias rolls onto an empty index. */
+    private void esqlDatafeedSourceCheckpointFromAllResultsIndices(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        SearchRequestBuilder search = client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setSize(1)
+            .setAllowPartialSearchResults(false)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(EsqlDatafeedSourceCheckpoint.documentId(jobId)))
+            .addSort(
+                SortBuilders.fieldSort(EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType("long")
+            );
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            search.request(),
+            ActionListener.<SearchResponse>wrap(response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                if (hits.length == 0) {
+                    handler.accept(null);
+                    return;
+                }
+                handler.accept(MlParserUtils.parse(hits[0], EsqlDatafeedSourceCheckpoint.PARSER));
+            }, errorHandler),
+            client::search
+        );
+    }
+
     private SearchRequestBuilder createLatestDatafeedTimingStatsSearch(String indexName, String jobId) {
         return client.prepareSearch(indexName)
             .setSize(1)
@@ -737,8 +813,6 @@ public class JobResultsProvider {
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
-
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
             .add(createLatestDataCountsSearch(resultsIndex, jobId))
             .add(createLatestModelSizeStatsSearch(resultsIndex))
@@ -746,7 +820,7 @@ public class JobResultsProvider {
 
         if (snapshotId != null) {
             msearch.add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)));
-            msearch.add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+            msearch.add(createDocIdSearch(AnomalyDetectorsIndex.jobStateIndexPatterns(), Quantiles.documentId(jobId)));
         }
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
@@ -812,7 +886,11 @@ public class JobResultsProvider {
     }
 
     private SearchRequestBuilder createDocIdSearch(String index, String id) {
-        return client.prepareSearch(index)
+        return createDocIdSearch(new String[] { index }, id);
+    }
+
+    private SearchRequestBuilder createDocIdSearch(String[] indices, String id) {
+        return client.prepareSearch(indices)
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(id))

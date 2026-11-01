@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -41,7 +42,6 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for {@code index.esql.stored_fields_sequential_proportion} which controls
@@ -115,23 +115,13 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         assertMap(
             result,
             matchesMap().entry("documents_found", documentsFound)
-                .entry(
-                    "profile",
-                    matchesMap() //
-                        .entry("drivers", instanceOf(List.class))
-                        .entry("plans", instanceOf(List.class))
-                        .entry("planning", matchesMap().extraOk())
-                        .entry("parsing", matchesMap().extraOk())
-                        .entry("view_resolution", matchesMap().extraOk())
-                        .entry("preanalysis", matchesMap().extraOk())
-                        .entry("indices_resolution", matchesMap().extraOk())
-                        .entry("enrich_resolution", matchesMap().extraOk())
-                        .entry("inference_resolution", matchesMap().extraOk())
-                        .entry("analysis", matchesMap().extraOk())
-                        .entry("query", matchesMap().extraOk())
-                        .entry("field_caps_calls", instanceOf(Integer.class))
-                        .entry("minimumTransportVersion", instanceOf(Integer.class))
-                )
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("profile", getProfileMatcher())
                 .extraOk()
         );
 

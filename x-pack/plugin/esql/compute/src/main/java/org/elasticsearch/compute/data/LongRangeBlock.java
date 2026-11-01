@@ -9,13 +9,23 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
  * Block that stores long ranges.
  */
 public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock, ConstantNullBlock {
+
     @Override
-    LongRangeBlock filter(boolean mayContainDuplicates, int... positions);
+    boolean isNull(int position);
+
+    @Override
+    LongRangeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default LongRangeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     LongRangeBlock keepMask(BooleanVector mask);
@@ -74,4 +84,57 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
     LongBlock getFromBlock();
 
     LongBlock getToBlock();
+
+    /**
+     * Returns the long range at the given value index, mutating {@code scratch} in place.
+     *
+     * @param valueIndex the value-offset (use {@link #getFirstValueIndex(int)} to translate from a position)
+     * @param scratch    the reusable container to populate
+     * @return {@code scratch}, populated with {@code from}/{@code to} for the value at {@code valueIndex}
+     */
+    LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch);
+
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     * @param scratch the scratch range to use for this operation; must not be {@code value}
+     */
+    default boolean hasValue(int position, LongRangeBlockBuilder.LongRange value, LongRangeBlockBuilder.LongRange scratch) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            LongRangeBlockBuilder.LongRange range = getLongRange(index, scratch);
+            if (value.from() == range.from() && value.to() == range.to()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Builder for {@link LongRangeBlock}.
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.LongRangeBuilder permits LongRangeBlockBuilder {
+
+        /**
+         * Append the given range to this builder.
+         */
+        Block.Builder appendLongRange(LongRangeBlockBuilder.LongRange range);
+
+        /**
+         * Append the given range to this builder.
+         */
+        Block.Builder appendLongRange(long from, long to);
+
+        /**
+         * Copy the value(s) at the given position of {@code block} into this builder.
+         */
+        LongRangeBlock.Builder copyFrom(LongRangeBlock block, int position);
+
+        @Override
+        LongRangeBlock build();
+    }
 }

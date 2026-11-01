@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -174,14 +175,6 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      * @return An action response to be handled by the query vector builder
      */
     protected abstract ActionResponse createResponse(float[] array, T builder);
-
-    public static float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
-    }
 
     private class AssertingClient extends NoOpClient {
 

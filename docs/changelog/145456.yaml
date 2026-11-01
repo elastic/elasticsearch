@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 145456
-summary: KQL and QSTR were incorrectly rejected when used before SAMPLE
-type: bug

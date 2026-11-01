@@ -1,0 +1,47 @@
+countOverTimeDenseVector
+required_capability: ts_command_v0
+required_capability: dense_vector_over_time_agg_functions
+
+TS ts_dense_vector
+| STATS c = max(count_over_time(vector)) BY host, time_bucket = tbucket(1 day)
+| SORT time_bucket, host
+;
+
+c:long | host:keyword | time_bucket:datetime
+2      | host-a       | 2024-01-01T00:00:00.000Z
+1      | host-b       | 2024-01-01T00:00:00.000Z
+0      | host-a       | 2024-01-02T00:00:00.000Z
+0      | host-b       | 2024-01-02T00:00:00.000Z
+;
+
+presentOverTimeDenseVector
+required_capability: ts_command_v0
+required_capability: dense_vector_over_time_agg_functions
+
+TS ts_dense_vector
+| STATS p = max(present_over_time(vector)) BY host, time_bucket = tbucket(1 day)
+| SORT time_bucket, host
+;
+
+p:boolean | host:keyword | time_bucket:datetime
+true      | host-a       | 2024-01-01T00:00:00.000Z
+true      | host-b       | 2024-01-01T00:00:00.000Z
+false     | host-a       | 2024-01-02T00:00:00.000Z
+false     | host-b       | 2024-01-02T00:00:00.000Z
+;
+
+absentOverTimeDenseVector
+required_capability: ts_command_v0
+required_capability: dense_vector_over_time_agg_functions
+
+TS ts_dense_vector
+| STATS a = max(absent_over_time(vector)) BY host, time_bucket = tbucket(1 day)
+| SORT time_bucket, host
+;
+
+a:boolean | host:keyword | time_bucket:datetime
+false     | host-a       | 2024-01-01T00:00:00.000Z
+false     | host-b       | 2024-01-01T00:00:00.000Z
+true      | host-a       | 2024-01-02T00:00:00.000Z
+true      | host-b       | 2024-01-02T00:00:00.000Z
+;

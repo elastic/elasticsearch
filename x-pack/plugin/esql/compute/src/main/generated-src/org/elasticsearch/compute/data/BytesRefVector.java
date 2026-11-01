@@ -23,7 +23,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
+    OrdinalBytesRefVector, DirectBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
     /**
      * Build a contiguous array of bytes for the value stored at the
      * given position. The underlying data is generally stored in pages
@@ -62,8 +62,20 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
      */
     OrdinalBytesRefVector asOrdinals();
 
+    /**
+     * An estimate of the bytes this vector's values spell, as opposed to the memory it holds, taken without
+     * reading the values one by one. Exact unless the values are read through a dictionary, where each one
+     * counts as the dictionary's average term.
+     */
+    long estimateTotalValueBytes();
+
     @Override
-    BytesRefVector filter(boolean mayContainDuplicates, int... positions);
+    BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     BytesRefBlock keepMask(BooleanVector mask);
@@ -92,6 +104,12 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
      */
     @Override
     BytesRefVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Scans all positions to find the maximum.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

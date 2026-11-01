@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158653
+summary: "ESQL:DS: Bound external I/O by heap"
+type: enhancement

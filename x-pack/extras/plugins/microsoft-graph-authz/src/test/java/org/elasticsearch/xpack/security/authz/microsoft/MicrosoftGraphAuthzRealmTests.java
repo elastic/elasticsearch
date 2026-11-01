@@ -101,16 +101,13 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
     };
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void setTraceLogging() throws Exception {
         final var logger = LogManager.getLogger(MicrosoftGraphAuthzRealm.class);
         Loggers.setLevel(logger, Level.TRACE);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 

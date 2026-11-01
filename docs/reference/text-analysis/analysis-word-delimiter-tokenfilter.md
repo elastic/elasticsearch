@@ -12,7 +12,7 @@ We recommend using the [`word_delimiter_graph`](/reference/text-analysis/analysi
 
 The `word_delimiter` filter can produce invalid token graphs. See [Differences between `word_delimiter_graph` and `word_delimiter`](/reference/text-analysis/analysis-word-delimiter-graph-tokenfilter.md#analysis-word-delimiter-graph-differences).
 
-The `word_delimiter` filter also uses Lucene’s [WordDelimiterFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/WordDelimiterFilter.md), which is marked as deprecated.
+The `word_delimiter` filter also uses Lucene’s [WordDelimiterFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/WordDelimiterFilter.html), which is marked as deprecated.
 
 ::::
 

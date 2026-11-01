@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `INCREASE` function [esql-increase]
 
-:::{include} ../../_snippets/functions/layout/increase.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/increase.md
 :::

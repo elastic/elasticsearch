@@ -1,3 +1,6 @@
+# Nimbus OAuth2/OIDC SDK makes outbound HTTP calls to IdP token endpoints via java.net.URL
+oauth2.oidc.sdk:
+  - outbound_network
 com.google.api.client:
   - set_https_connection_properties
   - outbound_network

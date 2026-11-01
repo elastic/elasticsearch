@@ -7,7 +7,7 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * A delete watch request to delete an watch by name (id)
  */
-public class DeleteWatchRequest extends LegacyActionRequest {
+public class DeleteWatchRequest extends UntypedActionRequest {
 
     private String id;
     private long version = Versions.MATCH_ANY;

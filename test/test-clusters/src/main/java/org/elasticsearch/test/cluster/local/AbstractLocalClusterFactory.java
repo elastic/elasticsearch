@@ -104,6 +104,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
 
     public static class Node {
+        private static final int TOOL_SCRIPT_RETRY_TIMES = OS.current() == WINDOWS ? 15 : 0;
+        private static final int TOOL_SCRIPT_RETRY_DELAY_MS = OS.current() == WINDOWS ? 500 : 0;
+
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
         private final LocalNodeSpec spec;
@@ -140,6 +143,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.configDir = Optional.ofNullable(spec.getConfigDir()).orElse(workingDir.resolve("config"));
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
+        }
+
+        /** stable, but sufficiently strong seed based on the node's working directory name */
+        private static long nodeIdSeed(String nodeDirName) {
+            UUID uuid = UUID.nameUUIDFromBytes(nodeDirName.getBytes(StandardCharsets.UTF_8));
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
         }
 
         public synchronized void start(Version version) {
@@ -258,17 +267,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public InputStream getLog(LogType logType) {
-            Path logFile = logsDir.resolve(logType.resolveFilename(spec.getCluster().getName()));
-            if (Files.exists(logFile)) {
-                try {
-                    return Files.newInputStream(logFile);
-                } catch (IOException e) {
-                    LOGGER.error("Failed to read log file of type '{}' for node {} at '{}'", logType, this, logFile);
-                    throw new RuntimeException(e);
-                }
-            }
-
-            throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
+            return RolledLogReader.open(logsDir, spec.getCluster().getName(), logType);
         }
 
         public LocalNodeSpec getSpec() {
@@ -281,6 +280,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         Path getConfigDir() {
             return configDir;
+        }
+
+        Path getDataDir() {
+            return dataDir;
         }
 
         public void waitUntilReady() {
@@ -399,6 +402,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
+                // Guarantee a unique persistent node ID even when multiple ES child processes start concurrently.
+                // Without an explicit seed, NodeEnvironment falls back to ThreadLocalRandom inside the child JVM;
+                // on Windows, child processes started at the same nanosecond can end up with identical ThreadLocalRandom seeds
+                // and therefore identical node IDs, which prevents the cluster from forming.
+                finalSettings.put("node.id.seed", Long.toString(nodeIdSeed(workingDir.getFileName().toString())));
                 finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(
@@ -593,17 +601,28 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 LOGGER.info("Creating users for node '{}'", name);
                 final Set<String> operators = new HashSet<>();
+                final Map<String, String> hashByPassword = new HashMap<>();
+                final Set<String> usernames = new HashSet<>();
                 for (User user : spec.getUsers()) {
-                    runToolScript(
-                        "elasticsearch-users",
-                        null,
-                        "useradd",
-                        user.getUsername(),
-                        "-p",
-                        user.getPassword(),
-                        "-r",
-                        user.getRole()
-                    );
+                    if (usernames.add(user.getUsername()) == false) {
+                        throw new IllegalStateException("User [" + user.getUsername() + "] is defined more than once");
+                    }
+                    String passwordHash = hashByPassword.get(user.getPassword());
+                    if (passwordHash == null) {
+                        runToolScript(
+                            "elasticsearch-users",
+                            null,
+                            "useradd",
+                            user.getUsername(),
+                            "-p",
+                            user.getPassword(),
+                            "-r",
+                            user.getRole()
+                        );
+                        hashByPassword.put(user.getPassword(), FileRealmUsers.readPasswordHash(configDir, user.getUsername()));
+                    } else {
+                        FileRealmUsers.addUser(configDir, user.getUsername(), passwordHash, user.getRole());
+                    }
                     if (user.isOperator()) {
                         operators.add(user.getUsername());
                     }
@@ -721,13 +740,27 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .toList();
 
                 if (spec.getVersion().onOrAfter("7.6.0")) {
-                    runToolScript(
-                        "elasticsearch-plugin",
-                        null,
-                        Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
-                    );
+                    LOGGER.info("Installing {} plugins via single elasticsearch-plugin invocation", toInstall.size());
+                    try {
+                        runToolScript(
+                            "elasticsearch-plugin",
+                            null,
+                            Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
+                        );
+                    } catch (RuntimeException e) {
+                        LOGGER.error("Failed to install plugins: {}", toInstall, e);
+                        throw e;
+                    }
                 } else {
-                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", null, "install", "--batch", plugin));
+                    for (String plugin : toInstall) {
+                        LOGGER.info("Installing plugin: {}", plugin);
+                        try {
+                            runToolScript("elasticsearch-plugin", null, "install", "--batch", plugin);
+                        } catch (RuntimeException e) {
+                            LOGGER.error("Failed to install plugin: {}", plugin, e);
+                            throw e;
+                        }
+                    }
                 }
             }
         }
@@ -838,6 +871,26 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());
 
+            if (OS.current() == WINDOWS) {
+                // cmd.exe needs SystemRoot to locate system32 DLLs, and Path so that batch scripts
+                // can resolve executables. ProcessUtils.exec() clears the inherited environment and
+                // repopulates it from this map, so these variables must be forwarded explicitly;
+                // without them elasticsearch-keystore.bat (and similar tools) fail with exit code 1.
+                Map<String, String> parentEnv = System.getenv();
+                for (String key : List.of("SystemRoot", "SYSTEMROOT", "SystemDrive", "ComSpec", "Path", "PATH")) {
+                    String value = parentEnv.get(key);
+                    if (value != null) {
+                        environment.putIfAbsent(key, value);
+                    }
+                }
+                // Ask elasticsearch-env.bat to print the resolved ES_HOME and launcher classpath directory
+                // contents to stderr. Windows CI intermittently fails test cluster tool invocations with a
+                // "could not find or load main class" (empty classpath). This captures, from the tool's own
+                // process, whether the launcher jars are actually present, so we can tell a >MAX_PATH glob
+                // failure from missing jars or a mis-resolved ES_HOME. Captured alongside the tool's stderr.
+                environment.put("ES_TOOLS_DEBUG", "1");
+            }
+
             environment = environment.entrySet()
                 .stream()
                 .map(p -> entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
@@ -869,7 +922,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
+            List<String> serverOpts = List.of(
+                "-Xms" + heapSize,
+                "-Xmx" + heapSize,
+                "-XX:-UseGCOverheadLimit",
+                debugArgs,
+                featureFlagProperties
+            );
             List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
 
             String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())
@@ -927,22 +986,54 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void runToolScript(String tool, String input, String... args) {
-            try {
-                int exit = ProcessUtils.exec(
-                    input,
-                    distributionDir,
-                    distributionDir.resolve("bin")
-                        .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
-                    getEnvironmentVariables(),
-                    false,
-                    args
-                ).waitFor();
+            int attempt = 0;
+            while (true) {
+                try {
+                    ProcessUtils.Result result = ProcessUtils.execAndCapture(
+                        input,
+                        distributionDir,
+                        distributionDir.resolve("bin")
+                            .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
+                        getEnvironmentVariables(),
+                        args
+                    );
 
-                if (exit != 0) {
-                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                    if (result.exitCode() == 0) {
+                        return;
+                    }
+
+                    if (attempt >= TOOL_SCRIPT_RETRY_TIMES) {
+                        String argsDesc = "[" + String.join(", ", args) + "]";
+                        String stderrDesc = result.stderr().isEmpty()
+                            ? "<no output>"
+                            : String.join(System.lineSeparator(), result.stderr());
+                        throw new RuntimeException(
+                            "Execution of "
+                                + tool
+                                + " failed with exit code "
+                                + result.exitCode()
+                                + "; tool='"
+                                + tool
+                                + "', args='"
+                                + argsDesc
+                                + "', stderr output:"
+                                + System.lineSeparator()
+                                + stderrDesc
+                        );
+                    }
+
+                    attempt++;
+                    LOGGER.warn(
+                        "Execution of {} failed with exit code {}, retrying ({}/{})",
+                        tool,
+                        result.exitCode(),
+                        attempt,
+                        TOOL_SCRIPT_RETRY_TIMES
+                    );
+                    Thread.sleep(TOOL_SCRIPT_RETRY_DELAY_MS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
         }
 

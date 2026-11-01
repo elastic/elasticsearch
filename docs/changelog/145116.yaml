@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 145116
-summary: Optimize ARM sqri8/sqri7u kernels using vabdq + vdotq
-type: enhancement

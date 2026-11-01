@@ -38,6 +38,9 @@ public class AttributeSetTests extends ESTestCase {
         assertEquals(AttributeSet.EMPTY, AttributeSet.EMPTY);
         assertEquals(AttributeSet.EMPTY, first.intersect(third));
         assertEquals(third.intersect(first), AttributeSet.EMPTY);
+
+        assertNotEquals(AttributeSet.EMPTY, AttributeMap.emptyAttributeMap());
+        assertNotEquals(AttributeMap.emptyAttributeMap(), AttributeSet.EMPTY);
     }
 
     public void testSetIsImmutable() {

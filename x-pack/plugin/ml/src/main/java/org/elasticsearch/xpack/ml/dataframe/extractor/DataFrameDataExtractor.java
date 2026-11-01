@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -57,6 +58,11 @@ import static org.elasticsearch.xpack.ml.dataframe.DestinationIndex.INCREMENTAL_
  * It supports safe and responsive cancellation by continuing from the latest
  * incremental id that was seen.
  * Note that this class is NOT thread-safe.
+ * <p>
+ * When {@link #next()} returns a non-empty {@link Optional}, it holds the top-level {@link SearchHits}
+ * for that batch with one extra ref retained for the caller. The caller must {@link SearchHits#decRef()}
+ * that instance exactly once when the batch is fully processed (success, cancel mid-batch, drain, or error).
+ * Use {@link SearchHits#getHits()} for the {@link SearchHit} array until then.
  */
 public class DataFrameDataExtractor {
 
@@ -107,16 +113,26 @@ public class DataFrameDataExtractor {
         isCancelled = true;
     }
 
-    public Optional<SearchHit[]> next() throws IOException {
+    /**
+     * Returns the next batch as {@link SearchHits} with an extra ref for the caller; see class Javadoc.
+     * Consumers must call `searchHits.decRef()` the returned object after they are finished with it.
+     */
+    public Optional<SearchHits> next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        Optional<SearchHit[]> hits = Optional.ofNullable(nextSearch());
-        if (hits.isPresent() && hits.get().length > 0) {
-            lastSortKey = (long) hits.get()[hits.get().length - 1].getSortValues()[0];
-        } else {
-            hasNext = false;
+        Optional<SearchHits> hits = Optional.ofNullable(nextSearch());
+        try {
+            if (hits.isPresent() && hits.get().getHits().length > 0) {
+                SearchHit[] batchHits = hits.get().getHits();
+                lastSortKey = (long) batchHits[batchHits.length - 1].getSortValues()[0];
+            } else {
+                hasNext = false;
+            }
+        } catch (Exception e) {
+            hits.ifPresent(SearchHits::decRef);
+            throw e;
         }
         return hits;
     }
@@ -165,14 +181,14 @@ public class DataFrameDataExtractor {
         );
     }
 
-    protected SearchHit[] nextSearch() throws IOException {
+    protected SearchHits nextSearch() throws IOException {
         if (isCancelled) {
             return null;
         }
         return tryRequestWithSearchResponse(() -> executeSearchRequest(buildSearchRequest()));
     }
 
-    private SearchHit[] tryRequestWithSearchResponse(Supplier<SearchResponse> request) throws IOException {
+    private SearchHits tryRequestWithSearchResponse(Supplier<SearchResponse> request) throws IOException {
         try {
 
             // We've set allow_partial_search_results to false which means if something
@@ -181,7 +197,7 @@ public class DataFrameDataExtractor {
             try {
                 LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
 
-                SearchHit[] rows = processSearchResponse(searchResponse);
+                SearchHits rows = processSearchResponse(searchResponse);
 
                 // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
                 hasPreviousSearchFailed = false;
@@ -248,12 +264,17 @@ public class DataFrameDataExtractor {
         }
     }
 
-    private SearchHit[] processSearchResponse(SearchResponse searchResponse) {
+    private SearchHits processSearchResponse(SearchResponse searchResponse) {
         if (isCancelled || searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
             return null;
         }
-        return searchResponse.getHits().asUnpooled().getHits();
+        // Retain the top-level SearchHits: tryRequestWithSearchResponse decRef's the response in a finally
+        // block, which would otherwise release SearchHits and null out the backing hit array. One incRef
+        // here keeps hits valid for the caller until they decRef this SearchHits once (per batch).
+        SearchHits hits = searchResponse.getHits();
+        hits.incRef();
+        return hits;
     }
 
     private String extractNonProcessedValues(SearchHit hit, SourceSupplier sourceSupplier, String organicFeature) {

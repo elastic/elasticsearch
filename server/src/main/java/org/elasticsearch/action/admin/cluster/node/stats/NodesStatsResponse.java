@@ -60,6 +60,6 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toTruncatedString(this, true, true);
     }
 }

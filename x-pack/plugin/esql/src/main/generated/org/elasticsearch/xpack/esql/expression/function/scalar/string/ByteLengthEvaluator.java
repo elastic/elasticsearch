@@ -64,10 +64,11 @@ public final class ByteLengthEvaluator implements ExpressionEvaluator {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -105,7 +106,7 @@ public final class ByteLengthEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

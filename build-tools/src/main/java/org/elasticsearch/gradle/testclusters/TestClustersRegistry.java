@@ -15,10 +15,9 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -27,8 +26,8 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
-    private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
-    private final Map<String, Process> nodeProcesses = new HashMap<>();
+    private final Set<ElasticsearchCluster> runningClusters = ConcurrentHashMap.newKeySet();
+    private final Map<String, Process> nodeProcesses = new ConcurrentHashMap<>();
 
     @Inject
     public abstract ProviderFactory getProviderFactory();

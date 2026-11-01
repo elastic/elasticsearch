@@ -35,8 +35,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -147,10 +147,8 @@ public class InstallPluginActionTests extends ESTestCase {
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initPluginInstallEnvironment() throws Exception {
         pluginDir = createPluginDir(temp);
         terminal = MockTerminal.create();
         env = createEnv(temp);
@@ -164,15 +162,13 @@ public class InstallPluginActionTests extends ESTestCase {
         defaultAction = new InstallPluginAction(terminal, env.v2(), false);
     }
 
-    @Override
     @After
     @SuppressForbidden(reason = "resets java.io.tmpdir")
-    public void tearDown() throws Exception {
+    public void closePluginInstallActions() throws Exception {
         defaultAction.close();
         skipJarHellAction.close();
         System.setProperty("java.io.tmpdir", javaIoTmpdir);
         PathUtilsForTesting.teardown();
-        super.tearDown();
     }
 
     @ParametersFactory

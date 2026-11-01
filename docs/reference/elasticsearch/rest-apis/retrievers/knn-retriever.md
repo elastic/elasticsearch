@@ -14,7 +14,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 `field`
 :   (Required, string)
 
-    The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search).
+    The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search). To run a kNN search on a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field, use the [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) instead.
 
 
 `query_vector`
@@ -40,7 +40,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
 
 `num_candidates`
-:   (Required, integer)
+:   (Optional, integer {applies_to}`stack: ga 9.5`; in earlier versions this parameter is required)
 
     The number of nearest neighbor candidates to consider per shard. Needs to be greater than `k`, or `size` if `k` is omitted, and cannot exceed 10,000. {{es}} collects `num_candidates` results from each shard, then merges them to find the top `k` results. Increasing `num_candidates` tends to improve the accuracy of the final `k` results. Defaults to `Math.min(1.5 * k, 10_000)`.
 
@@ -67,7 +67,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     * `l2_norm`: also known as Euclidean, will include documents where the vector is within the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
     * `cosine`, `dot_product`, and `max_inner_product`: Only return vectors where the cosine similarity or dot-product are at least the provided `similarity`.
 
-    Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
+    Read more here: [knn similarity search](docs-content://solutions/search/vector/knn/approximate-knn-query-examples.md#knn-similarity-search)
 
 
 `rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
@@ -88,7 +88,7 @@ Rescoring only makes sense for quantized vectors; when [quantization](/reference
     * The top `k` rescored candidates will be returned.
 
 
-See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 
 
 ## Restrictions [_restrictions_2]

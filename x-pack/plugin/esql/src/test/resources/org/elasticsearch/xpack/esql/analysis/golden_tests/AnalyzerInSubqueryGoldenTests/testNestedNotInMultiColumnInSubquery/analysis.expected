@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_AntiJoin[[emp_no{f}#0, salary{f}#1],[emp_no{f}#2, salary{f}#3]]
+  |_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#0, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#15, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#1, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]
+  \_Project[[emp_no{f}#2, salary{f}#3]]
+    \_AntiJoin[[languages{f}#25, salary{f}#3],[languages{f}#26, salary{f}#27]]
+      |_EsRelation[employees][avg_worked_seconds{f}#28, birth_date{f}#29, emp_no{f}#2, first_name{f}#30, gender{f}#31, height{f}#32, height.float{f}#33, height.half_float{f}#34, height.scaled_float{f}#35, hire_date{f}#36, is_rehired{f}#37, job_positions{f}#38, languages{f}#25, languages.byte{f}#39, languages.long{f}#40, languages.short{f}#41, last_name{f}#42, salary{f}#3, salary_change{f}#43, salary_change.int{f}#44, salary_change.keyword{f}#45, salary_change.long{f}#46, still_hired{f}#47]
+      \_Project[[languages{f}#26, salary{f}#27]]
+        \_EsRelation[employees][avg_worked_seconds{f}#48, birth_date{f}#49, emp_no{f}#50, first_name{f}#51, gender{f}#52, height{f}#53, height.float{f}#54, height.half_float{f}#55, height.scaled_float{f}#56, hire_date{f}#57, is_rehired{f}#58, job_positions{f}#59, languages{f}#26, languages.byte{f}#60, languages.long{f}#61, languages.short{f}#62, last_name{f}#63, salary{f}#27, salary_change{f}#64, salary_change.int{f}#65, salary_change.keyword{f}#66, salary_change.long{f}#67, still_hired{f}#68]

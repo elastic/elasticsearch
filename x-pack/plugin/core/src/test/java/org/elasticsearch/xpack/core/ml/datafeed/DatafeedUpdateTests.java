@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,10 +63,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
@@ -128,6 +133,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
         }
         if (randomBoolean()) {
+            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
+        }
+        if (randomBoolean()) {
             builder.setIndicesOptions(
                 IndicesOptions.fromParameters(
                     randomFrom(EXPAND_WILDCARDS_VALUES),
@@ -145,6 +153,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             Map<String, Object> field = new HashMap<>();
             field.put("runtime_field_foo", settings);
             builder.setRuntimeMappings(field);
+        }
+        if (randomBoolean() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled()) {
+            builder.setProjectRouting(randomAlphaOfLength(20));
         }
         return builder.build();
     }
@@ -330,6 +341,124 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
     }
 
+    public void testApplyEsqlQueryChangeShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Recreate ES|QL datafeed [esql-datafeed] to change esql_query"));
+    }
+
+    public void testApplyEsqlQueryUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM source-index").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("cannot add [esql_query] to non-ES|QL datafeed [classic-datafeed]"));
+    }
+
+    public void testApplyEsqlSourceTimeFieldUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("t").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("source_time_field can only be set when esql_query is configured"));
+    }
+
+    public void testApplyEsqlGroupingIntervalUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueHours(1)).build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("grouping_interval can only be set when esql_query is configured"));
+    }
+
+    public void testMinRequiredTransportVersionShouldCoverAllEsqlFields() {
+        List<DatafeedUpdate> esqlUpdates = List.of(
+            new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build(),
+            new DatafeedUpdate.Builder("test-datafeed").setSourceTimeField("t").build(),
+            new DatafeedUpdate.Builder("test-datafeed").setGroupingInterval(TimeValue.timeValueHours(1)).build()
+        );
+        for (DatafeedUpdate update : esqlUpdates) {
+            assertThat(update.minRequiredTransportVersion().orElseThrow().v1(), equalTo(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
+        }
+        DatafeedUpdate classicUpdate = new DatafeedUpdate.Builder("test-datafeed").setQueryDelay(TimeValue.timeValueMinutes(5)).build();
+        assertThat(classicUpdate.minRequiredTransportVersion().isPresent(), is(false));
+    }
+
+    public void testApplyEsqlDatafeedQueryShapeUpdatesShouldReject() throws IOException {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        List<DatafeedUpdate> queryShapeUpdates = List.of(
+            new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("event.ingested").build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
+                .build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setRuntimeMappings(Collections.emptyMap()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED).build()
+        );
+
+        for (DatafeedUpdate update : queryShapeUpdates) {
+            ElasticsearchStatusException exception = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+            );
+            assertThat(exception.getMessage(), containsString("update API only supports operational settings"));
+        }
+    }
+
+    public void testApplyQueryDelayOnEsqlDatafeedShouldSucceed() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setQueryDelay(TimeValue.timeValueMinutes(5))
+            .setFrequency(TimeValue.timeValueMinutes(10))
+            .setMaxEmptySearches(7)
+            .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2)))
+            .build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getEsqlQuery(), equalTo(datafeed.getEsqlQuery()));
+        assertThat(updated.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(updated.getFrequency(), equalTo(TimeValue.timeValueMinutes(10)));
+        assertThat(updated.getMaxEmptySearches(), equalTo(7));
+        assertThat(updated.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
+        assertThat(
+            updated.getDelayedDataCheckConfig(),
+            equalTo(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2)))
+        );
+    }
+
+    private static DatafeedConfig createEsqlDatafeed(String id) {
+        return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+    }
+
     public void testApply_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
@@ -402,7 +531,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 12)) {
+        switch (between(1, 14)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -522,9 +651,254 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setRuntimeMappings(field);
                 }
                 break;
+            case 13:
+                if (instance.getProjectRouting() != null) {
+                    builder.setProjectRouting(instance.getProjectRouting() + randomAlphaOfLength(5));
+                } else {
+                    builder.setProjectRouting(randomAlphaOfLength(20));
+                }
+                break;
+            case 14:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(10);
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
     }
+
+    public void testApplyMaxConsecutiveExtractionFailures() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
+        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
+
+        // -1 resets the setting back to its default, so a user can clear a configured value via the _update API.
+        DatafeedUpdate reset = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig wasReset = reset.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(wasReset.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    public void testApplyWithProjectRouting() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+        String newProjectRouting = "_alias:prod-*";
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting(newProjectRouting).build();
+        DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updatedDatafeed.getProjectRouting(), equalTo(newProjectRouting));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingOmittedShouldReturnFalse() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:_origin")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(100).build();
+        assertFalse(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingUnchangedShouldReturnFalse() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:_origin")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:_origin").build();
+        assertFalse(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingWidensShouldReturnTrue() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:_origin")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:prod-*").build();
+        assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingNarrowsShouldReturnTrue() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:prod-*")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:_origin").build();
+        assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingSetOnPreviouslyUnsetConfigShouldReturnTrue() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:_origin").build();
+        assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testProjectRoutingParsing() throws IOException {
+        String datafeedUpdateJson = """
+            {
+                "datafeed_id": "test-datafeed",
+                "project_routing": "_project._region:us-*"
+            }""";
+
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), datafeedUpdateJson)
+        ) {
+            DatafeedUpdate update = DatafeedUpdate.PARSER.apply(parser, null).build();
+            assertThat(update.getProjectRouting(), equalTo("_project._region:us-*"));
+        }
+    }
+
+    public void testProjectRoutingToXContent() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setProjectRouting("_alias:prod-*").build();
+
+        BytesReference bytes = org.elasticsearch.common.xcontent.XContentHelper.toXContent(update, XContentType.JSON, false);
+        String json = bytes.utf8ToString();
+
+        assertThat(json, containsString("\"project_routing\":\"_alias:prod-*\""));
+    }
+
+    public void testProjectRoutingSerialization() throws IOException {
+        String projectRouting = "_project._region:eu-*";
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setProjectRouting(projectRouting).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getProjectRouting(), equalTo(projectRouting));
+            }
+        }
+    }
+
+    public void testEsqlQuerySerializationWithNewTransportVersionShouldRoundTrip() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                assertThat(new DatafeedUpdate(in).getEsqlQuery(), equalTo("FROM logs"));
+            }
+        }
+    }
+
+    public void testEsqlQuerySerializationBeforeEsqlDatafeedTransportVersionShouldReject() throws IOException {
+        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs")
+            .setQueryDelay(TimeValue.timeValueMinutes(5))
+            .build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(previousVersion);
+            expectThrows(IOException.class, () -> update.writeTo(output));
+        }
+    }
+
+    public void testForceRekeyingParsing() throws IOException {
+        String json = """
+            {
+              "datafeed_id": "test-datafeed",
+              "_force_rekeying": true
+            }
+            """;
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json)
+        ) {
+            DatafeedUpdate update = DatafeedUpdate.PARSER.apply(parser, null).build();
+            assertThat(update.getForceRekeying(), equalTo(true));
+        }
+    }
+
+    public void testForceRekeyingToXContent() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        BytesReference bytes = org.elasticsearch.common.xcontent.XContentHelper.toXContent(update, XContentType.JSON, false);
+        String json = bytes.utf8ToString();
+
+        assertThat(json, containsString("\"_force_rekeying\":true"));
+    }
+
+    public void testForceRekeyingSerialization() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getForceRekeying(), equalTo(true));
+            }
+        }
+    }
+
+    public void testForceRekeyingOmittedOnOlderTransportVersion() throws IOException {
+        TransportVersion oldVersion = TransportVersion.fromName("datafeed_cloud_internal_credential");
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(oldVersion);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(oldVersion);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getForceRekeying(), nullValue());
+            }
+        }
+    }
+
+    // The max_consecutive_extraction_failures field was introduced (#159554), reverted via a move-forward marker
+    // (#160471), then re-introduced. It is therefore only on the wire in the feature era (before the revert) and once
+    // re-added. These round trips exercise all four eras so a stream-alignment regression in either read or write path
+    // is caught - the generic serialization test above only exercises the current transport version.
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnPreFeatureTransportVersion() throws IOException {
+        // Before the field existed it is not on the wire, so it drains to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion.minimumCompatible(), false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnFeatureEraTransportVersion() throws IOException {
+        // Original feature-era peers, predating the revert, carry the field.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES, true);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnRevertedTransportVersion() throws IOException {
+        // Within the reverted window the field is drained from the wire, so it deserializes to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED, false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnReAddedTransportVersion() throws IOException {
+        // Re-introduced peers carry the field again.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED, true);
+    }
+
+    private void assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion version, boolean expectedOnWire) throws IOException {
+        int value = randomBoolean() ? -1 : randomIntBetween(1, 100);
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setMaxConsecutiveExtractionFailures(value).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(version);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                if (expectedOnWire) {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(value));
+                } else {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), nullValue());
+                }
+            }
+        }
+    }
+
 }

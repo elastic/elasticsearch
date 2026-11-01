@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -16,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -29,7 +33,12 @@ import java.time.Instant;
  * - Range reads via RandomAccessFile for columnar formats
  * - File metadata (size, last modified)
  */
-public final class LocalStorageObject implements StorageObject {
+public final class LocalStorageObject extends AbstractMeteredStorageObject {
+
+    private record LocalFileIdentity() implements StorageIdentity {}
+
+    private static final LocalFileIdentity LOCAL_FILE_IDENTITY = new LocalFileIdentity();
+
     private final Path filePath;
     private final StoragePath storagePath;
 
@@ -37,13 +46,23 @@ public final class LocalStorageObject implements StorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    /** The modification time the listing reported, when this object was made from a listing entry. */
+    private volatile String seededVersion;
 
     public LocalStorageObject(Path filePath) {
         if (filePath == null) {
             throw new IllegalArgumentException("filePath cannot be null");
         }
         this.filePath = filePath;
-        this.storagePath = StoragePath.of("file://" + filePath.toAbsolutePath());
+        // Use the shared canonical factory (not "file://" + toAbsolutePath) so the location is
+        // normalized identically to every other producer of a local StoragePath (the directory
+        // listing's toStoragePath, the query's location). On Windows toAbsolutePath() keeps
+        // backslashes and yields a two-slash "file://C:\dir\file" form, whereas the factory
+        // normalizes to "file:///C:/dir/file"; the mismatch made object.path() (the stats-capture
+        // key) differ from the planning-side SchemaCacheKey location, so
+        // ExternalSourceCacheService.reconcileSourceStats silently dropped every captured
+        // contribution and warm queries re-scanned. On POSIX both forms already coincide.
+        this.storagePath = StoragePath.ofLocalPath(filePath);
     }
 
     public LocalStorageObject(Path filePath, long length) {
@@ -56,17 +75,52 @@ public final class LocalStorageObject implements StorageObject {
         this.cachedLastModified = lastModified;
     }
 
+    /**
+     * The version a local file is addressed by: its modification time, at the precision the filesystem keeps. It is the
+     * only validator a local file has, and {@link #version()} reads the same value from the listing as from the file.
+     */
+    static String versionOf(BasicFileAttributes attributes) {
+        return attributes.lastModifiedTime().toInstant().toString();
+    }
+
+    /** Seeds the version the listing reported; set before the object is shared. */
+    void seedVersion(String version) {
+        this.seededVersion = version;
+    }
+
+    /**
+     * The seeded listing version, or else the file's current modification time. A file that cannot be stat'ed has no
+     * version, and is not footer-cached.
+     */
+    @Override
+    @Nullable
+    public String version() {
+        if (seededVersion != null) {
+            return seededVersion;
+        }
+        try {
+            return versionOf(Files.readAttributes(filePath, BasicFileAttributes.class));
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     @Override
     public InputStream newStream() throws IOException {
-        if (Files.exists(filePath) == false) {
-            throw new IOException("File does not exist: " + filePath);
-        }
-
+        checkCurrentVersion();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
-
-        return Files.newInputStream(filePath);
+        long startNanos = System.nanoTime();
+        try {
+            InputStream stream = Files.newInputStream(filePath);
+            if (cachedLength == null) {
+                cachedLength = Files.size(filePath);
+            }
+            return metered(stream);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+        }
     }
 
     @Override
@@ -74,20 +128,22 @@ public final class LocalStorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length != READ_TO_END && length <= 0) {
+            // Match the remote providers (S3/GCS/Azure/HTTP): a closed range must be positive; zero-length is
+            // rejected rather than yielding an empty stream, so the precondition is uniform across providers.
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
-
-        if (Files.exists(filePath) == false) {
-            throw new IOException("File does not exist: " + filePath);
-        }
-
+        checkCurrentVersion();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
-
-        // Use RandomAccessFile for efficient range reads
-        return new RangeInputStream(filePath, position, length);
+        long startNanos = System.nanoTime();
+        try {
+            // READ_TO_END: read from position to the end of the file (no length() / size() lookup).
+            return metered(new RangeInputStream(filePath, position, length));
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+        }
     }
 
     /**
@@ -100,11 +156,17 @@ public final class LocalStorageObject implements StorageObject {
         if (target.hasRemaining() == false) {
             return 0;
         }
+        checkCurrentVersion();
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
         try (FileChannel ch = FileChannel.open(filePath, StandardOpenOption.READ)) {
             int startPos = target.position();
             org.elasticsearch.common.io.Channels.readFromFileChannel(ch, position, target);
             int bytesRead = target.position() - startPos;
+            bytes = bytesRead;
             return bytesRead == 0 ? -1 : bytesRead;
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
     }
 
@@ -113,6 +175,9 @@ public final class LocalStorageObject implements StorageObject {
         if (cachedLength == null) {
             fetchMetadata();
         }
+        if (cachedExists == Boolean.FALSE) {
+            throw new NoSuchFileException(storagePath.objectName());
+        }
         return cachedLength;
     }
 
@@ -120,6 +185,9 @@ public final class LocalStorageObject implements StorageObject {
     public Instant lastModified() throws IOException {
         if (cachedLastModified == null) {
             fetchMetadata();
+        }
+        if (cachedExists == Boolean.FALSE) {
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLastModified;
     }
@@ -137,14 +205,37 @@ public final class LocalStorageObject implements StorageObject {
         return storagePath;
     }
 
+    @Override
+    public StorageIdentity storageIdentity() {
+        return LOCAL_FILE_IDENTITY;
+    }
+
+    /**
+     * A read of a listed file is only valid for the version the listing reported: the footer cache is addressed by it, so
+     * bytes from a rewritten file must not be read under the old footer. A rewrite since the listing is refused, as an
+     * object-store read is refused by its conditional request. One stat both finds the file and checks its version.
+     */
+    private void checkCurrentVersion() throws IOException {
+        BasicFileAttributes attrs;
+        try {
+            attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
+        } catch (IOException e) {
+            // Any failure to stat the file reads as not found, as Files.exists did, and the message names only the object.
+            throw new NoSuchFileException(storagePath.objectName());
+        }
+        if (seededVersion != null && seededVersion.equals(versionOf(attrs)) == false) {
+            throw new ExternalObjectChangedException(storagePath);
+        }
+    }
+
     private void fetchMetadata() throws IOException {
         if (Files.exists(filePath)) {
-            cachedExists = true;
+            cachedExists = Boolean.TRUE;
             BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
             cachedLength = attrs.size();
             cachedLastModified = attrs.lastModifiedTime().toInstant();
         } else {
-            cachedExists = false;
+            cachedExists = Boolean.FALSE;
             cachedLength = 0L;
             cachedLastModified = null;
         }
@@ -157,9 +248,12 @@ public final class LocalStorageObject implements StorageObject {
     private static final class RangeInputStream extends InputStream {
         private final FileChannel channel;
         private final InputStream delegate;
+        // READ_TO_END (the only negative length newStream lets through) means read to EOF, no byte cap.
+        private final boolean unbounded;
         private long remaining;
 
         RangeInputStream(Path filePath, long position, long length) throws IOException {
+            this.unbounded = length < 0;
             this.remaining = length;
             boolean success = false;
             FileChannel ch = null;
@@ -178,11 +272,11 @@ public final class LocalStorageObject implements StorageObject {
 
         @Override
         public int read() throws IOException {
-            if (remaining <= 0) {
+            if (unbounded == false && remaining <= 0) {
                 return -1;
             }
             int b = delegate.read();
-            if (b >= 0) {
+            if (b >= 0 && unbounded == false) {
                 remaining--;
             }
             return b;
@@ -190,12 +284,12 @@ public final class LocalStorageObject implements StorageObject {
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-            if (remaining <= 0) {
+            if (unbounded == false && remaining <= 0) {
                 return -1;
             }
-            int toRead = (int) Math.min(len, remaining);
+            int toRead = unbounded ? len : (int) Math.min(len, remaining);
             int bytesRead = delegate.read(b, off, toRead);
-            if (bytesRead > 0) {
+            if (bytesRead > 0 && unbounded == false) {
                 remaining -= bytesRead;
             }
             return bytesRead;
@@ -211,15 +305,17 @@ public final class LocalStorageObject implements StorageObject {
             if (n <= 0) {
                 return 0;
             }
-            long toSkip = Math.min(n, remaining);
+            long toSkip = unbounded ? n : Math.min(n, remaining);
             long skipped = delegate.skip(toSkip);
-            remaining -= skipped;
+            if (unbounded == false) {
+                remaining -= skipped;
+            }
             return skipped;
         }
 
         @Override
         public int available() throws IOException {
-            return (int) Math.min(remaining, Integer.MAX_VALUE);
+            return unbounded ? delegate.available() : (int) Math.min(remaining, Integer.MAX_VALUE);
         }
     }
 }

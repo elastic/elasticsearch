@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -25,7 +26,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.INPUT;
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.INPUT_TYPE;
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.QUERY;
 
 interface ElasticPayload extends SageMakerSchemaPayload {
     String API = "elastic";
@@ -67,7 +67,7 @@ interface ElasticPayload extends SageMakerSchemaPayload {
                     });
                 }
                 if (request.query() != null) {
-                    builder.field(QUERY.getPreferredName(), request.query());
+                    builder.field(RerankRequest.QUERY_FIELD, request.query());
                 }
                 if (elasticTaskSettings.isEmpty() == false) {
                     builder.field(InferenceAction.Request.TASK_SETTINGS.getPreferredName());

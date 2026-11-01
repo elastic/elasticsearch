@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 155875
+pr: 156235
+summary: Disable `ReplaceFieldWithConstantOrNull` for time-series
+type: bug

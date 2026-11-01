@@ -33,8 +33,8 @@
                                 "filter": {
                                   "range": {
                                     "@timestamp" : {
-                                      "from": "{{ctx.trigger.scheduled_time}}||-5m",
-                                      "to": "{{ctx.trigger.triggered_time}}"
+                                      "gte": "{{ctx.trigger.scheduled_time}}||-5m",
+                                      "lte": "{{ctx.trigger.triggered_time}}"
                                     }
                                   }
                                 }
@@ -157,8 +157,8 @@
                                 "filter": {
                                   "range": {
                                     "@timestamp" : {
-                                      "from": "{{ctx.trigger.scheduled_time}}||-5m",
-                                      "to": "{{ctx.trigger.triggered_time}}"
+                                      "gte": "{{ctx.trigger.scheduled_time}}||-5m",
+                                      "lte": "{{ctx.trigger.triggered_time}}"
                                     }
                                   }
                                 }

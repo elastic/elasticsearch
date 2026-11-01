@@ -290,7 +290,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(IndicesService.class),
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             new IndexNameExpressionResolver(
                 new ThreadContext(Settings.EMPTY),

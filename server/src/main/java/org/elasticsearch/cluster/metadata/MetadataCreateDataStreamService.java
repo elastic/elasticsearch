@@ -31,7 +31,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -40,7 +42,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -238,7 +243,17 @@ public class MetadataCreateDataStreamService {
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
             || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
             : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
-        assert metadataCreateIndexService.getSystemIndices().findMatchingDescriptor(dataStreamName) == null
+        final SystemIndexDescriptor matchingSystemIndexDescriptor = metadataCreateIndexService.getSystemIndices()
+            .findMatchingDescriptor(dataStreamName);
+        if (matchingSystemIndexDescriptor != null) {
+            logger.warn(
+                "creating data stream [{}] whose name matches system index pattern [{}] but which is not registered as a system data "
+                    + "stream; its backing indices will not receive system index protections and may be accessible to unauthorized users",
+                dataStreamName,
+                matchingSystemIndexDescriptor.getIndexPattern()
+            );
+        }
+        assert matchingSystemIndexDescriptor == null
             : "dataStream [" + dataStreamName + "] matches a SystemIndexDescriptor but should use a SystemDataStreamDescriptor instead";
 
         Objects.requireNonNull(metadataCreateIndexService);
@@ -250,6 +265,9 @@ public class MetadataCreateDataStreamService {
         }
         if (currentProject.hasView(dataStreamName)) {
             throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL view", dataStreamName);
+        }
+        if (currentProject.hasDataset(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL dataset", dataStreamName);
         }
 
         MetadataCreateIndexService.validateIndexOrAliasName(
@@ -319,7 +337,6 @@ public class MetadataCreateDataStreamService {
                 rerouteListener,
                 dataStreamName,
                 systemDataStreamDescriptor,
-                isSystem,
                 template,
                 firstBackingIndexName
             );
@@ -345,7 +362,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(
             dataStreamName,
             initialGeneration,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            copyMapAllowingNulls(template.metadata()),
             Settings.EMPTY,
             ComposableIndexTemplate.EMPTY_MAPPINGS,
             hidden,
@@ -382,6 +399,15 @@ public class MetadataCreateDataStreamService {
         return ClusterState.builder(currentState).putProjectMetadata(builder).build();
     }
 
+    @Nullable
+    private static Map<String, Object> copyMapAllowingNulls(@Nullable Map<String, Object> map) {
+        if (map == null) {
+            return null;
+        }
+        // Map.copyOf would reject null values, which a template's _meta may contain
+        return Collections.unmodifiableMap(new HashMap<>(map));
+    }
+
     private static ClusterState createBackingIndex(
         MetadataCreateIndexService metadataCreateIndexService,
         ClusterState currentState,
@@ -390,7 +416,6 @@ public class MetadataCreateDataStreamService {
         ActionListener<Void> rerouteListener,
         String dataStreamName,
         SystemDataStreamDescriptor systemDataStreamDescriptor,
-        boolean isSystem,
         ComposableIndexTemplate template,
         String firstBackingIndexName
     ) throws Exception {
@@ -404,7 +429,7 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(request.startTime())
             .setMatchingTemplate(template);
 
-        if (isSystem) {
+        if (systemDataStreamDescriptor != null) {
             createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
         } else {
             createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
@@ -430,6 +455,51 @@ public class MetadataCreateDataStreamService {
             );
         }
         return currentState;
+    }
+
+    /**
+     * Creates a past backing index with the requested start and end time for the specified data stream
+     * and updates the cluster state accordingly. Might throw ResourceAlreadyExistsException if the
+     * resource already exists, the caller needs to handle this.
+     */
+    public ClusterState createPastBackingIndex(
+        ClusterState currentState,
+        ProjectId projectId,
+        RerouteBehavior rerouteBehavior,
+        ActionListener<Void> rerouteListener,
+        DataStream dataStream,
+        String backingIndexName,
+        Instant startTime,
+        Instant endTime
+    ) throws Exception {
+        final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+        assert dataStream.isSystem() == false : "Automatic backing index creation is not supported for system time series data streams.";
+        final ComposableIndexTemplate template = dataStream.getEffectiveIndexTemplate(projectMetadata);
+        CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
+            "initialize_past_backing_index",
+            projectId,
+            backingIndexName,
+            backingIndexName
+        ).dataStreamName(dataStream.getName()).setMatchingTemplate(template);
+
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(startTime))
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(endTime))
+            .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, endTime.toEpochMilli())
+            .put(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+        if (isDslOnlyMode == false) {
+            // If the index is managed by ILM, it will skip rollover
+            settings.put("index.lifecycle.indexing_complete", true);
+        }
+        createIndexRequest.settings(settings.build());
+        return metadataCreateIndexService.applyCreateIndexRequest(
+            currentState,
+            createIndexRequest,
+            false,
+            (builder, indexMetadata) -> builder.put(dataStream.unsafeAddBackingIndex(indexMetadata.getIndex())),
+            rerouteBehavior,
+            rerouteListener
+        );
     }
 
     public static ClusterState createFailureStoreIndex(

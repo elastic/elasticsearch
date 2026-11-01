@@ -342,10 +342,15 @@ explicitly enable timestamp meta field:
 unable to create a time series index with @timestamp runtime field:
   - requires:
       cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ reject_runtime_field_shadowing_sort_field ]
+      reason: "error message changed when sort field shadow rejection was added"
 
   - do:
-      catch: '/docvalues not found for index sort field:\[\@timestamp\]/'
+      catch: /runtime field \[@timestamp\] shadows an index sort field/
       indices.create:
         index: test_1
         body:

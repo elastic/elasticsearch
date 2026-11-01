@@ -25,15 +25,17 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.queries.InferenceQueryUtils;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -88,7 +90,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
         final Map<String, Float> fields = request.fields();
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
-        final String query = request.query();
+        final InferenceStringGroup input = request.input();
         final IndicesOptions indicesOptions = request.indicesOptions();
 
         try {
@@ -111,14 +113,14 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                 inferenceFieldsMap.put(index, inferenceFieldMetadataList);
             });
 
-            if (query != null) {
+            if (input != null) {
                 Set<String> inferenceIds = inferenceFieldsMap.values()
                     .stream()
                     .flatMap(List::stream)
                     .map(eifm -> eifm.inferenceFieldMetadata().getSearchInferenceId())
                     .collect(Collectors.toSet());
 
-                getInferenceResults(query, inferenceIds, inferenceFieldsMap, listener);
+                getInferenceResults(input, inferenceIds, inferenceFieldsMap, listener);
             } else {
                 listener.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, Map.of()));
             }
@@ -150,7 +152,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
     }
 
     private void getInferenceResults(
-        String query,
+        InferenceStringGroup input,
         Set<String> inferenceIds,
         Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
         ActionListener<GetInferenceFieldsInternalAction.Response> listener
@@ -174,30 +176,38 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
             })
         );
 
-        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
-            .map(
-                i -> new InferenceAction.Request(
-                    TaskType.ANY,
-                    i,
-                    null,
-                    null,
-                    null,
-                    List.of(query),
-                    Map.of(),
-                    InputType.INTERNAL_SEARCH,
-                    null,
-                    false
-                )
-            )
-            .toList();
+        for (String inferenceId : inferenceIds) {
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                GetInferenceModelAction.INSTANCE,
+                new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
+                gal.delegateFailureAndWrap((l, modelResponse) -> {
+                    var endpoints = modelResponse.getEndpoints();
+                    if (endpoints.size() != 1) {
+                        throw new IllegalStateException(
+                            endpoints.size() + " inference endpoints found for inference ID [" + inferenceId + "]"
+                        );
+                    }
+                    TaskType taskType = endpoints.getFirst().getTaskType();
+                    executeInferenceForTaskType(input, inferenceId, taskType, l);
+                })
+            );
+        }
+    }
 
-        inferenceRequests.forEach(
-            request -> executeAsyncWithOrigin(client, ML_ORIGIN, InferenceAction.INSTANCE, request, gal.delegateFailureAndWrap((l, r) -> {
-                String inferenceId = request.getInferenceEntityId();
-                InferenceResults inferenceResults = validateAndConvertInferenceResults(r.getResults(), inferenceId);
-                l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
-            }))
-        );
+    private void executeInferenceForTaskType(
+        InferenceStringGroup input,
+        String inferenceId,
+        TaskType taskType,
+        ActionListener<Tuple<String, InferenceResults>> listener
+    ) {
+        ActionListener<InferenceAction.Response> responseListener = listener.delegateFailureAndWrap((l, r) -> {
+            InferenceResults inferenceResults = validateAndConvertInferenceResults(r.getResults(), inferenceId);
+            l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
+        });
+
+        InferenceQueryUtils.executeInferenceForTaskType(client, input, inferenceId, taskType, null, responseListener);
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

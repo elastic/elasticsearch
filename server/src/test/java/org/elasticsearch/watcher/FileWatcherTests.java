@@ -107,8 +107,9 @@ public class FileWatcherTests extends ESTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        // change modification date, but not contents [we set the time in the future to guarantee a change]
-        Files.setLastModifiedTime(testFile, FileTime.fromMillis(System.currentTimeMillis() + 1));
+        // change modification date, but not contents; use +2s to guarantee we land in a different millisecond regardless of filesystem
+        // timestamp rounding or NTP shenanigans
+        Files.setLastModifiedTime(testFile, FileTime.fromMillis(System.currentTimeMillis() + 2000));
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileChanged: test.txt")));
 

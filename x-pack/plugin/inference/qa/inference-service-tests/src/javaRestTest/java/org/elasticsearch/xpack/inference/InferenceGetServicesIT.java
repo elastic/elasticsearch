@@ -25,8 +25,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void enqueueAuthorizedResponse() throws Exception {
         // Ensure the mock EIS server has an authorized response ready before each test because each test will
         // use the services API which makes a call to EIS
         mockEISServer.enqueueAuthorizeAllModelsResponse();
@@ -76,13 +75,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openshift_ai",
                     "streaming_completion_test_service",
                     "completion_test_service",
+                    "test_decision_service",
+                    "test_document_extraction_service",
                     "test_reranking_service",
                     "test_service",
                     "alternate_sparse_embedding_test_service",
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -125,7 +127,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openshift_ai",
                     "text_embedding_test_service",
                     "voyageai",
-                    "watsonxai"
+                    "watsonxai",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -154,7 +157,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "watsonxai",
                     "hugging_face",
                     "amazon_sagemaker",
-                    "elastic"
+                    "elastic",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -186,7 +190,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "amazon_sagemaker",
                     "mistral",
                     "watsonxai",
-                    "nvidia"
+                    "nvidia",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -198,6 +203,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "anthropic",
                     "azureopenai",
                     "fireworksai",
                     "llama",
@@ -213,7 +219,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "mistral",
                     "nvidia",
                     "watsonxai",
-                    "amazonbedrock"
+                    "amazonbedrock",
+                    "tencentcloud"
                 ).toArray()
             )
         );
@@ -240,8 +247,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     public void testGetServicesWithEmbeddingTaskType() throws IOException {
         assertThat(
             providersFor(TaskType.EMBEDDING),
-            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic").toArray())
+            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic", "openai").toArray())
         );
+    }
+
+    public void testGetServicesWithDecisionTaskType() throws IOException {
+        assertThat(providersFor(TaskType.DECISION), containsInAnyOrder(List.of("test_decision_service").toArray()));
+    }
+
+    public void testGetServicesWithDocumentExtractionTaskType() throws IOException {
+        assertThat(providersFor(TaskType.DOCUMENT_EXTRACTION), containsInAnyOrder(List.of("test_document_extraction_service").toArray()));
     }
 
     private List<Object> getAllServices() throws IOException {

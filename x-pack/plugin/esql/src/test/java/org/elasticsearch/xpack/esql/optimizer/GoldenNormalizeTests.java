@@ -48,4 +48,21 @@ public class GoldenNormalizeTests extends ESTestCase {
     public void testSyntheticNameWithNegativeHash() {
         assertThat(normalizeString("$$dense_vector$V_COSINE$-2036552011{f$}#21"), equalTo("$$dense_vector$V_COSINE$0{f$}#0"));
     }
+
+    public void testSyntheticNamesWithDifferentPrefixesAreIndependent_tailsCoincide() {
+        assertThat(normalizeString("$$order_by$0$0#1 $$limit_by$0$0#2"), equalTo("$$order_by$0#0 $$limit_by$1#1"));
+    }
+
+    public void testSyntheticNamesWithDifferentPrefixesAreIndependent_tailsDiffer() {
+        assertThat(normalizeString("$$order_by$0$0#1 $$limit_by$0$0#1"), equalTo("$$order_by$0#0 $$limit_by$1#0"));
+        assertThat(normalizeString("$$order_by$0$0#1 $$limit_by$0$1#2"), equalTo("$$order_by$0#0 $$limit_by$1#1"));
+        assertThat(normalizeString("$$order_by$0$5#1 $$limit_by$0$10#2"), equalTo("$$order_by$0#0 $$limit_by$1#1"));
+    }
+
+    public void testSyntheticNameRepeatedInPlanKeepsStableId() {
+        assertThat(
+            normalizeString("$$order_by$0$0#1 $$limit_by$0$1#2 $$order_by$0$0#1"),
+            equalTo("$$order_by$0#0 $$limit_by$1#1 $$order_by$0#0")
+        );
+    }
 }

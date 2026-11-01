@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_XMAX` function [esql-st_xmax]
 
-:::{include} ../../_snippets/functions/layout/st_xmax.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_xmax.md
 :::

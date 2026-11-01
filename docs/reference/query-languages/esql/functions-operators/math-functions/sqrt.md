@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SQRT` function [esql-sqrt]
 
-:::{include} ../../_snippets/functions/layout/sqrt.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sqrt.md
 :::

@@ -650,7 +650,8 @@ public class SearchableSnapshotDirectoryFactory {
                 Set.of(),
                 ""
             ),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize("node1", "existingAllocationId", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         DiscoveryNode targetNode = new DiscoveryNode(
@@ -664,7 +665,7 @@ public class SearchableSnapshotDirectoryFactory {
             DiscoveryNode.getRolesFromSettings(Settings.EMPTY),
             null
         );
-        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null, 0);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)
             .setStage(RecoveryState.Stage.INDEX)

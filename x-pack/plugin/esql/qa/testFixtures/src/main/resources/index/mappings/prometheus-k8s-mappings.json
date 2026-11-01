@@ -1,0 +1,64 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "labels": {
+      "type": "passthrough",
+      "priority": 10,
+      "time_series_dimension": true,
+      "properties": {
+        "__name__": {
+          "type": "keyword"
+        },
+        "cluster": {
+          "type": "keyword"
+        },
+        "pod": {
+          "type": "keyword"
+        },
+        "region": {
+          "type": "keyword"
+        }
+      }
+    },
+    "metrics": {
+      "type": "passthrough",
+      "priority": 20,
+      "properties": {
+        "network.bytes_in": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "network.total_bytes_in": {
+          "type": "double",
+          "time_series_metric": "counter"
+        },
+        "network.cost": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "network.total_cost": {
+          "type": "double",
+          "time_series_metric": "counter"
+        },
+        "network.eth0.tx": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "network.eth0.rx": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "network.eth0.currently_connected_clients": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "events_received": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        }
+      }
+    }
+  }
+}

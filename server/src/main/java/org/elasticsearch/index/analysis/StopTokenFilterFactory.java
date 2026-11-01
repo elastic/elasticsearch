@@ -28,6 +28,8 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean removeTrailing;
 
+    private final Object sharingKey;
+
     public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
@@ -36,6 +38,7 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");
         }
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), ignoreCase, removeTrailing);
     }
 
     @Override
@@ -55,4 +58,16 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         return ignoreCase;
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    /**
+     * Compact key: a {@link Analysis.StableCharArraySet} reference to the factory's own
+     * stop-word set (no duplication — the factory keeps the set alive anyway for runtime use)
+     * plus the two boolean settings. Equality uses {@link CharArraySet#equals} (content-based);
+     * hashing uses the precomputed stable hash inside the wrapper.
+     */
+    private record Key(Analysis.StableCharArraySet stopWords, boolean ignoreCase, boolean removeTrailing) {}
 }

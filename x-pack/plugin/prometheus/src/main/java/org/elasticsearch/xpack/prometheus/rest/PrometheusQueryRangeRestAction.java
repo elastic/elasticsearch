@@ -8,30 +8,33 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
- * REST handler for the Prometheus {@code GET /api/v1/query_range} endpoint.
+ * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query_range} endpoint.
  * Translates Prometheus query_range parameters into an ES|QL PromqlCommand logical plan,
  * executes it, and converts the result into the Prometheus matrix JSON format.
- * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
- * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
- * {@code RestController#isContentTypeDisallowed}.
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries">Prometheus Range Queries API</a>
  */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusQueryRangeRestAction extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(PrometheusQueryRangeRestAction.class);
 
     private static final String INDEX_PARAM = "index";
     private static final String QUERY_PARAM = "query";
@@ -40,6 +43,15 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
     private static final String LIMIT_PARAM = "limit";
     private static final int DEFAULT_LIMIT = 0; // 0 = no limit, matching Prometheus semantics
 
+    private final Supplier<TimeValue> maxQueryTimeout;
+
+    /**
+     * @param maxQueryTimeout supplies the default and maximum query timeout, see {@link PromqlQueryExecutor#resolveTimeout}
+     */
+    public PrometheusQueryRangeRestAction(Supplier<TimeValue> maxQueryTimeout) {
+        this.maxQueryTimeout = maxQueryTimeout;
+    }
+
     @Override
     public String getName() {
         return "prometheus_query_range_action";
@@ -47,26 +59,71 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"), new Route(GET, "/_prometheus/{index}/api/v1/query_range"));
+        return List.of(
+            new Route(GET, "/_prometheus/api/v1/query_range"),
+            new Route(POST, "/_prometheus/api/v1/query_range"),
+            new Route(GET, "/_prometheus/{index}/api/v1/query_range"),
+            new Route(POST, "/_prometheus/{index}/api/v1/query_range")
+        );
+    }
+
+    @Override
+    public boolean supportsReadOnlyFormEncodedPostBody() {
+        return true;
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        try {
+            return prepareQuery(request, client);
+        } catch (Exception e) {
+            // report invalid parameters in the Prometheus error format rather than the standard Elasticsearch one, and mark the
+            // parameters that weren't read before the failure as consumed so that they aren't reported as unrecognized instead
+            request.params().keySet().forEach(request::param);
+            return channel -> PrometheusErrorResponse.send(channel, e, logger);
+        }
+    }
+
+    private RestChannelConsumer prepareQuery(RestRequest request, NodeClient client) {
         String query = getRequiredParam(request, QUERY_PARAM);
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
         String step = getRequiredParam(request, PrometheusQueryResponseListener.STEP_PARAM);
-        String index = request.param(INDEX_PARAM, "*");
+        String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
+        TimeValue timeout = PromqlQueryExecutor.resolveTimeout(request, maxQueryTimeout.get());
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);
-        var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
+            query,
+            index,
+            start,
+            end,
+            step,
+            limit,
+            PrometheusQueryResponseListener.QueryMode.RANGE
+        );
+        var esqlRequest = new PromqlQueryRequest(
+            index,
+            result.esqlStatement(),
+            query,
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            START_PARAM,
+            start,
+            END_PARAM,
+            end,
+            PrometheusQueryResponseListener.STEP_PARAM,
+            step
+        );
 
-        return channel -> client.execute(
-            EsqlQueryAction.INSTANCE,
+        return channel -> PromqlQueryExecutor.execute(
+            client,
+            request.getHttpChannel(),
             esqlRequest,
+            timeout,
             new PrometheusQueryResponseListener(
                 channel,
+                result.resultType(),
                 PrometheusQueryResponseListener.QueryMode.RANGE,
                 limit == 0 ? Integer.MAX_VALUE : limit
             )

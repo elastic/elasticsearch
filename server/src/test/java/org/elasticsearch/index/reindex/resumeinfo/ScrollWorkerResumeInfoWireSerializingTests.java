@@ -12,8 +12,8 @@ package org.elasticsearch.index.reindex.resumeinfo;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.BulkByScrollTaskStatusTests;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusTests;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -34,7 +34,13 @@ public class ScrollWorkerResumeInfoWireSerializingTests extends AbstractWireSeri
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByPaginatedSearchTask.Status.NAME,
+                BulkByPaginatedSearchTask.Status::new
+            )
+        );
         entries.add(
             new NamedWriteableRegistry.Entry(
                 ResumeInfo.WorkerResumeInfo.class,
@@ -66,7 +72,7 @@ public class ScrollWorkerResumeInfoWireSerializingTests extends AbstractWireSeri
         return new ResumeInfo.ScrollWorkerResumeInfo(
             randomAlphaOfLengthBetween(1, 20),
             randomLong(),
-            BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+            BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException(),
             randomBoolean() ? null : (randomBoolean() ? Version.CURRENT : Version.fromId(randomIntBetween(1, 999999)))
         );
     }

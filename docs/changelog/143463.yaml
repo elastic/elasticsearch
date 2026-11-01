@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 142473
-pr: 143463
-summary: Fix LIMIT after all columns are dropped
-type: bug

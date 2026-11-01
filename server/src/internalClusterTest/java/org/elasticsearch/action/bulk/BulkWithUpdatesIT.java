@@ -693,4 +693,25 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(notFoundDelete.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOT_FOUND));
         assertThat(Strings.toString(notFoundDelete), notFoundDelete.getResponse().getShardInfo().getSuccessful(), equalTo(2));
     }
+
+    public void testRepeatedUpdatesOfSameIdInOneBulk() {
+        createIndex("test");
+        client().prepareIndex("test").setId("1").setSource("f0", "v0").get();
+        if (randomBoolean()) {
+            refresh("test");
+        }
+
+        int updates = randomIntBetween(2, 10);
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 1; i <= updates; i++) {
+            bulk.add(client().prepareUpdate("test", "1").setDoc("f" + i, "v" + i));
+        }
+        BulkResponse response = bulk.get();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+
+        Map<String, Object> source = client().prepareGet("test", "1").get().getSourceAsMap();
+        for (int i = 0; i <= updates; i++) {
+            assertEquals("v" + i, source.get("f" + i));
+        }
+    }
 }

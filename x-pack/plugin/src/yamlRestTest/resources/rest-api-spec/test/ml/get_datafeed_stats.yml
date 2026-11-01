@@ -266,6 +266,35 @@ setup:
   - match: { datafeeds.1.state: "stopped"}
 
 ---
+"Test remote_cluster_stats absent for stopped non-CPS datafeed":
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: datafeed-1
+  - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match:  { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.remote_cluster_stats
+
+---
+"Test remote_cluster_stats absent for running non-CPS datafeed":
+
+  - do:
+      ml.open_job:
+        job_id: get-datafeed-stats-1
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "datafeed-1"
+        start: 0
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: datafeed-1
+  - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match:  { datafeeds.0.state: "started"}
+  - is_false: datafeeds.0.remote_cluster_stats
+
+---
 "Test get datafeed stats when total_search_time_ms mapping is missing":
 
   - skip:

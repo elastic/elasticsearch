@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 153403
+summary: Add total counters for search phase byte metrics
+type: enhancement

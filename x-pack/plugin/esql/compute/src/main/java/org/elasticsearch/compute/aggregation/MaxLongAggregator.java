@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "max", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MaxLongAggregator {
 
     public static long init() {
@@ -21,5 +21,9 @@ class MaxLongAggregator {
 
     public static long combine(long current, long v) {
         return Math.max(current, v);
+    }
+
+    public static void combine(LongArrayState state, int groupId, long v) {
+        state.max(groupId, v);
     }
 }

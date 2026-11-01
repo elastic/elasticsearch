@@ -15,7 +15,6 @@ import java.util.Map;
 
 public class MockRerankInferenceServiceIT extends InferenceBaseRestTest {
 
-    @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockRerankServiceModelConfig(), TaskType.RERANK);
@@ -28,10 +27,14 @@ public class MockRerankInferenceServiceIT extends InferenceBaseRestTest {
         }
 
         List<String> input = List.of(randomAlphaOfLength(10));
-        var inference = infer(inferenceEntityId, input);
+        String query = randomAlphaOfLength(10);
+        var inference = rerankInfer(inferenceEntityId, input, query);
         assertNonEmptyInferenceResults(inference, 1, TaskType.RERANK);
-        assertEquals(inference, infer(inferenceEntityId, input));
-        assertNotEquals(inference, infer(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10)))));
+        assertEquals(inference, rerankInfer(inferenceEntityId, input, query));
+        assertNotEquals(
+            inference,
+            rerankInfer(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10))), query)
+        );
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {

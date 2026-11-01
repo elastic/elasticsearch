@@ -39,7 +39,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
   SumOverflowingLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), SumOverflowingLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), SumOverflowingLongAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -128,7 +128,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+          SumOverflowingLongAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -145,14 +145,13 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumOverflowingLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
@@ -193,7 +192,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+          SumOverflowingLongAggregator.combine(state, groupId, sum.getLong(valuesPosition));
         }
       }
     }
@@ -216,7 +215,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+          SumOverflowingLongAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -233,14 +232,13 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumOverflowingLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
@@ -281,7 +279,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+          SumOverflowingLongAggregator.combine(state, groupId, sum.getLong(valuesPosition));
         }
       }
     }
@@ -298,7 +296,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumOverflowingLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -308,13 +306,12 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       long vValue = vVector.getLong(valuesPosition);
-      state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+      SumOverflowingLongAggregator.combine(state, groupId, vValue);
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
@@ -349,9 +346,19 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+        SumOverflowingLongAggregator.combine(state, groupId, sum.getLong(valuesPosition));
       }
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock vBlock) {

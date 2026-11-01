@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -37,6 +38,13 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "restore_snapshot_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        // Advertises support for the restore_over_existing request parameter so that mixed-version clients and BWC tests can detect
+        // whether every node understands it before relying on it.
+        return Set.of("restore_over_existing");
     }
 
     @Override

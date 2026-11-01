@@ -10,12 +10,14 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -83,11 +85,12 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         Map<Key, Long> expected = new TreeMap<>(Comparator.comparing(Key::tsid).thenComparingLong(Key::bucket));
         // original groups
         long oneMinute = TimeValue.timeValueMinutes(1).millis();
-        long smallestBucket = Long.MAX_VALUE;
+        long largestBucket = Long.MIN_VALUE;
         for (Page page : input) {
             LongBlock timestamp = page.getBlock(1);
             for (int p = 0; p < timestamp.getPositionCount(); p++) {
-                smallestBucket = Math.min(timestamp.getLong(p), smallestBucket);
+                long bucket = timestamp.getLong(p);
+                largestBucket = Math.max(bucket, largestBucket);
             }
         }
         for (Page page : input) {
@@ -98,15 +101,14 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long bucket = timestamp.getLong(p);
                 var tsid = tsids.getBytesRef(p, scratch).utf8ToString();
-                // slide the window over the last 5 minutes
-                // bucket = 00:06 -> it should generate buckets at 00:02, 00:03, 00:04, 00:05, 00:06
+                // A point at bucket T contributes to backward windows anchored at [T, T+4m].
                 for (int i = 0; i < 5; i++) {
-                    if (bucket >= smallestBucket) {
+                    if (bucket <= largestBucket) {
                         Key key = new Key(tsid, bucket);
                         long val = values.getInt(p);
                         expected.merge(key, val, Long::sum);
                     }
-                    bucket = bucket - oneMinute;
+                    bucket = bucket + oneMinute;
                 }
             }
         }
@@ -169,9 +171,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     }
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction().groupingAggregator(driverContext(), List.of())) {
-            return agg.intermediateBlockCount();
-        }
+        return aggregatorFunction().groupingIntermediateStateDesc().size();
     }
 
     public void testMissingGroup() {
@@ -179,212 +179,63 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     }
 
     /**
-     * Verifies that a 7-minute window over 1-minute sub-buckets (GCD of 7m window and 5m user bucket)
-     * produces correct sums, and that output filtering to 5-minute boundaries works.
-     * <p>
-     * Input: single TSID "x", one data point per minute from t+0 to t+14 (15 points), each with value 1.
-     * Internal bucket = 1 minute, window = 7 minutes (forward-looking).
-     * Output bucket filter = 5 minutes.
-     * <p>
-     * After window aggregation, each 1-minute bucket merges up to 7 sub-buckets of data.
-     * Only buckets at 5-minute boundaries (t+0, t+5, t+10) appear in output.
+     * A non-multiple window (7m over 5m buckets) merges the boundary bucket's partial channel into the bucket fully
+     * covered by the window, so the value of the bucket labeled {@code L} covers {@code [L - 2m, L + 5m)}. Three
+     * TSIDs with varying data density stress the merge; TSID "a" ends before the others, so its last bucket exists
+     * only through window expansion and is fed by both channels of the previous buckets.
      */
-    public void testNonMultipleWindowWithSubBucketing() {
-        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+    public void testNonMultipleWindowWithPartialChannel() {
         Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
-        Duration windowDuration = Duration.ofMinutes(7);
 
         final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
-        long baseTime = oneMinBucket.round(startTime);
-        BytesRef tsid = new BytesRef("x");
-
-        List<List<Object>> rows = new ArrayList<>();
-        for (int i = 0; i < 15; i++) {
-            long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
-            rows.add(List.of(tsid, ts, 1));
-        }
-
-        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
-            oneMinBucket,
-            false,
-            List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
-            ),
-            AggregatorMode.SINGLE,
-            List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(HASH_CHANNEL_COUNT)
-                )
-            ),
-            10_000,
-            fiveMinBucket
-        );
-
-        var driverCtx = driverContext();
-        var source = new ListRowsBlockSourceOperator(
-            driverCtx.blockFactory(),
-            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
-            rows
-        );
-        List<Page> results = new ArrayList<>();
-        try (
-            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
-                driverCtx,
-                source,
-                List.of(operatorFactory.get(driverCtx)),
-                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
-            )
-        ) {
-            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
-        }
-
-        record OutputRow(String tsid, long bucket, long value) {}
-        List<OutputRow> outputRows = new ArrayList<>();
-        for (Page page : results) {
-            BytesRefBlock tsids = page.getBlock(0);
-            LongBlock buckets = page.getBlock(1);
-            LongBlock values = page.getBlock(2);
-            var scratch = new BytesRef();
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), buckets.getLong(p), values.getLong(p)));
-            }
-        }
-        // Output should only contain rows at 5-minute boundaries
-        for (OutputRow row : outputRows) {
-            assertThat("output timestamp should be aligned to 5-minute boundary", fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
-        }
-        // We expect 3 output rows: at baseTime+0, baseTime+5m, baseTime+10m
-        assertThat("expected 3 output rows at 5-minute boundaries", outputRows.size(), equalTo(3));
-
-        // Verify the sums:
-        // bucket at baseTime+0: window covers [0,7m) → minutes 0..6 → 7 points → sum=7
-        // bucket at baseTime+5m: window covers [5m,12m) → minutes 5..11 → 7 points → sum=7
-        // bucket at baseTime+10m: window covers [10m,17m) → minutes 10..14 → 5 points → sum=5
-        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        assertThat("sum at baseTime+0m", outputRows.get(0).value(), equalTo(7L));
-        assertThat("sum at baseTime+5m", outputRows.get(1).value(), equalTo(7L));
-        assertThat("sum at baseTime+10m", outputRows.get(2).value(), equalTo(5L));
-    }
-
-    /**
-     * When the output bucket differs from the internal bucket (GCD sub-bucketing), the optimized
-     * emit path sets allGroupIds on the evaluation context so that the window function can build
-     * a full intermediate page for neighbor lookups while only merging output-aligned groups.
-     * This test uses 3 TSIDs with varying data density to stress the merge.
-     */
-    public void testWindowWithAllGroupIdsUsesFullIntermediateForMerge() {
-        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
-        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
-        Duration windowDuration = Duration.ofMinutes(7);
-
-        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
-        long baseTime = oneMinBucket.round(startTime);
+        long baseTime = fiveMinBucket.round(startTime);
 
         List<List<Object>> rows = new ArrayList<>();
         // TSID "a": data every minute for 10 minutes, value=1
         for (int i = 0; i < 10; i++) {
-            rows.add(List.of("a", baseTime + TimeValue.timeValueMinutes(i).millis(), 1));
+            addMinuteRow(rows, "a", baseTime, i, 1, fiveMinBucket);
         }
         // TSID "b": data every minute for 15 minutes, value=2
         for (int i = 0; i < 15; i++) {
-            rows.add(List.of("b", baseTime + TimeValue.timeValueMinutes(i).millis(), 2));
+            addMinuteRow(rows, "b", baseTime, i, 2, fiveMinBucket);
         }
-        // TSID "c": sparse data at minutes 0, 5, 10, value=100
+        // TSID "c": sparse data at minutes 0, 5, 10, value=100; never in the trailing 2m of a bucket
         for (int i : new int[] { 0, 5, 10 }) {
-            rows.add(List.of("c", baseTime + TimeValue.timeValueMinutes(i).millis(), 100));
+            addMinuteRow(rows, "c", baseTime, i, 100, fiveMinBucket);
         }
 
-        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
-            oneMinBucket,
-            false,
-            List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
-            ),
-            AggregatorMode.SINGLE,
-            List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(HASH_CHANNEL_COUNT)
-                )
-            ),
-            10_000,
-            fiveMinBucket
-        );
-
-        var driverCtx = driverContext();
-        var source = new ListRowsBlockSourceOperator(
-            driverCtx.blockFactory(),
-            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
-            rows
-        );
-        List<Page> results = new ArrayList<>();
-        try (
-            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
-                driverCtx,
-                source,
-                List.of(operatorFactory.get(driverCtx)),
-                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
-            )
-        ) {
-            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
-        }
-
-        record OutputRow(String tsid, long bucket, long value) {}
-        List<OutputRow> outputRows = new ArrayList<>();
-        for (Page page : results) {
-            BytesRefBlock tsids = page.getBlock(0);
-            LongBlock buckets = page.getBlock(1);
-            LongBlock values = page.getBlock(2);
-            var scratch = new BytesRef();
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), buckets.getLong(p), values.getLong(p)));
-            }
-        }
-
-        for (OutputRow row : outputRows) {
-            assertThat(fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
-        }
-
+        List<OutputRow> outputRows = runPartialWindowPipeline(fiveMinBucket, Duration.ofMinutes(7), Duration.ofMinutes(2), rows);
         outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
 
-        // TSID "a" (value=1, 10 minutes of data): output at 0, 5m
-        // bucket 0: [0,7m) → min(7,10)=7 points → sum=7
-        // bucket 5m: [5m,12m) → minutes 5..9 → 5 points → sum=5
+        // TSID "a" (value=1, minutes 0-9): the 10m bucket exists only through expansion and gets
+        // its value from the partial channel of the 5m bucket (minutes 8 and 9).
         List<OutputRow> aRows = outputRows.stream().filter(r -> r.tsid().equals("a")).toList();
-        assertThat(aRows.size(), equalTo(2));
-        assertThat(aRows.get(0).value(), equalTo(7L));
-        assertThat(aRows.get(1).value(), equalTo(5L));
-
-        // TSID "b" (value=2, 15 minutes of data): output at 0, 5m, 10m
-        // bucket 0: [0,7m) → 7 points → sum=14
-        // bucket 5m: [5m,12m) → 7 points → sum=14
-        // bucket 10m: [10m,17m) → 5 points → sum=10
+        assertThat(aRows.size(), equalTo(3));
+        assertThat(aRows.get(0).bucket(), equalTo(baseTime));
+        assertThat(aRows.get(1).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(5).millis()));
+        assertThat(aRows.get(2).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(10).millis()));
+        assertThat(aRows.get(0).value(), equalTo(5L));  // [-2m,5m) -> minutes 0..4
+        assertThat(aRows.get(1).value(), equalTo(7L));  // [3m,10m) -> minutes 3..9
+        assertThat(aRows.get(2).value(), equalTo(2L));  // [8m,15m) -> minutes 8..9
+        // TSID "b" (value=2, minutes 0-14).
         List<OutputRow> bRows = outputRows.stream().filter(r -> r.tsid().equals("b")).toList();
         assertThat(bRows.size(), equalTo(3));
-        assertThat(bRows.get(0).value(), equalTo(14L));
-        assertThat(bRows.get(1).value(), equalTo(14L));
-        assertThat(bRows.get(2).value(), equalTo(10L));
-
-        // TSID "c" (value=100, sparse at 0, 5, 10): output at 0, 5m, 10m
-        // bucket 0: [0,7m) → points at 0 and 5 → sum=200
-        // bucket 5m: [5m,12m) → points at 5 and 10 → sum=200
-        // bucket 10m: [10m,17m) → point at 10 → sum=100
+        assertThat(bRows.get(0).value(), equalTo(10L)); // minutes 0..4
+        assertThat(bRows.get(1).value(), equalTo(14L)); // minutes 3..9
+        assertThat(bRows.get(2).value(), equalTo(14L)); // minutes 8..14
+        // TSID "c" (value=100, sparse at 0, 5, 10): no point falls in a trailing 2m, so no partial contributions.
         List<OutputRow> cRows = outputRows.stream().filter(r -> r.tsid().equals("c")).toList();
         assertThat(cRows.size(), equalTo(3));
-        assertThat(cRows.get(0).value(), equalTo(200L));
-        assertThat(cRows.get(1).value(), equalTo(200L));
+        assertThat(cRows.get(0).value(), equalTo(100L));
+        assertThat(cRows.get(1).value(), equalTo(100L));
         assertThat(cRows.get(2).value(), equalTo(100L));
     }
 
     /**
-     * When internal bucket == output bucket (no sub-bucketing), allGroupIds is never set on the
-     * context and the window function falls back to using selected for everything. Verifies this
-     * path still produces correct windowed results.
+     * An exact-multiple window has no partial channel; the final phase merges the covered neighbor buckets.
+     * Backward windows emit partial leading windows.
      */
-    public void testWindowWithoutAllGroupIdsFallsBackToSelected() {
+    public void testExactMultipleWindowMergesNeighborBuckets() {
         Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
         Duration windowDuration = Duration.ofMinutes(10);
 
@@ -398,7 +249,6 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             rows.add(List.of("s", ts, 10));
         }
 
-        // No outputTimeBucket → needsOutputFiltering() returns false → super.emit() → allGroupIds stays null
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
             fiveMinBucket,
             false,
@@ -434,7 +284,50 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
         }
 
-        record OutputRow(String tsid, long bucket, long value) {}
+        List<OutputRow> outputRows = extractRows(results);
+        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        assertThat(outputRows.size(), equalTo(4));
+        assertThat(outputRows.get(0).bucket(), equalTo(baseTime));
+        assertThat(outputRows.get(1).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(5).millis()));
+        assertThat(outputRows.get(2).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(10).millis()));
+        assertThat(outputRows.get(3).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(15).millis()));
+        assertThat(outputRows.get(0).value(), equalTo(10L));
+        assertThat(outputRows.get(1).value(), equalTo(20L));
+        assertThat(outputRows.get(2).value(), equalTo(20L));
+        assertThat(outputRows.get(3).value(), equalTo(20L));
+    }
+
+    /**
+     * A window spanning more than one full bucket plus a remainder ({@code W = 2 * B + r}): the merge combines the
+     * two fully covered buckets and the partial state of the bucket before them.
+     */
+    public void testMultiBucketWindowWithPartialChannel() {
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = fiveMinBucket.round(startTime);
+
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            addMinuteRow(rows, "solo", baseTime, i, 1, fiveMinBucket);
+        }
+
+        List<OutputRow> outputRows = runPartialWindowPipeline(fiveMinBucket, Duration.ofMinutes(12), Duration.ofMinutes(2), rows);
+        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        assertThat(outputRows.size(), equalTo(5));
+        for (int i = 0; i < 5; i++) {
+            assertThat(outputRows.get(i).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(i * 5L).millis()));
+        }
+        assertThat(outputRows.get(0).value(), equalTo(5L));  // [-7m,5m) -> minutes 0..4
+        assertThat(outputRows.get(1).value(), equalTo(10L)); // [-2m,10m) -> minutes 0..9
+        assertThat(outputRows.get(2).value(), equalTo(12L)); // [3m,15m) -> minutes 3..14
+        assertThat(outputRows.get(3).value(), equalTo(12L)); // [8m,20m) -> minutes 8..19
+        assertThat(outputRows.get(4).value(), equalTo(12L)); // [13m,25m) -> minutes 13..24
+    }
+
+    record OutputRow(String tsid, long bucket, long value) {}
+
+    static List<OutputRow> extractRows(List<Page> results) {
         List<OutputRow> outputRows = new ArrayList<>();
         for (Page page : results) {
             BytesRefBlock tsids = page.getBlock(0);
@@ -445,17 +338,99 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), buckets.getLong(p), values.getLong(p)));
             }
         }
-
-        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        // 10m window over 5m buckets: each bucket merges itself + the next bucket
-        // bucket 0: [0,10m) → points at 0 and 5m → sum=20
-        // bucket 5m: [5m,15m) → points at 5m and 10m → sum=20
-        // bucket 10m: [10m,20m) → points at 10m and 15m → sum=20
-        // bucket 15m: [15m,25m) → point at 15m → sum=10
-        assertThat(outputRows.size(), equalTo(4));
-        assertThat(outputRows.get(0).value(), equalTo(20L));
-        assertThat(outputRows.get(1).value(), equalTo(20L));
-        assertThat(outputRows.get(2).value(), equalTo(20L));
-        assertThat(outputRows.get(3).value(), equalTo(10L));
+        return outputRows;
     }
+
+    /**
+     * Adds a row of {@code (tsid, bucket, value, raw timestamp)} for the given minute offset. The raw timestamp
+     * column drives the partial-channel filter, the bucket column drives the grouping.
+     */
+    static void addMinuteRow(List<List<Object>> rows, String tsid, long baseTime, int minute, int value, Rounding.Prepared bucket) {
+        long ts = baseTime + TimeValue.timeValueMinutes(minute).millis();
+        rows.add(List.of(tsid, bucket.round(ts), value, ts));
+    }
+
+    /**
+     * Runs a SINGLE-mode pipeline for a non-multiple window: rows are {@code (tsid, bucket, value, timestamp)} and
+     * the partial channel is filtered to the trailing {@code remainder} of each bucket via the raw timestamp column.
+     */
+    private List<OutputRow> runPartialWindowPipeline(
+        Rounding.Prepared bucket,
+        Duration windowDuration,
+        Duration remainder,
+        List<List<Object>> rows
+    ) {
+        var sum = new SumIntAggregatorFunctionSupplier();
+        var partial = new FilteredAggregatorFunctionSupplier(sum, trailingWindowFilter(bucket, remainder.toMillis(), 1, 3));
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            bucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            List.of(
+                new WindowAggregatorFunctionSupplier(sum, partial, windowDuration, remainder).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
+            ),
+            10_000
+        );
+
+        var driverCtx = driverContext();
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT, ElementType.LONG),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
+        }
+        return extractRows(results);
+    }
+
+    /**
+     * A stand-in for the {@code WindowFilter} row predicate, which lives in the esql module and is not available
+     * here: keeps rows whose raw timestamp falls in the trailing {@code remainderMillis} of their bucket.
+     */
+    static ExpressionEvaluator.Factory trailingWindowFilter(
+        Rounding.Prepared bucket,
+        long remainderMillis,
+        int bucketChannel,
+        int timestampChannel
+    ) {
+        return context -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                LongBlock bucketBlock = page.getBlock(bucketChannel);
+                LongBlock timestampBlock = page.getBlock(timestampChannel);
+                try (var builder = context.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        long bucketEnd = bucket.nextRoundingValue(bucketBlock.getLong(p));
+                        builder.appendBoolean(p, timestampBlock.getLong(p) >= bucketEnd - remainderMillis);
+                    }
+                    return builder.build().asBlock();
+                }
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
 }

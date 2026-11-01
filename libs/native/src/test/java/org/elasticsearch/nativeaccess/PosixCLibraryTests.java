@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Unwrappable;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -25,6 +25,8 @@ import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.StandardOpenOption;
 
 import static org.elasticsearch.common.Numbers.isPowerOfTwo;
+import static org.elasticsearch.nativeaccess.lib.PosixCLibrary.POSIX_MADV_NORMAL;
+import static org.elasticsearch.nativeaccess.lib.PosixCLibrary.POSIX_MADV_RANDOM;
 import static org.elasticsearch.nativeaccess.lib.PosixCLibrary.POSIX_MADV_WILLNEED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +40,7 @@ public class PosixCLibraryTests extends ESTestCase {
     public void setup() {
         nativeAccess = NativeAccess.instance();
         if (Constants.LINUX || Constants.MAC_OS_X) {
-            clib = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
+            clib = LibraryProvider.lookupLibrary(PosixCLibrary.class);
             assertNotNull(clib);
         } else {
             assumeFalse("posix only available on Mac/Linux", Constants.WINDOWS);
@@ -63,6 +65,42 @@ public class PosixCLibraryTests extends ESTestCase {
 
             assertOutOfBounds(segment);
             if (STRICT_ALIGNMENT) assertUnaligned(segment);
+        }
+    }
+
+    // Verify that madvise succeeds with POSIX_MADV_RANDOM and POSIX_MADV_NORMAL on a mapped region.
+    public void testMadviseRandomAndNormal() throws IOException {
+        int size = randomIntBetween(8, 4096);
+        var tmp = createTempDir();
+        try (var dir = newFSDirectory(tmp)) {
+            try (var out = dir.createOutput("bar.dat", IOContext.DEFAULT)) {
+                out.writeBytes(randomBytes(size), 0, size);
+            }
+        }
+        var file = Unwrappable.unwrapAll(tmp.resolve("bar.dat"));
+        try (var arena = Arena.ofConfined(); var fc = FileChannel.open(file, StandardOpenOption.READ)) {
+            var segment = fc.map(MapMode.READ_ONLY, 0, fc.size(), arena);
+            assertThat(clib.madvise(segment, 0, fc.size(), POSIX_MADV_RANDOM), equalTo(0));
+            assertThat(clib.madvise(segment, 0, fc.size(), POSIX_MADV_NORMAL), equalTo(0));
+            assertThat(clib.madvise(segment, 0, fc.size(), POSIX_MADV_RANDOM), equalTo(0));
+        }
+    }
+
+    // Verify that madvise with POSIX_MADV_RANDOM works on a sub-range of a mapped region.
+    public void testMadviseRandomSubRange() throws IOException {
+        int size = randomIntBetween(64, 4096);
+        var tmp = createTempDir();
+        try (var dir = newFSDirectory(tmp)) {
+            try (var out = dir.createOutput("sub.dat", IOContext.DEFAULT)) {
+                out.writeBytes(randomBytes(size), 0, size);
+            }
+        }
+        var file = Unwrappable.unwrapAll(tmp.resolve("sub.dat"));
+        try (var arena = Arena.ofConfined(); var fc = FileChannel.open(file, StandardOpenOption.READ)) {
+            var segment = fc.map(MapMode.READ_ONLY, 0, fc.size(), arena);
+            long half = fc.size() / 2;
+            assertThat(clib.madvise(segment, 0, half, POSIX_MADV_RANDOM), equalTo(0));
+            assertThat(clib.madvise(segment, 0, half, POSIX_MADV_NORMAL), equalTo(0));
         }
     }
 

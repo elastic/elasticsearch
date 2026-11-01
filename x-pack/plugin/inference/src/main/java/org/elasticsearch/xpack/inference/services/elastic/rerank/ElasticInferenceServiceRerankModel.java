@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceModel {
 
-    public static final String RERANK_PATH = "/api/v1/rerank/text/text-similarity";
+    public static final String RERANK_PATH = "/api/v1/rerank";
     private final URI uri;
 
     public ElasticInferenceServiceRerankModel(
@@ -68,7 +68,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                EmptyTaskSettings.INSTANCE,
+                EnforcingEmptyTaskSettings.INSTANCE,
                 null,
                 endpointMetadata
             ),

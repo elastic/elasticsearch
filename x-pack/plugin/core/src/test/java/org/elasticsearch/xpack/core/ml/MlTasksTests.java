@@ -233,7 +233,7 @@ public class MlTasksTests extends ESTestCase {
             new OpenJobAction.JobParams("job_without_assignment"),
             new PersistentTasksCustomMetadata.Assignment(
                 null,
-                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
                 "test assignment"
             )
         );
@@ -275,7 +275,7 @@ public class MlTasksTests extends ESTestCase {
             new StartDatafeedAction.DatafeedParams("datafeed_without_assignment", 0L),
             new PersistentTasksCustomMetadata.Assignment(
                 null,
-                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
                 "test assignment"
             )
         );

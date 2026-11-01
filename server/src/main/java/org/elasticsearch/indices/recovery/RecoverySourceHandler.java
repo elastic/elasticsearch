@@ -314,7 +314,7 @@ public class RecoverySourceHandler {
                 shard,
                 cancellableThreads,
                 ActionListener.wrap(ignored -> {
-                    final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+                    final long endingSeqNo = shard.getMaxSeqNo();
                     if (logger.isTraceEnabled()) {
                         logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
                     }

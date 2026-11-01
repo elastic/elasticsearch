@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequestExecutorService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequestManager;
@@ -70,7 +70,8 @@ public class AmazonBedrockRequestSender implements Sender {
                 serviceComponents.threadPool(),
                 startCompleted,
                 executorServiceSettings,
-                requestSender
+                requestSender,
+                serviceComponents.circuitBreaker()
             );
 
             bedrockRequestSender = new AmazonBedrockRequestSender(serviceComponents.threadPool(), executorService, startCompleted);
@@ -100,14 +101,8 @@ public class AmazonBedrockRequestSender implements Sender {
         this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
-    @Override
-    public void startAsynchronously(ActionListener<Void> listener) {
-
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
-    public void startSynchronously() {
+    // default for testing
+    void startSynchronously() {
         if (started.compareAndSet(false, true)) {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request
@@ -147,7 +142,7 @@ public class AmazonBedrockRequestSender implements Sender {
     @Override
     public void sendWithoutQueuing(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         ResponseHandler responseHandler,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

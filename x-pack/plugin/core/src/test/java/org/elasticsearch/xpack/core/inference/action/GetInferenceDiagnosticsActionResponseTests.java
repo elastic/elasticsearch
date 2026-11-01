@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.apache.http.pool.PoolStats;
+import org.apache.hc.core5.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -46,7 +46,8 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractBWCWireS
                     node,
                     externalPoolStats,
                     eisPoolStats,
-                    new GetInferenceDiagnosticsAction.NodeResponse.Stats(5, 6, 7, 8)
+                    new GetInferenceDiagnosticsAction.NodeResponse.Stats(5, 6, 7, 8),
+                    null
                 )
             ),
             List.of()

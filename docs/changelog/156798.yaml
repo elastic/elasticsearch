@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 156798
+summary: Register gauges after the initialisation to avoid caching noop
+type: bug

@@ -50,8 +50,10 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final boolean restrictToNativeRolesOnly = request.isServerlessRequest() && false == request.isOperatorRequest();
+        final boolean includeImplicit = request.paramAsBoolean("include_implicit", false);
         return channel -> new GetRolesRequestBuilder(client).names(roles)
             .nativeOnly(restrictToNativeRolesOnly)
+            .includeImplicit(includeImplicit)
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {

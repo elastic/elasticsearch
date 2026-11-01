@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -26,6 +27,7 @@ public class TransportUpdateConnectorFilteringValidationAction extends HandledTr
     @Inject
     public TransportUpdateConnectorFilteringValidationAction(
         TransportService transportService,
+        ClusterService clusterService,
         ActionFilters actionFilters,
         Client client
     ) {
@@ -36,7 +38,7 @@ public class TransportUpdateConnectorFilteringValidationAction extends HandledTr
             UpdateConnectorFilteringValidationAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.connectorIndexService = new ConnectorIndexService(client);
+        this.connectorIndexService = new ConnectorIndexService(client, clusterService.getClusterSettings());
     }
 
     @Override

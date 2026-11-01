@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -32,6 +35,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -179,9 +183,9 @@ public final class IndexSortConfig {
                 indexMode = indexMode.toLowerCase(Locale.ROOT);
             }
 
-            if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
+            if (IndexMode.isTsdbName(indexMode)) {
                 return TIME_SERIES_SORT;
-            } else if (IndexMode.LOGSDB.getName().equals(indexMode)) {
+            } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.LOGSDB_COLUMNAR.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
                 if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
                     || version.between(
@@ -301,6 +305,32 @@ public final class IndexSortConfig {
             }
         }
 
+        if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
+            List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            for (String field : fields) {
+                if (field.equals(RoutingFieldMapper.NAME)
+                    || field.equals(SliceIndexing.FIELD_NAME)
+                    || field.equals(SliceIndexing.SLICE_KEY_FIELD_NAME)
+                    || field.equals(SliceIndexing.SLICE_HASH_FIELD_NAME)) {
+                    throw new IllegalArgumentException(
+                        "setting ["
+                            + INDEX_SORT_FIELD_SETTING.getKey()
+                            + "] must not contain ["
+                            + RoutingFieldMapper.NAME
+                            + "], ["
+                            + SliceIndexing.FIELD_NAME
+                            + "], ["
+                            + SliceIndexing.SLICE_KEY_FIELD_NAME
+                            + "] or ["
+                            + SliceIndexing.SLICE_HASH_FIELD_NAME
+                            + "] when ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] is true"
+                    );
+                }
+            }
+        }
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
 
         var order = INDEX_SORT_ORDER_SETTING.get(settings);
@@ -318,32 +348,50 @@ public final class IndexSortConfig {
     private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
+    private final boolean sliceEnabled;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
+        this.sliceEnabled = indexSettings.isSliceEnabled();
 
         validateSortSettings(settings);
 
-        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+        List<String> fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
+        List<SortOrder> orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
+        List<MultiValueMode> modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
+        List<String> missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+        if (indexSettings.isSliceEnabled()) {
+            prependSliceKeySort(fields, orders, modes, missingValues);
+        }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
-
-        List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].order = orders.get(i);
         }
-
-        List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].mode = modes.get(i);
         }
-
-        List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].missingValue = missingValues.get(i);
         }
+    }
+
+    /**
+     * Slice-enabled indices are sorted on the hash-prefixed slice key first, ascending with missing values (tombstones)
+     * last, so every slice occupies a contiguous doc-id range laid out by hash prefix.
+     */
+    private static void prependSliceKeySort(
+        List<String> fields,
+        List<SortOrder> orders,
+        List<MultiValueMode> modes,
+        List<String> missingValues
+    ) {
+        fields.addFirst(SliceIndexing.SLICE_KEY_FIELD_NAME);
+        orders.addFirst(SortOrder.ASC);
+        modes.addFirst(MultiValueMode.MIN);
+        missingValues.addFirst("_last");
     }
 
     /**
@@ -381,11 +429,17 @@ public final class IndexSortConfig {
         final SortField[] sortFields = new SortField[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
-            final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
+            // This is only necessary because of the logic of "{}" empty mappings.
+            // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
+            // lookup and must resolve the slice key field type directly.
+            final MappedFieldType ft = Optional.ofNullable(fieldTypeLookup.apply(sortSpec.field))
+                .orElseGet(
+                    () -> sliceEnabled && SliceIndexing.SLICE_KEY_FIELD_NAME.equals(sortSpec.field) ? SliceKeyFieldMapper.FIELD_TYPE : null
+                );
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
-                if (this.indexMode == IndexMode.TIME_SERIES) {
-                    err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
+                if (this.indexMode.isTsdb()) {
+                    err += " required by [" + IndexSettings.MODE.getKey() + "=" + this.indexMode.getName() + "]";
                 }
                 throw new IllegalArgumentException(err);
             }
@@ -475,6 +529,8 @@ public final class IndexSortConfig {
 
     public static SortField.Type getSortFieldType(SortField sortField) {
         if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof BinarySortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();

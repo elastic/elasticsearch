@@ -171,7 +171,7 @@ public class VersionTests extends ESTestCase {
         }
 
         expectThrows(IllegalArgumentException.class, () -> { Version.fromString("5.0.0-alph2"); });
-        assertSame(Version.CURRENT, Version.fromString(Version.CURRENT.toString()));
+        assertSame(Version.CURRENT, Version.fromString(Build.current().version()));
 
         assertEquals(Version.fromString("2.0.0-SNAPSHOT"), Version.fromId(2000099));
 

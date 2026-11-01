@@ -37,6 +37,7 @@ public class TaskRelocatedException extends ElasticsearchException {
         super(in);
     }
 
+    @SuppressWarnings("this-escape")
     public TaskRelocatedException(TaskId originalTaskId, TaskId relocatedTaskId) {
         super("Task was relocated");
         assert originalTaskId.isSet() : "original task ID is not set";

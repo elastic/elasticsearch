@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_GEOHEX` function [esql-to_geohex]
 
-:::{include} ../../_snippets/functions/layout/to_geohex.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_geohex.md
 :::

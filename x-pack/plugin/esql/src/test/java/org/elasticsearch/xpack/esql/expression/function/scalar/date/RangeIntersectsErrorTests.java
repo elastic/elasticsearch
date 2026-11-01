@@ -1,0 +1,63 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.date;
+
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * Error tests for RANGE_INTERSECTS(left, right). Both arguments must belong to the same range family.
+ */
+public class RangeIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+    @Override
+    protected List<TestCaseSupplier> cases() {
+        assumeTrue("DATE_RANGE type is only supported in snapshot builds", DataType.DATE_RANGE.supportedVersion().supportedLocally());
+        return paramsToSuppliers(RangeIntersectsTests.parameters());
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new RangeIntersects(source, args.get(0), args.get(1));
+    }
+
+    @Override
+    protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        return equalTo(
+            typeErrorMessage(
+                true,
+                validPerPosition,
+                signature,
+                (v, i) -> i == 0 ? "date, date_range, double or double_range"
+                    : signature.get(0) == DataType.DOUBLE || signature.get(0) == DataType.DOUBLE_RANGE ? "double or double_range"
+                    : signature.get(0) == DataType.DATETIME || signature.get(0) == DataType.DATE_RANGE ? "date or date_range"
+                    : "date, date_range, double or double_range",
+                () -> {
+                    String expected = signature.get(0) == DataType.DOUBLE || signature.get(0) == DataType.DOUBLE_RANGE
+                        ? "double or double_range"
+                        : "date or date_range";
+                    return "second argument of ["
+                        + sourceForSignature(signature)
+                        + "] must be ["
+                        + expected
+                        + "], found value [] type ["
+                        + signature.get(1).typeName()
+                        + "]";
+                }
+            )
+        );
+    }
+}

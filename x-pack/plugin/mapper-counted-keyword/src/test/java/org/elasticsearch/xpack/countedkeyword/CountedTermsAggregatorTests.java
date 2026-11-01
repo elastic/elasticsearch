@@ -41,7 +41,7 @@ public class CountedTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggregatesCountedKeywords() throws Exception {
-        FieldMapper mapper = new CountedKeywordFieldMapper.Builder("stacktraces", Mapper.SourceKeepMode.NONE).build(
+        FieldMapper mapper = new CountedKeywordFieldMapper.Builder("stacktraces", Mapper.SourceKeepMode.NONE, false).build(
             MapperBuilderContext.root(false, false)
         );
         MappedFieldType fieldType = mapper.fieldType();

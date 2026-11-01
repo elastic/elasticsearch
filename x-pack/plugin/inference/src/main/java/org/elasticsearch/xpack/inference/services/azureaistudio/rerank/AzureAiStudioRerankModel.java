@@ -64,7 +64,7 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
             inferenceEntityId,
             AzureAiStudioRerankServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

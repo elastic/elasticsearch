@@ -119,7 +119,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * Return an iterator for all keys in the given owning bucket, ordered in natural sort order.
      * This is suitable for aligning buckets across different instances of an aggregation.
      *
-     * @param owningBucketOrd Only return keys that occured under this owning bucket
+     * @param owningBucketOrd Only return keys that occurred under this owning bucket
      * @return a sorted iterator of long key values
      */
     public Iterator<Long> keyOrderedIterator(long owningBucketOrd) {

@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 
 import java.util.Objects;
@@ -29,14 +29,14 @@ public class GenericRequestManager<T extends InferenceInputs> extends BaseReques
     private static final Logger logger = LogManager.getLogger(GenericRequestManager.class);
 
     protected final ResponseHandler responseHandler;
-    protected final Function<T, Request> requestCreator;
+    protected final Function<T, OutboundRequest> requestCreator;
     protected final Class<T> inputType;
 
     public GenericRequestManager(
         ThreadPool threadPool,
         RateLimitGroupingModel rateLimitGroupingModel,
         ResponseHandler responseHandler,
-        Function<T, Request> requestCreator,
+        Function<T, OutboundRequest> requestCreator,
         Class<T> inputType
     ) {
         super(threadPool, rateLimitGroupingModel);

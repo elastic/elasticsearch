@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +88,36 @@ public class SecondaryAuthorizationUtilsTests extends ESTestCase {
         });
         assertThat(counter.get(), is(equalTo(3)));
         // The headers are restored
+        assertThat(
+            threadContext.getHeaders(),
+            is(equalTo(Map.of(AUTH_KEY, JOHN_HEADER, SECONDARY_AUTH_KEY, BILL_HEADER, NOT_AN_AUTH_KEY, NOT_AN_AUTH_HEADER)))
+        );
+    }
+
+    public void testUseSecondaryAuthIfAvailableValueReturning() {
+        // null securityContext: body runs as-is and its value is returned.
+        String fromNull = SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable(null, () -> "no-security");
+        assertThat(fromNull, is(equalTo("no-security")));
+
+        // securityContext present, no secondary auth header: body runs on the current context.
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        String fromNoSecondary = SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable(
+            securityContext,
+            () -> threadContext.getHeader(AUTH_KEY)
+        );
+        assertThat(fromNoSecondary, is(nullValue()));
+
+        // secondary auth present: body sees the swapped context (AUTH_KEY = BILL) and the value
+        // returned by the body propagates back out; the outer context is restored on return.
+        threadContext.setHeaders(
+            Tuple.tuple(Map.of(AUTH_KEY, JOHN_HEADER, SECONDARY_AUTH_KEY, BILL_HEADER, NOT_AN_AUTH_KEY, NOT_AN_AUTH_HEADER), Map.of())
+        );
+        String fromSwapped = SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable(
+            securityContext,
+            () -> threadContext.getHeader(AUTH_KEY)
+        );
+        assertThat(fromSwapped, is(equalTo(BILL_HEADER)));
         assertThat(
             threadContext.getHeaders(),
             is(equalTo(Map.of(AUTH_KEY, JOHN_HEADER, SECONDARY_AUTH_KEY, BILL_HEADER, NOT_AN_AUTH_KEY, NOT_AN_AUTH_HEADER)))

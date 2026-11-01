@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -32,10 +32,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -58,7 +63,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends LegacyActionRequest
+public class BulkRequest extends UntypedActionRequest
     implements
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
@@ -92,6 +97,7 @@ public class BulkRequest extends LegacyActionRequest
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
     private Set<String> paramsUsed = emptySet();
+    private Map<String, SourceBatch> preBuiltBatches = Map.of();
 
     private long sizeInBytes = 0;
 
@@ -138,16 +144,12 @@ public class BulkRequest extends LegacyActionRequest
      * @return the current bulk request
      */
     public BulkRequest add(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest indexRequest) {
-            add(indexRequest);
-        } else if (request instanceof DeleteRequest deleteRequest) {
-            add(deleteRequest);
-        } else if (request instanceof UpdateRequest updateRequest) {
-            add(updateRequest);
-        } else {
-            throw new IllegalArgumentException("No support for request [" + request + "]");
+        switch (request) {
+            case IndexRequest indexRequest -> add(indexRequest);
+            case DeleteRequest deleteRequest -> add(deleteRequest);
+            case UpdateRequest updateRequest -> add(updateRequest);
+            case null, default -> throw new IllegalArgumentException("No support for request [" + request + "]");
         }
-        indices.add(request.index());
         return this;
     }
 
@@ -219,7 +221,8 @@ public class BulkRequest extends LegacyActionRequest
     }
 
     /**
-     * The list of requests in this bulk request.
+     * The list of requests in this bulk request. This list may contain null values: requests are removed from it
+     * ({@code requests.set(idx, null)}) when a request is marked as failure, so that it is not processed again.
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;
@@ -282,6 +285,36 @@ public class BulkRequest extends LegacyActionRequest
         XContentType xContentType,
         RestApiVersion restApiVersion
     ) throws IOException {
+        return add(
+            data,
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            restApiVersion
+        );
+    }
+
+    public BulkRequest add(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
@@ -290,6 +323,7 @@ public class BulkRequest extends LegacyActionRequest
             data,
             defaultIndex,
             routing,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             pipeline,
             requireAlias,
@@ -438,6 +472,45 @@ public class BulkRequest extends LegacyActionRequest
         return this;
     }
 
+    /**
+     * Attaches pre-built ESCF batches to this request, keyed by the name its items target — index, alias, or
+     * data stream. The request owns the batches from here on until the bulk action takes them via
+     * {@link #takePreBuiltBatches()}; while it still owns them, {@link #releasePreBuiltBatches()} lets the
+     * action and the submitter release them if the request is rejected before that point. A {@link #shallowClone()}
+     * shares the batches with its original, so a request must not be cloned while it still owns them.
+     *
+     * <p>TODO: implement serialization for ingest-node forwarding.
+     */
+    public void setPreBuiltBatches(Map<String, SourceBatch> batches) {
+        this.preBuiltBatches = Objects.requireNonNull(batches);
+    }
+
+    public boolean hasPreBuiltBatches() {
+        return preBuiltBatches.isEmpty() == false;
+    }
+
+    /**
+     * Transfers ownership of the pre-built batches to the caller, which must release them. Afterwards the request
+     * holds none, so {@link #releasePreBuiltBatches()} releases nothing. Throws if there is nothing to take.
+     */
+    public Map<String, SourceBatch> takePreBuiltBatches() {
+        if (preBuiltBatches.isEmpty()) {
+            throw new IllegalStateException("no pre-built batches to take: none attached, already taken, or already released");
+        }
+        Map<String, SourceBatch> taken = preBuiltBatches;
+        preBuiltBatches = Map.of();
+        return taken;
+    }
+
+    /**
+     * Releases the pre-built batches this request still owns. Safe to call more than once; a no-op once the batches
+     * were taken or when none are attached.
+     */
+    public void releasePreBuiltBatches() {
+        Releasables.close(preBuiltBatches.values());
+        preBuiltBatches = Map.of();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -503,7 +576,11 @@ public class BulkRequest extends LegacyActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        long ramBytesUsed = SHALLOW_SIZE;
+        for (final var request : requests) {
+            ramBytesUsed += request.ramBytesUsed();
+        }
+        return ramBytesUsed;
     }
 
     public Set<String> getIndices() {
@@ -565,6 +642,13 @@ public class BulkRequest extends LegacyActionRequest
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         bulkRequest.requestParamsUsed(requestParamsUsed());
+        bulkRequest.preBuiltBatches = preBuiltBatches;
         return bulkRequest;
     }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
 }

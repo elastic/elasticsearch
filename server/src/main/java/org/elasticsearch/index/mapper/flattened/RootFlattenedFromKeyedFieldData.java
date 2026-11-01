@@ -14,10 +14,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -117,29 +118,30 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-            ToScriptFieldFactory<SortedBinaryDocValues> factory = FlattenedDocValuesField::new;
+            ToScriptFieldFactory<SortableBinaryDocValues> factory = FlattenedDocValuesField::new;
             return factory.getScriptFieldFactory(getBytesValues(), name);
         }
 
         @Override
-        public SortedBinaryDocValues getBytesValues() {
-            SortedBinaryDocValues keyedValues = keyedLeafData.getBytesValues();
+        public SortableBinaryDocValues getBytesValues() {
+            SortableBinaryDocValues keyedValues = keyedLeafData.getBytesValues();
             return new KeyStrippingDeduplicatingDocValues(keyedValues);
         }
     }
 
     /**
-     * Wraps keyed {@link SortedBinaryDocValues}, strips the key prefix (everything up to and
+     * Wraps keyed {@link SortableBinaryDocValues}, strips the key prefix (everything up to and
      * including the \0 separator) from each value, and deduplicates the results. The output
      * values are sorted lexicographically.
      */
-    static final class KeyStrippingDeduplicatingDocValues extends SortedBinaryDocValues {
+    static final class KeyStrippingDeduplicatingDocValues extends SortableBinaryDocValues {
 
-        private final SortedBinaryDocValues delegate;
+        private final SortableBinaryDocValues delegate;
         private final TreeSet<BytesRef> uniqueValues = new TreeSet<>();
         private Iterator<BytesRef> iterator;
 
-        KeyStrippingDeduplicatingDocValues(SortedBinaryDocValues delegate) {
+        KeyStrippingDeduplicatingDocValues(SortableBinaryDocValues delegate) {
+            super(delegate.docIdIterator());
             this.delegate = delegate;
         }
 
@@ -177,18 +179,25 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
         private final String rootFieldName;
         private final String keyedFieldName;
         private final boolean usesBinaryDocValues;
+        private final IndexVersion indexVersion;
 
-        public Builder(String rootFieldName, String keyedFieldName, boolean usesBinaryDocValues) {
+        public Builder(String rootFieldName, String keyedFieldName, boolean usesBinaryDocValues, IndexVersion indexVersion) {
             this.rootFieldName = rootFieldName;
             this.keyedFieldName = keyedFieldName;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.indexVersion = indexVersion;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             IndexFieldData<?> keyedDelegate;
             if (usesBinaryDocValues) {
-                keyedDelegate = new BytesBinaryIndexFieldData(keyedFieldName, CoreValuesSourceType.KEYWORD, FlattenedDocValuesField::new);
+                keyedDelegate = new BytesBinaryIndexFieldData(
+                    keyedFieldName,
+                    CoreValuesSourceType.KEYWORD,
+                    FlattenedDocValuesField::new,
+                    indexVersion
+                );
             } else {
                 keyedDelegate = new SortedSetOrdinalsIndexFieldData(
                     cache,

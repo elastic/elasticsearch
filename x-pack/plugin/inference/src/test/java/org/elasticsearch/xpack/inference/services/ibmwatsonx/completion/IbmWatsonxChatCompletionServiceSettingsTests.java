@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.AbstractIbmWatsonxServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
@@ -26,135 +28,81 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxChatCompletionServiceSettings> {
-    private static final URI TEST_URI = URI.create("abc.com");
+public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractIbmWatsonxServiceSettingsTests<
+    IbmWatsonxChatCompletionServiceSettings> {
 
-    private static IbmWatsonxChatCompletionServiceSettings createRandom() {
-        return new IbmWatsonxChatCompletionServiceSettings(
-            TEST_URI,
-            randomAlphaOfLength(8),
-            randomAlphaOfLength(8),
-            randomAlphaOfLength(8),
-            randomFrom(RateLimitSettingsTests.createRandom(), null)
+    @Override
+    protected IbmWatsonxChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return IbmWatsonxChatCompletionServiceSettings.fromMap(map, context);
+    }
+
+    @Override
+    protected Map<String, Object> buildCommonServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String projectId,
+        @Nullable String url,
+        @Nullable String apiVersion,
+        @Nullable Integer rateLimit
+    ) {
+        return buildServiceSettingsMap(url, apiVersion, modelId, projectId, rateLimit);
+    }
+
+    @Override
+    protected IbmWatsonxChatCompletionServiceSettings createServiceSettings(
+        URI uri,
+        String apiVersion,
+        String modelId,
+        String projectId,
+        RateLimitSettings rateLimitSettings
+    ) {
+        return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+    }
+
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+        var serviceSettings = IbmWatsonxChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
         );
-    }
-
-    private IbmWatsonxChatCompletionServiceSettings getServiceSettings(Map<String, String> map) {
-        return IbmWatsonxChatCompletionServiceSettings.fromMap(new HashMap<>(map), ConfigurationParseContext.PERSISTENT);
-    }
-
-    public void testFromMap_WithAllParameters_CreatesSettingsCorrectly() {
-        var model = randomAlphaOfLength(8);
-        var projectId = randomAlphaOfLength(8);
-        var apiVersion = randomAlphaOfLength(8);
-
-        var serviceSettings = getServiceSettings(
-            Map.of(
-                ServiceFields.URL,
-                TEST_URI.toString(),
-                IbmWatsonxServiceFields.API_VERSION,
-                apiVersion,
-                ServiceFields.MODEL_ID,
-                model,
-                IbmWatsonxServiceFields.PROJECT_ID,
-                projectId
-            )
-        );
-        assertThat(serviceSettings, is(new IbmWatsonxChatCompletionServiceSettings(TEST_URI, apiVersion, model, projectId, null)));
-    }
-
-    public void testFromMap_Fails_WithoutRequiredParam_Url() {
-        var ex = expectThrows(
-            ValidationException.class,
-            () -> getServiceSettings(
-                Map.of(
-                    IbmWatsonxServiceFields.API_VERSION,
-                    randomAlphaOfLength(8),
-                    ServiceFields.MODEL_ID,
-                    randomAlphaOfLength(8),
-                    IbmWatsonxServiceFields.PROJECT_ID,
-                    randomAlphaOfLength(8)
+        assertThat(
+            serviceSettings,
+            is(
+                new IbmWatsonxChatCompletionServiceSettings(
+                    TEST_URI,
+                    TEST_API_VERSION,
+                    TEST_MODEL_ID,
+                    TEST_PROJECT_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
-        assertThat(ex.getMessage(), equalTo(generateErrorMessage("url")));
-    }
-
-    public void testFromMap_Fails_WithoutRequiredParam_ApiVersion() {
-        var ex = expectThrows(
-            ValidationException.class,
-            () -> getServiceSettings(
-                Map.of(
-                    ServiceFields.URL,
-                    TEST_URI.toString(),
-                    ServiceFields.MODEL_ID,
-                    randomAlphaOfLength(8),
-                    IbmWatsonxServiceFields.PROJECT_ID,
-                    randomAlphaOfLength(8)
-                )
-            )
-        );
-        assertThat(ex.getMessage(), equalTo(generateErrorMessage("api_version")));
-    }
-
-    public void testFromMap_Fails_WithoutRequiredParam_ModelId() {
-        var ex = expectThrows(
-            ValidationException.class,
-            () -> getServiceSettings(
-                Map.of(
-                    ServiceFields.URL,
-                    TEST_URI.toString(),
-                    IbmWatsonxServiceFields.API_VERSION,
-                    randomAlphaOfLength(8),
-                    IbmWatsonxServiceFields.PROJECT_ID,
-                    randomAlphaOfLength(8)
-                )
-            )
-        );
-        assertThat(ex.getMessage(), equalTo(generateErrorMessage("model_id")));
-    }
-
-    public void testFromMap_Fails_WithoutRequiredParam_ProjectId() {
-        var ex = expectThrows(
-            ValidationException.class,
-            () -> getServiceSettings(
-                Map.of(
-                    ServiceFields.URL,
-                    TEST_URI.toString(),
-                    IbmWatsonxServiceFields.API_VERSION,
-                    randomAlphaOfLength(8),
-                    ServiceFields.MODEL_ID,
-                    randomAlphaOfLength(8)
-                )
-            )
-        );
-        assertThat(ex.getMessage(), equalTo(generateErrorMessage("project_id")));
-    }
-
-    private String generateErrorMessage(String field) {
-        return "Validation Failed: 1: [service_settings] does not contain the required setting [" + field + "];";
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new IbmWatsonxChatCompletionServiceSettings(TEST_URI, "2024-05-02", "model", "project_id", null);
+        var entity = new IbmWatsonxChatCompletionServiceSettings(
+            TEST_URI,
+            TEST_API_VERSION,
+            TEST_MODEL_ID,
+            TEST_PROJECT_ID,
+            new RateLimitSettings(TEST_RATE_LIMIT)
+        );
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
+        var xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
-                "url":"abc.com",
-                "api_version":"2024-05-02",
-                "model_id":"model",
-                "project_id":"project_id",
+                "url": "%s",
+                "api_version": "%s",
+                "model_id": "%s",
+                "project_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute":120
+                    "requests_per_minute": %d
                 }
-            }"""));
+            }
+            """, TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT)));
     }
 
     @Override
@@ -175,7 +123,7 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
         var projectId = instance.projectId();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(4)) {
-            case 0 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(10)));
+            case 0 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(10) + ".example"));
             case 1 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
             case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 3 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(8));
@@ -184,5 +132,54 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
         }
 
         return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+    }
+
+    @Override
+    protected IbmWatsonxChatCompletionServiceSettings mutateInstanceForVersion(
+        IbmWatsonxChatCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    @Override
+    protected IbmWatsonxChatCompletionServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return IbmWatsonxChatCompletionServiceSettings.createParser(true).apply(parser, ConfigurationParseContext.PERSISTENT).build();
+    }
+
+    private static IbmWatsonxChatCompletionServiceSettings createRandom() {
+        return new IbmWatsonxChatCompletionServiceSettings(
+            createUri("https://" + randomAlphaOfLength(10) + ".example"),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            RateLimitSettingsTests.createRandom()
+        );
+    }
+
+    private static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String url,
+        @Nullable String apiVersion,
+        @Nullable String modelId,
+        @Nullable String projectId,
+        @Nullable Integer rateLimit
+    ) {
+        var map = new HashMap<String, Object>();
+        if (url != null) {
+            map.put(ServiceFields.URL, url);
+        }
+        if (apiVersion != null) {
+            map.put(IbmWatsonxServiceFields.API_VERSION, apiVersion);
+        }
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (projectId != null) {
+            map.put(IbmWatsonxServiceFields.PROJECT_ID, projectId);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return map;
     }
 }

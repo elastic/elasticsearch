@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.TaskType;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.inference.EmbeddingRequest.INPUT_FIELD;
 
 public class EmbeddingAction extends ActionType<InferenceAction.Response> {
     public static final EmbeddingAction INSTANCE = new EmbeddingAction();
@@ -47,7 +50,7 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
         private final EmbeddingRequest embeddingRequest;
         private final TimeValue timeout;
 
-        public Request(String inferenceEntityId, TaskType taskType, EmbeddingRequest embeddingRequest, TimeValue timeout) {
+        public Request(String inferenceEntityId, TaskType taskType, EmbeddingRequest embeddingRequest, @Nullable TimeValue timeout) {
             this(inferenceEntityId, taskType, embeddingRequest, InferenceContext.EMPTY_INSTANCE, timeout);
         }
 
@@ -56,13 +59,13 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
             TaskType taskType,
             EmbeddingRequest embeddingRequest,
             InferenceContext context,
-            TimeValue timeout
+            @Nullable TimeValue timeout
         ) {
             super(context);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.embeddingRequest = Objects.requireNonNull(embeddingRequest);
-            this.timeout = Objects.requireNonNull(timeout);
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -98,13 +101,13 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
             if (embeddingRequest.inputs() == null) {
-                e = addValidationError("Field [inputs] cannot be null", e);
+                e = addValidationError(Strings.format("Field [%s] cannot be null", INPUT_FIELD), e);
             } else if (embeddingRequest.inputs().isEmpty()) {
-                e = addValidationError("Field [inputs] cannot be an empty array", e);
+                e = addValidationError(Strings.format("Field [%s] cannot be an empty array", INPUT_FIELD), e);
             }
 
             if (taskType.isAnyOrSame(TaskType.EMBEDDING) == false) {
-                e = addValidationError("Field [taskType] must be [embedding]", e);
+                e = addValidationError(Strings.format("Field [%s] must be [embedding]", TaskType.NAME), e);
             }
 
             return e;
@@ -116,7 +119,12 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
             embeddingRequest.writeTo(out);
-            out.writeTimeValue(timeout);
+            if (timeout.equals(TIMEOUT_NOT_DETERMINED)
+                && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+            } else {
+                out.writeTimeValue(timeout);
+            }
         }
 
         @Override

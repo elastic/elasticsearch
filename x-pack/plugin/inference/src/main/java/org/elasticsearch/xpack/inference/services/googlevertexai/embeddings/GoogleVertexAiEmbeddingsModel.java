@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -25,8 +26,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
@@ -93,19 +96,21 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     // Should only be used directly for testing
-    protected GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         String uri,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            serviceSettings,
+            authHeaderDecorator
         );
         try {
             this.nonStreamingUri = new URI(uri);
@@ -139,21 +144,22 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return visitor.create(this, taskSettings);
     }
 
-    public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
-            .setPathSegments(
-                GoogleVertexAiUtils.V1,
-                GoogleVertexAiUtils.PROJECTS,
-                projectId,
-                GoogleVertexAiUtils.LOCATIONS,
-                location,
-                GoogleVertexAiUtils.PUBLISHERS,
-                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
-                GoogleVertexAiUtils.MODELS,
-                format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
-            )
-            .build();
+    public static URI buildUri(@Nullable String location, String projectId, String modelId) throws URISyntaxException {
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleVertexAiUtils.resolveHost(location))
+                .setPathSegments(
+                    GoogleVertexAiUtils.V1,
+                    GoogleVertexAiUtils.PROJECTS,
+                    projectId,
+                    GoogleVertexAiUtils.LOCATIONS,
+                    GoogleVertexAiUtils.resolveLocation(location),
+                    GoogleVertexAiUtils.PUBLISHERS,
+                    GoogleVertexAiUtils.PUBLISHER_GOOGLE,
+                    GoogleVertexAiUtils.MODELS,
+                    format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
+                )
+        );
     }
 
     @Override

@@ -19,7 +19,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,7 +42,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Custom {@link Metadata} implementation for storing the {@link MinimalServiceSettings} of all models in the {@link ModelRegistry}.
+ * Custom {@link Metadata} implementation for storing the {@link EndpointClusterState} of all models in the {@link ModelRegistry}.
  * Deleted models are retained as tombstones until the {@link ModelRegistry} upgrades from the existing inference index.
  * After the upgrade, all active models are registered.
  */
@@ -65,7 +65,7 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
         false,
         args -> {
             var isUpgraded = (boolean) args[0];
-            var settingsMap = (ImmutableOpenMap<String, MinimalServiceSettings>) args[1];
+            var settingsMap = (ImmutableOpenMap<String, EndpointClusterState>) args[1];
             var deletedIDs = (List<String>) args[2];
             if (isUpgraded) {
                 return new ModelRegistryClusterStateMetadata(settingsMap);
@@ -77,10 +77,10 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
     static {
         PARSER.declareBoolean(constructorArg(), UPGRADED_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> {
-            ImmutableOpenMap.Builder<String, MinimalServiceSettings> modelMap = ImmutableOpenMap.builder();
+            ImmutableOpenMap.Builder<String, EndpointClusterState> modelMap = ImmutableOpenMap.builder();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String name = p.currentName();
-                modelMap.put(name, MinimalServiceSettings.parse(p));
+                modelMap.put(name, EndpointClusterState.parse(p));
             }
             return modelMap.build();
         }, MODELS_FIELD);
@@ -96,13 +96,13 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
         "inference_model_registry_metadata"
     );
 
-    public ModelRegistryClusterStateMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
+    public ModelRegistryClusterStateMetadata withAddedModel(String inferenceEntityId, EndpointClusterState settings) {
         return withAddedModels(List.of(new ModelRegistryMetadataTask.ModelAndSettings(inferenceEntityId, settings)));
     }
 
     public ModelRegistryClusterStateMetadata withAddedModels(List<ModelRegistryMetadataTask.ModelAndSettings> models) {
         var modifiedMap = false;
-        ImmutableOpenMap.Builder<String, MinimalServiceSettings> settingsBuilder = ImmutableOpenMap.builder(modelMap);
+        ImmutableOpenMap.Builder<String, EndpointClusterState> settingsBuilder = ImmutableOpenMap.builder(modelMap);
 
         for (var model : models) {
             if (model.settings().equals(modelMap.get(model.inferenceEntityId())) == false) {
@@ -139,11 +139,11 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
         return new ModelRegistryClusterStateMetadata(mapBuilder.build(), newTombstone);
     }
 
-    public ModelRegistryClusterStateMetadata withUpgradedModels(Map<String, MinimalServiceSettings> indexModels) {
+    public ModelRegistryClusterStateMetadata withUpgradedModels(Map<String, EndpointClusterState> indexModels) {
         if (isUpgraded) {
             throw new IllegalArgumentException("Already upgraded");
         }
-        ImmutableOpenMap.Builder<String, MinimalServiceSettings> builder = ImmutableOpenMap.builder(modelMap);
+        ImmutableOpenMap.Builder<String, EndpointClusterState> builder = ImmutableOpenMap.builder(modelMap);
         for (var entry : indexModels.entrySet()) {
             if (builder.containsKey(entry.getKey()) == false && tombstones.contains(entry.getKey()) == false) {
                 builder.fPut(entry.getKey(), entry.getValue());
@@ -153,27 +153,27 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
     }
 
     private final boolean isUpgraded;
-    private final ImmutableOpenMap<String, MinimalServiceSettings> modelMap;
+    private final ImmutableOpenMap<String, EndpointClusterState> modelMap;
     private final Map<String, Set<String>> serviceToInferenceEndpointIds;
     private final Set<String> tombstones;
 
-    public ModelRegistryClusterStateMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap) {
+    public ModelRegistryClusterStateMetadata(ImmutableOpenMap<String, EndpointClusterState> modelMap) {
         this(modelMap, null, true);
     }
 
-    public ModelRegistryClusterStateMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstone) {
+    public ModelRegistryClusterStateMetadata(ImmutableOpenMap<String, EndpointClusterState> modelMap, Set<String> tombstone) {
         this(modelMap, Collections.unmodifiableSet(tombstone), false);
     }
 
     public ModelRegistryClusterStateMetadata(StreamInput in) throws IOException {
         this.isUpgraded = in.readBoolean();
-        this.modelMap = in.readImmutableOpenMap(StreamInput::readString, MinimalServiceSettings::new);
+        this.modelMap = in.readImmutableOpenMap(StreamInput::readString, EndpointClusterState::new);
         this.tombstones = isUpgraded ? null : in.readCollectionAsSet(StreamInput::readString);
         this.serviceToInferenceEndpointIds = buildServiceToInferenceEndpointIdsMap(modelMap);
     }
 
     private ModelRegistryClusterStateMetadata(
-        ImmutableOpenMap<String, MinimalServiceSettings> modelMap,
+        ImmutableOpenMap<String, EndpointClusterState> modelMap,
         Set<String> tombstones,
         boolean isUpgraded
     ) {
@@ -183,9 +183,7 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
         this.serviceToInferenceEndpointIds = buildServiceToInferenceEndpointIdsMap(modelMap);
     }
 
-    private static Map<String, Set<String>> buildServiceToInferenceEndpointIdsMap(
-        ImmutableOpenMap<String, MinimalServiceSettings> modelMap
-    ) {
+    private static Map<String, Set<String>> buildServiceToInferenceEndpointIdsMap(ImmutableOpenMap<String, EndpointClusterState> modelMap) {
         var serviceToInferenceIds = new HashMap<String, Set<String>>();
         for (var entry : modelMap.entrySet()) {
             var settings = entry.getValue();
@@ -249,7 +247,7 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
     /**
      * Returns all the registered models.
      */
-    public ImmutableOpenMap<String, MinimalServiceSettings> getModelMap() {
+    public ImmutableOpenMap<String, EndpointClusterState> getModelMap() {
         return modelMap;
     }
 
@@ -264,7 +262,7 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
         return Set.copyOf(serviceToInferenceEndpointIds.get(service));
     }
 
-    public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) {
+    public EndpointClusterState getEndpointClusterState(String inferenceEntityId) {
         return modelMap.get(inferenceEntityId);
     }
 
@@ -328,7 +326,7 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     public Collection<String> getTombstones() {
@@ -337,11 +335,11 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
 
     static class ModelRegistryMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
-        private static final DiffableUtils.DiffableValueReader<String, MinimalServiceSettings> SETTINGS_DIFF_READER =
-            new DiffableUtils.DiffableValueReader<>(MinimalServiceSettings::new, MinimalServiceSettings::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, EndpointClusterState> SETTINGS_DIFF_READER =
+            new DiffableUtils.DiffableValueReader<>(EndpointClusterState::new, EndpointClusterState::readDiffFrom);
 
         final boolean isUpgraded;
-        final DiffableUtils.MapDiff<String, MinimalServiceSettings, ImmutableOpenMap<String, MinimalServiceSettings>> settingsDiff;
+        final DiffableUtils.MapDiff<String, EndpointClusterState, ImmutableOpenMap<String, EndpointClusterState>> settingsDiff;
         final Set<String> tombstone;
 
         ModelRegistryMetadataDiff(ModelRegistryClusterStateMetadata before, ModelRegistryClusterStateMetadata after) {

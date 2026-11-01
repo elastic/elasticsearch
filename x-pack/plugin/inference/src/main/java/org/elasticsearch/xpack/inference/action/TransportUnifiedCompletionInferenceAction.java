@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -21,6 +20,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.util.concurrent.Flow;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedNonStreamingChatCompletionException;
 
 public class TransportUnifiedCompletionInferenceAction extends BaseTransportInferenceAction<UnifiedCompletionAction.Request> {
 
@@ -42,7 +44,6 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         super(
@@ -55,7 +56,6 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             inferenceStats,
             streamingTaskManager,
             UnifiedCompletionAction.Request::new,
-            nodeClient,
             threadPool
         );
     }
@@ -80,9 +80,14 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         Model model,
         UnifiedCompletionAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), listener);
+        if (request.isStreaming() == false && service.supportsNonStreamingChatCompletion() == false) {
+            listener.onFailure(createUnsupportedNonStreamingChatCompletionException(service.name()));
+            return;
+        }
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), taskId, listener);
     }
 
     @Override

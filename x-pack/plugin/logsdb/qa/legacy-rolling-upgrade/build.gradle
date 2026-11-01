@@ -7,15 +7,17 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.fwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
+// Each suite is parameterized over the upgrade phases and an earlier phase sets up the cluster state a later phase asserts on,
+// so a phase that passed must still run when a later phase is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   javaRestTestImplementation project(xpackModule('logsdb'))
   javaRestTestImplementation project(':test:test-clusters')
-  javaRestTestImplementation testArtifact(project(':qa:rolling-upgrade'), 'javaRestTest')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }

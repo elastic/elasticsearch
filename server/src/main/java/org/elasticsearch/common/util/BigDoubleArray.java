@@ -62,13 +62,16 @@ final class BigDoubleArray extends AbstractBigByteArray implements DoubleArray {
 
     @Override
     protected int numBytesPerElement() {
-        return Integer.BYTES;
+        return Double.BYTES;
     }
 
     @Override
     public void fill(long fromIndex, long toIndex, double value) {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
+        }
+        if (fromIndex == toIndex) {
+            return; // empty range
         }
         final int fromPage = pageIdx(fromIndex);
         final int toPage = pageIdx(toIndex - 1);

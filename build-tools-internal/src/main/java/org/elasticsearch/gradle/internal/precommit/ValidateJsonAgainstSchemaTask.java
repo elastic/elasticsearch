@@ -21,10 +21,10 @@ import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuild
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -43,9 +43,11 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
@@ -113,6 +115,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         final JsonSchema jsonSchema = buildSchemaObject(jsonSchemaOnDisk);
 
         final Map<File, Set<String>> errors = new LinkedHashMap<>();
+        final List<Problem> problems = new ArrayList<>();
         final ObjectMapper mapper = this.getMapper();
 
         // incrementally evaluate input files
@@ -124,7 +127,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             .forEach(file -> {
                 try {
                     Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
-                    maybeLogAndCollectError(validationMessages, errors, file);
+                    maybeLogAndCollectError(validationMessages, errors, problems, file);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -149,7 +152,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                     errors.values().size()
                 )
             );
-            throw new JsonSchemaException(sb.toString());
+            throw problemReporter.throwing(new JsonSchemaException(sb.toString()), problems);
         }
     }
 
@@ -160,18 +163,24 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         return factory.getSchema(jsonMapper.readTree(jsonSchemaOnDisk), config);
     }
 
-    private void maybeLogAndCollectError(Set<ValidationMessage> messages, Map<File, Set<String>> errors, File file) {
+    private void maybeLogAndCollectError(
+        Set<ValidationMessage> messages,
+        Map<File, Set<String>> errors,
+        List<Problem> problems,
+        File file
+    ) {
         final String fileType = getFileType();
         for (ValidationMessage message : messages) {
             getLogger().error("[validate {}][ERROR][{}][{}]", fileType, file.getName(), message.toString());
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
                 .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));
-            problemReporter.report(
-                ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchBuildProblems.JSON_VALIDATION),
-                spec -> spec.contextualLabel(fileType + " validation error in " + file.getName() + ": " + message)
-                    .severity(Severity.ERROR)
-                    .fileLocation(file.getAbsolutePath())
-                    .solution("Fix the " + fileType + " file to conform to the schema at " + getJsonSchema().getAbsolutePath())
+            problems.add(
+                problemReporter.create(
+                    ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchBuildProblems.JSON_VALIDATION),
+                    spec -> spec.contextualLabel(fileType + " validation error in " + file.getName() + ": " + message)
+                        .fileLocation(file.getAbsolutePath())
+                        .solution("Fix the " + fileType + " file to conform to the schema at " + getJsonSchema().getAbsolutePath())
+                )
             );
         }
     }

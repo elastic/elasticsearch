@@ -37,9 +37,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
@@ -77,6 +79,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             add("pretty");
             add("refresh");
             add("require_data_stream");
+            add(SliceIndexing.FIELD_NAME);
             add("timeout");
             add("include_source_on_error");
             // Add internal marker params
@@ -155,9 +158,14 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         if (bulkRequest.incrementalState().indexingPressureAccounted()) {
             releasable = () -> {};
         } else {
-            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+            // The request context is retained for as long as this request is in flight, so it counts alongside the payload.
+            final long requestContextBytes = threadPool.getThreadContext().estimatedRequestContextBytes();
+            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes + requestContextBytes, isOnlySystem);
         }
-        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(
+            listener,
+            () -> Releasables.close(releasable, bulkRequest::releasePreBuiltBatches)
+        );
         // Use coordinationExecutor for dispatching coordination tasks
         final Executor executor = isOnlySystem ? systemCoordinationExecutor : coordinationExecutor;
         ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
@@ -272,15 +280,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             project = state.metadata().getProject(projectId);
         }
 
-        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
+        final long pipelineResolutionTimeMillis = threadPool.absoluteTimeInMillis();
+        Map<PipelineCacheKey, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 if (indexRequest.isPipelineResolved() == false) {
                     var pipeline = resolvedPipelineCache.computeIfAbsent(
-                        indexRequest.index(),
-                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
-                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, System.currentTimeMillis())
+                        new PipelineCacheKey(actionRequest.index(), indexRequest.index()),
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, pipelineResolutionTimeMillis)
                     );
                     IngestService.setPipelineOnRequest(indexRequest, pipeline);
                 }
@@ -295,6 +303,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
 
         if (hasIndexRequestsWithPipelines) {
+            if (bulkRequest.hasPreBuiltBatches()) {
+                throw new IllegalArgumentException("bulk with pre-built source batches cannot run ingest pipelines");
+            }
             // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.
@@ -389,6 +400,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
      *     doesn't correspond to a data stream.
      */
     protected abstract Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis);
+
+    private record PipelineCacheKey(String originalIndex, String embeddedIndex) {}
 
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are

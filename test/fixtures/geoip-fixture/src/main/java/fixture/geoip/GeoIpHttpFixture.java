@@ -11,7 +11,7 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geoip.GeoIpCli;
 import org.junit.rules.ExternalResource;

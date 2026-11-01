@@ -74,9 +74,11 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
 
     @Override
     protected void assertSampled(InternalCartesianCentroid sampled, InternalCartesianCentroid reduced, SamplingContext samplingContext) {
-        assertThat(sampled.centroid().getY(), closeTo(reduced.centroid().getY(), Math.abs(reduced.centroid().getY() / 1e10)));
-        assertThat(sampled.centroid().getX(), closeTo(reduced.centroid().getX(), Math.abs(reduced.centroid().getX() / 1e10)));
         assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
+        if (sampled.count() > 0) {
+            assertThat(sampled.centroid().getY(), closeTo(reduced.centroid().getY(), Math.abs(reduced.centroid().getY() / 1e10)));
+            assertThat(sampled.centroid().getX(), closeTo(reduced.centroid().getX(), Math.abs(reduced.centroid().getX() / 1e10)));
+        }
     }
 
     public void testReduceMaxCount() {

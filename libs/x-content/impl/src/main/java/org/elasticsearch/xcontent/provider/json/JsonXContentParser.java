@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
+import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.CharConversionException;
@@ -41,7 +42,32 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config.registry(), config.deprecationHandler(), config.restApiVersion());
-        this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
+        this.parser = applyFiltering((XContentParserConfigurationImpl) config, parser);
+    }
+
+    /**
+     * Wraps the given Jackson parser in the {@link FilteringParserDelegate}s described by the configuration.
+     */
+    private static JsonParser applyFiltering(XContentParserConfigurationImpl config, JsonParser parser) {
+        JsonParser filtered = parser;
+        // Order matters: excludes are applied first, then includes wrap the result.
+        if (config.excludes() != null) {
+            filtered = new FilteringParserDelegate(
+                filtered,
+                new FilterPathBasedFilter(config.excludes(), false, config.filtersMatchFieldNamesWithDots()),
+                true,
+                true
+            );
+        }
+        if (config.includes() != null) {
+            filtered = new FilteringParserDelegate(
+                filtered,
+                new FilterPathBasedFilter(config.includes(), true, config.filtersMatchFieldNamesWithDots()),
+                true,
+                true
+            );
+        }
+        return filtered;
     }
 
     @Override
@@ -152,6 +178,10 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (parser instanceof FilteringParserDelegate delegate) {
             parser = delegate.delegate();
         }
+        // Filtering can nest two delegates (excludes wrapped by includes), but no caller that reaches
+        // optimizedText() configures both, so unwrapping one level is enough.
+        assert parser instanceof FilteringParserDelegate == false
+            : "optimizedText() unwraps a single filtering delegate, but this parser is doubly filtered";
         if (parser instanceof OptimizedTextCapable optimizedTextCapableParser) {
             var bytesRef = optimizedTextCapableParser.getValueAsText();
             if (bytesRef != null) {

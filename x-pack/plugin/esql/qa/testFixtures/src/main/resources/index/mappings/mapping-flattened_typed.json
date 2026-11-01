@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "id": { "type": "integer" },
+    "labels": {
+      "type": "flattened",
+      "passthrough": { "priority": 10 },
+      "properties": {
+        "host.ip": { "type": "ip" },
+        "status_code": { "type": "long" },
+        "service": { "type": "keyword" },
+        "message": { "type": "text" }
+      }
+    }
+  }
+}

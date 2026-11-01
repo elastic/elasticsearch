@@ -552,7 +552,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             toRoutingNode.nodeId(),
             randomNonNegativeLong(),
             "test",
-            RoutingChangesObserver.NOOP
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         final var updatedGlobalRoutingTable = clusterState.globalRoutingTable().rebuild(mutableRoutingNodes, clusterState.metadata());
         this.clusterState = ClusterState.builder(clusterState).routingTable(updatedGlobalRoutingTable).build();

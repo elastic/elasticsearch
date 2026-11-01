@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +15,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -92,39 +91,62 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
              [500]","type":"UnifiedChatCompletionErrorResponse"}}"""));
     }
 
+    /**
+     * Non-streaming chat completion goes through the same error-building path as the streaming variant, so that callers see a stable
+     * error shape either way. This used to be forbidden by an assertion in {@code ChatCompletionErrorResponseHandler}.
+     */
+    public void testFailValidationForNonStreamingRequest() throws IOException {
+        var responseJson = """
+            {
+              "error": {
+                "type": "not_found_error",
+                "message": "a message",
+                "code": "ahh",
+                "param": "model"
+              }
+            }
+            """;
+
+        var errorJson = invalidResponseJson(responseJson, false);
+
+        assertThat(errorJson, is("""
+            {"error":{"code":"ahh","message":"Received a server error status code for request from inference entity id [abc] status [500]. \
+            Error message: [a message]","param":"model","type":"not_found_error"}}"""));
+    }
+
     private String invalidResponseJson(String responseJson) throws IOException {
-        var exception = invalidResponse(responseJson);
+        return invalidResponseJson(responseJson, true);
+    }
+
+    private String invalidResponseJson(String responseJson, boolean isStreaming) throws IOException {
+        var exception = invalidResponse(responseJson, isStreaming);
         assertThat(exception, isA(RetryException.class));
         assertThat(unwrapCause(exception), isA(UnifiedChatCompletionException.class));
         return toJson((UnifiedChatCompletionException) unwrapCause(exception));
     }
 
-    private Exception invalidResponse(String responseJson) {
+    private Exception invalidResponse(String responseJson, boolean isStreaming) {
         return expectThrows(
             RetryException.class,
             () -> responseHandler.validateResponse(
                 mock(),
                 mock(),
-                mockRequest(),
+                mockRequest(isStreaming),
                 new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }
 
-    private static Request mockRequest() {
-        var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn("abc");
-        when(request.isStreaming()).thenReturn(true);
-        return request;
+    private static OutboundRequest mockRequest(boolean isStreaming) {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn("abc");
+        when(outboundRequest.isStreaming()).thenReturn(isStreaming);
+        return outboundRequest;
     }
 
     private static HttpResponse mock500Response() {
-        int statusCode = 500;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(500);
 
         return response;
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
@@ -87,7 +88,9 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 4),
             between(10, 100),
-            between(1, 100)
+            between(1, 100),
+            () -> 0L,
+            QueryWarnings.EMIT
         );
     }
 

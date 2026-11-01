@@ -36,6 +36,7 @@ public final class VectorScoringUtils {
         return new VectorScorer() {
             @Override
             public float score() throws IOException {
+                assert iterator.docID() == iterator.index() : "Dense iterator docID " + iterator.docID() + " != index " + iterator.index();
                 return scorer.score(iterator.index());
             }
 

@@ -20,6 +20,8 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.jvm.tasks.Jar;
 
+import java.util.Map;
+
 public class InternalTestArtifactExtension {
     private final Project project;
     private final ProviderFactory providerFactory;
@@ -46,7 +48,7 @@ public class InternalTestArtifactExtension {
             Configuration apiElementsTestArtifacts = project.getConfigurations()
                 .create(sourceSet.getApiConfigurationName() + "TestArtifacts");
             apiElements.extendsFrom(apiElementsTestArtifacts);
-            Dependency projectDependency = dependencies.create(project);
+            Dependency projectDependency = dependencies.project(Map.of("path", project.getPath()));
             dependencies.add(apiElementsTestArtifacts.getName(), projectDependency);
 
             Configuration runtimeElements = project.getConfigurations().getByName(sourceSet.getRuntimeElementsConfigurationName());

@@ -1,0 +1,2 @@
+FROM employees
+| WHERE 10001 IN (FROM employees | KEEP emp_no)

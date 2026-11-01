@@ -61,6 +61,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -76,6 +78,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
@@ -94,16 +97,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     private TestThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     private static void assertSkippedByClusterAliasLocalOnly(Map<String, Integer> map, int expectedTotal) {
@@ -138,7 +139,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 numRequests.incrementAndGet();
                 final List<ResponseOrFailure> responses = new ArrayList<>();
@@ -202,6 +205,49 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     /**
+     * Empty shard iterators short-circuit the phase without contacting any nodes, but the returned
+     * {@link CanMatchPreFilterSearchPhase.CanMatchResult#skippedByClusterAlias()} map must still be mutable:
+     * callers (e.g. {@code TransportSearchAction} and {@code TransportOpenPointInTimeAction}) fold per-cluster
+     * skipped-shard counts from remotes into it via {@link Map#merge}. Returning
+     * {@link Collections#emptyMap()} here triggers {@link UnsupportedOperationException} in those callers.
+     */
+    public void testEmptyShardIteratorsReturnsMutableSkippedByClusterAlias() {
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
+        AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
+        SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult> listener = CanMatchPreFilterSearchPhase.execute(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> null,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+            new SearchRequest().allowPartialSearchResults(true),
+            Collections.emptyList(),
+            timeProvider,
+            null,
+            false,
+            EMPTY_CONTEXT_PROVIDER,
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of(),
+            randomBoolean()
+        );
+        listener.addListener(ActionTestUtils.assertNoFailureListener(result::set));
+        assertNotNull("phase should complete synchronously for empty shard iterators", result.get());
+        assertEquals(0, result.get().iterators().size());
+
+        // Caller pattern from TransportOpenPointInTimeAction and TransportSearchAction: fold non-empty per-cluster
+        // skip counts (as produced by search_shards round-trip) into the can-match result map. This must not throw.
+        Map<String, Integer> incomingSkips = Map.of("remote_a", 3, LOCAL_CLUSTER_GROUP_KEY, 0);
+        incomingSkips.forEach((cluster, count) -> result.get().skippedByClusterAlias().merge(cluster, count, Integer::sum));
+        assertEquals(Map.of("remote_a", 3, LOCAL_CLUSTER_GROUP_KEY, 0), result.get().skippedByClusterAlias());
+    }
+
+    /**
      * When {@code includeSkippedShardsInIterators} is {@code true} (as for peers before
      * {@link SearchShardsResponse#SEARCH_SHARDS_NUM_SKIPPED2}), skipped shards must appear as iterators with
      * {@link SearchShardIterator#skip()} true and{@link CanMatchPreFilterSearchPhase.CanMatchResult#skippedByClusterAlias()} must stay
@@ -224,7 +270,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 final List<ResponseOrFailure> responses = new ArrayList<>();
                 for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
@@ -297,7 +345,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (fullFailure && randomBoolean()) {
                     throw new IllegalArgumentException("boom");
@@ -399,7 +449,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     CanMatchNodeRequest request,
                     SearchTask task,
-                    ActionListener<CanMatchNodeResponse> listener
+                    ActionListener<CanMatchNodeResponse> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     final List<ResponseOrFailure> responses = new ArrayList<>();
                     for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
@@ -507,7 +559,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     CanMatchNodeRequest request,
                     SearchTask task,
-                    ActionListener<CanMatchNodeResponse> listener
+                    ActionListener<CanMatchNodeResponse> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     final List<ResponseOrFailure> responses = new ArrayList<>();
                     for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
@@ -1517,7 +1571,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 final List<ResponseOrFailure> responses = new ArrayList<>();
                 for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {

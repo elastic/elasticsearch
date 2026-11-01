@@ -1,10 +1,34 @@
 ---
-"basic SLM health indicator test":
+setup:
   - requires:
       cluster_features: "gte_v8.7.0"
       reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
 
   - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  # Reset SLM and remove resources created by tests. Ignore 404 errors if already absent.
+  - do:
+      slm.start: {}
+
+  - do:
+      slm.delete_lifecycle:
+        policy_id: "health-test-policy"
+        ignore: 404
+
+  - do:
+      snapshot.delete_repository:
+        repository: health-test-repo
+        ignore: 404
+
+---
+# Smoke test: SLM is green with no policies configured (default cluster state).
+"basic SLM health indicator test":
+  - do:
+      # This will, by default, run with verbose=true
       health_report: { }
 
   - is_true: cluster_name
@@ -13,4 +37,230 @@
   - match: { indicators.slm.status: "green" }
   - match: { indicators.slm.symptom: "No Snapshot Lifecycle Management policies configured" }
   - match: { indicators.slm.details.slm_status: "RUNNING" }
-  - exists: indicators.slm.details.policies
+    # With verbose=true set, the health report always puts the count in the response, even if 0
+  - match: { indicators.slm.details.policies: 0 }
+
+---
+# SLM stays green when running and at least one snapshot policy exists.
+"SLM health green with policies configured":
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo
+        body:
+          type: fs
+          settings:
+            location: "health-test-snaps"
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "health-test-policy"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<health-test-{now/d}>",
+            "repository": "health-test-repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
+      health_report: { }
+
+  - is_true: cluster_name
+  - match: { indicators.slm.status: "green" }
+  - match: { indicators.slm.symptom: "Snapshot Lifecycle Management is running" }
+  - match: { indicators.slm.details.slm_status: "RUNNING" }
+  - match: { indicators.slm.details.policies: 1 }
+
+---
+# SLM reports yellow when stopped and policies remain. This test also asserts the full diagnosis payload.
+"SLM health yellow when stopped with policies via GET /_health_report":
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo
+        body:
+          type: fs
+          settings:
+            location: "health-test-snaps"
+
+  - do:
+      slm.stop: {}
+
+  - do:
+      slm.get_status: {}
+
+  - match: { operation_mode: /STOPP(ED|ING)/ }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "health-test-policy"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<health-test-{now/d}>",
+            "repository": "health-test-repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
+      slm.get_status: {}
+
+  - match: { operation_mode: /STOPP(ED|ING)/ }
+
+  - do:
+      health_report: { }
+
+  - is_true: cluster_name
+  - match: { indicators.slm.status: "yellow" }
+  - match: { indicators.slm.symptom: "Snapshot Lifecycle Management is not running" }
+  - match: { indicators.slm.details.slm_status: /STOPP(ED|ING)/ }
+  - match: { indicators.slm.details.policies: 1 }
+  - length: { indicators.slm.impacts: 1 }
+  - match: { indicators.slm.impacts.0.id: "elasticsearch:health:slm:impact:automation_disabled" }
+  - match: { indicators.slm.impacts.0.severity: 3 }
+  - match: { indicators.slm.impacts.0.description: "Scheduled snapshots are not running. New backup snapshots will not be created automatically." }
+  - match: { indicators.slm.impacts.0.impact_areas.0: "backup" }
+  - length: { indicators.slm.diagnosis: 1 }
+  - match: { indicators.slm.diagnosis.0.id: "elasticsearch:health:slm:diagnosis:slm_disabled" }
+  - match: { indicators.slm.diagnosis.0.cause: "Snapshot Lifecycle Management is stopped" }
+  - match: { indicators.slm.diagnosis.0.action: "Start Snapshot Lifecycle Management using [POST /_slm/start]." }
+  - match: { indicators.slm.diagnosis.0.help_url: "https://ela.st/fix-slm" }
+  - is_false: indicators.slm.diagnosis.0.affected_resources
+
+---
+# Same yellow state as above, but requested via GET /_health_report/slm (single-indicator route).
+"SLM health yellow when stopped with policies via GET /_health_report/slm":
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo
+        body:
+          type: fs
+          settings:
+            location: "health-test-snaps"
+
+  - do:
+      slm.stop: {}
+
+  - do:
+      slm.get_status: {}
+
+  - match: { operation_mode: /STOPP(ED|ING)/ }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "health-test-policy"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<health-test-{now/d}>",
+            "repository": "health-test-repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
+      health_report:
+        feature: slm
+
+  - is_true: cluster_name
+  - match: { indicators.slm.status: "yellow" }
+  - match: { indicators.slm.symptom: "Snapshot Lifecycle Management is not running" }
+  - is_false: indicators.ilm
+  - is_false: indicators.master_is_stable
+
+---
+# When verbose=false we expect status, symptom and impacts to be returned, and details and diagnosis to be omitted
+"SLM health yellow when stopped with verbose false":
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo
+        body:
+          type: fs
+          settings:
+            location: "health-test-snaps"
+
+  - do:
+      slm.stop: {}
+
+  - do:
+      slm.get_status: {}
+
+  - match: { operation_mode: /STOPP(ED|ING)/ }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "health-test-policy"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<health-test-{now/d}>",
+            "repository": "health-test-repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
+      health_report:
+        feature: slm
+        verbose: false
+
+  - is_true: cluster_name
+  - match: { indicators.slm.status: "yellow" }
+  - match: { indicators.slm.symptom: "Snapshot Lifecycle Management is not running" }
+  - is_false: indicators.slm.details
+  - is_false: indicators.slm.diagnosis
+  - length: { indicators.slm.impacts: 1 }
+  - match: { indicators.slm.impacts.0.id: "elasticsearch:health:slm:impact:automation_disabled" }
+  - match: { indicators.slm.impacts.0.description: "Scheduled snapshots are not running. New backup snapshots will not be created automatically." }
+
+---
+# Starting SLM after a stop-with-policies scenario restores green health.
+"SLM health recovers to green after start":
+  - do:
+      snapshot.create_repository:
+        repository: health-test-repo
+        body:
+          type: fs
+          settings:
+            location: "health-test-snaps"
+
+  - do:
+      slm.stop: {}
+
+  - do:
+      slm.get_status: {}
+
+  - match: { operation_mode: /STOPP(ED|ING)/ }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "health-test-policy"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<health-test-{now/d}>",
+            "repository": "health-test-repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
+      slm.start: {}
+
+  - do:
+      slm.get_status: {}
+
+  - match: { operation_mode: "RUNNING" }
+
+  - do:
+      health_report:
+        feature: slm
+
+  - match: { indicators.slm.status: "green" }
+  - match: { indicators.slm.symptom: "Snapshot Lifecycle Management is running" }

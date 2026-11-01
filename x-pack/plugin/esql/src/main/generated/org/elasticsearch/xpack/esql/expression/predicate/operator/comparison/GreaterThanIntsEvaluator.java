@@ -73,10 +73,11 @@ public final class GreaterThanIntsEvaluator implements ExpressionEvaluator {
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -84,10 +85,11 @@ public final class GreaterThanIntsEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -126,7 +128,7 @@ public final class GreaterThanIntsEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

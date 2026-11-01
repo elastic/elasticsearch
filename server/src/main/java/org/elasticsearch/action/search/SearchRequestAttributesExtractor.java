@@ -379,24 +379,6 @@ public final class SearchRequestAttributesExtractor {
         }
     }
 
-    private enum TimeRangeBucket {
-        FifteenMinutes(TimeValue.timeValueMinutes(15).getMillis(), "15_minutes"),
-        OneHour(TimeValue.timeValueHours(1).getMillis(), "1_hour"),
-        TwelveHours(TimeValue.timeValueHours(12).getMillis(), "12_hours"),
-        OneDay(TimeValue.timeValueDays(1).getMillis(), "1_day"),
-        ThreeDays(TimeValue.timeValueDays(3).getMillis(), "3_days"),
-        SevenDays(TimeValue.timeValueDays(7).getMillis(), "7_days"),
-        FourteenDays(TimeValue.timeValueDays(14).getMillis(), "14_days");
-
-        private final long millis;
-        private final String bucketName;
-
-        TimeRangeBucket(long millis, String bucketName) {
-            this.millis = millis;
-            this.bucketName = bucketName;
-        }
-    }
-
     public static void addTimeRangeAttribute(Long timeRangeFrom, long nowInMillis, Map<String, Object> attributes) {
         if (timeRangeFrom != null) {
             String timestampRangeFilter = introspectTimeRange(timeRangeFrom, nowInMillis);
@@ -405,11 +387,6 @@ public final class SearchRequestAttributesExtractor {
     }
 
     static String introspectTimeRange(long timeRangeFromMillis, long nowInMillis) {
-        for (TimeRangeBucket value : TimeRangeBucket.values()) {
-            if (timeRangeFromMillis >= nowInMillis - value.millis) {
-                return value.bucketName;
-            }
-        }
-        return "older_than_14_days";
+        return TimeRangeBucket.resolve(nowInMillis - timeRangeFromMillis);
     }
 }

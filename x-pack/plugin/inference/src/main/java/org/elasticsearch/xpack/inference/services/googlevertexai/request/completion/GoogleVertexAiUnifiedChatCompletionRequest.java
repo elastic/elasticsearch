@@ -7,24 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexAiRequest {
+public class GoogleVertexAiUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final GoogleVertexAiChatCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
@@ -38,19 +38,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(uri);
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(uri).build();
 
         ToXContentObject requestEntity;
         requestEntity = model.getServiceSettings()
             .provider()
             .createRequestEntity(unifiedChatInput, extractModelId(), model.getTaskSettings());
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
+        httpPost.setBody(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-
-        decorateWithAuth(httpPost);
+        model.authHeaderDecorator().accept(httpPost, model);
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
@@ -63,17 +60,13 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         return unifiedChatInput.getRequest().model() != null ? unifiedChatInput.getRequest().model() : model.getServiceSettings().modelId();
     }
 
-    public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
-    }
-
     @Override
     public URI getURI() {
         return this.uri;
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for Google VertexAI Chat completions
         return this;
     }
@@ -92,5 +85,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

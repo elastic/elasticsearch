@@ -29,6 +29,7 @@ dependencies {
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(':test:external-modules:test-multi-project')
+  clusterModules project(xpackModule('dlm-frozen-transition'))
   restTestConfig project(path: ':modules:data-streams', configuration: "restTests")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:reindex', configuration: "restTests")
@@ -74,6 +75,9 @@ tasks.named("yamlRestTest").configure {
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*',
+
+    '^reindex/50_routing/Slice alias*',
+    '^reindex/85_scripting/Add slice alias',
 
     // Linked project configuration via ClusterSettings currently does not support multi-project
     '^cluster.stats/30_ccs_stats/cross-cluster search stats search',

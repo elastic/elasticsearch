@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.NotMultiProjectCapable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -54,9 +55,10 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
         ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
         composableTemplates = ilmManagementEnabled
             ? parseComposableTemplates(WATCH_HISTORY_CONFIG)

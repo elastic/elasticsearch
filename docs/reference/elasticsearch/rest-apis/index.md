@@ -5,9 +5,10 @@ mapped_pages:
 applies_to:
   stack: ga
   serverless: ga
+navigation_title: REST APIs
 ---
 
-# REST APIs
+# Elasticsearch REST APIs
 
 Elasticsearch exposes REST APIs that are used by the UI components and can be called directly to configure and access Elasticsearch features.
 

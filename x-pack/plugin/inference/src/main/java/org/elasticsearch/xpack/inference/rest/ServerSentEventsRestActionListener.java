@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -26,6 +24,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -35,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -155,8 +154,9 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
 
     private ChunkedToXContent errorChunk(Throwable t) {
         // if we've already formatted it, just return that format
-        if (ExceptionsHelper.unwrapCause(t) instanceof XContentFormattedException xContentFormattedException) {
-            return xContentFormattedException;
+        var formattedException = InferenceErrorFormat.formattedException(t);
+        if (formattedException != null) {
+            return formattedException;
         }
 
         // else, try to parse the format and return something that the ES client knows how to interpret

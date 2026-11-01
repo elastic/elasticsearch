@@ -1,0 +1,5 @@
+TS k8s
+| WHERE cluster NOT IN (TS k8s
+                       | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                       | KEEP cluster)
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)

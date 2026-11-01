@@ -21,10 +21,8 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -40,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -73,6 +70,9 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
         checker.registerUpdateCheck(
@@ -116,44 +116,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     public void testCountPositionsWithoutIncrements() throws IOException {
         Analyzer analyzer = createMockAnalyzer();
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
-    }
-
-    public void testMultiValueSorted() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted").endObject();
-        }));
-        TokenCountFieldMapper mapper = (TokenCountFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
-                )
-            )
-        );
-    }
-
-    public void testMultiValueSortedSetNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
-        );
-    }
-
-    public void testMultiValueDefaultIsSorted() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        TokenCountFieldMapper mapper = (TokenCountFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
     }
 
     private Analyzer createMockAnalyzer() {
@@ -214,7 +176,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         }));
     }
 
-    private static SourceToParse createDocument(String fieldValue) throws Exception {
+    private SourceToParse createDocument(String fieldValue) throws Exception {
         return source(b -> b.field("test", fieldValue));
     }
 
@@ -318,6 +280,12 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a token count field are the number of tokens of a text.
         return false;
     }
 }

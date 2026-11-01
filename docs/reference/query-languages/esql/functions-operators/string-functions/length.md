@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `LENGTH` function [esql-length]
 
-:::{include} ../../_snippets/functions/layout/length.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/length.md
 :::

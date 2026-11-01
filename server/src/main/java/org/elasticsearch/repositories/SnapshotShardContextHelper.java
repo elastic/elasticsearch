@@ -26,14 +26,18 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
 public class SnapshotShardContextHelper {
     public static final Logger logger = LogManager.getLogger(SnapshotShardContextHelper.class);
+
+    public static final Releasable NOOP_RELEASABLE = () -> {};
 
     private SnapshotShardContextHelper() {}
 
@@ -75,14 +79,16 @@ public class SnapshotShardContextHelper {
 
             // The check below is needed to handle shard snapshots during resharding.
             // Resharding changes the number of shards in the index and moves data between shards.
-            // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data movements)
-            // or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
-            // We want to detect if a resharding operation has happened after this snapshot was started
-            // and if so we'll fail the shard snapshot to avoid such inconsistency.
-            // We perform this check here on the data node and not on the master node
-            // to correctly propagate this failure to SnapshotsService using existing listener
-            // in case resharding starts in the middle of the snapshot.
-            // Marking shard as failed directly in the cluster state would bypass parts of SnapshotsService logic.
+            // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data
+            // movements) or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
+            // We want to detect if a resharding operation has happened after this snapshot was started and if so we'll
+            // fail the shard snapshot to avoid such inconsistency.
+            // Note that the master already fails a shard snapshot whose index is being resharded at the time it assigns
+            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus) or when it would have moved a WAITING or
+            // PAUSED_FOR_NODE_REMOVAL shard to INIT (see SnapshotsServiceUtils#processWaitingShardsAndRemovedNodes) absent
+            // the resharding process. The data node check is still needed for both a resharding operation that starts after
+            // the master started the shard snapshot, and for a resharding operation that already completed but did so
+            // after the snapshot was created (so the snapshot only contains the pre-split shards).
 
             // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
             // The information that we are interested in (the shards map keys) doesn't change so this is fine.
@@ -97,7 +103,7 @@ public class SnapshotShardContextHelper {
                 indexShard.indexSettings().getIndexMetadata(),
                 maximumShardIdForIndexInTheSnapshot
             )) {
-                throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
+                throw new IndexShardSnapshotFailedException(shardId, SnapshotsService.SHARD_BEING_RESHARDED_REASON);
             }
 
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
@@ -126,18 +132,47 @@ public class SnapshotShardContextHelper {
         }).onResponse(null);
     }
 
+    /**
+     * Attempt to inc-ref on the snapshotIndexCommit. Returns a releasable that dec-refs when runs. It throws an exception
+     * (AssertionError in tests) if inc-ref fails and the shard snapshot is not aborted.
+     */
     public static Releasable withSnapshotIndexCommitRef(
         ShardId shardId,
         SnapshotId snapshotId,
         SnapshotIndexCommit snapshotIndexCommit,
-        @Nullable IndexShardSnapshotStatus snapshotStatus // null if called on the primary node and snapshot runs on a different node
+        IndexShardSnapshotStatus snapshotStatus
+    ) {
+        assert snapshotStatus != null : "snapshotStatus must be non-null or the other overload variant should be used";
+        return withSnapshotIndexCommitRef(shardId, snapshotId, snapshotIndexCommit, snapshotStatus, null);
+    }
+
+    /**
+     * Similar to {@link #withSnapshotIndexCommitRef(ShardId, SnapshotId, SnapshotIndexCommit, IndexShardSnapshotStatus)} but also takes
+     * a BooleanSupplier indicating whether the primary shard has been relocated away from this node. When relocation during snapshot is
+     * enabled, the commit may be released on the source node after its primary has relocated while the shard snapshot keeps running.
+     * In that case the blobs referenced by the commit are kept alive by the new primary on the target node, so the read can still
+     * proceed without holding a local ref — we return a no-op {@link Releasable} instead of failing.
+     */
+    public static Releasable withSnapshotIndexCommitRef(
+        ShardId shardId,
+        SnapshotId snapshotId,
+        SnapshotIndexCommit snapshotIndexCommit,
+        @Nullable IndexShardSnapshotStatus snapshotStatus, // null if called on the primary node and snapshot runs on a different node
+        @Nullable BooleanSupplier isShardRelocated // null if relocation not supported or the commit is acquired on a different node
     ) {
         maybeEnsureNotAborted(snapshotStatus); // check this first to avoid acquiring a ref when aborted even if refs are available
+        // Also avoid acquiring a ref if shard is already relocated
+        if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
+            return NOOP_RELEASABLE;
+        }
         if (snapshotIndexCommit.tryIncRef()) {
             return Releasables.releaseOnce(snapshotIndexCommit::decRef);
         } else {
             assert snapshotStatus != null : "only snapshot running locally can receive concurrent abort notification at this stage";
             maybeEnsureNotAborted(snapshotStatus);
+            if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
+                return NOOP_RELEASABLE;
+            }
             assert false : shardId + " commit released earlier with status " + snapshotStatus;
             throw new IndexShardSnapshotFailedException(shardId, "commit released while starting snapshot " + snapshotId);
         }
@@ -171,7 +206,7 @@ public class SnapshotShardContextHelper {
             public void onResponse(IndexShardSnapshotStatus.AbortStatus abortStatus) {
                 if (abortStatus == IndexShardSnapshotStatus.AbortStatus.ABORTED) {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
-                    snapshotIndexCommit.onAbort();
+                    snapshotIndexCommit.releaseInitialReference();
                 }
             }
 

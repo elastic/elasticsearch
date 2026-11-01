@@ -8,32 +8,53 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,17 +63,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
 public class IndexingPressureIT extends ESIntegTestCase {
@@ -79,6 +108,161 @@ public class IndexingPressureIT extends ESIntegTestCase {
     @Override
     protected int numberOfShards() {
         return 1;
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.action.bulk.TransportShardBulkAction:DEBUG",
+        reason = "capture cancellation diagnostics in MockLog"
+    )
+    public void testCancellableTransportWriteAction() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
+        final MockTransportService primaryTransportService = (MockTransportService) primaryService;
+
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
+
+        AtomicReference<ReplicationTask> replicationTask = new AtomicReference<>();
+        final CountDownLatch waitForPreSubmissionTaskCancellation = new CountDownLatch(1);
+
+        AtomicBoolean preIndexCalled = new AtomicBoolean(false);
+        PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+            preIndexCalled.set(true);
+            fail("indexing should not run when cancelled pre-submission");
+        });
+
+        primaryTransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]",
+            (handler, request, channel, task) -> {
+                assertThat(task, instanceOf(ReplicationTask.class));
+                replicationTask.set((ReplicationTask) task);
+                taskManager.cancel(replicationTask.get(), "presubmission-cancellation", () -> {});
+                assertThat(((ReplicationTask) task).isCancelled(), is(true));
+                waitForPreSubmissionTaskCancellation.countDown();
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < randomIntBetween(50, 80); ++i) {
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            bulkRequest.add(request);
+        }
+
+        // Pre submission cancellation.
+        try (var mockLog = MockLog.capture(TransportShardBulkAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Pre Submission Cancellation",
+                    TransportShardBulkAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    Strings.format("for Index shard [[%s][0]] is cancelled pre-submission.", INDEX_NAME)
+                )
+            );
+
+            final ActionFuture<BulkResponse> cancelledFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+            waitForPreSubmissionTaskCancellation.await();
+
+            mockLog.awaitAllExpectationsMatched();
+            BulkResponse bulkResponse = cancelledFuture.actionGet();
+
+            Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
+
+            while (iterator.hasNext()) {
+                BulkItemResponse bulkItemResponse = iterator.next();
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [presubmission-cancellation]"));
+            }
+        } finally {
+            if (waitForPreSubmissionTaskCancellation.getCount() > 0) {
+                waitForPreSubmissionTaskCancellation.countDown();
+            }
+            // Clean up previous set up.
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            primaryTransportService.clearAllRules();
+        }
+        assertFalse(preIndexCalled.get());
+
+        // Post submission cancellation.
+        AtomicBoolean postSubmissionCancellationIndexCalled = new AtomicBoolean(false);
+        PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+            postSubmissionCancellationIndexCalled.set(true);
+            fail("indexing should not run when cancelled post-submission");
+        });
+
+        AtomicReference<ReplicationTask> postCancelTask = new AtomicReference<>();
+        CountDownLatch primaryRequestArrived = new CountDownLatch(1);
+
+        // watch for arrival for our bulk task.
+        primaryTransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]",
+            (handler, request, channel, task) -> {
+                postCancelTask.set((ReplicationTask) task);
+                primaryRequestArrived.countDown();
+                // No cancellation here.
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
+        Executor writeExecutor = primaryThreadPool.executor(ThreadPool.Names.WRITE);
+
+        // First block off all primary write thread pool.
+        try (
+            var mockLog = MockLog.capture(TransportShardBulkAction.class);
+            Releasable primaryRelease = blockWriteThreadPool(primaryThreadPool)
+        ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Post Submission Cancellation",
+                    TransportShardBulkAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    Strings.format("for Index shard [[%s][0]] is cancelled post-submission.", INDEX_NAME)
+                )
+            );
+
+            ThreadPoolExecutor writePool = asInstanceOf(ThreadPoolExecutor.class, writeExecutor);
+
+            // Make sure every thread is blocked.
+            assertBusy(() -> assertThat(writePool.getActiveCount(), equalTo(writePool.getMaximumPoolSize())));
+            int queueBefore = writePool.getQueue().size();
+            assertThat(queueBefore, is(0));
+
+            ActionFuture<BulkResponse> postSubmissionCancelledFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+
+            // release the request handler.
+            primaryRequestArrived.await();
+            assertBusy(() -> assertThat(writePool.getQueue().size(), greaterThan(0)));
+
+            // Cancel while task is enqueued.
+            taskManager.cancel(postCancelTask.get(), "post-submission-cancellation", () -> {});
+
+            // Let go all write threads.
+            primaryRelease.close();
+
+            mockLog.awaitAllExpectationsMatched();
+            BulkResponse bulkResponse = postSubmissionCancelledFuture.actionGet();
+
+            Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
+
+            while (iterator.hasNext()) {
+                BulkItemResponse bulkItemResponse = iterator.next();
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [post-submission-cancellation]"));
+            }
+        }
+
+        assertFalse(postSubmissionCancellationIndexCalled.get());
+        PreIndexListenerInstallerPlugin.resetPreIndexListener();
+        primaryTransportService.clearAllRules();
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {
@@ -494,6 +678,146 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
     }
 
+    public void testUpdatePreparedExpansionRejectedWhenExceedingPrimaryLimit() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        final String docId = "1";
+        final int largeSourceChars = scaledRandomIntBetween(35_000, 55_000);
+        client().prepareIndex(INDEX_NAME)
+            .setId(docId)
+            .setSource(Collections.singletonMap("big", randomAlphaOfLength(largeSourceChars)))
+            .get();
+        indicesAdmin().prepareRefresh(INDEX_NAME).get();
+
+        final UpdateRequest updateRequest = new UpdateRequest(INDEX_NAME, docId).doc(
+            Collections.singletonMap("patch", randomAlphaOfLength(scaledRandomIntBetween(4, 32)))
+        );
+
+        String primaryNameForPrepare = getPrimaryReplicaNodeNames().v1();
+        final IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNameForPrepare)
+            .indexServiceSafe(resolveIndex(INDEX_NAME))
+            .getShard(0);
+
+        final UpdateHelper updateHelper = internalCluster().getInstance(UpdateHelper.class, primaryNameForPrepare);
+        final ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryNameForPrepare);
+
+        final UpdateHelper.Result prepared = updateHelper.prepare(
+            updateRequest,
+            primaryShard,
+            primaryThreadPool::absoluteTimeInMillis,
+            FetchSourceContext.FETCH_ALL_SOURCE,
+            SplitShardCountSummary.IRRELEVANT
+        );
+        final DocWriteRequest<?> preparedWrite = prepared.action();
+        final long expansionDeltaBytes = Math.max(0L, preparedWrite.ramBytesUsed() - updateRequest.ramBytesUsed());
+
+        final BulkShardRequest measuredShardBulk = new BulkShardRequest(
+            primaryShard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            new BulkItemRequest[] { new BulkItemRequest(0, updateRequest) }
+        );
+        final long primaryShardBytes = measuredShardBulk.ramBytesUsed();
+        final long expansionOverheadBytes = TransportShardBulkAction.getMaxOperationMemoryOverhead(measuredShardBulk);
+        final long primaryLimitBytes = primaryShardBytes + expansionOverheadBytes + Math.max(1L, expansionDeltaBytes / 2);
+
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), ByteSizeValue.ofBytes(primaryLimitBytes).getStringRep())
+                .build()
+        );
+
+        ensureGreen(INDEX_NAME);
+
+        final String primaryName = getPrimaryReplicaNodeNames().v1();
+        final String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        final BulkRequest clientBulk = new BulkRequest();
+        clientBulk.add(updateRequest);
+
+        final BulkResponse responses = client(coordinatingOnlyNode).bulk(clientBulk).actionGet();
+        assertTrue(responses.hasFailures());
+        assertThat(responses.getItems()[0].getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
+
+        IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+        assertEquals(1L, primaryWriteLimits.stats().getPrimaryRejections());
+    }
+
+    /**
+     * An update rejected midway through a bulk because its translation goes over the primary limit must
+     * fail alone; the surrounding operations must succeed and replicate.
+     */
+    public void testUpdateExpansionRejectedMidBulkOnlyFailsThatUpdate() throws Exception {
+        // High enough to admit the bulk; the listener below trips the limit right before the update translates
+        final long primaryLimitBytes = ByteSizeValue.ofMb(10).getBytes();
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), ByteSizeValue.ofBytes(primaryLimitBytes).getStringRep())
+                .build()
+        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        // Large existing doc: translating the update into a full index request expands tracked bytes
+        final String docId = "update-doc";
+        client().prepareIndex(INDEX_NAME).setId(docId).setSource(Collections.singletonMap("big", randomAlphaOfLength(4096))).get();
+
+        final int itemsBeforeUpdate = randomIntBetween(1, 5);
+        final String lastDocBeforeUpdate = "before-" + (itemsBeforeUpdate - 1);
+        final BulkRequest bulk = new BulkRequest();
+        for (int i = 0; i < itemsBeforeUpdate; i++) {
+            bulk.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId("before-" + i)
+                    .setSource(Collections.singletonMap("key", randomAlphaOfLength(50)))
+                    .request()
+            );
+        }
+        bulk.add(client().prepareUpdate(INDEX_NAME, docId).setDoc(Collections.singletonMap("patch", randomAlphaOfLength(8))).request());
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            bulk.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId("after-" + i)
+                    .setSource(Collections.singletonMap("key", randomAlphaOfLength(50)))
+                    .request()
+            );
+        }
+
+        final IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, getPrimaryReplicaNodeNames().v1());
+        final AtomicReference<Releasable> heldReplicaBytes = new AtomicReference<>();
+        final BulkResponse response;
+        try {
+            PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+                if (index.origin() == Engine.Operation.Origin.PRIMARY
+                    && index.id().equals(lastDocBeforeUpdate)
+                    && heldReplicaBytes.get() == null) {
+                    // Replica bytes count against the primary limit (the coordinating limit is 1.5 x primary limit)
+                    heldReplicaBytes.set(primaryPressure.markReplicaOperationStarted(1, primaryLimitBytes * 2, true));
+                }
+            });
+
+            response = client(getCoordinatingOnlyNode()).bulk(bulk).actionGet();
+        } finally {
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            Releasables.close(heldReplicaBytes.get());
+        }
+        assertThat("the limit must trip before the update translates", heldReplicaBytes.get(), notNullValue());
+
+        assertTrue(response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            if (item.getOpType() == DocWriteRequest.OpType.UPDATE) {
+                assertTrue("the update must be rejected", item.isFailed());
+                assertThat(item.getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
+            } else {
+                assertFalse("only the update must fail: " + item.getFailure(), item.isFailed());
+            }
+        }
+        assertEquals(1L, primaryPressure.stats().getPrimaryRejections());
+
+        assertLocalCheckpointsReachMaxSeqNo();
+    }
+
     public void testWriteCanRejectOnReplicaBasedOnMaxDocumentSize() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         long totalRequestSize = 0;
@@ -583,6 +907,67 @@ public class IndexingPressureIT extends ESIntegTestCase {
         assertEquals(1L, primaryWriteLimits.stats().getPrimaryRejections());
         assertEquals(1L, primaryWriteLimits.stats().getLargeOpsRejections());
         assertThat(primaryWriteLimits.stats().getTotalLargeRejectedOpsBytes(), is(greaterThanOrEqualTo(50L)));
+    }
+
+    /**
+     * Going over the primary limit midway through a bulk of index requests must not abort the bulk:
+     * already-applied operations would never replicate, stranding the replica's local checkpoint.
+     */
+    public void testPrimaryRejectionMidBulkDoesNotStrandReplicaCheckpoint() throws Exception {
+        // High enough to admit the bulk; the listener below trips the limit mid-bulk
+        final long primaryLimitBytes = ByteSizeValue.ofMb(10).getBytes();
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), ByteSizeValue.ofBytes(primaryLimitBytes).getStringRep())
+                .build()
+        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        final BulkRequest bulk = new BulkRequest();
+        for (int i = 0; i < 20; i++) {
+            bulk.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId("doc-" + i)
+                    .setSource(Collections.singletonMap("f", randomAlphaOfLength(64)))
+                    .request()
+            );
+        }
+
+        final int tripAfterItems = 5;
+        final IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, getPrimaryReplicaNodeNames().v1());
+        final AtomicInteger appliedOnPrimary = new AtomicInteger();
+        final AtomicReference<Releasable> heldReplicaBytes = new AtomicReference<>();
+        try {
+            PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+                if (index.origin() == Engine.Operation.Origin.PRIMARY && appliedOnPrimary.incrementAndGet() == tripAfterItems) {
+                    // Replica bytes count against the primary limit (the replica limit is 1.5 x primary limit)
+                    heldReplicaBytes.set(primaryPressure.markReplicaOperationStarted(1, primaryLimitBytes * 2, true));
+                }
+            });
+
+            assertNoFailures(client(getCoordinatingOnlyNode()).bulk(bulk).actionGet());
+        } finally {
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            Releasables.close(heldReplicaBytes.get());
+        }
+
+        assertThat("the limit must trip mid-bulk", appliedOnPrimary.get(), greaterThanOrEqualTo(tripAfterItems));
+
+        assertLocalCheckpointsReachMaxSeqNo();
+    }
+
+    private void assertLocalCheckpointsReachMaxSeqNo() throws Exception {
+        assertBusy(() -> {
+            for (ShardStats shardStats : indicesAdmin().prepareStats(INDEX_NAME).get().getShards()) {
+                final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                assertThat(
+                    "copy is missing operations: " + shardStats.getShardRouting() + " " + seqNoStats,
+                    seqNoStats.getLocalCheckpoint(),
+                    equalTo(seqNoStats.getMaxSeqNo())
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void restartNodesWithSettings(Settings settings) throws Exception {

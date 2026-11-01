@@ -30,6 +30,8 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
@@ -55,8 +58,11 @@ import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class MatchQueryParser {
@@ -264,12 +270,16 @@ public class MatchQueryParser {
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
+            final Query keywordAnalyzed;
             if (type == Type.BOOLEAN_PREFIX
                 && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
-                return builder.newPrefixQuery(term);
+                keywordAnalyzed = builder.newPrefixQuery(term);
             } else {
-                return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+                keywordAnalyzed = builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
             }
+            return answersFromValues(fieldType)
+                ? ((TextFamilyFieldType) fieldType).toReanalyzingQuery(keywordAnalyzed, context)
+                : keywordAnalyzed;
         }
 
         Query query = switch (type) {
@@ -278,6 +288,11 @@ public class MatchQueryParser {
             case PHRASE -> builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
             case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
         };
+        if (query != null && answersFromValues(fieldType)) {
+            // One wrap for the whole clause, so every term it holds is answered from one read of a document's
+            // values. A phrase the field built has wrapped itself already, which this leaves alone.
+            query = ((TextFamilyFieldType) fieldType).toReanalyzingQuery(query, context);
+        }
         if (query == null) {
             query = zeroTermsQuery.asQuery();
             if (query != null) {
@@ -285,6 +300,19 @@ public class MatchQueryParser {
             }
         }
         return query;
+    }
+
+    /**
+     * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+     * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+     */
+    private boolean answersPositionsFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersPositionsFromValues(context);
+    }
+
+    /** Whether {@code fieldType} answers a text query by reading its values rather than an index. */
+    boolean answersFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersTextQueryFromValues(context);
     }
 
     private Query newLenientFieldQuery(String fieldName, RuntimeException e) {
@@ -326,7 +354,8 @@ public class MatchQueryParser {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.getTextSearchInfo().hasPositions()) {
+            // a field answering from its values reads their positions, so it answers a phrase as an indexed one does
+            if (fieldType.getTextSearchInfo().hasPositions() || answersPositionsFromValues(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -334,6 +363,10 @@ public class MatchQueryParser {
             this.queryVisitor = queryVisitor;
         }
 
+        /**
+         * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+         * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+         */
         @Override
         protected Query createFieldQuery(
             Analyzer analyzer,
@@ -503,11 +536,11 @@ public class MatchQueryParser {
             SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
             Term lastTerm = null;
             while (in.incrementToken()) {
-                if (posIncAtt.getPositionIncrement() > 1) {
-                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
-                }
                 if (lastTerm != null) {
                     builder.addClause(new SpanTermQuery(lastTerm));
+                }
+                if (posIncAtt.getPositionIncrement() > 1) {
+                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
                 }
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }
@@ -530,7 +563,12 @@ public class MatchQueryParser {
         @Override
         protected Query newTermQuery(Term term, float boost) {
             final Supplier<Query> querySupplier;
-            if (fuzziness != null) {
+            if (answersFromValues(fieldType)) {
+                // The clause only names what it looks for; the wrapper reads the field's values to find it.
+                querySupplier = fuzziness != null
+                    ? () -> new FuzzyQuery(term, fuzziness.asDistance(term.text()), fuzzyPrefixLength, maxExpansions, transpositions)
+                    : () -> new TermQuery(term);
+            } else if (fuzziness != null) {
                 querySupplier = () -> fieldType.fuzzyQuery(
                     term.text(),
                     fuzziness,
@@ -766,7 +804,8 @@ public class MatchQueryParser {
              * The articulation points of the graph are visited in order and the queries
              * created at each point are merged in the returned near query.
              */
-            List<SpanQuery> clauses = new ArrayList<>();
+            SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
+            Set<SpanQuery> positionalQueries = Collections.newSetFromMap(new IdentityHashMap<>());
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
             for (int i = 0; i <= articulationPoints.length; i++) {
@@ -794,23 +833,52 @@ public class MatchQueryParser {
                         queryPos = null;
                     }
                 } else {
+                    int positionIncrement = getPositionIncrement(graph, start);
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
+                    if (positionIncrement > 1) {
+                        builder.addGap(positionIncrement - 1);
+                    }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
-                    clauses.add(queryPos);
+                    builder.addClause(queryPos);
+                    positionalQueries.add(queryPos);
                 }
             }
 
-            if (clauses.isEmpty()) {
+            if (positionalQueries.isEmpty()) {
                 return null;
-            } else if (clauses.size() == 1) {
-                return clauses.get(0);
-            } else {
-                return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
             }
+            SpanNearQuery query = builder.build();
+            SpanQuery[] clauses = query.getClauses();
+            if (clauses.length == 1) {
+                return clauses[0];
+            }
+            // the builder inserted a private gap clause for every addGap call; those were not
+            // visited when the positional queries were created, so visit them here to keep the
+            // clause count consistent with a full walk of the final query
+            for (SpanQuery clause : clauses) {
+                if (positionalQueries.contains(clause) == false) {
+                    clause.visit(queryVisitor);
+                }
+            }
+            return query;
+        }
+
+        /**
+         * Returns the position increment of the tokens starting at {@code state}. Stacked tokens
+         * carry the increment of their leading token (see {@link GraphTokenStreamFiniteStrings}),
+         * so all tokens at a state share one value; max selects it regardless of iteration order.
+         */
+        private int getPositionIncrement(GraphTokenStreamFiniteStrings graph, int state) {
+            int positionIncrement = 1;
+            for (AttributeSource attributeSource : graph.getTerms(state)) {
+                PositionIncrementAttribute positionIncrementAttribute = attributeSource.addAttribute(PositionIncrementAttribute.class);
+                positionIncrement = Math.max(positionIncrement, positionIncrementAttribute.getPositionIncrement());
+            }
+            return positionIncrement;
         }
     }
 }

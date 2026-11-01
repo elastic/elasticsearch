@@ -30,4 +30,8 @@ public class ScandinavianFoldingFilterFactory extends AbstractTokenFilterFactory
         return new ScandinavianFoldingFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

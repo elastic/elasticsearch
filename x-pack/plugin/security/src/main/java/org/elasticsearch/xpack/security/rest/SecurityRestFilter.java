@@ -17,11 +17,14 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -34,17 +37,21 @@ public class SecurityRestFilter implements RestInterceptor {
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
+    private final boolean httpSslEnabled;
     private final ThreadContext threadContext;
     private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
+    private final AuthenticationContextSerializer authenticationSerializer = new AuthenticationContextSerializer();
 
     public SecurityRestFilter(
         boolean enabled,
+        boolean httpSslEnabled,
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
         this.enabled = enabled;
+        this.httpSslEnabled = httpSslEnabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
@@ -76,19 +83,16 @@ public class SecurityRestFilter implements RestInterceptor {
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
-            auditTrailService.get().authenticationSuccess(wrappedRequest);
-            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-                if (secondaryAuthentication != null) {
-                    logger.trace(
-                        "Found secondary authentication {} in REST request [{}]",
-                        secondaryAuthentication,
-                        aggregatedRestRequest.uri()
-                    );
-                }
-                WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
+            try {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+                secondaryAuthenticator.completeAuthentication(wrappedRequest);
+            } catch (Exception e) {
+                handleException(aggregatedRestRequest, e, listener);
+                return;
+            }
+            WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
-                doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
-            }, e -> handleException(aggregatedRestRequest, e, listener)));
+            doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
         };
         if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
             aggregate(request, aggregationCallback::accept);
@@ -96,6 +100,20 @@ public class SecurityRestFilter implements RestInterceptor {
             aggregationCallback.accept(request);
         }
 
+    }
+
+    @Override
+    public boolean allowsBrowserSafelistedContentType(RestRequest request) {
+        if (enabled == false || httpSslEnabled == false) {
+            return false;
+        }
+        try {
+            final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
+            return authentication != null && authentication.getAuthenticationType() != Authentication.AuthenticationType.ANONYMOUS;
+        } catch (IOException e) {
+            logger.debug(() -> format("failed to read authentication for REST request [%s]", request.uri()), e);
+            return false;
+        }
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {

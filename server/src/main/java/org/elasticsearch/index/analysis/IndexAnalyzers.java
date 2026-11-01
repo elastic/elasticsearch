@@ -8,14 +8,16 @@
  */
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
@@ -94,10 +96,17 @@ public interface IndexAnalyzers extends Closeable {
     }
 
     /**
-     * Reload any analyzers that have reloadable components
+     * Reload any analyzers that have reloadable components. {@code reloadToken} identifies the reload
+     * request so that an analyzer shared by several indices is rebuilt once per request rather than
+     * once per index; pass {@code null} to disable that deduplication (always reload).
      */
-    default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings, String resource, boolean preview)
-        throws IOException {
+    default List<String> reload(
+        AnalysisRegistry analysisRegistry,
+        IndexSettings indexSettings,
+        String resource,
+        boolean preview,
+        ReloadToken reloadToken
+    ) throws IOException {
         return List.of();
     }
 
@@ -116,7 +125,34 @@ public interface IndexAnalyzers extends Closeable {
         Map<String, NamedAnalyzer> normalizers,
         Map<String, NamedAnalyzer> whitespaceNormalizers
     ) {
+        // No shared-cache references — the simple overload used by tests and code paths that
+        // construct analyzers directly without going through the registry's cache.
+        return of(analyzers, normalizers, whitespaceNormalizers, List.of());
+    }
+
+    /**
+     * Construct an {@link IndexAnalyzers} that owns refcount handles on shared cache entries.
+     * {@code releasables} holds one handle per shared analyzer / normalizer / whitespace-normalizer
+     * entry this index acquired. A plain list (not name-keyed): {@link #reload} mutates shared
+     * analyzers in place and never touches these handles, and {@link #close} only iterates them.
+     *
+     * <p>On {@link #close} every releasable is invoked exactly once; the last release on any
+     * given cache entry drives the actual underlying {@code analyzer.close()} and evicts it from
+     * the registry's cache.
+     */
+    static IndexAnalyzers of(
+        Map<String, NamedAnalyzer> analyzers,
+        Map<String, NamedAnalyzer> normalizers,
+        Map<String, NamedAnalyzer> whitespaceNormalizers,
+        List<Releasable> releasables
+    ) {
         return new IndexAnalyzers() {
+            // Idempotent close guard: each release handle must fire exactly once across the
+            // lifetime of this IndexAnalyzers. Double-close on the same instance otherwise
+            // re-releases every shared reference, dropping refcounts a second time and falsely
+            // evicting cache entries that other indices still reference.
+            private final AtomicBoolean closed = new AtomicBoolean();
+
             @Override
             public NamedAnalyzer getAnalyzer(AnalyzerType type, String name) {
                 return switch (type) {
@@ -128,21 +164,39 @@ public interface IndexAnalyzers extends Closeable {
 
             @Override
             public void close() throws IOException {
-                IOUtils.close(
-                    Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
-                        .flatMap(s -> s)
-                        .filter(a -> a.scope() == AnalyzerScope.INDEX)
-                        .toList()
-                );
+                if (closed.compareAndSet(false, true) == false) {
+                    return;
+                }
+                // Two groups: (1) INDEX-scoped analyzers built outside the shared cache; cache
+                // entries are re-tagged GLOBAL so they're skipped here, (2) refcount release
+                // handles for shared cache entries — the last release on each entry drives the
+                // underlying close + eviction. IOUtils.close gathers exceptions so a failure on
+                // one closeable doesn't skip the rest, and the first exception (if any) is
+                // rethrown.
+                List<Closeable> closeables = new ArrayList<>();
+                Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
+                    .flatMap(s -> s)
+                    .filter(a -> a.scope() == AnalyzerScope.INDEX)
+                    .forEach(closeables::add);
+                closeables.addAll(releasables);
+                IOUtils.close(closeables);
             }
 
             @Override
-            public List<String> reload(AnalysisRegistry registry, IndexSettings indexSettings, String resource, boolean preview)
-                throws IOException {
+            public List<String> reload(
+                AnalysisRegistry registry,
+                IndexSettings indexSettings,
+                String resource,
+                boolean preview,
+                ReloadToken reloadToken
+            ) throws IOException {
 
-                List<NamedAnalyzer> reloadableAnalyzers = analyzers.values()
+                // Keep the local analyzer name (the map key): a shared ReloadableCustomAnalyzer keeps
+                // the name of whichever index built it first, so reloadAnalyzerInPlace must look the
+                // recipe up under THIS index's name, not the shared instance's embedded name.
+                List<Map.Entry<String, NamedAnalyzer>> reloadableAnalyzers = analyzers.entrySet()
                     .stream()
-                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
+                    .filter(e -> e.getValue().analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
                     .toList();
 
                 if (reloadableAnalyzers.isEmpty()) {
@@ -150,20 +204,24 @@ public interface IndexAnalyzers extends Closeable {
                 }
 
                 if (preview == false) {
-                    final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
-                    final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
-                    final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
-                    final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
-
-                    for (NamedAnalyzer analyzer : reloadableAnalyzers) {
-                        String name = analyzer.name();
-                        Settings analyzerSettings = settings.get(name);
-                        ReloadableCustomAnalyzer reloadableAnalyzer = (ReloadableCustomAnalyzer) analyzer.analyzer();
-                        reloadableAnalyzer.reload(name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                    // In-place reload: mutate the shared ReloadableCustomAnalyzer's components so existing
+                    // mapping references (TextSearchInfo captures a NamedAnalyzer at mapping-build time)
+                    // observe the refresh, and every index sharing the instance converges on it. Safe
+                    // because reloadable filters force AnalysisMode.SEARCH_TIME, which the mapping layer
+                    // only allows as search_analyzer / search_quote_analyzer — so a reload changes
+                    // query-time tokenization only, never how data was indexed. reloadToken makes a shared
+                    // instance rebuild once per request, not once per sharing index.
+                    for (Map.Entry<String, NamedAnalyzer> entry : reloadableAnalyzers) {
+                        registry.reloadAnalyzerInPlace(indexSettings, entry.getKey(), entry.getValue(), reloadToken);
                     }
                 }
 
-                return reloadableAnalyzers.stream().map(NamedAnalyzer::name).toList();
+                // Report every matching analyzer as reloaded, including those whose rebuild was deduped by a
+                // sibling sharer: in-place mutation means a coasting sharer reflects the refreshed state just
+                // the same. Note this list (the response's reload_details) reports the requested index's
+                // analyzers, not every affected index — other indices sharing the instance also observe the
+                // refresh but are not enumerated here.
+                return reloadableAnalyzers.stream().map(Map.Entry::getKey).toList();
             }
         };
     }

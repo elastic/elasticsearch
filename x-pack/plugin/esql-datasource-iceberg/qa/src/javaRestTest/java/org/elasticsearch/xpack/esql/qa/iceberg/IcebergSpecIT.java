@@ -15,6 +15,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import java.util.List;
 
@@ -24,8 +25,10 @@ import java.util.List;
 public class IcebergSpecIT extends IcebergSpecTestCase {
 
     /** Elasticsearch cluster with S3 fixture and Iceberg catalog for testing. */
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    @ClassRule
+    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
 
     public IcebergSpecIT(
         String fileName,

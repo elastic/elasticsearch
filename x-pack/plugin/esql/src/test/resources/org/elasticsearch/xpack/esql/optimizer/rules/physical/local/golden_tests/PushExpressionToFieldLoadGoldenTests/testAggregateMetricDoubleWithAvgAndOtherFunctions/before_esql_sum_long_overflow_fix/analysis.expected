@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[SUM(network.eth0.tx{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS s#1, AVG(network.eth0.tx{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS a#2]]
+  \_EsRelation[k8s-downsampled][@timestamp{f}#3, client.ip{f}#4, cluster{f}#5, event{f}#6, event_city{f}#7, event_city_boundary{f}#8, event_location{f}#9, event_log{f}#10, event_shape{f}#11, events_received{f}#12, network.bytes_in{f}#13, network.cost{f}#14, network.eth0.currently_connected_clients{f}#15, network.eth0.firmware_version{f}#16, network.eth0.last_up{f}#17, network.eth0.rx{f}#18, network.eth0.tx{f}#0, network.eth0.up{f}#19, network.total_bytes_in{f}#20, network.total_cost{f}#21, pod{f}#22]

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 /**
  * Provides an exception for truncating the request input.
@@ -19,7 +19,7 @@ public class ContentTooLargeException extends RetryException {
     }
 
     @Override
-    public Request rebuildRequest(Request original) {
+    public OutboundRequest rebuildRequest(OutboundRequest original) {
         return original.truncate();
     }
 }

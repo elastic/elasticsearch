@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,10 +28,16 @@ class RequestTask implements RejectableTask {
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferenceServiceResults> listener,
+        Releasable releaseBytes
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.timedListener = new TimedListener<>(timeout, listener, threadPool);
+        this.timedListener = new TimedListener<>(
+            timeout,
+            ActionListener.runAfter(listener, releaseBytes::close),
+            threadPool,
+            requestCreator.inferenceEntityId()
+        );
         this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 

@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -34,7 +34,7 @@ final class BytesRef2BlockHash extends BlockHash {
     private final int channel2;
     private final BytesRefBlockHash hash1;
     private final BytesRefBlockHash hash2;
-    private final LongHash finalHash;
+    private final LongHashTable finalHash;
 
     BytesRef2BlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
         super(blockFactory);
@@ -45,7 +45,7 @@ final class BytesRef2BlockHash extends BlockHash {
         try {
             this.hash1 = new BytesRefBlockHash(channel1, blockFactory);
             this.hash2 = new BytesRefBlockHash(channel2, blockFactory);
-            this.finalHash = new LongHash(1, blockFactory.bigArrays());
+            this.finalHash = HashImplFactory.newLongHash(blockFactory);
             success = true;
         } finally {
             if (success == false) {

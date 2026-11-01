@@ -36,9 +36,10 @@ public enum ElementType {
     BYTES_REF(6, "BytesRef", BlockFactory::newBytesRefBlockBuilder, BytesRefBlock::readFrom),
 
     /**
-     * Blocks that reference individual lucene documents.
+     * Blocks that reference individual lucene documents. Only blocks whose rows left the node that read them travel, see
+     * {@link DocVector#writeTo}.
      */
-    DOC(7, "Doc", DocBlock::newBlockBuilder, in -> { throw new UnsupportedOperationException("can't read doc blocks"); }),
+    DOC(7, "Doc", DocBlock::newBlockBuilder, DocBlock::readFrom),
 
     /**
      * Composite blocks which contain array of sub-blocks.
@@ -78,7 +79,9 @@ public enum ElementType {
     ),
     TDIGEST(12, "TDigest", BlockFactory::newTDigestBlockBuilder, TDigestArrayBlock::readFrom),
 
-    LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom);
+    LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom),
+
+    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 
@@ -133,6 +136,8 @@ public enum ElementType {
             elementType = TDIGEST;
         } else if (type == LongRangeBlockBuilder.LongRange.class) {
             elementType = LONG_RANGE;
+        } else if (type == DoubleRangeBlockBuilder.DoubleRange.class) {
+            elementType = DOUBLE_RANGE;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

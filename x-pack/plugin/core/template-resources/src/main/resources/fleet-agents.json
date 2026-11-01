@@ -43,6 +43,9 @@
           "type": "object",
           "enabled": false
         },
+        "effective_config_hash": {
+          "type": "keyword"
+        },
         "enrolled_at": {
           "type": "date"
         },
@@ -231,6 +234,9 @@
           "type": "keyword"
         },
         "agent_policy_id": {
+          "type": "keyword"
+        },
+        "policy_base_id": {
           "type": "keyword"
         },
         "policy_output_permissions_hash": {
@@ -444,6 +450,9 @@
               "config": {
                 "properties": {
                   "description": {
+                    "type": "keyword"
+                  },
+                  "name": {
                     "type": "keyword"
                   }
                 }

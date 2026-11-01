@@ -94,7 +94,7 @@ public class ChangePolicyForIndexIT extends IlmESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     AllocateAction.NAME,
-                    new AllocateAction(1, null, Map.of("_name", "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3"), null, null)
+                    new AllocateAction(1, null, Map.of("_name", "ilm-cluster-0,ilm-cluster-1,ilm-cluster-2,ilm-cluster-3"), null, null)
                 )
             )
         );
@@ -117,7 +117,7 @@ public class ChangePolicyForIndexIT extends IlmESRestTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "test-cluster-0")
+            .put("index.routing.allocation.include._name", "ilm-cluster-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
@@ -161,10 +161,10 @@ public class ChangePolicyForIndexIT extends IlmESRestTestCase {
         // Check the index goes to the warm phase and completes
         assertBusy(() -> assertStep(indexName, PhaseCompleteStep.finalStep("warm").getKey()), 30, TimeUnit.SECONDS);
 
-        // Check index is allocated on test-cluster-1 and test-cluster-2 as per policy_2
+        // Check index is allocated on ilm-cluster-1 and ilm-cluster-2 as per policy_2
         Map<String, Object> indexSettings = getIndexSettingsAsMap(indexName);
         String includesAllocation = (String) indexSettings.get("index.routing.allocation.include._name");
-        assertEquals("test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3", includesAllocation);
+        assertEquals("ilm-cluster-0,ilm-cluster-1,ilm-cluster-2,ilm-cluster-3", includesAllocation);
     }
 
     public void testILMHonoursTheCachedPhaseAfterPolicyUpdate() throws Exception {

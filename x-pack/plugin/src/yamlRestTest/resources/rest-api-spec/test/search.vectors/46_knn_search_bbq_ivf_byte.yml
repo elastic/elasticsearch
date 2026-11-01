@@ -1,0 +1,254 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.bbq_disk_byte_support"]
+      reason: Needs mapper.bbq_disk_byte_support feature
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: bbq_disk_byte
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 8
+                index: true
+                similarity: dot_product
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_disk_byte
+        id: "1"
+        body:
+          name: first
+          vector: [100, 50, -20, 30, 80, -10, 40, 60]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_disk_byte
+
+  - do:
+      index:
+        index: bbq_disk_byte
+        id: "2"
+        body:
+          name: second
+          vector: [-50, 100, 40, -30, 20, 60, -80, 10]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_disk_byte
+
+  - do:
+      index:
+        index: bbq_disk_byte
+        id: "3"
+        body:
+          name: third
+          vector: [90, 45, -15, 25, 75, -5, 35, 55]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_disk_byte
+
+  - do:
+      indices.forcemerge:
+        index: bbq_disk_byte
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+---
+"Test knn search":
+  - do:
+      search:
+        index: bbq_disk_byte
+        body:
+          knn:
+            field: vector
+            query_vector: [95, 48, -18, 28, 78, -8, 38, 58]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total.value: 3 }
+  # doc 1 and 3 are very similar to the query, doc 2 is very different
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Test knn search with visit_percentage":
+  - do:
+      search:
+        index: bbq_disk_byte
+        body:
+          knn:
+            field: vector
+            query_vector: [95, 48, -18, 28, 78, -8, 38, 58]
+            k: 3
+            visit_percentage: 1.0
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Test knn search with filter":
+  - do:
+      search:
+        index: bbq_disk_byte
+        body:
+          knn:
+            field: vector
+            query_vector: [95, 48, -18, 28, 78, -8, 38, 58]
+            k: 3
+            num_candidates: 3
+            filter:
+              term:
+                name: third
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+---
+"Test knn search euclidean":
+  - do:
+      indices.create:
+        index: bbq_disk_byte_euclidean
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 8
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_disk_byte_euclidean
+        id: "1"
+        body:
+          vector: [10, 20, 30, 40, 50, 60, 70, 80]
+
+  - do:
+      index:
+        index: bbq_disk_byte_euclidean
+        id: "2"
+        body:
+          vector: [-100, -100, -100, -100, -100, -100, -100, -100]
+
+  - do:
+      index:
+        index: bbq_disk_byte_euclidean
+        id: "3"
+        body:
+          vector: [15, 25, 35, 45, 55, 65, 75, 85]
+
+  - do:
+      indices.flush:
+        index: bbq_disk_byte_euclidean
+
+  - do:
+      indices.forcemerge:
+        index: bbq_disk_byte_euclidean
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: bbq_disk_byte_euclidean
+        body:
+          knn:
+            field: vector
+            query_vector: [11, 21, 31, 41, 51, 61, 71, 81]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total.value: 3 }
+  # doc 1 is closest to query [11,...,81] (distance ~2.83), doc 3 next (~11.3), doc 2 very far
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Test knn search max_inner_product":
+  - do:
+      indices.create:
+        index: bbq_disk_byte_mip
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 8
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_disk_byte_mip
+        id: "1"
+        body:
+          vector: [100, 50, -20, 30, 80, -10, 40, 60]
+
+  - do:
+      index:
+        index: bbq_disk_byte_mip
+        id: "2"
+        body:
+          vector: [-50, -100, -40, -30, -20, -60, -80, -10]
+
+  - do:
+      index:
+        index: bbq_disk_byte_mip
+        id: "3"
+        body:
+          vector: [90, 45, -15, 25, 75, -5, 35, 55]
+
+  - do:
+      indices.flush:
+        index: bbq_disk_byte_mip
+
+  - do:
+      indices.forcemerge:
+        index: bbq_disk_byte_mip
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: bbq_disk_byte_mip
+        body:
+          knn:
+            field: vector
+            query_vector: [95, 48, -18, 28, 78, -8, 38, 58]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }

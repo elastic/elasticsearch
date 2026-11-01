@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -23,13 +24,19 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -37,6 +44,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -196,6 +204,112 @@ public class PercolateQueryTests extends ESTestCase {
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[2].score));
         assertThat(explanation.getDetails(), arrayWithSize(1));
+    }
+
+    public void testPercolateQueryDoesNotUseBulkScorer() throws Exception {
+        // PercolateQuery should not use bulk scorers as it is only ever searching over very small
+        // indexes.
+        List<Query> queries = new ArrayList<>();
+        PercolateQuery.QueryStore queryStore = ctx -> queries::get;
+
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.add(new TermQuery(new Term("field", "quick")), BooleanClause.Occur.MUST);
+        bq.add(new TermQuery(new Term("field", "brown")), BooleanClause.Occur.MUST);
+        queries.add(new ThrowingBulkScorerQuery(bq.build()));
+
+        indexWriter.addDocument(Collections.singleton(new StringField("select", "a", Field.Store.NO)));
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "the quick brown fox", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+
+        // scoring mode (needsScores=true) exercises the Lucene.searchWithoutBulkScorer() path
+        Query percolateQuery = new PercolateQuery(
+            "_name",
+            queryStore,
+            Collections.singletonList(new BytesArray("{}")),
+            new TermQuery(new Term("select", "a")),
+            percolateSearcher,
+            null,
+            Queries.NO_DOCS_INSTANCE
+        );
+        TopDocs topDocs = shardSearcher.search(percolateQuery, 10);
+        assertThat(topDocs.scoreDocs.length, equalTo(1));
+    }
+
+    /**
+     * Query wrapper whose ScorerSupplier throws AssertionError if bulkScorer() is called.
+     * Used to verify that PercolateQuery never invokes the bulk scorer path against the
+     * percolator index searcher.
+     */
+    private static class ThrowingBulkScorerQuery extends Query {
+
+        private final Query delegate;
+
+        ThrowingBulkScorerQuery(Query delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight delegateWeight = delegate.createWeight(searcher, scoreMode, boost);
+            return new Weight(this) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return delegateWeight.explain(context, doc);
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final ScorerSupplier innerSupplier = delegateWeight.scorerSupplier(context);
+                    if (innerSupplier == null) return null;
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return innerSupplier.get(leadCost);
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            throw new AssertionError("bulkScorer() must not be called on the percolator index searcher");
+                        }
+
+                        @Override
+                        public long cost() {
+                            return innerSupplier.cost();
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "ThrowingBulkScorer(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ThrowingBulkScorerQuery other && delegate.equals(other.delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
+        }
     }
 
 }

@@ -11,10 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,10 +37,17 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO Use CountTests.parameters() once absent over time allows for dense_vectors
+        // TODO Use CountTests.parameters() once count over time allows for date_range, double_range, flattened, exponential_histogram,
+        // tdigest
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -58,17 +68,19 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geotileCases(1, 1000),
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000).stream().map(s -> s.withAppliesTo(denseVectorAppliesTo)).toList()
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
-        for (var dataType : List.of(
+        List<DataType> noRowsTypes = List.of(
             DataType.NULL,
             DataType.INTEGER,
             DataType.LONG,
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,
@@ -77,13 +89,19 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,
             DataType.UNSIGNED_LONG
-        )) {
+        );
+        Map<DataType, List<FunctionAppliesTo>> noRowsAppliesTo = Map.of(DataType.DENSE_VECTOR, List.of(denseVectorAppliesTo));
+        for (var dataType : noRowsTypes) {
+            var field = withAppliesTo(
+                TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field"),
+                noRowsAppliesTo.getOrDefault(dataType, List.of())
+            );
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
+                        List.of(field),
                         dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                         DataType.LONG,
                         equalTo(0L)
@@ -96,9 +114,31 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
+    private static TestCaseSupplier.TypedData withAppliesTo(TestCaseSupplier.TypedData data, List<FunctionAppliesTo> appliesTo) {
+        for (var tag : appliesTo) {
+            data = data.withAppliesTo(tag);
+        }
+        return data;
+    }
+
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+        return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW, Literal.NULL);
+    }
+
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
@@ -107,5 +147,13 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         copies.add(window);
         return copies;
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        return params;
     }
 }

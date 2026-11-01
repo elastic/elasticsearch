@@ -11,12 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -67,7 +70,9 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED)));
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, clusterService);
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("not-john", "not-role"))
             .realmRef(new RealmRef("auth_name", "auth_type", "node"))
@@ -137,7 +142,11 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
+        var noopAuditClusterService = mock(ClusterService.class);
+        when(noopAuditClusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED))
+        );
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, noopAuditClusterService);
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("not-john", "not-role"))
             .realmRef(new RealmRef("auth_name", "auth_type", "node"))

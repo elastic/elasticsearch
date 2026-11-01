@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 144505
-summary: "[Native] Use vdotq_s32 for int7u/int8 distances on ARM"
-type: enhancement

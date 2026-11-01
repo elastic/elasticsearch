@@ -13,15 +13,19 @@ import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.SkipUnavailableRule;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +38,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class AbstractCrossClusterUsageTelemetryIT extends AbstractMultiClustersTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        // EncryptionService binding for the always-registered data-source CRUD actions (see AbstractEsqlIntegTestCase).
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.add(TestEncryptionServicePlugin.class);
+        return plugins;
+    }
+
     private static final Logger LOGGER = LogManager.getLogger(AbstractCrossClusterUsageTelemetryIT.class);
     protected static final String REMOTE1 = "cluster-a";
     protected static final String REMOTE2 = "cluster-b";

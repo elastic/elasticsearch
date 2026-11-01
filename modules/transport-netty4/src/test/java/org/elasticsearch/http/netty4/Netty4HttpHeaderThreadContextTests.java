@@ -19,7 +19,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,6 +28,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 import org.junit.After;
+import org.junit.Before;
 
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
@@ -50,17 +50,15 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
     private EmbeddedChannel channel;
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        channel = new EmbeddedChannel(new FlowControlHandler());
+    @Before
+    public void initChannel() throws Exception {
+        channel = new EmbeddedChannel();
         channel.config().setAutoRead(false);
         threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 

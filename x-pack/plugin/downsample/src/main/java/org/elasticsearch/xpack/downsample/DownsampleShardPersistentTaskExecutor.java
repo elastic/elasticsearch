@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -41,6 +40,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -55,17 +55,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
-    private final boolean isStateless;
 
-    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, Settings settings, final Executor executor) {
+    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final Executor executor) {
         super(taskName, executor);
         this.client = Objects.requireNonNull(client);
-        this.isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -81,7 +81,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     ) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
         final SearchRequest searchRequest = new SearchRequest(params.downsampleIndex());
-        searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
+        // _tsid is not part of the metadata returned with a hit by default, it has to be requested explicitly.
+        searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1).fetchField(TimeSeriesIdFieldMapper.NAME);
         searchRequest.preference("_shards:" + params.shardId().id());
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             delegate(task, params, extractTsId(searchResponse.getHits().getHits()));
@@ -93,8 +94,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             return null;
         } else {
             var searchHit = Arrays.stream(lastDownsampleTsidHits).findFirst().get();
-            var field = searchHit.field("_tsid");
-            return field != null ? field.getValue() : null;
+            var field = searchHit.field(TimeSeriesIdFieldMapper.NAME);
+            // The fetched value is the formatted representation of the tsid, decode it back to the raw bytes used by the query.
+            return field != null ? DocValueFormat.TIME_SERIES_ID.parseBytesRef(field.getValue()) : null;
         }
     }
 
@@ -139,6 +141,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final ClusterState clusterState,
         @Nullable final ProjectId projectId
     ) {
+        if (candidateNodes.isEmpty()) {
+            return NO_NODE_FOUND;
+        }
         // NOTE: downsampling works by running a task per each shard of the source index.
         // Here we make sure we assign the task to the actual node holding the shard identified by
         // the downsampling task shard id.
@@ -158,40 +163,35 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         }
 
         // We find the nodes that hold the eligible shards.
-        // If the current node of such a shard is a candidate node, then we assign the task there.
-        // This code is inefficient, but we are relying on the laziness of the intermediate operations
-        // and the assumption that the first shard we examine has high chances of being assigned to a candidate node.
-        return indexShardRouting.activeShards()
+        Set<String> shardNodes = indexShardRouting.activeShards()
             .stream()
             .filter(this::isEligible)
             .map(ShardRouting::currentNodeId)
-            .filter(nodeId -> isCandidateNode(candidateNodes, nodeId))
-            .findAny()
-            .map(
-                nodeId -> new PersistentTasksCustomMetadata.Assignment(
-                    nodeId,
-                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
-                    "downsampling using node holding shard [" + shardId + "]"
-                )
-            )
-            .orElse(NO_NODE_FOUND);
+            .collect(Collectors.toSet());
+        if (shardNodes.isEmpty()) {
+            return NO_NODE_FOUND;
+        }
+        // Considering the downsampling task is a long-running operation,
+        // we try to distribute it among the available nodes as much as possible
+        DiscoveryNode selectedNode = selectLeastLoadedNode(
+            clusterState,
+            candidateNodes,
+            candidate -> shardNodes.contains(candidate.getId())
+        );
+        return selectedNode == null
+            ? NO_NODE_FOUND
+            : new PersistentTasksCustomMetadata.Assignment(
+                selectedNode.getId(),
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "downsampling using node holding shard [" + shardId + "]"
+            );
     }
 
     /**
      * Only shards that can be searched can be used as the source of a downsampling task.
-     * For simplicity, in non-stateless deployments we use the primary shard.
      */
     private boolean isEligible(ShardRouting shardRouting) {
-        return shardRouting.started() && (isStateless ? shardRouting.isSearchable() : shardRouting.primary());
-    }
-
-    private boolean isCandidateNode(Collection<DiscoveryNode> candidateNodes, String nodeId) {
-        for (DiscoveryNode candidateNode : candidateNodes) {
-            if (candidateNode.getId().equals(nodeId)) {
-                return true;
-            }
-        }
-        return false;
+        return shardRouting.started() && shardRouting.isSearchable();
     }
 
     @Override
@@ -296,7 +296,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             super(NAME);
         }
 
-        public static class Request extends LegacyActionRequest implements IndicesRequest.RemoteClusterShardRequest {
+        public static class Request extends UntypedActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
             private final DownsampleShardTask task;
             private final BytesRef lastDownsampleTsid;

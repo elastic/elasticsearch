@@ -1,0 +1,2 @@
+FROM employees
+| LIMIT 1 BY BUCKET(hire_date, 1 year)

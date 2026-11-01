@@ -48,4 +48,37 @@ public class InferenceExceptionTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo("{\"type\":\"inference_exception\",\"reason\":\"test exception\"}"));
         assertThat(testException.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
+
+    /**
+     * An internal model-deployment failure (e.g., model stopped/process crashed during load)
+     * is represented as SERVICE_UNAVAILABLE and must NOT collapse to BAD_REQUEST.
+     * This regression-guards the fix for internal failures that were previously wrapped
+     * as IllegalArgumentException and inadvertently surfaced as 400.
+     */
+    public void testServiceUnavailableCausePropagatesCorrectly() {
+        ElasticsearchStatusException cause = new ElasticsearchStatusException(
+            "model stopped before it is started",
+            RestStatus.SERVICE_UNAVAILABLE
+        );
+        InferenceException testException = new InferenceException(
+            "Exception when running inference id [.elser-2-elasticsearch] on field [sparse_field]",
+            cause
+        );
+
+        assertThat(testException.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    /**
+     * A plain IllegalArgumentException cause (e.g., wrong model type / invalid user input)
+     * should still produce BAD_REQUEST so that legitimate client errors are not hidden.
+     */
+    public void testIllegalArgumentCauseReturnsBadRequest() {
+        IllegalArgumentException cause = new IllegalArgumentException("must be a pytorch model");
+        InferenceException testException = new InferenceException(
+            "Exception when running inference id [my-model] on field [my_field]",
+            cause
+        );
+
+        assertThat(testException.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
 }

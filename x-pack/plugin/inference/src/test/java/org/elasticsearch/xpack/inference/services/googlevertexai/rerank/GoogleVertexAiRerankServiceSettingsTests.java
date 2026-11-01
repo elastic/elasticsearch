@@ -9,91 +9,162 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiRerankServiceSettings> {
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var projectId = randomAlphaOfLength(10);
-        var modelId = randomAlphaOfLengthOrNull(10);
+    private static final String TEST_PROJECT_ID = "some-project-id";
+    private static final String INITIAL_TEST_PROJECT_ID = "initial-project-id";
 
-        var serviceSettings = GoogleVertexAiRerankServiceSettings.fromMap(new HashMap<>() {
-            {
-                put(GoogleVertexAiServiceFields.PROJECT_ID, projectId);
-                put(ServiceFields.MODEL_ID, modelId);
-            }
-        }, ConfigurationParseContext.REQUEST);
+    private static final String TEST_MODEL_ID = "some-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-model-id";
 
-        assertThat(serviceSettings, is(new GoogleVertexAiRerankServiceSettings(projectId, modelId, null)));
+    private static final Integer TEST_RATE_LIMIT = 10;
+    private static final Integer INITIAL_TEST_RATE_LIMIT = 20;
+    private static final Integer DEFAULT_RATE_LIMIT = 300;
+
+    public void testFromMap_Request_WithAllFields_Success() {
+        GoogleVertexAiRerankServiceSettings serviceSettings = GoogleVertexAiRerankServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_PROJECT_ID, TEST_MODEL_ID, TEST_RATE_LIMIT),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(
+            serviceSettings,
+            is(new GoogleVertexAiRerankServiceSettings(TEST_PROJECT_ID, TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_Request_NoRateLimitInMap_UsesDefaultRateLimit_Success() {
+        GoogleVertexAiRerankServiceSettings serviceSettings = GoogleVertexAiRerankServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_PROJECT_ID, TEST_MODEL_ID, null),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(
+            serviceSettings,
+            is(new GoogleVertexAiRerankServiceSettings(TEST_PROJECT_ID, TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_Request_NoModelId_Success() {
+        GoogleVertexAiRerankServiceSettings serviceSettings = GoogleVertexAiRerankServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_PROJECT_ID, null, TEST_RATE_LIMIT),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(
+            serviceSettings,
+            is(new GoogleVertexAiRerankServiceSettings(TEST_PROJECT_ID, null, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_Request_MissingProjectId_Failure() {
+        assertValidationFailure(
+            buildServiceSettingsMap(null, TEST_MODEL_ID, null),
+            "Validation Failed: 1: [service_settings] does not contain the required setting [project_id];"
+        );
+    }
+
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = buildServiceSettingsMap(TEST_PROJECT_ID, TEST_MODEL_ID, TEST_RATE_LIMIT);
+        var originalServiceSettings = new GoogleVertexAiRerankServiceSettings(
+            INITIAL_TEST_PROJECT_ID,
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new GoogleVertexAiRerankServiceSettings(
+                    INITIAL_TEST_PROJECT_ID,
+                    INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new GoogleVertexAiRerankServiceSettings(
+            INITIAL_TEST_PROJECT_ID,
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(serviceSettings, is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new GoogleVertexAiRerankServiceSettings("projectId", "modelId", null);
+        var entity = new GoogleVertexAiRerankServiceSettings(TEST_PROJECT_ID, TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
-                "project_id": "projectId",
-                "model_id": "modelId",
+                "project_id": "%s",
+                "model_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 300
+                    "requests_per_minute": %d
                 }
             }
-            """));
+            """, TEST_PROJECT_ID, TEST_MODEL_ID, TEST_RATE_LIMIT)));
     }
 
     public void testToXContent_DoesNotWriteModelIfNull() throws IOException {
-        var entity = new GoogleVertexAiRerankServiceSettings("projectId", null, null);
+        var entity = new GoogleVertexAiRerankServiceSettings(TEST_PROJECT_ID, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
-                "project_id": "projectId",
+                "project_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 300
+                    "requests_per_minute": %d
                 }
             }
-            """));
+            """, TEST_PROJECT_ID, DEFAULT_RATE_LIMIT)));
     }
 
     public void testFilteredXContentObject_WritesAllValues() throws IOException {
-        var entity = new GoogleVertexAiRerankServiceSettings("projectId", "modelId", null);
+        var entity = new GoogleVertexAiRerankServiceSettings(TEST_PROJECT_ID, TEST_MODEL_ID, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         var filteredXContent = entity.getFilteredXContentObject();
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-                {
-                    "project_id": "projectId",
-                    "model_id": "modelId",
-                    "rate_limit": {
-                        "requests_per_minute": 300
-                    }
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "project_id": "%s",
+                "model_id": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
                 }
-            """));
+            }
+            """, TEST_PROJECT_ID, TEST_MODEL_ID, DEFAULT_RATE_LIMIT)));
     }
 
     @Override
@@ -127,6 +198,32 @@ public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSer
         TransportVersion version
     ) {
         return instance;
+    }
+
+    private static void assertValidationFailure(Map<String, Object> serviceSettingsMap, String expectedErrorMessage) {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiRerankServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.REQUEST)
+        );
+        assertThat(thrownException.getMessage(), is(expectedErrorMessage));
+    }
+
+    private static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String projectId,
+        @Nullable String modelId,
+        @Nullable Integer rateLimit
+    ) {
+        HashMap<String, Object> map = new HashMap<>();
+        if (projectId != null) {
+            map.put(PROJECT_ID, projectId);
+        }
+        if (modelId != null) {
+            map.put(MODEL_ID, modelId);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return map;
     }
 
     private static GoogleVertexAiRerankServiceSettings createRandom() {

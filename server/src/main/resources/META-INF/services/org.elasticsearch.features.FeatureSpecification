@@ -8,9 +8,11 @@
 #
 
 org.elasticsearch.action.bulk.BulkFeatures
+org.elasticsearch.action.fieldcaps.FieldCapabilitiesFeatures
 org.elasticsearch.features.InfrastructureFeatures
 org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures
 org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures
+org.elasticsearch.snapshots.SnapshotEncryptedDataFeatures
 org.elasticsearch.index.IndexFeatures
 org.elasticsearch.index.mapper.MapperFeatures
 org.elasticsearch.search.SearchFeatures
@@ -21,3 +23,4 @@ org.elasticsearch.cluster.routing.RoutingFeatures
 org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures
 org.elasticsearch.ingest.IngestFeatures
 org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures
+org.elasticsearch.indices.recovery.RecoveryFeatures

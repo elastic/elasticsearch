@@ -6,5 +6,7 @@ mapped_pages:
 
 # ES|QL `BUCKET` function [esql-bucket]
 
-:::{include} ../../_snippets/functions/layout/bucket.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/bucket.md
 :::
+
+To understand the bucket interval metadata returned in API responses, refer to [column metadata](../../esql-rest.md#esql-rest-column-metadata).

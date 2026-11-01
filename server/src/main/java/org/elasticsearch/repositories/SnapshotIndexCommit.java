@@ -51,9 +51,12 @@ public final class SnapshotIndexCommit extends AbstractRefCounted {
     }
 
     /**
-     * Called to abort the snapshot while it's running: release the initial ref (if not already released).
+     * Release the initial ref (if not already released). The method is called when
+     * 1. Abort the snapshot while it's running
+     * 2. Shard relocated while being snapshotted
+     * 3. Snapshot no longer needs reading data from this commit
      */
-    public void onAbort() {
+    public void releaseInitialReference() {
         releaseInitialRef.run();
     }
 

@@ -41,6 +41,34 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("Other_ind*x", null, true, createContext()));
     }
 
+    public void testWildcardLikeQuery() {
+        IndexFieldMapper.IndexFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
+        SearchExecutionContext context = createContext();
+
+        // ? matches exactly one character
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardLikeQuery("ind?x", null, false, context));
+        // two ? wildcards do not match a five-character name
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardLikeQuery("ind??x", null, false, context));
+        // * still works (regression)
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardLikeQuery("ind*x", null, false, context));
+        // mixed ? and *
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardLikeQuery("i?d*x", null, false, context));
+        // no match
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardLikeQuery("other?ndex", null, false, context));
+        // case insensitive
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardLikeQuery("iNd?x", null, true, context));
+    }
+
+    public void testWildcardLikeQueryTooComplex() {
+        IndexFieldMapper.IndexFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
+        SearchExecutionContext context = createContext();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.wildcardLikeQuery("*a?????????????", null, false, context)
+        );
+        assertThat(e.getMessage(), containsString("Pattern was too complex to determinize"));
+    }
+
     public void testRegexpQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 

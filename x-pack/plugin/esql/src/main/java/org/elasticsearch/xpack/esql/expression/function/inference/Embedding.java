@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -61,11 +63,13 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @FunctionInfo(
         returnType = "dense_vector",
+        briefSummary = "Generates dense vector embeddings from multimodal input using an inference endpoint.",
         description = "Generates dense vector embeddings from multimodal input using a specified "
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) "
-            + "with the {@code embedding} task type. "
+            + "with the `embedding` task type. "
             + "Use this function to generate query vectors for KNN searches from multimodal inputs against your vectorized data "
             + "or other dense vector based operations.",
+        preview = true,
         appliesTo = { @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(
@@ -96,6 +100,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                 + "The inference endpoint must have the `embedding` task type and should use the same model "
                 + "that was used to embed your indexed data.",
             hint = @Param.Hint(
+                kind = Param.Hint.Kind.ENTITY,
                 entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
                 constraints = { @Param.Hint.Constraint(name = "task_type", value = "embedding") }
             )
@@ -150,8 +155,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     }
 
     public TimeValue inputTimeout() {
-        String value = optionStringValue(OPTION_TIMEOUT);
-        return value == null ? InferenceAction.Request.DEFAULT_TIMEOUT : TimeValue.parseTimeValue(value, OPTION_TIMEOUT);
+        return TimeValue.parseTimeValue(optionStringValue(OPTION_TIMEOUT), TIMEOUT_NOT_DETERMINED, OPTION_TIMEOUT);
     }
 
     @Override
@@ -194,7 +198,16 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         if (inputOptions != null) {
             TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
                 try {
-                    inputDataType();
+                    var inputDataType = inputDataType();
+                    if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(inputDataType) == false) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "Unsupported type [%s], must be one of %s",
+                                inputDataType,
+                                InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES
+                            )
+                        );
+                    }
                     inputTimeout();
                 } catch (IllegalArgumentException e) {
                     throw new InvalidArgumentException("Invalid options for EMBEDDING: " + e.getMessage());

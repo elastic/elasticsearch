@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
 
 import java.io.IOException;
@@ -22,7 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -37,13 +33,12 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var request = createRequest(query, input, null, null, null, null);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
@@ -59,13 +54,12 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var request = createRequest(query, input, null, topN, null, taskSettingsTopN);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
@@ -81,13 +75,12 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var request = createRequest(query, input, null, null, null, topN);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
@@ -102,13 +95,12 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var request = createRequest(query, input, null, null, Boolean.TRUE, null);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
@@ -124,13 +116,12 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var request = createRequest(query, input, modelId, null, null, null);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("records"), is(List.of(Map.of("id", "0", "content", input))));
@@ -153,28 +144,8 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         @Nullable Boolean returnDocuments,
         @Nullable Integer taskSettingsTopN
     ) {
-        var rerankModel = GoogleVertexAiRerankModelTests.createModel(modelId, taskSettingsTopN);
+        var rerankModel = GoogleVertexAiRerankModelTests.createModel("https://fake.abc", modelId, taskSettingsTopN, AUTH_HEADER_VALUE);
 
-        return new GoogleVertexAiRerankWithoutAuthRequest(query, List.of(input), rerankModel, topN, returnDocuments);
-    }
-
-    /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
-     */
-    private static class GoogleVertexAiRerankWithoutAuthRequest extends GoogleVertexAiRerankRequest {
-        GoogleVertexAiRerankWithoutAuthRequest(
-            String query,
-            List<String> input,
-            GoogleVertexAiRerankModel model,
-            @Nullable Integer topN,
-            @Nullable Boolean returnDocuments
-        ) {
-            super(query, input, returnDocuments, topN, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
+        return new GoogleVertexAiRerankRequest(query, List.of(input), returnDocuments, topN, rerankModel);
     }
 }

@@ -26,14 +26,17 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 import org.junit.After;
@@ -79,7 +82,7 @@ import static org.hamcrest.Matchers.not;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
 
-    private TestThreadPool threadPool;
+    private ThreadPool threadPool;
     private Executor executor = null;
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
@@ -99,18 +102,13 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "test",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
+            MeterRegistry.NOOP,
+            (settings, allocatedProcessors) -> Map.of(),
+            new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.SEARCH, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
-        executor = threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+        executor = threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @After
@@ -629,7 +627,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             shard.shardId(),
             new ArrayList<>(Arrays.asList(nodes)),
             null,
-            shard.reshardSplitShardCountSummary()
+            shard.splitShardCountSummary()
         );
     }
 
@@ -678,6 +676,22 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Sender sender
     ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(SliceSelection.UNSPECIFIED, allowPartialResults, concurrentRequests, shards, resolver, sender).startComputeOnDataNodes(
+            Set.of(randomAlphaOfLength(10)),
+            () -> {},
+            future
+        );
+        return future;
+    }
+
+    private DataNodeRequestSender newSender(
+        SliceSelection slices,
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender
+    ) {
         TransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
@@ -692,7 +706,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        new DataNodeRequestSender(
+        return new DataNodeRequestSender(
             null,
             null,
             transportService,
@@ -700,6 +714,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             task,
             new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
             null,
+            slices,
             "",
             allowPartialResults,
             concurrentRequests,
@@ -728,8 +743,35 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             ) {
                 sender.sendRequestToOneNode(node, shards, aliasFilters, listener);
             }
-        }.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
-        return future;
+        };
+    }
+
+    /**
+     * A selection of named slices routes the query to the shards that hold them. Without a slice-enabled index there is
+     * nothing to route by: the filter the selection is derived from matches no document.
+     */
+    public void testSliceSelectionRoutesShardResolution() {
+        Sender unused = (node, shardIds, aliasFilters, listener) -> { throw new AssertionError("no request is expected here"); };
+        Resolver noResolution = shardIds -> { throw new AssertionError("no shard resolution is expected here"); };
+
+        for (boolean anySliceEnabled : List.of(true, false)) {
+            var request = newSender(SliceSelection.UNSPECIFIED, false, 1, List.of(), noResolution, unused).searchShardsRequest(
+                anySliceEnabled
+            );
+            assertNull(request.routing());
+            assertFalse(request.isRoutingFromSlice());
+        }
+
+        var request = newSender(SliceSelection.of(List.of("s1", "s2")), false, 1, List.of(), noResolution, unused).searchShardsRequest(
+            true
+        );
+        assertThat(request.routing(), equalTo("s1,s2"));
+        assertTrue(request.isRoutingFromSlice());
+        assertThat(request.searchSlice(), equalTo("s1,s2"));
+
+        request = newSender(SliceSelection.of(List.of("s1", "s2")), false, 1, List.of(), noResolution, unused).searchShardsRequest(false);
+        assertNull(request.routing());
+        assertFalse(request.isRoutingFromSlice());
     }
 
     interface Resolver {

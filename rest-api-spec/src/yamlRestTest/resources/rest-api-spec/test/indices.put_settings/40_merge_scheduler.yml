@@ -1,0 +1,28 @@
+---
+"Accepts inverted merge scheduler settings":
+  - requires:
+      cluster_features: ["index.merge_scheduler_clamps_max_thread_count"]
+      reason: "inverted merge scheduler settings are clamped, not rejected"
+
+  - do:
+      indices.create:
+        index: merge-scheduler-clamp
+        body:
+          settings:
+            number_of_replicas: 0
+            index.merge.scheduler.max_merge_count: 4
+
+  - do:
+      indices.put_settings:
+        index: merge-scheduler-clamp
+        body:
+          index.merge.scheduler.max_thread_count: 10
+
+  - do:
+      indices.get_settings:
+        index: merge-scheduler-clamp
+        flat_settings: true
+
+  # Metadata keeps the requested values; the scheduler clamps at apply time.
+  - match: { merge-scheduler-clamp.settings.index\.merge\.scheduler\.max_thread_count: "10" }
+  - match: { merge-scheduler-clamp.settings.index\.merge\.scheduler\.max_merge_count: "4" }

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -25,6 +26,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -32,7 +35,6 @@ import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -59,6 +61,7 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
     private final MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> masterServiceTaskQueue;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @SuppressWarnings("Convert2Lambda") // can't SuppressForbidden on a lambda
     private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
@@ -87,7 +90,8 @@ class IndexLifecycleRunner {
         ILMHistoryStore ilmHistoryStore,
         ClusterService clusterService,
         ThreadPool threadPool,
-        LongSupplier nowSupplier
+        LongSupplier nowSupplier,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         this.stepRegistry = stepRegistry;
         this.ilmHistoryStore = ilmHistoryStore;
@@ -95,6 +99,7 @@ class IndexLifecycleRunner {
         this.nowSupplier = nowSupplier;
         this.threadPool = threadPool;
         this.masterServiceTaskQueue = clusterService.createTaskQueue("ilm-runner", Priority.NORMAL, ILM_TASK_EXECUTOR);
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
     }
 
     /**
@@ -178,8 +183,12 @@ class IndexLifecycleRunner {
      */
     void runPeriodicStep(ProjectState state, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
-        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.debug("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+        if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+            logger.debug("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
+            return;
+        }
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            logger.debug("[{}] skipping policy [{}] because it is a lookup index", index, policy);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -316,8 +325,12 @@ class IndexLifecycleRunner {
             return;
         }
 
-        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+        if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
+            return;
+        }
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            logger.debug("[{}] skipping policy [{}] because it is a lookup index", index, policy);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -400,8 +413,12 @@ class IndexLifecycleRunner {
      */
     void runPolicyAfterStateChange(ProjectId projectId, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
-        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+        if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
+            return;
+        }
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            logger.debug("[{}] skipping policy [{}] because it is a lookup index", index, policy);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -464,7 +481,16 @@ class IndexLifecycleRunner {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
             submitUnlessAlreadyQueued(
                 Strings.format("ilm-execute-cluster-state-steps [%s]", currentStep),
-                new ExecuteStepsUpdateTask(projectId, policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier)
+                new ExecuteStepsUpdateTask(
+                    projectId,
+                    policy,
+                    indexMetadata.getIndex(),
+                    currentStep,
+                    stepRegistry,
+                    this,
+                    nowSupplier,
+                    dataStreamLifecycleSettings
+                )
             );
         } else {
             logger.trace("[{}] ignoring step execution from cluster state change event [{}]", index, currentStep.getKey());

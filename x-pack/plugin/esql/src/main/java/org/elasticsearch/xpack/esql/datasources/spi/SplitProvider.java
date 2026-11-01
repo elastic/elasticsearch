@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.List;
+import org.elasticsearch.action.ActionListener;
+
+import java.util.concurrent.Executor;
 
 /**
  * Discovers parallelizable splits for an external data source.
@@ -16,7 +18,26 @@ import java.util.List;
  */
 public interface SplitProvider {
 
-    List<ExternalSplit> discoverSplits(SplitDiscoveryContext context);
+    SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context);
 
-    SplitProvider SINGLE = ctx -> List.of();
+    /**
+     * Asynchronously discovers splits. The calling thread must return without waiting for object-store IO.
+     * <p>
+     * The default wraps {@link #discoverSplits(SplitDiscoveryContext)} on {@code executor} so connectors
+     * and tests keep a one-line implementation. That wrap still occupies one executor thread for the whole
+     * call — fine for a connector that is already in-memory or for a test thread, but not for a multi-file
+     * footer fan-out. {@code FileSplitProvider} overrides this with a non-joining {@code ThrottledIterator}
+     * so {@code SEARCH} and {@code esql_external_io} callers are not pinned in a gather latch.
+     */
+    default void discoverSplitsAsync(SplitDiscoveryContext context, Executor executor, ActionListener<SplitDiscoveryResult> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(discoverSplits(context));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    SplitProvider SINGLE = ctx -> SplitDiscoveryResult.EMPTY;
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.painless.lookup;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,7 +22,9 @@ public record PainlessConstructor(
     List<Class<?>> typeParameters,
     MethodHandle methodHandle,
     MethodType methodType,
-    Map<Class<?>, Object> annotations
+    Map<Class<?>, Object> annotations,
+    // Resolved @allocates estimator, or null. Derived (like methodHandle) — excluded from equals/hashCode.
+    Method allocationEstimator
 ) {
 
     public PainlessConstructor(
@@ -29,13 +32,20 @@ public record PainlessConstructor(
         List<Class<?>> typeParameters,
         MethodHandle methodHandle,
         MethodType methodType,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Method allocationEstimator
     ) {
         this.javaConstructor = javaConstructor;
         this.typeParameters = List.copyOf(typeParameters);
         this.methodHandle = methodHandle;
         this.methodType = methodType;
         this.annotations = Map.copyOf(annotations);
+        this.allocationEstimator = allocationEstimator;
+    }
+
+    /** Returns this constructor's annotation of the given type, or {@code null}. */
+    public <T> T annotation(Class<T> type) {
+        return type.cast(annotations.get(type));
     }
 
     @Override

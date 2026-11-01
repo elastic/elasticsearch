@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143703
-summary: Add positional `readBytes` API to `StorageObject` SPI
-type: enhancement

@@ -11,6 +11,9 @@ dependencies {
 
   // Access public test classes/utilities from x-pack:inference tests
   javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
+
+  // Added this to have access to TestDenseInferenceServiceExtension within the tests
+  javaRestTestImplementation(project(":x-pack:plugin:inference:qa:test-service-plugin"))
 }
 
 tasks.named("javaRestTest").configure {

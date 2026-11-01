@@ -11,7 +11,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
@@ -21,7 +20,6 @@ import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -44,14 +42,13 @@ public class TestPolicyManager extends PolicyManager {
 
     public TestPolicyManager(
         Policy serverPolicy,
-        List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
         PathLookup pathLookup,
         Collection<Path> classpath,
         Collection<URI> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
+        super(serverPolicy, pluginPolicies, Map.of(), scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
         resetAfterTest();
@@ -214,6 +211,7 @@ public class TestPolicyManager extends PolicyManager {
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
         "org.gradle",
+        "worker.org.gradle", // gradle-worker.jar shades its runtime under a "worker." prefix
 
         "org.jcodings", // A library loaded with SPI that tries to create a CharsetProvider
         "com.google.common.jimfs", // Used on Windows

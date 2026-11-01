@@ -24,6 +24,7 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
     private final Sorter sorter;
 
     protected SortingNumericDoubleValues() {
+        super(null);
         values = new double[1];
         valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {

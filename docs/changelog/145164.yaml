@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 145148
-pr: 145164
-summary: Prune `no_fields` from project in subquery
-type: bug

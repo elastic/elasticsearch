@@ -13,22 +13,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
-    public static EsField randomEsField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        DataType esDataType = randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally(),
-            () -> randomFrom(DataType.types())
-        );
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        boolean aggregatable = randomBoolean();
-        boolean isAlias = randomBoolean();
-        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
-    }
-
     @Override
     protected EsField createTestInstance() {
         return randomEsField(4);
@@ -80,6 +70,11 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         }
     }
 
+    public void testPassthroughSerialization() throws Exception {
+        EsField field = new EsField("attributes", DataType.OBJECT, Map.of(), false, false, TimeSeriesFieldType.NONE, true);
+        assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_PASSTHROUGH_FIELD).isPassthrough(), is(true));
+    }
+
     @Override
     protected EsField mutateInstance(EsField instance) {
         String name = instance.getName();
@@ -88,15 +83,17 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         boolean aggregatable = instance.isAggregatable();
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
-        switch (between(0, 5)) {
+        boolean isPassthrough = instance.isPassthrough();
+        switch (between(0, 6)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 3 -> aggregatable = false == aggregatable;
             case 4 -> isAlias = false == isAlias;
             case 5 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
+            case 6 -> isPassthrough = false == isPassthrough;
             default -> throw new IllegalArgumentException();
         }
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough);
     }
 }

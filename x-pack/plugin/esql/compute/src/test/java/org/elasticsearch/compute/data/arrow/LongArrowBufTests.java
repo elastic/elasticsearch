@@ -45,7 +45,7 @@ public class LongArrowBufTests extends ESTestCase {
 
     @Before
     public void setup() {
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = new BlockFactory(NoopCircuitBreaker.INSTANCE, BigArrays.NON_RECYCLING_INSTANCE);
         allocator = blockFactory.arrowAllocator();
     }
 
@@ -527,7 +527,7 @@ public class LongArrowBufTests extends ESTestCase {
     }
 
     private LongArrowBufBlock blockFromListVector(ListVector listVector) {
-        return LongArrowBufBlock.of(listVector, blockFactory);
+        return (LongArrowBufBlock) LongArrowBufBlock.of(listVector, blockFactory);
     }
 
     public void testMultiValuedBlockBasics() {

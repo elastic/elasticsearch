@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -229,6 +230,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterIndexPattern(EsqlBaseParser.IndexPatternContext ctx) { }
   /**
    * {@inheritDoc}
@@ -428,6 +441,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -937,6 +962,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -949,13 +986,61 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+  @Override public void enterDedupCommand(EsqlBaseParser.DedupCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+  @Override public void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFillNullValue(EsqlBaseParser.FillNullValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFillNullValue(EsqlBaseParser.FillNullValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -997,6 +1082,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSetCommand(EsqlBaseParser.SetCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1016,6 +1113,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSetField(EsqlBaseParser.SetFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLetCommand(EsqlBaseParser.LetCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLetCommand(EsqlBaseParser.LetCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLetBinding(EsqlBaseParser.LetBindingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLetBinding(EsqlBaseParser.LetBindingContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1057,6 +1178,54 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDenseVectorTargetName(EsqlBaseParser.DenseVectorTargetNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDenseVectorTargetName(EsqlBaseParser.DenseVectorTargetNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDenseVectorSuffix(EsqlBaseParser.DenseVectorSuffixContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDenseVectorSuffix(EsqlBaseParser.DenseVectorSuffixContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1093,6 +1262,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterIsNull(EsqlBaseParser.IsNullContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1100,6 +1281,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitIsNull(EsqlBaseParser.IsNullContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1340,6 +1533,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitFunctionName(EsqlBaseParser.FunctionNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLambda(EsqlBaseParser.LambdaContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLambda(EsqlBaseParser.LambdaContext ctx) { }
   /**
    * {@inheritDoc}
    *

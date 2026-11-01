@@ -12,10 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,7 +30,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     private final String name;
     private final String offsetsFieldName;
     private final Function<BytesRef, BytesRef> converter;
-    private DocValuesWithOffsetsLoader docValues;
+    private ValuesWithOffsetsDocValuesLoader docValues;
 
     /**
      * @param name              The name of the field to synthesize
@@ -62,11 +60,13 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     }
 
     @Override
-    public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+    public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         SortedSetDocValues valueDocValues = DocValues.getSortedSet(leafReader, name);
-        SortedDocValues offsetDocValues = DocValues.getSorted(leafReader, offsetsFieldName);
-
-        return docValues = new DocValuesWithOffsetsLoader(valueDocValues, offsetDocValues, converter);
+        return docValues = ValuesWithOffsetsDocValuesLoader.sortedSetLoader(
+            valueDocValues,
+            DocValues.getSorted(leafReader, offsetsFieldName),
+            converter
+        );
     }
 
     @Override
@@ -91,102 +91,6 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     public void write(XContentBuilder b) throws IOException {
         if (docValues != null) {
             docValues.write(b);
-        }
-    }
-
-    static final class DocValuesWithOffsetsLoader implements DocValuesLoader {
-        private final SortedDocValues offsetDocValues;
-        private final SortedSetDocValues valueDocValues;
-        private final Function<BytesRef, BytesRef> converter;
-        private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
-
-        private boolean hasValue;
-        private boolean hasOffset;
-        private int[] offsetToOrd;
-
-        DocValuesWithOffsetsLoader(
-            SortedSetDocValues valueDocValues,
-            SortedDocValues offsetDocValues,
-            Function<BytesRef, BytesRef> converter
-        ) {
-            this.valueDocValues = valueDocValues;
-            this.offsetDocValues = offsetDocValues;
-            this.converter = converter;
-        }
-
-        @Override
-        public boolean advanceToDoc(int docId) throws IOException {
-            hasValue = valueDocValues.advanceExact(docId);
-            hasOffset = offsetDocValues.advanceExact(docId);
-            if (hasValue || hasOffset) {
-                if (hasOffset) {
-                    int offsetOrd = offsetDocValues.ordValue();
-                    var encodedValue = offsetDocValues.lookupOrd(offsetOrd);
-                    scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
-                    offsetToOrd = FieldArrayContext.parseOffsetArray(scratch);
-                } else {
-                    offsetToOrd = null;
-                }
-                return true;
-            } else {
-                offsetToOrd = null;
-                return false;
-            }
-        }
-
-        public int count() {
-            if (hasValue) {
-                if (offsetToOrd != null) {
-                    // HACK: trick CompositeSyntheticFieldLoader to serialize this layer as array.
-                    // (if offsetToOrd is not null, then at index time an array was always specified even if there is just one value)
-                    return offsetToOrd.length + 1;
-                } else {
-                    return valueDocValues.docValueCount();
-                }
-            } else {
-                if (hasOffset) {
-                    // trick CompositeSyntheticFieldLoader to serialize this layer as empty array.
-                    return 2;
-                } else {
-                    return 0;
-                }
-            }
-        }
-
-        public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false && hasOffset == false) {
-                return;
-            }
-            if (offsetToOrd != null && hasValue) {
-                long[] ords = new long[valueDocValues.docValueCount()];
-                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
-                    ords[i] = valueDocValues.nextOrd();
-                }
-
-                for (int offset : offsetToOrd) {
-                    if (offset == -1) {
-                        b.nullValue();
-                        continue;
-                    }
-
-                    long ord = ords[offset];
-                    BytesRef c = valueDocValues.lookupOrd(ord);
-                    c = converter.apply(c);
-                    b.utf8Value(c.bytes, c.offset, c.length);
-                }
-            } else if (offsetToOrd != null) {
-                // in case all values are NULLs
-                for (int offset : offsetToOrd) {
-                    assert offset == -1;
-                    b.nullValue();
-                }
-            } else {
-                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
-                    BytesRef c = valueDocValues.lookupOrd(valueDocValues.nextOrd());
-                    c = converter.apply(c);
-                    b.utf8Value(c.bytes, c.offset, c.length);
-                }
-            }
         }
     }
 

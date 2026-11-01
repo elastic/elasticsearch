@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.Comparators;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -75,7 +74,7 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
             throws IOException {
             final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-            final DoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
             return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
         }
 
@@ -131,7 +130,7 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
             throws IOException {
             final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-            final DoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
             return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
         }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -43,18 +42,28 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     );
 
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var uri = extractUri(map, ServiceFields.URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            HuggingFaceService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
         return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
+    }
+
+    @Override
+    public HuggingFaceRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new HuggingFaceRerankServiceSettings(this.uri, extractedRateLimitSettings);
     }
 
     private final URI uri;

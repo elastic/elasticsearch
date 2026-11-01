@@ -60,10 +60,11 @@ public final class NegDoublesEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (vBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -100,7 +101,7 @@ public final class NegDoublesEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

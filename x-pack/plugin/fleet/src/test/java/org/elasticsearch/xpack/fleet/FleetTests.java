@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FleetTests extends ESTestCase {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
@@ -63,6 +65,27 @@ public class FleetTests extends ESTestCase {
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-secrets")));
 
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".integration_knowledge")));
+    }
+
+    public void testFleetAgentsIndexDefaultsToOnePrimaryShard() {
+        SystemIndexDescriptor descriptor = fleetAgentsDescriptor(Settings.EMPTY);
+
+        assertThat(descriptor.getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null), equalTo(1));
+    }
+
+    public void testFleetAgentsIndexPrimaryShardCountIsConfigurable() {
+        Settings settings = Settings.builder().put(Fleet.FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 4).build();
+        SystemIndexDescriptor descriptor = fleetAgentsDescriptor(settings);
+
+        assertThat(descriptor.getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null), equalTo(4));
+    }
+
+    private static SystemIndexDescriptor fleetAgentsDescriptor(Settings settings) {
+        return new Fleet().getSystemIndexDescriptors(settings)
+            .stream()
+            .filter(descriptor -> descriptor.matchesIndexPattern(".fleet-agents"))
+            .findFirst()
+            .orElseThrow();
     }
 
     public void testFleetFeature() {

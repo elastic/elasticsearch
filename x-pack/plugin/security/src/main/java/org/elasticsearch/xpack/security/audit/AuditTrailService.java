@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -31,25 +32,29 @@ public class AuditTrailService {
     private static final Logger logger = LogManager.getLogger(AuditTrailService.class);
 
     private static final AuditTrail NOOP_AUDIT_TRAIL = new NoopAuditTrail();
-    private final @Nullable AuditTrail auditTrail;
+    private final AuditTrail auditTrail;
     private final XPackLicenseState licenseState;
     private final Duration minLogPeriod = Duration.ofMinutes(30);
     protected AtomicReference<Instant> nextLogInstantAtomic = new AtomicReference<>(Instant.EPOCH);
+    protected volatile boolean isAuditEnabled;
 
-    public AuditTrailService(@Nullable AuditTrail auditTrail, XPackLicenseState licenseState) {
+    public AuditTrailService(AuditTrail auditTrail, XPackLicenseState licenseState, ClusterService clusterService) {
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;
+        clusterService.getClusterSettings().initializeAndWatch(XPackSettings.AUDIT_ENABLED, newValue -> {
+            logger.info("Audit logging is {}", newValue ? "enabled" : "disabled");
+            isAuditEnabled = newValue;
+        });
     }
 
     public AuditTrail get() {
-        if (auditTrail != null) {
-            if (Security.AUDITING_FEATURE.check(licenseState)) {
-                return auditTrail;
-            } else {
-                maybeLogAuditingDisabled();
-                return NOOP_AUDIT_TRAIL;
-            }
+        if (isAuditEnabled == false) {
+            return NOOP_AUDIT_TRAIL;
+        }
+        if (Security.AUDITING_FEATURE.check(licenseState)) {
+            return auditTrail;
         } else {
+            maybeLogAuditingDisabled();
             return NOOP_AUDIT_TRAIL;
         }
     }

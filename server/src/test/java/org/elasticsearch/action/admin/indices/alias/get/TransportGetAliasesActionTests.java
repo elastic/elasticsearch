@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -117,12 +116,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.b], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 
@@ -146,12 +141,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.b], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 
@@ -174,12 +165,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.b], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 

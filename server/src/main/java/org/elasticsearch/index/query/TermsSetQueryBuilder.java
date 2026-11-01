@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -307,7 +308,12 @@ public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBu
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
             params.put("num_terms", values.size());
-            longValuesSource = new ScriptLongValueSource(minimumShouldMatchScript, factory.newFactory(params, context.lookup()));
+            final Runnable cancellationCheck = (context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
+            longValuesSource = new ScriptLongValueSource(
+                minimumShouldMatchScript,
+                factory.newFactory(params, context.lookup()),
+                cancellationCheck
+            );
         } else {
             throw new IllegalStateException("No minimum should match has been specified");
         }
@@ -318,15 +324,18 @@ public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBu
 
         private final Script script;
         private final TermsSetQueryScript.LeafFactory leafFactory;
+        private final Runnable cancellationCheck;
 
-        ScriptLongValueSource(Script script, TermsSetQueryScript.LeafFactory leafFactory) {
+        ScriptLongValueSource(Script script, TermsSetQueryScript.LeafFactory leafFactory, Runnable cancellationCheck) {
             this.script = script;
             this.leafFactory = leafFactory;
+            this.cancellationCheck = cancellationCheck;
         }
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
             TermsSetQueryScript script = leafFactory.newInstance(ctx);
+            script._setCancellationCheck(cancellationCheck);
             return new LongValues() {
                 @Override
                 public long longValue() throws IOException {

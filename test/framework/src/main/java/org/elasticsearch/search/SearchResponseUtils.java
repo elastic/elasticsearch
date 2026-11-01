@@ -26,7 +26,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -409,25 +408,39 @@ public enum SearchResponseUtils {
             }
         }
 
-        return new SearchResponse(
-            hits,
-            aggs,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profile,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId,
-            null,
-            null
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = new SearchResponse(
+                hits,
+                aggs,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profile,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                clusters,
+                searchContextId,
+                null,
+                null
+            );
+        } finally {
+            if (hits != null) {
+                hits.decRef();
+            }
+            if (suggest != null) {
+                List<SearchHit> completionHits = suggest.collectCompletionOptionHits(false);
+                if (completionHits != null) {
+                    completionHits.forEach(SearchHit::decRef);
+                }
+            }
+        }
+        return searchResponse;
     }
 
     private static SearchResponse.Clusters parseClusters(XContentParser parser) throws IOException {
@@ -608,6 +621,7 @@ public enum SearchResponseUtils {
         SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
+        List<ProfileResult> rescoreResults = new ArrayList<>();
         ProfileResult fetchResult = null;
         String id = null;
         String currentFieldName = null;
@@ -627,6 +641,10 @@ public enum SearchResponseUtils {
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = readAggregationProfileShardResult(parser);
+                } else if (SearchProfileShardResult.RESCORE.equals(currentFieldName)) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rescoreResults.add(parseProfileResult(parser));
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -643,7 +661,7 @@ public enum SearchResponseUtils {
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
-            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
+            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult, rescoreResults),
             fetchResult
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
@@ -705,6 +723,9 @@ public enum SearchResponseUtils {
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector, vectorOperationsCount);
     }
 
+    /**
+     * Parses search hits from XContent into a ref-counted {@link SearchHits}. Callers must {@link SearchHits#decRef()} when done.
+     */
     public static SearchHits parseSearchHits(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -746,7 +767,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
+        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     /**
@@ -769,6 +790,9 @@ public enum SearchResponseUtils {
         declareInnerHitsParseFields(MAP_PARSER);
     }
 
+    /**
+     * Parses a single search hit from XContent into a ref-counted {@link SearchHit}. Callers must {@link SearchHit#decRef()} when done.
+     */
     public static SearchHit parseSearchHit(XContentParser parser) {
         return searchHitFromMap(MAP_PARSER.apply(parser, null));
     }
@@ -994,9 +1018,9 @@ public enum SearchResponseUtils {
         String index = get(SearchHit.Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
-            String[] split = RemoteClusterAware.splitIndexName(index);
-            clusterAlias = split[0];
-            index = split[1];
+            var split = RemoteClusterAware.splitIndexName(index);
+            clusterAlias = split.clusterAlias();
+            index = split.indexExpression();
         }
         ShardId shardId = get(SearchHit.Fields._SHARD, values, null);
         String nodeId = get(SearchHit.Fields._NODE, values, null);
@@ -1029,7 +1053,7 @@ public enum SearchResponseUtils {
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
-            RefCounted.ALWAYS_REFERENCED // TODO: do we ever want pooling here?
+            null
         );
     }
 

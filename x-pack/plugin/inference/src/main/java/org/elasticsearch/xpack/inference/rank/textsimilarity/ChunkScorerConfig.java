@@ -35,6 +35,10 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     }
 
     public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
+        return chunkingSettingsFromMap(map, false);
+    }
+
+    public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map, boolean enforceRequestLimits) {
 
         if (map == null) {
             return null;
@@ -48,7 +52,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
             return defaultChunkingSettings(maxChunkSize);
         }
 
-        return ChunkingSettingsBuilder.fromMap(map, false);
+        return ChunkingSettingsBuilder.fromMap(map, false, enforceRequestLimits);
     }
 
     public ChunkScorerConfig(StreamInput in) throws IOException {

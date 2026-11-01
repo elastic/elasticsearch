@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 155770
+summary: Fix JVM metrics value
+type: bug

@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests;
 
 import java.io.IOException;
@@ -24,7 +21,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
@@ -48,10 +44,9 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is(API_COMPLETIONS_PATH));
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(5));
 
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
@@ -80,28 +75,16 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
             randomAlphaOfLength(5),
             apiKey
         );
-        return new IbmWatsonxChatCompletionWithoutAuthRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
-    }
-
-    private static class IbmWatsonxChatCompletionWithoutAuthRequest extends IbmWatsonxChatCompletionRequest {
-        IbmWatsonxChatCompletionWithoutAuthRequest(UnifiedChatInput input, IbmWatsonxChatCompletionModel model) {
-            super(input, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
+        return new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 
     private void assertCreateRequestWithStreaming(boolean isStreaming) throws URISyntaxException, IOException {
         var request = createRequest(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5), isStreaming);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("stream"), is(isStreaming));
     }
 }

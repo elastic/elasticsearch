@@ -178,7 +178,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
             ExponentialHistogram sample;
             do {
                 sample = randomHistogram(randomIntBetween(4, 100));
-            } while (sample.valueCount() == 0);
+            } while (sample.isEmpty());
             state.add(sample);
 
             assertThat(state.size(), equalTo(sample.valueCount()));

@@ -29,8 +29,7 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
     private static final String INDEX = "test";
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createMatchPhraseTestIndex() throws Exception {
         CreateIndexRequestBuilder createIndexRequest = prepareCreate(INDEX).setSettings(
             Settings.builder()
                 .put(indexSettings())

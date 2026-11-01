@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBooleanByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBooleanByLongAggregatorFunctionSupplier;
@@ -16,18 +17,24 @@ import org.elasticsearch.compute.aggregation.AllLastBytesRefByIntAggregatorFunct
 import org.elasticsearch.compute.aggregation.AllLastBytesRefByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastDoubleByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastExponentialHistogramByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastExponentialHistogramByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastFloatByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastFloatByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastIntByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastIntByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastLongByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastTDigestByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastTDigestByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyExponentialHistogramAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyTDigestAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -53,13 +60,38 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Last extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Last", Last::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Last.class).binary(Last::new).name("last");
-
-    private final Expression sort;
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Last.class)
+        .binary(Last::new)
+        // Fix a crash when the sort argument is a foldable/null value and @timestamp has been dropped from a TS query's output.
+        // Also fix a crash when InsertDefaultInnerTimeSeriesAggregate sees an unresolved sort during the CCS/bwc analyzer retry path.
+        .capabilities("fix_null_sort_dropped_timestamp", "fix_unresolved_sort_in_ts_default_inner_agg")
+        .name("last");
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "dense_vector",
+            "double",
+            "exponential_histogram",
+            "flattened",
+            "geo_point",
+            "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "tdigest",
+            "unsigned_long",
+            "version" },
+        briefSummary = "Returns the latest occurrence of a field based on a sort field.",
         description = """
             This function calculates the latest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort
@@ -86,27 +118,61 @@ public class Last extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "field",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "dense_vector",
+                "double",
+                "exponential_histogram",
+                "flattened",
+                "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "tdigest",
+                "unsigned_long",
+                "text",
+                "version" },
             description = "The search field"
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, sort);
+        this(source, field, sort, Literal.TRUE, NO_WINDOW);
     }
 
-    private Last(Source source, Expression field, Expression filter, Expression window, Expression sort) {
-        super(source, field, filter, window, List.of(sort));
-        this.sort = sort;
+    public Last(Source source, Expression field, Expression sort, Expression filter, Expression window) {
+        super(source, List.of(field, sort), filter, window, List.of());
     }
 
     private static Last readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new Last(source, field, filter, window, sort);
+        return new Last(source, field, sort, filter, window);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(List.of(sort()));
     }
 
     @Override
@@ -116,7 +182,7 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Last> info() {
-        return NodeInfo.create(this, Last::new, field(), sort);
+        return NodeInfo.create(this, Last::new, field(), sort(), filter(), window());
     }
 
     @Override
@@ -124,13 +190,12 @@ public class Last extends AggregateFunction implements ToAggregator {
         return new Last(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
-    @Override
-    public Last withFilter(Expression filter) {
-        return new Last(source(), field(), filter, window(), sort);
+    public Expression field() {
+        return fields().get(0);
     }
 
     public Expression sort() {
-        return sort;
+        return fields().get(1);
     }
 
     @Override
@@ -151,17 +216,33 @@ public class Last extends AggregateFunction implements ToAggregator {
                 || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                || dt.isNumeric()
+                || dt == DataType.VERSION
+                || dt == DataType.CARTESIAN_POINT
+                || dt == DataType.CARTESIAN_SHAPE
+                || dt == DataType.GEO_POINT
+                || dt == DataType.GEO_SHAPE
+                || dt == DataType.GEOHASH
+                || dt == DataType.GEOTILE
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
+                || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "dense_vector",
+            "exponential_histogram",
+            "flattened",
             "ip",
             "string",
-            "numeric except unsigned_long or counter types"
+            "tdigest",
+            "numeric except counter types"
         ).and(
             isType(
-                sort,
+                sort(),
                 dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
@@ -178,11 +259,14 @@ public class Last extends AggregateFunction implements ToAggregator {
         if (sortFieldType == DataType.NULL || sort().foldable()) {
             return switch (searchFieldType) {
                 // Any value from the search field will do, so just pick the first one we encounter while still accounting for the type.
-                case LONG, DATETIME, DATE_NANOS -> new AnyLongAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG -> new AnyLongAggregatorFunctionSupplier();
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
-                case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP -> new AnyBytesRefAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AnyExponentialHistogramAggregatorFunctionSupplier();
+                case TDIGEST -> new AnyTDigestAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
+                    new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
             };
@@ -190,11 +274,15 @@ public class Last extends AggregateFunction implements ToAggregator {
 
         if (sortFieldType == DataType.LONG || sortFieldType == DataType.DATETIME || sortFieldType == DataType.DATE_NANOS) {
             return switch (searchFieldType) {
-                case LONG, DATETIME, DATE_NANOS -> new AllLastLongByLongAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG ->
+                    new AllLastLongByLongAggregatorFunctionSupplier();
                 case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
-                case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP -> new AllLastBytesRefByLongAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllLastFloatByLongAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByLongAggregatorFunctionSupplier();
+                case TDIGEST -> new AllLastTDigestByLongAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
+                    new AllLastBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
             };
@@ -202,11 +290,15 @@ public class Last extends AggregateFunction implements ToAggregator {
 
         if (sortFieldType == DataType.INTEGER) {
             return switch (searchFieldType) {
-                case LONG, DATETIME, DATE_NANOS -> new AllLastLongByIntAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG ->
+                    new AllLastLongByIntAggregatorFunctionSupplier();
                 case INTEGER -> new AllLastIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByIntAggregatorFunctionSupplier();
-                case FLOAT -> new AllLastFloatByIntAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP -> new AllLastBytesRefByIntAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllLastFloatByIntAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByIntAggregatorFunctionSupplier();
+                case TDIGEST -> new AllLastTDigestByIntAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
+                    new AllLastBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByIntAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
             };
@@ -217,6 +309,6 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     public String toString() {
-        return "last(" + field() + ", " + sort + ")";
+        return "last(" + field() + ", " + sort() + ")";
     }
 }

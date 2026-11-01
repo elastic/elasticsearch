@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 160900
+summary: Avoid blocking unrelated Arena closes during vector bulk scoring
+type: bug

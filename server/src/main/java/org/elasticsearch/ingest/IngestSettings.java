@@ -9,7 +9,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 public final class IngestSettings {
@@ -30,5 +32,64 @@ public final class IngestSettings {
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
+
+    /**
+     * The maximum number of ingest pipelines that may exist at once. Pipelines are stored in the cluster state, which is held in heap on
+     * every node and serialized on every cluster state update, so an unbounded number of them can destabilize the cluster. This is a safety
+     * limit; it is only enforced when creating a new pipeline, so existing pipelines above the limit continue to work.
+     */
+    public static final Setting<Integer> MAX_PIPELINES = Setting.intSetting(
+        "ingest.pipeline.max_pipelines",
+        10000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum serialized size of a single ingest pipeline. This bounds the total contribution of one pipeline (including its
+     * description, processors, and any other fields) to the cluster state. This is a safety limit and is enforced when creating or updating
+     * a pipeline.
+     */
+    public static final Setting<ByteSizeValue> MAX_PIPELINE_SIZE = Setting.byteSizeSetting(
+        "ingest.pipeline.max_pipeline_size",
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum combined serialized size of <em>all</em> ingest pipelines. Per-pipeline and per-count limits do not bound the aggregate
+     * -- many pipelines each just under the per-pipeline limit can still accumulate enough data in the cluster state to destabilize the
+     * cluster (cluster state is held in heap on every node and re-serialized on every update). This caps that aggregate. It is only
+     * enforced against changes that grow the aggregate, so existing pipelines above the limit continue to work and can still be replaced
+     * by a definition no larger than the one they supersede -- otherwise a cluster that ended up above the limit could not edit its way
+     * back under it.
+     */
+    public static final Setting<ByteSizeValue> MAX_TOTAL_METADATA_SIZE = Setting.byteSizeSetting(
+        "ingest.pipeline.max_total_metadata_size",
+        ByteSizeValue.ofMb(25),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * A snapshot of the three pipeline safety limits, read together so that a single put-pipeline request is evaluated against one
+     * consistent set of values even though the underlying settings can be updated dynamically at any time.
+     *
+     * @param maxPipelines see {@link #MAX_PIPELINES}
+     * @param maxPipelineSize see {@link #MAX_PIPELINE_SIZE}
+     * @param maxTotalSize see {@link #MAX_TOTAL_METADATA_SIZE}
+     */
+    public record PipelineLimits(int maxPipelines, ByteSizeValue maxPipelineSize, ByteSizeValue maxTotalSize) {
+
+        public static PipelineLimits from(ClusterSettings clusterSettings) {
+            return new PipelineLimits(
+                clusterSettings.get(MAX_PIPELINES),
+                clusterSettings.get(MAX_PIPELINE_SIZE),
+                clusterSettings.get(MAX_TOTAL_METADATA_SIZE)
+            );
+        }
+    }
 
 }

@@ -8,20 +8,24 @@
  */
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.message.AsynchronouslyFormattable;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;
 import org.apache.logging.log4j.util.StringBuilders;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
+@AsynchronouslyFormattable
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     private final List<Object> arguments = new ArrayList<>();
     private String messagePattern;
@@ -69,21 +73,76 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
      * @param sb a string builder where JSON fields will be attached
      */
     protected void addJsonNoBrackets(StringBuilder sb) {
+        addJsonNoBrackets(sb, Set.of());
+    }
+
+    /**
+     * As {@link #addJsonNoBrackets(StringBuilder)}, skipping fields the layout has already written itself so that they are not
+     * emitted twice.
+     */
+    protected void addJsonNoBrackets(StringBuilder sb, Set<String> excludedFields) {
+        boolean first = true;
         for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
-            if (i > 0) {
+            if (excludedFields.contains(getIndexedReadOnlyStringMap().getKeyAt(i))) {
+                continue;
+            }
+            if (first == false) {
                 sb.append(", ");
             }
+            first = false;
             sb.append(Chars.DQUOTE);
             int start = sb.length();
             sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));
             StringBuilders.escapeJson(sb, start);
-            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
-            start = sb.length();
-            Object value = getIndexedReadOnlyStringMap().getValueAt(i);
-            sb.append(value);
-            StringBuilders.escapeJson(sb, start);
-            sb.append(Chars.DQUOTE);
+            sb.append(Chars.DQUOTE).append(':');
+            appendJsonValue(sb, getIndexedReadOnlyStringMap().getValueAt(i));
         }
+    }
+
+    private static void appendJsonValue(StringBuilder sb, Object value) {
+        if (value instanceof Collection<?> collection) {
+            appendJsonCollection(sb, collection);
+        } else if (value instanceof Map<?, ?> map) {
+            appendJsonMap(sb, map);
+        } else {
+            appendJsonString(sb, String.valueOf(value));
+        }
+    }
+
+    private static void appendJsonCollection(StringBuilder sb, Collection<?> collection) {
+        sb.append('[');
+        boolean first = true;
+        for (Object element : collection) {
+            if (first == false) {
+                sb.append(',');
+            }
+            first = false;
+            appendJsonValue(sb, element);
+        }
+        sb.append(']');
+    }
+
+    private static void appendJsonMap(StringBuilder sb, Map<?, ?> map) {
+        sb.append('{');
+        boolean first = true;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (first == false) {
+                sb.append(',');
+            }
+            first = false;
+            appendJsonString(sb, String.valueOf(entry.getKey()));
+            sb.append(':');
+            appendJsonValue(sb, entry.getValue());
+        }
+        sb.append('}');
+    }
+
+    private static void appendJsonString(StringBuilder sb, String value) {
+        sb.append(Chars.DQUOTE);
+        final int start = sb.length();
+        sb.append(value);
+        StringBuilders.escapeJson(sb, start);
+        sb.append(Chars.DQUOTE);
     }
 
     public Object[] getArguments() {

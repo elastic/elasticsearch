@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.hamcrest.Matchers;
@@ -20,10 +21,10 @@ public class InferenceInputsTests extends ESTestCase {
         InferenceInputs inputs = new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull());
         assertThat(inputs.castTo(EmbeddingsInput.class), Matchers.instanceOf(EmbeddingsInput.class));
 
-        var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null);
+        var emptyRequest = new UnifiedCompletionRequestBody(List.of(), null, null, null, null, null, null, null);
         assertThat(new UnifiedChatInput(emptyRequest, false).castTo(UnifiedChatInput.class), Matchers.instanceOf(UnifiedChatInput.class));
         assertThat(
-            new QueryAndDocsInputs("hello", List.of(), Boolean.TRUE, 33, false).castTo(QueryAndDocsInputs.class),
+            new QueryAndDocsInputs(InferenceString.ofText("hello"), List.of(), Boolean.TRUE, 33, false).castTo(QueryAndDocsInputs.class),
             Matchers.instanceOf(QueryAndDocsInputs.class)
         );
     }

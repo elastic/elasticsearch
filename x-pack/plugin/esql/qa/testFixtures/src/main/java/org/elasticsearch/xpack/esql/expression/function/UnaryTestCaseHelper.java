@@ -49,7 +49,7 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  *     .expectedOutputType(DataType.INTEGER)
  *     .evaluatorToString("LengthEvaluator[val=%0]")
  *     .expectedFromString(s -> UnicodeUtil.codePointCount(new BytesRef(s)))
- *     .strings("empty string", () -> "").expectedFromString(s -> 0);
+ *     .strings("empty string", () -> "").expectedFromString(s -> 0)
  *     .strings("single ascii character", () -> "a").expectedFromString(s -> 1)
  *     .build(cases);
  * }

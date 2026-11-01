@@ -33,11 +33,20 @@ public class AlibabaCloudSearchRerankModelCreator implements ModelCreator<Alibab
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AlibabaCloudSearchRerankModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+        return new AlibabaCloudSearchRerankModel(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            context,
+            null
+        );
     }
 
     @Override
     public AlibabaCloudSearchRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AlibabaCloudSearchRerankModel(config, secrets);
+        return new AlibabaCloudSearchRerankModel(config, secrets, null);
     }
 }

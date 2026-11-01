@@ -50,6 +50,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private String id;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
@@ -143,6 +144,17 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    @Override
+    public DeleteRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    @Override
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     @Override

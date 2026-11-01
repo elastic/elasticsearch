@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -67,10 +68,22 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         );
         // random strings that don't look like an unsigned_long
         TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName("String", "in"), DataType.UNSIGNED_LONG, bytesRef -> null, bytesRef -> {
+            String value = bytesRef.utf8ToString();
+            // Strings longer than the numeric limit are rejected before BigDecimal parsing, so the surfaced error differs.
+            if (value.length() > Numbers.MAX_NUMERIC_STRING_LENGTH) {
+                return List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Numeric value length ["
+                        + value.length()
+                        + "] exceeds the maximum of ["
+                        + Numbers.MAX_NUMERIC_STRING_LENGTH
+                        + "]"
+                );
+            }
             // BigDecimal, used to parse unsigned_longs will throw NFEs with different messages depending on empty string, first
             // non-number character after a number-looking like prefix, or string starting with "e", maybe others -- safer to take
             // this shortcut here.
-            Exception e = expectThrows(NumberFormatException.class, () -> new BigDecimal(bytesRef.utf8ToString()));
+            Exception e = expectThrows(NumberFormatException.class, () -> new BigDecimal(value));
             return List.of(
                 "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.NumberFormatException: " + e.getMessage()

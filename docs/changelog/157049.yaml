@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 157049
+summary: Grant ES|QL view read to viewer and editor roles
+type: enhancement

@@ -1,6 +1,7 @@
 [versions]
 asm = "9.10.1"
-jackson = "2.21.7"
+jackson = "2.21.8"
+jacoco = "0.8.15"
 junit = "6.1.3"
 spock = "2.3-groovy-4.0"
 nmcp = "1.6.2"
@@ -52,5 +53,5 @@ wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
-ospackage = { id = "com.netflix.nebula.ospackage-base", version = "12.1.0" }
+ospackage = { id = "com.netflix.nebula.ospackage-base", version = "12.2.1" }
 nmcp-aggregation = { id = "com.gradleup.nmcp.aggregation", version.ref="nmcp" }

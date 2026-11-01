@@ -346,7 +346,6 @@
       migration.deprecations:
         index: "simple-data-stream1"
   - length: { cluster_settings: 0 }
-  - length: { node_settings: 0 }
   - length: { index_settings: 0 }
   - length: { ml_settings: 0 }
 

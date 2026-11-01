@@ -141,24 +141,32 @@ teardown:
   - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
 
 ---
-'FILLNULL ON * in a subquery is rejected':
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source, (FROM la_fill_source | FILLNULL DEFAULT ON *) | LIMIT 10'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'does not support [FILLNULL DEFAULT ON *] in a subquery yet; name the columns to fill' }
-
----
-'FILLNULL ON * in a subquery next to a view is rejected':
+'FILLNULL ON * in a subquery':
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ views_with_branching, optional_fields_load_all_views ]
+          capabilities: [ fillnull_late_loaded_columns ]
+      reason: "FILLNULL ON * in a subquery under LOAD_ALL is only available with this capability"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source, (FROM la_fill_source | FILLNULL DEFAULT ON *) | KEEP id, no_such | SORT id, no_such | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: no_such }
+  - match: { columns.1.type: keyword }
+  - match: { values: [ [ 1, "" ], [ 1, null ], [ 2, "" ], [ 2, null ] ] }
+
+---
+'FILLNULL ON * in a subquery next to a view':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns ]
       reason: "LOAD_ALL over views is only available with this capability"
   - do:
       esql.put_view:
@@ -166,13 +174,72 @@ teardown:
         body:
           query: 'FROM la_fill_source'
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source | FILLNULL DEFAULT ON *) | LIMIT 10'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'does not support [FILLNULL DEFAULT ON *] in a subquery yet; name the columns to fill' }
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source | FILLNULL DEFAULT ON *) | KEEP id | SORT id | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { values: [ [ 1 ], [ 1 ], [ 2 ], [ 2 ] ] }
+
+---
+'FILLNULL ON * after a subquery whose branch fills a late-loaded column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fillnull_late_loaded_columns ]
+      reason: "FILLNULL ON * in a subquery under LOAD_ALL is only available with this capability"
+  - do:
+      warnings:
+        - "Line 1:140: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [id]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source, (FROM la_fill_source | FILLNULL DEFAULT ON *) | KEEP id, no_such | SORT id, no_such | FILLNULL "none" ON * | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: no_such }
+  - match: { columns.1.type: keyword }
+  - match: { values: [ [ 1, "" ], [ 1, "none" ], [ 2, "" ], [ 2, "none" ] ] }
+
+---
+'FILLNULL ON * after a subquery next to a view':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      esql.put_view:
+        name: la_fill_src_view
+        body:
+          query: 'FROM la_fill_source'
+  - do:
+      warnings:
+        - "SET unmapped_fields=\"load_all\" does not affect the contents of view [la_fill_src_view], so field [other] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself"
+        - "Line 1:191: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [id]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source METADATA _index | FILLNULL DEFAULT ON *) METADATA _index | KEEP * | EVAL x = other | SORT id, _index | LIMIT 10 | FILLNULL "nothing" ON *'
+  - length: { columns: 5 }
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: _index }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: other }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  - match: { columns.4.name: x }
+  - match: { columns.4.type: keyword }
+  - match: { values.0: [ 1, "la_fill_source", "o", { _unmapped_fields: "src" }, "o" ] }
+  - match: { values.1: [ 1, "nothing", "nothing", null, "nothing" ] }
+  - match: { values.2: [ 2, "la_fill_source", "p", null, "p" ] }
+  - match: { values.3: [ 2, "nothing", "nothing", null, "nothing" ] }
+  - length: { values: 4 }
 
 ---
 'FILLNULL ON * inside a view is not rejected':

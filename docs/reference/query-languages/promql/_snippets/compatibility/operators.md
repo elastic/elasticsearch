@@ -118,7 +118,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
 | 30 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009](https://github.com/elastic/elasticsearch/issues/164009), [#136248](https://github.com/elastic/elasticsearch/issues/136248) |
-| 31 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#164224](https://github.com/elastic/elasticsearch/issues/164224) |
+| 31 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#157671](https://github.com/elastic/elasticsearch/issues/157671) |
 | 32 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225](https://github.com/elastic/elasticsearch/issues/164225) |
 | 33 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671](https://github.com/elastic/elasticsearch/issues/157671) |
 | 34 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308](https://github.com/elastic/elasticsearch/issues/145308) |

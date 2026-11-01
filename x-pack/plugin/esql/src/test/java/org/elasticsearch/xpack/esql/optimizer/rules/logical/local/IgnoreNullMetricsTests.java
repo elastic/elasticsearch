@@ -33,12 +33,15 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -223,21 +226,35 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     }
 
     /**
-     * A metric converted between counter and gauge has a value exactly where the metric has one, so the aggregate reading the
-     * conversion filters on the metric too, although the conversion is computed in an eval below the aggregate.
+     * A TS aggregate over a metric converted between counter and gauge reports a series without a value of the metric, like a
+     * count of 0, so no filter is added.
      */
-    public void testConvertedMetricsAreFiltered() {
-        for (var conversion : Map.of("to_gauge", "network.total_bytes_in", "to_counter", "network.eth0.tx").entrySet()) {
-            String query = Strings.format("""
-                TS k8s
-                | STATS max(last_over_time(%s(%s)))
-                | LIMIT 10
-                """, conversion.getKey(), conversion.getValue());
-            LogicalPlan actual = ts().localPlan(query);
-            Filter filter = actual.collect(Filter.class).getFirst();
-            IsNotNull condition = as(filter.condition(), IsNotNull.class);
-            FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals(query, conversion.getValue(), attribute.fieldName().string());
+    public void testSkipFilterForCounterGaugeConversionsInTs() {
+        for (String aggregate : List.of(
+            "count(count_over_time(to_gauge(network.total_bytes_in)))",
+            "max(last_over_time(to_counter(network.eth0.tx)))",
+            "avg(avg_over_time(to_gauge(network.total_bytes_in)))"
+        )) {
+            String query = "TS k8s | STATS " + aggregate + " | LIMIT 10";
+            assertThat(query, ts().localPlan(query).collect(Filter.class), empty());
+        }
+    }
+
+    /**
+     * In PROMQL, a series without a value of the metric has no element anyway, so the aggregate reading a counter or gauge
+     * conversion filters on the metric, including the {@code TO_DOUBLE} that {@code avg_over_time} adds over the conversion.
+     */
+    public void testFilterCounterGaugeConversionsInPromql() {
+        assumeTrue("requires PROMQL command", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        for (var call : Map.of("avg_over_time", "network.total_bytes_in", "rate", "network.eth0.tx").entrySet()) {
+            String query = Strings.format("PROMQL index=k8s step=1h result=(%s(%s[1h]))", call.getKey(), call.getValue());
+            List<String> filtered = new ArrayList<>();
+            ts().localPlan(query).forEachDown(Filter.class, filter -> filter.condition().forEachDown(IsNotNull.class, isNotNull -> {
+                if (isNotNull.field() instanceof FieldAttribute field) {
+                    filtered.add(field.fieldName().string());
+                }
+            }));
+            assertThat(query, filtered, hasItem(call.getValue()));
         }
     }
 

@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 162188
+summary: Fix PromQL `present_over_time` and `absent_over_time` rejecting counter fields
+type: bug

@@ -85,11 +85,11 @@ public final class PromqlFunctionDefinition {
      * accept one or the other.
      */
     public enum CounterSupport {
-        /** Only accepts counter types (e.g., rate, increase, irate). */
+        /** Takes counter types (e.g., rate, increase, irate); other numeric types are converted with {@code TO_COUNTER}. */
         REQUIRED,
         /** Accepts both counter and non-counter types. */
         SUPPORTED,
-        /** Only accepts non-counter numeric types. */
+        /** Takes non-counter numeric types; counters are converted with {@code TO_GAUGE}. */
         UNSUPPORTED
     }
 

@@ -1,0 +1,23 @@
+// TS tests over `prometheus-k8s`: the samples of `k8s` in the Prometheus remote-write layout, one document per sample
+// with `labels.__name__` as a dimension, so every metric is its own series and has no value of the other metrics.
+
+// A series without a value of a converted counter still reports a count of 0 and absent=true.
+countAndAbsentOverTimeOfConvertedCounterReportEverySeries
+required_capability: ts_command_v0
+required_capability: to_gauge
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+TS prometheus-k8s
+| STATS n = sum(count_over_time(to_gauge(metrics.network.total_bytes_in))), a = max(absent_over_time(to_gauge(metrics.network.total_bytes_in))) BY labels.__name__
+| SORT labels.__name__;
+
+n:long | a:boolean | labels.__name__:keyword
+0      | true      | events_received
+0      | true      | network.bytes_in
+0      | true      | network.cost
+0      | true      | network.eth0.currently_connected_clients
+0      | true      | network.eth0.rx
+0      | true      | network.eth0.tx
+200    | false     | network.total_bytes_in
+0      | true      | network.total_cost
+;

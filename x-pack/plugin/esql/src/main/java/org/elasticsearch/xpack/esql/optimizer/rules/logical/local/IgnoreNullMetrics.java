@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -44,10 +45,17 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
+        // A TS aggregate reports a series without a value of a converted metric, like 0 for count_over_time(to_gauge(m)), so
+        // only the cast of an aggregate_metric_double counts as its metric there. PROMQL drops such a series anyway.
+        boolean followConversions = agg.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND;
         // Only evals directly below the aggregate: every field they read passes through them, so the filter can reference it.
         AttributeMap.Builder<Expression> evaluated = AttributeMap.builder();
         for (LogicalPlan child = agg.child(); child instanceof Eval eval; child = eval.child()) {
-            eval.fields().forEach(alias -> evaluated.put(alias.toAttribute(), alias.child()));
+            for (Alias alias : eval.fields()) {
+                if (followConversions || alias.child() instanceof FromAggregateMetricDouble) {
+                    evaluated.put(alias.toAttribute(), alias.child());
+                }
+            }
         }
         AttributeMap<Expression> definitions = evaluated.build();
         Set<Attribute> metrics = new HashSet<>();
@@ -76,7 +84,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
     /**
      * Whether an aggregation reads an input that isn't a metric field, such as a converted metric ({@code metric::double}) or a value
      * computed in an {@code EVAL}. A filter on the metrics alone would drop the rows that only have values for that input.
-     * A conversion between counter and gauge counts as its metric (see {@link #metricOf}).
+     * In {@code PROMQL}, a conversion between counter and gauge counts as its metric (see {@link #metricOf}).
      * <p>
      * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have
      * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.

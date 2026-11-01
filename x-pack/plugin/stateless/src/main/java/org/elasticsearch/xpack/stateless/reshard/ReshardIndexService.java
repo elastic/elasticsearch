@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -122,6 +123,29 @@ public class ReshardIndexService {
         return reshardMetrics;
     }
 
+    /**
+     * As {@link #validateIndex(IndexAbstraction, IndexMetadata)}, and also rejects an index that is being restored over. A restore can
+     * take a long time, during which some of the index's shards are in use while others are not, and it replaces the index's metadata,
+     * including any resharding metadata. Resharding it meanwhile is not worth supporting.
+     */
+    public static ValidationError validateIndex(
+        ProjectId projectId,
+        ClusterState clusterState,
+        IndexAbstraction indexAbstraction,
+        IndexMetadata indexMetadata
+    ) {
+        var validationError = validateIndex(indexAbstraction, indexMetadata);
+        if (validationError != null) {
+            return validationError;
+        }
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(clusterState)) {
+            if (entry.snapshot().getProjectId().equals(projectId) && entry.indices().contains(indexMetadata.getIndex().getName())) {
+                return ValidationError.RESTORE_IN_PROGRESS;
+            }
+        }
+        return null;
+    }
+
     public static ValidationError validateIndex(IndexAbstraction indexAbstraction, IndexMetadata indexMetadata) {
         if (indexAbstraction == null || indexMetadata == null) {
             return ValidationError.INDEX_NOT_FOUND;
@@ -156,7 +180,8 @@ public class ReshardIndexService {
         ALREADY_RESHARDING,
         CLOSED,
         INVALID_INDEX_VERSION,
-        INVALID_INDEX_MODE;
+        INVALID_INDEX_MODE,
+        RESTORE_IN_PROGRESS;
 
         public RuntimeException intoException(Index index, IndexMetadata indexMetadata) {
             return switch (this) {
@@ -170,6 +195,7 @@ public class ReshardIndexService {
                 );
                 case ALREADY_RESHARDING -> new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
                 case CLOSED -> new IndexClosedException(index);
+                case RESTORE_IN_PROGRESS -> new IllegalStateException("cannot reshard index " + index + " while it is being restored");
                 case INVALID_INDEX_MODE -> new IllegalArgumentException(
                     "resharding " + indexMetadata.getIndexMode() + " indices not supported"
                 );
@@ -332,11 +358,20 @@ public class ReshardIndexService {
     }
 
     public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) {
-        logger.debug("deleting unowned documents from shard {}", shardId);
         // may throw if the index is deleted
         var indexService = indicesService.indexServiceSafe(shardId.getIndex());
         // may throw if the shard id is invalid
-        var indexShard = indexService.getShard(shardId.id());
+        deleteUnownedDocuments(indexService.getShard(shardId.id()), listener);
+    }
+
+    /**
+     * Deletes the documents that {@code indexShard} no longer owns after a split, from that very shard instance. Unlike the overload
+     * that takes a shard id, this never resolves to a different instance of the shard. A caller whose shard has been closed, for
+     * example because a restore replaced the index, fails instead of working on the shard that replaced it.
+     */
+    public void deleteUnownedDocuments(IndexShard indexShard, ActionListener<Void> listener) {
+        final var shardId = indexShard.shardId();
+        logger.debug("deleting unowned documents from shard {}", shardId);
         // should validate that shard state is one prior to DONE
         var unownedQuery = new ShardSplittingQuery(
             indexShard.indexSettings().getIndexMetadata(),
@@ -600,7 +635,7 @@ public class ReshardIndexService {
                 }
             }
 
-            var validationError = validateIndex(indexAbstraction, sourceMetadata);
+            var validationError = validateIndex(projectId, clusterState, indexAbstraction, sourceMetadata);
             if (validationError != null) {
                 throw validationError.intoException(index, sourceMetadata);
             }

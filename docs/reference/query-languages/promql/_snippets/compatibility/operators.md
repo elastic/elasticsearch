@@ -99,7 +99,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | 26 | Nested aggregation next to an operand that reads a metric {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `count(count by (pod) (a)) / sum(b)` | - | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 27 | A different `offset` per operand {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(x[5m]) / rate(x[5m] offset 1h)` | `or` is supported | [#158184](https://github.com/elastic/elasticsearch/issues/158184) |
 | 28 | `label_replace` or `label_join` as an operand | `label_replace(a, ...) * on(pod) group_left(node) b` | - | [#157672](https://github.com/elastic/elasticsearch/issues/157672) |
-| 29 | `fill()`, `fill_left()`, and `fill_right()` ({{prom}}: `promql-binop-fill-modifiers` feature flag) | `a + fill(0) b` | - | - |
+| 29 | `fill()`, `fill_left()`, and `fill_right()` ({{prom}}: `promql-binop-fill-modifiers` feature flag) | `a + fill(0) b` | - | [#164223](https://github.com/elastic/elasticsearch/issues/164223) |
 :::
 
 ### Aggregation operators [prometheus-compatibility-aggregation-operators]
@@ -118,8 +118,8 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
 | 30 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009](https://github.com/elastic/elasticsearch/issues/164009), [#136248](https://github.com/elastic/elasticsearch/issues/136248) |
-| 31 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | - |
-| 32 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | - |
+| 31 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#164224](https://github.com/elastic/elasticsearch/issues/164224) |
+| 32 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225](https://github.com/elastic/elasticsearch/issues/164225) |
 | 33 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671](https://github.com/elastic/elasticsearch/issues/157671) |
 | 34 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308](https://github.com/elastic/elasticsearch/issues/145308) |
 | 35 | Grouping by a label named `step` | `sum by (step) (x)` | `step` is an output column of the `PROMQL` command | - |

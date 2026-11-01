@@ -45,7 +45,7 @@ Refer to [Implicit range selectors](/reference/query-languages/esql/commands/pro
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 2 | Range vector as the result of an instant query | `x[5m]` | - | - |
+| 2 | Range vector as the result of an instant query | `x[5m]` | - | [#164220](https://github.com/elastic/elasticsearch/issues/164220) |
 :::
 
 ### Literals [prometheus-compatibility-literals]
@@ -63,7 +63,7 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 3 | `step()`, `range()`, `min_of()`, and `max_of()` in a duration ({{prom}}: `promql-duration-expr` feature flag) | `x[step()]`, `x[min_of(5m, step())]` | Use a fixed duration | - |
+| 3 | `step()`, `range()`, `min_of()`, and `max_of()` in a duration ({{prom}}: `promql-duration-expr` feature flag) | `x[step()]`, `x[min_of(5m, step())]` | Use a fixed duration | [#164221](https://github.com/elastic/elasticsearch/issues/164221) |
 :::
 
 ### Time series selectors [prometheus-compatibility-time-series-selectors]
@@ -108,7 +108,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 7 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | - |
+| 7 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222](https://github.com/elastic/elasticsearch/issues/164222) |
 :::
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]

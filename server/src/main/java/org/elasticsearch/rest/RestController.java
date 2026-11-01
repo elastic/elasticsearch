@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -566,8 +567,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
+            // Parsing the content can take far more heap than the content itself, so the request's parsers charge for what they read, and
+            // the charge is held until the response is sent, like the in-flight bytes. Only content or a source parameter is parsed.
+            final ParsedContentReservation parsedContentReservation = request.hasContentOrSourceParam()
+                ? new ParsedContentReservation(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST), handler.canTripCircuitBreaker())
+                : null;
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
+            responseChannel = new ResourceHandlingHttpChannel(
+                channel,
+                circuitBreakerService,
+                contentLength,
+                parsedContentReservation,
+                methodHandlers
+            );
+            if (parsedContentReservation != null) {
+                request.setParsedContentReservation(parsedContentReservation);
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, parsedContentReservation);
+            }
 
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
@@ -1005,6 +1021,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        @Nullable
+        private final ParsedContentReservation parsedContentReservation;
         private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
         private final AtomicBoolean responseSent = new AtomicBoolean();
@@ -1013,11 +1031,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             RestChannel delegate,
             CircuitBreakerService circuitBreakerService,
             int contentLength,
+            @Nullable ParsedContentReservation parsedContentReservation,
             MethodHandlers methodHandlers
         ) {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.parsedContentReservation = parsedContentReservation;
             this.statsTracker = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
@@ -1033,6 +1053,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalStateException(message);
                 }
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+                Releasables.close(parsedContentReservation);
 
                 statsTracker.addRequestStats(contentLength);
                 statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);

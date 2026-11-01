@@ -33,6 +33,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
@@ -58,7 +59,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.After;
@@ -75,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -88,8 +93,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -526,6 +534,183 @@ public class RestControllerTests extends ESTestCase {
         httpServerTransport.start();
         assertThat(wrapperCalled.get(), is(true));
         assertThat(handlerCalled.get(), is(callHandler));
+    }
+
+    public void testParsedContentIsChargedUntilResponseIsSent() {
+        CircuitBreaker requestBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        AtomicLong chargedBeforeResponse = new AtomicLong(-1);
+        restController.registerHandler(new Route(GET, "/parse"), (request, channel, client) -> {
+            try (XContentParser parser = request.contentParser()) {
+                parser.map();
+            }
+            // The parser is closed, but the parsed request stays on the heap until the response is sent, and so does its charge.
+            chargedBeforeResponse.set(requestBreaker.getUsed());
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        // Small enough for the in-flight requests breaker of this test.
+        RestRequest request = testRestRequest("/parse", "{\"a\":\"b\"}", XContentType.JSON);
+        AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertThat(chargedBeforeResponse.get(), greaterThan(0L));
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testOnlyRequestWithContentOrSourceParamHasParsedContentReservation() {
+        List<ParsedContentReservation> reservations = new ArrayList<>();
+        List<List<Long>> charges = new ArrayList<>();
+        restController.registerHandler(new Route(GET, "/parse"), (request, channel, client) -> {
+            ParsedContentReservation reservation = client.threadPool()
+                .getThreadContext()
+                .getTransient(ParsedContentReservation.TRANSIENT_NAME);
+            reservations.add(reservation);
+            // What the reservation holds after each of the parsers the request creates has read the content or the source parameter.
+            List<Long> charged = new ArrayList<>();
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser != null) {
+                    parser.map();
+                    charged.add(reservation.reservedBytes());
+                }
+            });
+            if (request.hasContentOrSourceParam()) {
+                try (XContentParser parser = request.contentOrSourceParamParser()) {
+                    parser.map();
+                }
+                charged.add(reservation.reservedBytes());
+            }
+            if (request.hasContent()) {
+                try (XContentParser parser = request.contentParser()) {
+                    parser.map();
+                }
+                charged.add(reservation.reservedBytes());
+                // A copy of the request, such as one that filters its content, charges the same reservation.
+                try (XContentParser parser = new FilteredRestRequest(request, Set.of()).contentParser()) {
+                    parser.map();
+                }
+                charged.add(reservation.reservedBytes());
+            }
+            charges.add(charged);
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        String content = "{\"a\":\"b\"}";
+        for (RestRequest request : List.of(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/parse").build(),
+            testRestRequest("/parse", content, XContentType.JSON),
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/parse")
+                .withParams(new HashMap<>(Map.of("source", content, "source_content_type", "application/json")))
+                .build()
+        )) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                restController.dispatchRequest(request, new AssertingChannel(request, randomBoolean(), RestStatus.OK), threadContext);
+            }
+        }
+        // A request without content has nothing to parse, so it gets no reservation.
+        assertNull(reservations.get(0));
+        assertThat(charges.get(0), empty());
+        // A body or a source parameter is charged by every parser created for it.
+        assertNotNull(reservations.get(1));
+        assertThat(charges.get(1), hasSize(4));
+        assertNotNull(reservations.get(2));
+        assertThat(charges.get(2), hasSize(2));
+        for (List<Long> charged : charges.subList(1, 3)) {
+            assertThat(charged.get(0), greaterThan(0L));
+            for (int i = 1; i < charged.size(); i++) {
+                assertThat(charged.toString(), charged.get(i), greaterThan(charged.get(i - 1)));
+            }
+        }
+    }
+
+    public void testParsedContentTripsRequestBreaker() {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        controller.registerHandler(new Route(GET, "/parse"), valuesHandler(true, () -> {}));
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+
+        RestRequest small = testRestRequest("/parse", values(100), XContentType.JSON);
+        AssertingChannel smallChannel = new AssertingChannel(small, true, RestStatus.OK);
+        // As the HTTP layer does, each request is dispatched in a context of its own.
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            controller.dispatchRequest(small, smallChannel, threadContext);
+        }
+        assertTrue(smallChannel.getSendResponseCalled());
+        assertEquals(0, requestBreaker.getTrippedCount());
+
+        // Each value is charged about 140 bytes, so this is about four times the limit, from under 1mb of content.
+        RestRequest request = testRestRequest("/parse", values(60_000), XContentType.JSON);
+        // The object parser wraps the trip in an XContentParseException, and the response must still be a 429.
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.TOO_MANY_REQUESTS);
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            controller.dispatchRequest(request, channel, threadContext);
+        }
+
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString(ParsedContentReservation.LABEL));
+        assertEquals(1, requestBreaker.getTrippedCount());
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testParsedContentOfHandlerThatCannotTripIsChargedWithoutBreaking() {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        AtomicLong usedOnceParsed = new AtomicLong();
+        controller.registerHandler(new Route(GET, "/parse"), valuesHandler(false, () -> usedOnceParsed.set(requestBreaker.getUsed())));
+        RestRequest request = testRestRequest("/parse", values(60_000), XContentType.JSON);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+
+        controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertTrue(channel.getSendResponseCalled());
+        // Charged over the limit without a trip, and released with the response.
+        assertThat(usedOnceParsed.get(), greaterThan(requestBreaker.getLimit()));
+        assertEquals(0, requestBreaker.getTrippedCount());
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    /** A request breaker limit of 2mb, checked against charges only, so that the results do not depend on the test JVM's heap. */
+    private static HierarchyCircuitBreakerService parsedContentBreakerService() {
+        return new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2mb")
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                .build(),
+            List.of(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
+    /** A handler that parses the {@code values} of the content with an object parser and runs {@code onceParsed} before it responds. */
+    private static RestHandler valuesHandler(boolean canTripCircuitBreaker, Runnable onceParsed) {
+        ObjectParser<List<String>, Void> objectParser = new ObjectParser<>("test", ArrayList::new);
+        objectParser.declareStringArray(List::addAll, new ParseField("values"));
+        return new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                try (XContentParser parser = request.contentParser()) {
+                    objectParser.parse(parser, null);
+                }
+                onceParsed.run();
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return canTripCircuitBreaker;
+            }
+        };
+    }
+
+    /** {@code {"values": [...]}} with {@code count} values. */
+    private static String values(int count) {
+        StringBuilder content = new StringBuilder("{\"values\":[");
+        for (int i = 0; i < count; i++) {
+            content.append(i == 0 ? "" : ",").append("\"value-").append(i).append('"');
+        }
+        return content.append("]}").toString();
     }
 
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {

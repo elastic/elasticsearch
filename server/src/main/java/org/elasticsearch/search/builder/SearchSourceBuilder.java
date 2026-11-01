@@ -21,6 +21,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
+import org.elasticsearch.common.xcontent.ParsedObjectTracker;
+import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -1410,6 +1413,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return parseXContent(null, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
+    /**
+     * Parses a kNN search so that the request is charged the size it reports rather than the estimate for its tokens.
+     */
+    private static KnnSearchBuilder.Builder parseKnnSearch(XContentParser parser) throws IOException {
+        return ParsedObjectTracker.of(parser).parseSized(() -> KnnSearchBuilder.fromXContent(parser), SizedParsedObject::of);
+    }
+
     private SearchSourceBuilder parseXContent(
         SearchRequest searchRequest,
         XContentParser parser,
@@ -1512,7 +1522,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
+                    knnBuilders = List.of(parseKnnSearch(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (RANK_SUPPORTED == false) {
@@ -1611,7 +1621,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
                         searchUsage.trackSectionUsage(POINT_IN_TIME.getPreferredName());
                     } else if (RUNTIME_MAPPINGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        runtimeMappings = parser.map();
+                        // Kept as parsed, so the request is charged the map's size rather than the estimate for its tokens.
+                        runtimeMappings = ParsedObjectTracker.of(parser).parseSized(parser::map, ParsedObjectSizes::value);
                         if (runtimeMappings.size() > 0) {
                             searchUsage.trackSectionUsage(RUNTIME_MAPPINGS_FIELD.getPreferredName());
                         }
@@ -1695,7 +1706,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
-                            knnBuilders.add(KnnSearchBuilder.fromXContent(parser));
+                            knnBuilders.add(parseKnnSearch(parser));
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),

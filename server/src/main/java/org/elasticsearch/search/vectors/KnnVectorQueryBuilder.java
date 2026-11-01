@@ -15,11 +15,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
+import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -60,7 +63,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A query that performs kNN search using Lucene's {@link org.apache.lucene.search.KnnFloatVectorQuery} or
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
-public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilder> {
+public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilder> implements SizedParsedObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(KnnVectorQueryBuilder.class);
 
     public static final TransportVersion AUTO_PREFILTERING = TransportVersion.fromName("knn_vector_query_auto_prefiltering");
 
@@ -418,6 +423,22 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
+    }
+
+    /**
+     * The query and its vector. The filters report their own sizes. A query whose vector comes from a builder keeps the estimate, since
+     * it does not have the vector yet.
+     */
+    @Override
+    public long parsedRetainedBytes() {
+        if (getClass() != KnnVectorQueryBuilder.class || queryVectorBuilder != null) {
+            return UNKNOWN;
+        }
+        assert queryVector != null && queryVectorSupplier == null : "sized after a rewrite";
+        long size = SHALLOW_SIZE + ParsedObjectSizes.string(fieldName) + ParsedObjectSizes.string(queryName) + queryVector.retainedBytes();
+        size += ParsedObjectSizes.boxed(k) + ParsedObjectSizes.boxed(numCands);
+        size += ParsedObjectSizes.boxed(visitPercentage) + ParsedObjectSizes.boxed(vectorSimilarity);
+        return size + ParsedObjectSizes.list(filterQueries) + RescoreVectorBuilder.retainedBytes(rescoreVectorBuilder);
     }
 
     @Override

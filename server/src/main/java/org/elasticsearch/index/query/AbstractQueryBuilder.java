@@ -23,11 +23,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ParsedObjectTracker;
+import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
-import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
@@ -45,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
@@ -437,30 +440,52 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * for instance to collect statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
-        FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
-            int nestedDepth;
+        return parseInnerQueryBuilder(new TopLevelQueryParser(parser, queryNameConsumer));
+    }
 
-            @Override
-            public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                if (categoryClass.equals(QueryBuilder.class)) {
-                    nestedDepth++;
-                    if (nestedDepth > maxNestedDepth) {
-                        throw new IllegalArgumentException(
-                            "The nested depth of the query exceeds the maximum nested depth for queries set in ["
-                                + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
-                                + "]"
-                        );
-                    }
+    /**
+     * Parses named objects through itself, so that nested queries come back here and their depth can be limited. Since that bypasses the
+     * wrapped parser's {@code namedObject}, it tracks them with the wrapped parser's {@link ParsedObjectTracker}, and is the tracker for
+     * what is parsed inside them.
+     */
+    private static final class TopLevelQueryParser extends FilterXContentParserWrapper implements ParsedObjectTracker {
+        private final ParsedObjectTracker tracker;
+        private final Consumer<String> queryNameConsumer;
+        private int nestedDepth;
+
+        TopLevelQueryParser(XContentParser parser, Consumer<String> queryNameConsumer) {
+            super(parser);
+            this.tracker = ParsedObjectTracker.of(parser);
+            this.queryNameConsumer = queryNameConsumer;
+        }
+
+        @Override
+        public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+            if (categoryClass.equals(QueryBuilder.class)) {
+                nestedDepth++;
+                if (nestedDepth > maxNestedDepth) {
+                    throw new IllegalArgumentException(
+                        "The nested depth of the query exceeds the maximum nested depth for queries set in ["
+                            + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
+                            + "]"
+                    );
                 }
-                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
-                if (categoryClass.equals(QueryBuilder.class)) {
-                    queryNameConsumer.accept(name);
-                    nestedDepth--;
-                }
-                return namedObject;
             }
-        };
-        return parseInnerQueryBuilder(parserWrapper);
+            T namedObject = tracker.parseSized(
+                () -> getXContentRegistry().parseNamedObject(categoryClass, name, this, context),
+                SizedParsedObject::of
+            );
+            if (categoryClass.equals(QueryBuilder.class)) {
+                queryNameConsumer.accept(name);
+                nestedDepth--;
+            }
+            return namedObject;
+        }
+
+        @Override
+        public <T> T parseSized(CheckedSupplier<T, IOException> parse, ToLongFunction<? super T> retainedBytes) throws IOException {
+            return tracker.parseSized(parse, retainedBytes);
+        }
     }
 
     /**

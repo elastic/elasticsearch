@@ -9,11 +9,13 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
 import org.elasticsearch.index.mapper.vectors.DecodedVector;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -32,6 +34,8 @@ import java.util.Objects;
 import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector, String stringVector) implements Writeable, ToXContentFragment {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(VectorData.class);
 
     private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
@@ -118,6 +122,15 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         } else {
             byteBuffer.put(byteVector);
         }
+    }
+
+    /**
+     * The heap this vector retains, counting the record and whichever float array, byte array or encoded string it holds.
+     */
+    long retainedBytes() {
+        return SHALLOW_SIZE + (floatVector == null ? 0 : RamUsageEstimator.sizeOf(floatVector)) + (byteVector == null
+            ? 0
+            : RamUsageEstimator.sizeOf(byteVector)) + ParsedObjectSizes.string(stringVector);
     }
 
     @Override

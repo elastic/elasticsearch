@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
+import org.elasticsearch.common.xcontent.ParsedObjectTracker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -261,7 +263,13 @@ public final class Script implements ToXContentObject, Writeable {
         PARSER.declareString(Builder::setStored, ScriptType.STORED.getParseField());
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
-        PARSER.declareField(Builder::setParams, XContentParser::map, PARAMS_PARSE_FIELD, ValueType.OBJECT);
+        // The params map is kept as parsed, so the request is charged its size rather than the estimate for its tokens.
+        PARSER.declareField(
+            Builder::setParams,
+            p -> ParsedObjectTracker.of(p).parseSized(p::map, ParsedObjectSizes::value),
+            PARAMS_PARSE_FIELD,
+            ValueType.OBJECT
+        );
     }
 
     /**

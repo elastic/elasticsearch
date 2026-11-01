@@ -17,12 +17,15 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
+import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,7 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBuilder> {
+public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBuilder> implements SizedParsedObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TermsSetQueryBuilder.class);
 
     public static final String NAME = "terms_set";
 
@@ -152,6 +157,22 @@ public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBu
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, values, minimumShouldMatchField, minimumShouldMatchScript, minimumShouldMatch);
+    }
+
+    /**
+     * The query and its values. A query with a minimum-should-match script keeps the estimate, since the script is not sized here.
+     */
+    @Override
+    public long parsedRetainedBytes() {
+        if (minimumShouldMatchScript != null) {
+            return UNKNOWN;
+        }
+        long size = SHALLOW_SIZE + ParsedObjectSizes.string(minimumShouldMatchField) + ParsedObjectSizes.string(minimumShouldMatch)
+            + ParsedObjectSizes.string(queryName) + ParsedObjectSizes.list(values);
+        for (Object value : values) {
+            size = ParsedObjectSizes.add(size, ParsedObjectSizes.value(value));
+        }
+        return size;
     }
 
     @Override

@@ -15,11 +15,14 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
+import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -41,7 +44,9 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  * A Query that matches documents matching boolean combinations of other queries.
  */
-public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
+public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> implements SizedParsedObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BoolQueryBuilder.class);
     public static final String NAME = "bool";
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
@@ -294,6 +299,19 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     public static BoolQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public long parsedRetainedBytes() {
+        if (getClass() != BoolQueryBuilder.class) {
+            return UNKNOWN;
+        }
+        long size = SHALLOW_SIZE + ParsedObjectSizes.string(minimumShouldMatch) + ParsedObjectSizes.string(queryName);
+        size += ParsedObjectSizes.arrayList(mustClauses.size());
+        size += ParsedObjectSizes.arrayList(mustNotClauses.size());
+        size += ParsedObjectSizes.arrayList(filterClauses.size());
+        size += ParsedObjectSizes.arrayList(shouldClauses.size());
+        return size;
     }
 
     @Override

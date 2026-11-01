@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,15 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(RescoreVectorBuilder.class);
+
+    /**
+     * The heap {@code builder} retains, or 0 if there is none.
+     */
+    static long retainedBytes(RescoreVectorBuilder builder) {
+        return builder == null ? 0 : SHALLOW_SIZE;
+    }
 
     public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
     public static final float NO_OVERSAMPLE = 0.0F;

@@ -10,10 +10,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParsedObjectSizes;
+import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -33,7 +36,9 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> implements SizedParsedObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IdsQueryBuilder.class);
 
     public static final String NAME = "ids";
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -103,6 +108,18 @@ public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> {
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
+    }
+
+    @Override
+    public long parsedRetainedBytes() {
+        if (getClass() != IdsQueryBuilder.class) {
+            return UNKNOWN;
+        }
+        long size = SHALLOW_SIZE + ParsedObjectSizes.string(queryName) + ParsedObjectSizes.hashSet(ids.size());
+        for (String id : ids) {
+            size += ParsedObjectSizes.string(id);
+        }
+        return size;
     }
 
     @Override

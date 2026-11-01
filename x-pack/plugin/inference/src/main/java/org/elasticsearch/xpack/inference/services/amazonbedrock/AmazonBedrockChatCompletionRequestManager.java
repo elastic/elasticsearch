@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -61,7 +60,7 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
                 request.getInferenceEntityId()
             );
             logger.warn(errorMessage, e);
-            listener.onFailure(new ElasticsearchException(errorMessage, e));
+            listener.onFailure(AmazonBedrockExceptions.wrap(errorMessage, e));
         }
     }
 }

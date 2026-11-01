@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161153
+summary: "Name the refused permission in S3 403 read failures"
+type: enhancement

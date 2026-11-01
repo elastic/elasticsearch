@@ -10,19 +10,20 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -36,9 +37,12 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly and
@@ -88,7 +92,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
      * Calls {@code resolveMappers} then {@code mapColumnBatch} over the full batch (no chunking).
      * Returns the {@link EngineBatch}, or {@code null} if the columnar path was not taken.
      */
-    private static EngineBatch mapBatch(IndexShard shard, BulkItemRequest[] items, SourceBatch batch) {
+    private EngineBatch mapBatch(IndexShard shard, BulkItemRequest[] items, SourceBatch batch) {
         final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
             batch.schema(),
             shard.mapperService().mappingLookup(),
@@ -97,16 +101,32 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         if (resolution == null) {
             return null;
         }
-        return ShardBatchMapper.mapColumnBatch(
-            items,
-            batch,
-            shard,
-            0,
-            items.length,
-            resolution,
-            Engine.Operation.Origin.PRIMARY,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        return releaseAfterTest(
+            ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution, Engine.Operation.Origin.PRIMARY, recycler)
         );
+    }
+
+    /**
+     * Leak-tracking recycler, so that the leak check in {@code ESTestCase#after} covers every page the mappers take on the real
+     * {@code mapColumnBatch} path, including the path that falls back after a mapper fails. A non-recycling recycler would hide a leak.
+     */
+    private final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+
+    private final List<EngineBatch> engineBatches = new ArrayList<>();
+
+    /** Remembers {@code engineBatch}, which may be {@code null} after a fallback, so that it is released when the test ends. */
+    private EngineBatch releaseAfterTest(EngineBatch engineBatch) {
+        if (engineBatch != null) {
+            engineBatches.add(engineBatch);
+        }
+        return engineBatch;
+    }
+
+    /** Runs before {@code ESTestCase#after}, which fails the test if a page of the recycler is still out. */
+    @After
+    public void releaseEngineBatches() {
+        Releasables.close(engineBatches);
+        engineBatches.clear();
     }
 
     /**
@@ -180,9 +200,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 final List<IndexableField> fields = cursor.fields();
 
                 // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
-                final BytesRef expected = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-                    ? new BytesRef("\u0001\u0008toolong")
-                    : new BytesRef("toolong");
+                final BytesRef expected = new BytesRef("\u0001\u0008toolong");
                 assertTrue(
                     "f binary DV should contain the value when ignore_above is a no-op",
                     fields.stream().anyMatch(fld -> "f".equals(fld.name()) && expected.equals(fld.binaryValue()))
@@ -459,15 +477,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertEquals("should have one group", 1, resolution.columnGroups().length);
 
                 // First chunk [0, 2).
-                EngineBatch chunk1 = ShardBatchMapper.mapColumnBatch(
-                    items,
-                    fullBatch,
-                    shard,
-                    0,
-                    2,
-                    resolution,
-                    Engine.Operation.Origin.PRIMARY,
-                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                EngineBatch chunk1 = releaseAfterTest(
+                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 0, 2, resolution, Engine.Operation.Origin.PRIMARY, recycler)
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -482,15 +493,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertTrue("chunk1 doc1: flat._keyed present", c1.fields().stream().anyMatch(f -> "flat._keyed".equals(f.name())));
 
                 // Second chunk [2, 4).
-                EngineBatch chunk2 = ShardBatchMapper.mapColumnBatch(
-                    items,
-                    fullBatch,
-                    shard,
-                    2,
-                    4,
-                    resolution,
-                    Engine.Operation.Origin.PRIMARY,
-                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                EngineBatch chunk2 = releaseAfterTest(
+                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 2, 4, resolution, Engine.Operation.Origin.PRIMARY, recycler)
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);
@@ -722,7 +726,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false }
+                  "nullability": false
                 }
               }
             }""";
@@ -759,7 +763,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -792,21 +796,12 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         }
     }
 
-    /**
-     * A {@code multi_value: false} keyword field in strict-columnar mode uses
-     * {@code BINARY_COLUMNAR_SINGLE_VALUE}, which the ColumNAR consumer reads as raw bytes — no
-     * payload prefix. The batch path must emit the field with
-     * {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE} on its {@code FieldType} so the
-     * consumer sets {@code singleValued=true} at flush time.
-     */
-    public void testSingleValuedColumnarKeywordBatchSetsFieldTypeAttribute() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
+    public void testSingleValuedColumnarKeywordBatchWritesTheBareValue() throws IOException {
         final String mapping = """
             {
               "dynamic": "strict",
               "properties": {
-                "f": { "type": "keyword", "doc_values": { "multi_value": false } }
+                "f": { "type": "keyword", "multi_value": false }
               }
             }""";
 
@@ -826,14 +821,14 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 cursor.advance();
                 final List<IndexableField> fields = cursor.fields();
 
-                final IndexableField kwField = fields.stream().filter(fld -> "f".equals(fld.name())).findFirst().orElse(null);
-                assertNotNull("keyword field f should be present in batch output", kwField);
-                final var attrs = ((FieldType) kwField.fieldType()).getAttributes();
-                assertEquals(
-                    "batch path must set SINGLE_VALUED_ATTRIBUTE on a multi_value=false columnar keyword field",
-                    "true",
-                    attrs == null ? null : attrs.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
-                );
+                final IndexableField dvField = fields.stream()
+                    .filter(fld -> "f".equals(fld.name()) && fld.fieldType().docValuesType() == DocValuesType.BINARY)
+                    .findFirst()
+                    .orElse(null);
+                assertNotNull("keyword doc values for f should be present in batch output", dvField);
+                assertEquals(new BytesRef("hello"), dvField.binaryValue());
+                final Map<String, String> attributes = ((FieldType) dvField.fieldType()).getAttributes();
+                assertTrue("the framing is not a field attribute", attributes == null || attributes.isEmpty());
             }
         } finally {
             closeShards(shard);
@@ -858,7 +853,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -896,7 +891,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -941,7 +936,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -991,7 +986,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore", "multi_value": false }
+                  "nullability": false, "on_failure": "ignore", "multi_value": false
                 }
               }
             }""";

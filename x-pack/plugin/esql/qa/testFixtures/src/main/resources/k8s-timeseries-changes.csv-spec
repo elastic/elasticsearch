@@ -1,0 +1,101 @@
+changes_of_double_ts
+required_capability: ts_command_v0
+required_capability: promql_changes
+// tag::changes[]
+TS k8s
+| STATS cost_changes = SUM(CHANGES(network.cost)) BY time_bucket = TBUCKET(1 minute)
+// end::changes[]
+| SORT time_bucket
+| LIMIT 3;
+
+// tag::changes-result[]
+cost_changes:long | time_bucket:datetime
+1                 | 2024-05-10T00:00:00.000Z
+0                 | 2024-05-10T00:01:00.000Z
+2                 | 2024-05-10T00:02:00.000Z
+// end::changes-result[]
+;
+
+changes_of_double_ts_with_multivalued_dimension
+skip_flattened_rewrite: mv_dimension
+required_capability: ts_command_v0
+required_capability: promql_changes
+required_capability: pack_dimensions_in_ts
+
+TS k8s
+| STATS cost_changes = SUM(CHANGES(network.cost)) BY cluster, region, time_bucket = TBUCKET(5 minutes)
+| SORT time_bucket, cluster
+| LIMIT 5;
+
+cost_changes:long | cluster:keyword | region:keyword | time_bucket:datetime
+6                 | prod            | [eu, us]       | 2024-05-10T00:00:00.000Z
+8                 | qa              | null           | 2024-05-10T00:00:00.000Z
+6                 | staging         | us             | 2024-05-10T00:00:00.000Z
+11                | prod            | [eu, us]       | 2024-05-10T00:05:00.000Z
+23                | qa              | null           | 2024-05-10T00:05:00.000Z
+;
+
+changes_of_counter_ts_with_explicit_window
+required_capability: ts_command_v0
+required_capability: promql_changes
+
+TS k8s
+| STATS byte_changes = SUM(CHANGES(network.total_bytes_in, 2 minutes)) BY cluster, time_bucket = TBUCKET(1 minute)
+| SORT time_bucket, cluster
+| LIMIT 5;
+
+byte_changes:long | cluster:keyword | time_bucket:datetime
+1                 | prod            | 2024-05-10T00:00:00.000Z
+0                 | staging         | 2024-05-10T00:00:00.000Z
+2                 | prod            | 2024-05-10T00:01:00.000Z
+0                 | qa              | 2024-05-10T00:01:00.000Z
+0                 | staging         | 2024-05-10T00:01:00.000Z
+;
+
+changes_of_double_promql_expanded
+required_capability: promql_command_v0
+required_capability: promql_changes
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost_changes=(sum(changes(network.cost[1m])))
+| SORT step;
+
+cost_changes:double | step:datetime
+3.0                 | 2024-05-10T00:08:00.000Z
+2.0                 | 2024-05-10T00:09:00.000Z
+11.0                | 2024-05-10T00:10:00.000Z
+;
+
+changes_of_integer_promql_expanded
+required_capability: promql_command_v0
+required_capability: promql_changes
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" client_changes=(sum(changes(network.eth0.currently_connected_clients[1m])))
+| SORT step;
+
+client_changes:double | step:datetime
+3.0                   | 2024-05-10T00:08:00.000Z
+2.0                   | 2024-05-10T00:09:00.000Z
+11.0                  | 2024-05-10T00:10:00.000Z
+;
+
+changes_of_counter_promql_grouping
+required_capability: promql_command_v0
+required_capability: promql_changes
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=10m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:20:00.000Z" byte_changes=(sum by (cluster) (changes(network.total_bytes_in[10m])))
+| SORT step, cluster;
+
+byte_changes:double | step:datetime            | cluster:keyword
+20.0                | 2024-05-10T00:10:00.000Z | prod
+34.0                | 2024-05-10T00:10:00.000Z | qa
+21.0                | 2024-05-10T00:10:00.000Z | staging
+28.0                | 2024-05-10T00:20:00.000Z | prod
+37.0                | 2024-05-10T00:20:00.000Z | qa
+21.0                | 2024-05-10T00:20:00.000Z | staging
+;

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -26,6 +27,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -1274,6 +1276,39 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals("""
             {"path":{"to":{"obj":{"id":[1,20,3,10]}}}}""", syntheticSource);
+    }
+
+    public void testNumericFieldWithOffsetsEmptyNestedArrayThenScalar() throws IOException {
+        // Regression test: when a numeric field with synthetic_source_keep=arrays appears in two
+        // elements of an object array -- first as [[]] (triggers markEmptyArray, offsetToOrd.length=0)
+        // and then as a scalar (doc value added, no offset recorded) -- the loader previously
+        // reported count()=1 but wrote 0 values, leaving XContentBuilder in VALUE_EXPECTED state
+        // and causing JsonGenerationException on the next field.
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+            }
+            b.endObject().endObject();
+            b.startObject("other").field("type", "keyword").endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("obj");
+            {
+                // [[]] triggers markEmptyArray: empty offsetToOrd recorded, no doc value
+                b.startObject().startArray("id").startArray().endArray().endArray().endObject();
+                // scalar in object context: doc value 42 added, shouldRecordOffsets()=false
+                b.startObject().field("id", 42).endObject();
+            }
+            b.endArray();
+            b.field("other", "z");
+        });
+        // [[]] is lost (field storesArraysNatively=true, no _ignored_source blob for it).
+        // The "other" field must be present in the synthetic source, proving the builder
+        // was not left in VALUE_EXPECTED state after writing "id".
+        assertEquals("""
+            {"obj":{"id":42},"other":"z"}""", syntheticSource);
     }
 
     public void testObjectArrayWithinNestedObjectsArray() throws IOException {
@@ -2545,6 +2580,165 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals(parentOffset, decoded.parentOffset());
         assertEquals("data", decoded.value().utf8ToString());
         assertEquals("parent", decoded.getParentFieldName());
+    }
+
+    /**
+     * The header stores the name length in UTF-16 chars while the value follows the name in bytes, so decoding has to find where the
+     * name ends in the blob. Cover one, two, three and four byte code points, the last of which is a surrogate pair.
+     */
+    public void testSingularEncodeDecodeNonAsciiNames() {
+        for (String name : new String[] { "café", "price.€", "emoji.😀.field", "😀", "é€😀x" }) {
+            assertSingularRoundTrip(name, name.length() / 2, new org.apache.lucene.util.BytesRef("value € 😀"));
+        }
+        // the parent offset is in chars and includes the dot: "café" is 4 chars but 5 bytes
+        var decoded = assertSingularRoundTrip("café.€uro", 5, new org.apache.lucene.util.BytesRef("v"));
+        assertEquals("café", decoded.getParentFieldName());
+        assertEquals("€uro", decoded.getFieldName());
+    }
+
+    /**
+     * Pins the boundaries between the UTF-8 sequence lengths, as the lead byte decides how far the name walk advances.
+     */
+    public void testSingularEncodeDecodeUtf8Boundaries() {
+        int[] codePoints = { 0x00, 0x7F, 0x80, 0x7FF, 0x800, 0xD7FF, 0xE000, 0xFFFF, 0x10000, 0x10FFFF };
+        for (int codePoint : codePoints) {
+            String name = "a" + new String(Character.toChars(codePoint)) + "b";
+            assertSingularRoundTrip(name, 1, new org.apache.lucene.util.BytesRef(randomByteArrayOfLength(randomIntBetween(0, 20))));
+        }
+    }
+
+    /**
+     * ASCII runs are skipped 8 bytes at a time, so cover every name length around the word boundaries, with and without a non ASCII
+     * code point at every position.
+     */
+    public void testSingularEncodeDecodeAsciiRuns() {
+        for (int length = 0; length <= 40; length++) {
+            String ascii = "x".repeat(length);
+            assertSingularRoundTrip(ascii, 0, new org.apache.lucene.util.BytesRef("v"));
+            for (int i = 0; i < length; i++) {
+                String nonAscii = randomFrom("é", "€", "😀");
+                String name = ascii.substring(0, i) + nonAscii + ascii.substring(i + 1);
+                assertSingularRoundTrip(name, 0, new org.apache.lucene.util.BytesRef(randomByteArrayOfLength(randomIntBetween(0, 20))));
+            }
+        }
+    }
+
+    public void testSingularEncodeDecodeRandomNames() {
+        for (int i = 0; i < 100; i++) {
+            String name = randomBoolean() ? randomUnicodeOfLengthBetween(1, 30) : randomRealisticUnicodeOfLengthBetween(1, 30);
+            byte[] valueBytes = randomByteArrayOfLength(randomIntBetween(0, 200));
+            assertSingularRoundTrip(name, randomIntBetween(0, name.length()), new org.apache.lucene.util.BytesRef(valueBytes));
+        }
+    }
+
+    public void testSingularDecodeOfSlice() {
+        // doc values hand out slices of a larger buffer, so decode must honor the offset and length of the BytesRef
+        String name = "café.😀";
+        var value = new org.apache.lucene.util.BytesRef("some value");
+        var encoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+            new IgnoredSourceFieldMapper.NameValue(name, 2, value, null)
+        );
+        byte[] padded = new byte[encoded.length + 11];
+        System.arraycopy(encoded.bytes, encoded.offset, padded, 5, encoded.length);
+        var slice = new org.apache.lucene.util.BytesRef(padded, 5, encoded.length);
+
+        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(slice);
+        assertEquals(name, decoded.name());
+        assertEquals(2, decoded.parentOffset());
+        assertEquals(value, decoded.value());
+    }
+
+    public void testSingularDecodeOfMalformedEntries() {
+        var encoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+            new IgnoredSourceFieldMapper.NameValue("some.field", 4, new org.apache.lucene.util.BytesRef("value"), null)
+        );
+        // without a full header
+        for (int len = 0; len < 4; len++) {
+            var truncated = new org.apache.lucene.util.BytesRef(encoded.bytes, encoded.offset, len);
+            expectThrows(IllegalStateException.class, () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(truncated));
+        }
+        // cut off in the middle of the name
+        var cutInName = new org.apache.lucene.util.BytesRef(encoded.bytes, encoded.offset, 4 + "some.field".length() - 1);
+        expectThrows(IllegalStateException.class, () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(cutInName));
+
+        // cut off in the middle of a multi byte code point at the end of the name
+        var multiByte = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+            new IgnoredSourceFieldMapper.NameValue("a😀", 0, new org.apache.lucene.util.BytesRef(), null)
+        );
+        var cutInCodePoint = new org.apache.lucene.util.BytesRef(multiByte.bytes, multiByte.offset, multiByte.length - 1);
+        expectThrows(IllegalStateException.class, () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(cutInCodePoint));
+
+        // a header that claims more chars than the slice holds, with the following bytes belonging to a neighbouring entry
+        byte[] header = new byte[4 + 3 + 20];
+        ByteUtils.writeIntLE(8, header, 0);
+        System.arraycopy(new byte[] { 'a', 'b', 'c' }, 0, header, 4, 3);
+        var overstated = new org.apache.lucene.util.BytesRef(header, 0, 7);
+        expectThrows(IllegalStateException.class, () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(overstated));
+
+        // a continuation byte where a lead byte is expected, both within and after the 8 byte ASCII skipping
+        for (int badPos : new int[] { 0, 3, 9 }) {
+            byte[] badLead = new byte[4 + 12 + 5];
+            ByteUtils.writeIntLE(12, badLead, 0);
+            Arrays.fill(badLead, 4, 16, (byte) 'a');
+            badLead[4 + badPos] = (byte) 0x80;
+            expectThrows(
+                IllegalStateException.class,
+                () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(new org.apache.lucene.util.BytesRef(badLead))
+            );
+        }
+
+        // a negative header, as produced by an overflowing parent offset
+        byte[] negative = new byte[4 + 10];
+        ByteUtils.writeIntLE(-5, negative, 0);
+        expectThrows(
+            IllegalStateException.class,
+            () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(new org.apache.lucene.util.BytesRef(negative))
+        );
+    }
+
+    public void testSingularEncodeRejectsHeaderOverflow() {
+        var value = new org.apache.lucene.util.BytesRef("v");
+        String tooLongName = "a".repeat(1 << 16);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                new IgnoredSourceFieldMapper.NameValue(tooLongName, 0, value, null)
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                new IgnoredSourceFieldMapper.NameValue("a.b", 1 << 15, value, null)
+            )
+        );
+
+        // the largest values that still fit round trip
+        String longestName = "a".repeat((1 << 16) - 1);
+        assertSingularRoundTrip(longestName, (1 << 15) - 1, value);
+    }
+
+    /**
+     * Encodes, decodes the result both as an exact array and as a slice of a larger array with random bytes around it, and returns the
+     * decoded entry.
+     */
+    private static IgnoredSourceFieldMapper.NameValue assertSingularRoundTrip(
+        String name,
+        int parentOffset,
+        org.apache.lucene.util.BytesRef value
+    ) {
+        var encoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+            new IgnoredSourceFieldMapper.NameValue(name, parentOffset, value, null)
+        );
+        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(encoded);
+        assertEquals(name, decoded.name());
+        assertEquals(parentOffset, decoded.parentOffset());
+        assertEquals(value, decoded.value());
+
+        decoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(embedInRandomBytes(encoded));
+        assertEquals(name, decoded.name());
+        assertEquals(parentOffset, decoded.parentOffset());
+        assertEquals(value, decoded.value());
+        return decoded;
     }
 
     public void testBwcLegacyFormatSyntheticSource() throws IOException {

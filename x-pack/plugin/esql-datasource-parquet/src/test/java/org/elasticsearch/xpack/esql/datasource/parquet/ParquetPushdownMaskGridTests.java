@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class ParquetPushdownMaskGridTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /** One column type's rows, the column operand's rows, and three ordered bounds drawn from the rows. */

@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -60,21 +58,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
-    /// Maximum number of outgoing peer recoveries a node may run concurrently as a source.
-    /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
-    ///
-    /// Currently only registered by the stateless plugin, elsewhere disabled.
-    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
-    ///
-    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
-        "indices.recovery.max_concurrent_outgoing_recoveries",
-        // Throttling handled by master allocation for now.
-        Integer.MAX_VALUE,
-        1,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
         public static final String REESTABLISH_RECOVERY = "internal:index/shard/recovery/reestablish_recovery";
@@ -105,7 +88,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.ongoingRecoveries = new OngoingRecoveries(schedulingListeners);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
-                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                 ongoingRecoveries::updateMaxConcurrentOutgoingRecoveries
             );
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source

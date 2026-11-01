@@ -1,0 +1,106 @@
+setup:
+  - requires:
+      cluster_features: "inference.chat_completion_template"
+      reason: "chat completion templates were added in 9.6.0"
+
+  - do:
+      inference.put:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          service: streaming_completion_test_service
+          service_settings:
+            model: test-model
+            api_key: test-key
+
+---
+"Template request is passed to the service in place of messages":
+  - do:
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          template:
+            id: .attack-discovery
+            version: 1
+            variables:
+              time_range: 24h
+              alerts:
+                - id: a1
+          temperature: 0.1
+
+  - match: { object: "chat.completion" }
+  - match: { model: "test-model" }
+  - match: { choices.0.message.role: "assistant" }
+  - match: { choices.0.message.content: "template [.attack-discovery] version [1] variables [{alerts=[{id=a1}], time_range=24h}]" }
+  - match: { choices.0.finish_reason: "stop" }
+
+---
+"Template and messages are mutually exclusive":
+  - do:
+      catch: /Fields \[messages\] and \[template\] are mutually exclusive/
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          messages:
+            - role: user
+              content: hello world
+          template:
+            id: .attack-discovery
+            version: 1
+            variables: {}
+
+---
+"Template cannot be combined with tools":
+  - do:
+      catch: /Field \[tools\] cannot be specified with \[template\]/
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          template:
+            id: .attack-discovery
+            version: 1
+            variables: {}
+          tools:
+            - type: function
+              function:
+                name: get_weather
+                description: Get the weather
+
+---
+"Template id must start with a dot":
+  - do:
+      catch: /Field \[template.id\] must start with a dot/
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          template:
+            id: attack-discovery
+            version: 1
+            variables: {}
+
+---
+"Template version is required":
+  # The chat completion error shape carries only the outer parse message; the "Required [version]" cause is in the server log.
+  - do:
+      catch: /failed to parse field \[template\]/
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          template:
+            id: .attack-discovery
+            variables: {}
+
+---
+"Messages are required when no template is given":
+  - do:
+      catch: /Field \[messages\] cannot be null/
+      inference.inference:
+        task_type: chat_completion
+        inference_id: test-template-cc
+        body:
+          temperature: 0.1

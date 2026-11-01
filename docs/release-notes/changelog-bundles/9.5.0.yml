@@ -912,6 +912,8 @@ changelogs:
         Searches that target multiple shards on the same data node now batch shards into a single round-trip per data node, with partial reductions performed on the data nodes.
         This reduces transport layer overhead and spreads the load of reductions across multiple nodes.
         The enhancement is controlled by a setting `search.batched_query_phase`, which is enabled by default in 9.5.0.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-batched-query-phase).
       pr: 148622
   - pr: 148648
     summary: Reject non-Smile content in Smile stream parser
@@ -995,8 +997,9 @@ changelogs:
         benefit from recent improvements to PIT resilience (where available).
         Finally, we are adding dedicated new APIs to monitor and manage
         reindex operations, providing a better user-experience than the older
-        tasks APIs. Read more about these changes in the blog at
-        https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless.
+        tasks APIs.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless).
       pr: 148786
   - pr: 148865
     summary: Cache `FieldInfo` instances per shard Directory
@@ -1498,6 +1501,8 @@ changelogs:
         configuration, with no ILM policy required. DLM writes frozen data to a new
         cluster-level default snapshot repository. This capability requires an
         Enterprise license and is not available in Elastic Cloud Serverless.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/data-stream-lifecycle-frozen-tier).
   - pr: 150465
     summary: "[kibana_system] add significant_events-* data access for `kibana_system` user"
     area: Security
@@ -1839,6 +1844,8 @@ changelogs:
         sub-fields. When a sub-field holds multiple values, the result is a multi-valued `keyword`.
 
         Both the `flattened` type support and the `FIELD_EXTRACT` function are in Technical Preview.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/schema-on-read-esql-json-keys).
       pr: 151841
   - pr: 151850
     summary: Fix LOOKUP JOIN index scope in subqueries
@@ -1928,6 +1935,8 @@ changelogs:
         query syntax for this functionality. Existing queries will continue to work as expected. The temporality is also respected
         and preserved during downsampling. Metrics ingested using other means can use the new `index.time_series.temporality_field`
         index setting to define the dimension field storing the temporality.
+
+        Read more about these changes in the {{es-labs}} [Skip the stateful OTel Collector](https://www.elastic.co/search-labs/blog/otel-metrics-cumulative-delta-elasticsearch) and [Native OTLP metrics ingestion on Elastic Cloud Hosted](https://www.elastic.co/observability-labs/blog/opentelemetry-histograms-elastic-cloud-hosted) blogs.
   - pr: 152102
     summary: Add inference flag to field caps
     area: Search
@@ -1964,6 +1973,8 @@ changelogs:
       body: |-
         You can now query exponential_histogram fields with PromQL syntax for native histograms.
         The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_sum()`.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/promql-elasticsearch-compute-engine).
   - pr: 152179
     summary: Add timeout support to the update inference endpoint API
     area: Inference
@@ -2113,6 +2124,8 @@ changelogs:
 
         Improved columnar storage: An optimized doc values format is used by default,
         further reducing storage footprint, especially when combined with index sorting.
+
+        Read more about these changes in {{es-labs}} blogs: [Why {{es}} is becoming a columnar database](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage), [How {{es}} columnar storage drops the inverted index](https://www.elastic.co/search-labs/blog/columnar-storage-elasticsearch-index-modes), and [What columnar mode brings to {{es}}](https://www.elastic.co/search-labs/blog/elasticsearch-doc-values-columnar-database).
   - pr: 152515
     summary: Two-phase iterator for TSDB numeric range doc values
     area: TSDB
@@ -2184,6 +2197,8 @@ changelogs:
         necessary backing indices needed to cover it before indexing, instead of rejecting
         the write. Timestamps outside the eligible window, or in the future, are still
         rejected.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/time-series-data-backfill).
       pr: 152716
   - pr: 152718
     summary: Scripted fields can cause oom
@@ -2221,6 +2236,8 @@ changelogs:
         driven by `@timestamp` (up to 90% smaller) and floating-point gauges and counters
         via adaptive floating-point encoding, at no indexing or query cost. Existing
         indices keep their codec; opt out with `index.time_series.es95_codec.enabled: false`.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/time-series-database-compression-elasticsearch).
   - pr: 152869
     summary: Update the rerank endpoint for the Elastic inference service
     area: Inference
@@ -2254,6 +2271,8 @@ changelogs:
         the `match` function on-the-fly by analyzing the value of the expression
         for each row and checking whether any of the analyzed tokens match the
         analyzed tokens of the given query string.
+
+        Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/full-text-search-unindexed-data).
   - pr: 152953
     summary: Fix fetch-phase `store_bytes_read` miscount
     area: Search

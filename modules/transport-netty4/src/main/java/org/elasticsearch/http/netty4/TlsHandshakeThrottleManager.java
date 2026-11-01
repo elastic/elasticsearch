@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -42,7 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -133,13 +132,13 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
-    private Supplier<LongWithAttributes> getMetric(ToLongFunction<TlsHandshakeThrottle> metricFunction) {
+    private LongSupplier getMetric(ToLongFunction<TlsHandshakeThrottle> metricFunction) {
         return () -> {
             long result = 0L;
             for (var tlsHandshakeThrottle : tlsHandshakeThrottles.values()) {
                 result += metricFunction.applyAsLong(tlsHandshakeThrottle);
             }
-            return new LongWithAttributes(result);
+            return result;
         };
     }
 

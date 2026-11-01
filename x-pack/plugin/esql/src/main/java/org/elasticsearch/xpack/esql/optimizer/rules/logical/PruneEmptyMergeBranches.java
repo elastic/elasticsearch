@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 /**
  * Removes empty branches from a {@link MergePlan} ({@code FORK}, subquery {@code UnionAll},
- * or {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}). The simplest case is a
+ * or {@link org.elasticsearch.xpack.esql.plan.logical.BranchPlan}). The simplest case is a
  * {@code FORK} branch that contains {@code WHERE false}. Empty branches also appear when
  * {@code FORK} is used for conditional execution based on query parameters:
  * {@snippet lang="esql" :
@@ -33,7 +33,7 @@ public class PruneEmptyMergeBranches extends OptimizerRules.OptimizerRule<MergeP
         if (mergePlan.children().stream().allMatch(PruneEmptyMergeBranches::isEmptyLocalRelation)) {
             return new LocalRelation(mergePlan.source(), mergePlan.output(), EmptyLocalSupplier.EMPTY);
         }
-        // For MergePlan the base implementation calls replaceChildren. ViewUnionAll overrides
+        // For MergePlan the base implementation calls replaceChildren. BranchPlan overrides
         // pruneEmptyBranches so the named-subqueries map stays in sync.
         return mergePlan.pruneEmptyBranches(PruneEmptyMergeBranches::isEmptyLocalRelation);
     }

@@ -89,6 +89,37 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
         Object providerInstance = providerClass.getConstructor().newInstance();
         Object loadResult = loadMethod.invoke(providerInstance);
         assertNull("load() must return null when current platform (" + current.name() + ") is in unavailableOn", loadResult);
+        assertEquals(Boolean.FALSE, providerClass.getMethod("availableOnCurrentPlatform").invoke(providerInstance));
+    }
+
+    /**
+     * A library unavailable only on other platforms must report itself available here. Only
+     * {@code availableOnCurrentPlatform()} is called: {@code load()} would need a live native library.
+     */
+    public void testUnavailableOnOtherPlatformsIsAvailable() throws Exception {
+        Platform current = Platform.current();
+        String others = java.util.Arrays.stream(Platform.values())
+            .filter(p -> p != current)
+            .map(p -> "Platform." + p.name())
+            .collect(java.util.stream.Collectors.joining(", "));
+        String source = String.format(Locale.ROOT, """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Platform;
+            @LibrarySpecification(name = "testlib", unavailableOn = { %s })
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """, others);
+
+        CompilationResult result = compile("test.MyLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> providerClass = result.loadClassNoInit("test.MyLib$Provider");
+        Object providerInstance = providerClass.getConstructor().newInstance();
+        assertEquals(Boolean.TRUE, providerClass.getMethod("availableOnCurrentPlatform").invoke(providerInstance));
     }
 
     /**
@@ -123,6 +154,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
         Object providerInstance = providerClass.getConstructor().newInstance();
         Object loadResult = loadMethod.invoke(providerInstance);
         assertNull("load() must return null when current platform (" + currentPlatform + ") is in unavailableOn", loadResult);
+        assertEquals(Boolean.FALSE, providerClass.getMethod("availableOnCurrentPlatform").invoke(providerInstance));
     }
 
     /**
@@ -154,5 +186,8 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
         // The generated load() must exist and not have been altered to return null unconditionally
         java.lang.reflect.Method loadMethod = providerClass.getMethod("load");
         assertNotNull("load() method must exist on generated provider", loadMethod);
+
+        Object providerInstance = providerClass.getConstructor().newInstance();
+        assertEquals(Boolean.TRUE, providerClass.getMethod("availableOnCurrentPlatform").invoke(providerInstance));
     }
 }

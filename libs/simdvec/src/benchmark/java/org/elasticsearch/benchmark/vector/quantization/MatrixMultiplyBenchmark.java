@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.vector.quantization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
@@ -26,15 +27,18 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
@@ -46,20 +50,40 @@ public class MatrixMultiplyBenchmark {
         VectorizationInfo.printOnce();
     }
 
+    @Param({ "1", "12", "32" })
+    int threads;
+
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    // ASH defaults are 10240 x 1024 x 512
-    // also use an odd number to exercise the tails
-    @Param({ "192", "481", "768", "10240" })
+    /*
+     * The m/k/n values are the union of the dimensions ASH multiplies while training a projection
+     * matrix, so a regression on any one of them maps onto index-time cost. For a vector dimension D
+     * the projected dimension is D/2 (DEFAULT_PROJECTED_DIMS_FRACTION) and the training sample T is
+     * min(D * trainingFactor, segment size, MAX_TRAINING_SAMPLES), which caps at 8192. The products
+     * are X @ P and X @ B (T x D x D/2), X^T @ W (D x T x D/2), X_ld @ R (T x D/2 x D/2),
+     * X_ld^T @ X_enc (D/2 x T x D/2), W = P @ R (D x D/2 x D/2) and the square procrustes product
+     * (D/2 cubed), which runs up to 200 times per training iteration and so dominates at low D.
+     *
+     * Covered here: D of 256, 1024 and 4096, T of 4096 and 8192, plus 3001 for a T below
+     * D * trainingFactor and 341 for D/2 at a non-default fraction of 1/3. The last two are odd, so
+     * they exercise the loop tails. The cross product also runs combinations ASH never produces.
+     */
+
+    /** D/2, D, T, or an odd T from a small segment. */
+    @Param({ "128", "341", "512", "1024", "3001", "4096", "8192" })
     int m;
 
-    @Param({ "192", "481", "768", "1024" })
+    /** D/2, D, T, or an odd T from a small segment. */
+    @Param({ "128", "341", "512", "1024", "3001", "4096", "8192" })
     int k;
 
-    @Param({ "96", "241", "384", "512" })
+    /** Always a projected dimension: D/2 for D of 256, 1024 and 4096, plus an odd 341. */
+    @Param({ "128", "341", "512", "2048" })
     int n;
 
+    private ExecutorService executor;
+    private TaskExecutor tasks;
     private ESVectorUtilSupport impl;
     /** A is (m x k). */
     private float[] a;
@@ -69,6 +93,8 @@ public class MatrixMultiplyBenchmark {
 
     @Setup(Level.Trial)
     public void init() {
+        executor = threads == 1 ? null : Executors.newFixedThreadPool(threads);
+        tasks = executor == null ? null : new TaskExecutor(executor);
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
@@ -88,7 +114,12 @@ public class MatrixMultiplyBenchmark {
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
     public void matrixMultiply(Blackhole bh) {
-        impl.matrixMultiply(a, bMul, m, k, n, result);
+        impl.matrixMultiply(a, bMul, m, k, n, result, tasks);
         bh.consume(result);
+    }
+
+    @TearDown
+    public void close() {
+        if (executor != null) executor.close();
     }
 }

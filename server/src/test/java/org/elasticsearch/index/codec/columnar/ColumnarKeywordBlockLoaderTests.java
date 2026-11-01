@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     public void testSingleValued() throws IOException {
         assertPageMatchesPerDocument(docs -> {
@@ -340,7 +340,18 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
         public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dict, int dictSize) {}
 
         @Override
-        public void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount) {}
+        public Values values(int valueCount, int[] valueCounts, int docCount) {
+            return new Values() {
+                @Override
+                public void append(BytesRef value) {}
+
+                @Override
+                public void finish() {}
+
+                @Override
+                public void close() {}
+            };
+        }
     };
 
     private static BytesRef encode(String[] slots) {

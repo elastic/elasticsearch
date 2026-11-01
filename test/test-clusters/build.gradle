@@ -5,6 +5,7 @@ apply plugin: 'elasticsearch.java'
 dependencies {
   api "junit:junit:${versions.junit4}"
   implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"

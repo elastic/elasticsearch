@@ -122,6 +122,36 @@ public class ReasoningDetailTests extends ESTestCase {
         }
     }
 
+    public void testParsingResponseReasoningDetail_ExplicitNullOptionalFields_MatchOmission() throws IOException {
+        assertEquals(parseResponseReasoningDetail("{\"type\":\"reasoning.text\"}"), parseResponseReasoningDetail("""
+            {"type":"reasoning.text","format":null,"id":null,"index":null,"text":null,"signature":null}"""));
+    }
+
+    public void testParsingRequestTextReasoningDetail_ExplicitNullTextAndSignature_ThrowsException() throws IOException {
+        String reasoningDetailJson = """
+            {"type":"reasoning.text","text":null,"signature":null}
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(
+                rootCause.getMessage(),
+                is("At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]")
+            );
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    private ReasoningDetail parseResponseReasoningDetail(String json) throws IOException {
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            return ReasoningDetail.RESPONSE_PARSER.apply(parser, null);
+        }
+    }
+
     public static ReasoningDetail randomReasoningDetail() {
         var type = randomFrom(ReasoningDetail.ReasoningDetailType.values());
         return switch (type) {

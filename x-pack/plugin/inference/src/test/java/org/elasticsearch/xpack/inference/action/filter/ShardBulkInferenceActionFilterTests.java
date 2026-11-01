@@ -112,7 +112,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
-import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -1512,7 +1511,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testUrlInputIsAcceptedWithoutBase64SizeValidation() throws Exception {
         assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         // A URL string is far smaller than any base64 payload, but we set an absurdly low limit to prove the validation is skipped.
         ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
         InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png");
@@ -1521,6 +1519,58 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             "a URL-format input should be accepted regardless of the binary size limit",
             runSingleInputThroughFilter(maxSize, input)
         );
+    }
+
+    /**
+     * An input whose data type is not a supported embedding data type (e.g. {@link DataType#HTML}, which is only valid for document
+     * extraction) should be rejected with a {@code 400 Bad Request} before any inference is performed.
+     */
+    public void testUnsupportedEmbeddingDataTypeIsRejected() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+        InferenceString input = new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/page.html");
+
+        BulkItemResponse.Failure failure = runSingleInputThroughFilter(
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY),
+            input
+        );
+        assertNotNull("an input with an unsupported data type should be rejected", failure);
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            failure.getMessage(),
+            containsString(
+                "Input for field [semantic_field] from source field [semantic_field] has unsupported [type] value [html]. "
+                    + "Supported values are [text, image, audio, video, pdf]."
+            )
+        );
+    }
+
+    /**
+     * An input with an unsupported data type must only fail its own bulk item. Other items using the same inference endpoint should still
+     * be sent to inference and indexed.
+     */
+    public void testUnsupportedEmbeddingDataTypeFailsOnlyItsBulkItem() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+
+        StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
+        InferenceString html = new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/page.html");
+        InferenceString image = imageInput("AAAA");
+        EmbeddingResults.Embedding<?> imageEmbedding = randomMultimodalEmbedding(model);
+        model.putResult(image, imageEmbedding);
+
+        List<BulkItemRequest> items = runMultimodalDocumentsThroughFilter(
+            model,
+            new MultimodalDocument(html),
+            new MultimodalDocument(image)
+        );
+
+        assertNotNull(items.get(0).getPrimaryResponse());
+        BulkItemResponse.Failure failure = items.get(0).getPrimaryResponse().getFailure();
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("has unsupported [type] value [html]"));
+
+        assertNull(items.get(1).getPrimaryResponse());
+        assertThat(model.embeddingCalls(), equalTo(List.of(new EmbeddingCall(image))));
+        assertChunkEmbeddings(semanticFieldChunks(items.get(1)), List.of(imageEmbedding));
     }
 
     /**
@@ -1533,7 +1583,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
 
-        model.putResult(new InferenceStringGroup(input), randomMultimodalEmbedding(model));
+        // Building an InferenceStringGroup for an unsupported data type throws by design, and such inputs never reach inference
+        if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(input.dataType())) {
+            model.putResult(new InferenceStringGroup(input), randomMultimodalEmbedding(model));
+        }
 
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,

@@ -14,19 +14,15 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 
 /**
- * Decides whether an index is eligible for the ColumNAR doc values codec, based on index settings and index
- * version. Selection is gated behind the {@code columnar_codec} feature flag while the format is under
- * development. The per-field decision of which fields use the codec is made by the caller.
+ * Decides whether an index is eligible for the ColumNAR doc values codec, based on its index mode and index
+ * version. The per-field decision of which fields use the codec is made by the caller.
  */
 public final class ColumnarDocValuesFormatSelector {
-
-    public static final FeatureFlag COLUMNAR_CODEC_FEATURE_FLAG = new FeatureFlag("columnar_codec");
 
     private ColumnarDocValuesFormatSelector() {}
 
@@ -60,9 +56,7 @@ public final class ColumnarDocValuesFormatSelector {
      * @return {@code true} if the ColumNAR codec is eligible for the given index
      */
     public static boolean useColumnarCodec(final IndexSettings indexSettings) {
-        return COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            && indexSettings.getMode().isStrictColumnar()
-            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG)
-            && indexSettings.isColumnarCodecEnabled();
+        return indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
     }
 }

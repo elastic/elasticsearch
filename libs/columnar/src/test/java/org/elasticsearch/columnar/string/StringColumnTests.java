@@ -281,6 +281,19 @@ public class StringColumnTests extends ColumnarStringTestCase {
         }
     }
 
+    /** The shipped policy is an escape budget: a column leaving more than it allows in the escape stream is written plain. */
+    public void testShippedPolicyRefusesAColumnThatEscapesTooMuch() throws IOException {
+        final BytesRef[] docs = new BytesRef[1000];
+        for (int i = 0; i < docs.length; i++) {
+            // Seven values in ten are the same term and the rest are held once, so three in ten escape.
+            docs[i] = i % 10 < 7 ? new BytesRef("GET") : new BytesRef("request-" + i);
+        }
+        withColumn(docs, randomValidBlockSize(), ChunkCodec.ZSTD, 64 * 1024, StringColumnOptions.DEFAULT_DICTIONARY, (metadata, reader) -> {
+            plainOf(metadata);
+            assertColumnValues(docs, reader);
+        });
+    }
+
     /**
      * A sparse column with repeated values under a permissive dictionary policy takes the combined
      * iterator-and-survey path and must produce a dictionary column that round-trips every value.

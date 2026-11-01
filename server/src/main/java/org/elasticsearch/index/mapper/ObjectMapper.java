@@ -24,6 +24,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkSyntheticFieldLoader;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -128,8 +131,7 @@ public class ObjectMapper extends Mapper {
             if (rootDynamic != null) {
                 return rootDynamic;
             }
-            if (mappingLookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof FlattenedFieldMapper sink
-                && sink.isUnmappedSink()) {
+            if (mappingLookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME) != null) {
                 return FLATTENED;
             }
             return Defaults.DYNAMIC;
@@ -258,10 +260,13 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
+            // Assuming all features are supported is safe here. Builders that went through a merge have no duplicates left, and the
+            // duplicates added while building a dynamic mapping update are copies of the same object, so merging them changes nothing.
+            // That update is merged again on the master, which checks the features the cluster supports.
             Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
                 mappersBuilders,
                 mapperBuilderContext,
-                MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE)
+                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
             );
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : dedupedBuilders.values()) {
@@ -381,7 +386,7 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext mergeContext
         ) {
             // Intra-mapping duplicates use unlimited budget since they're from the same source
-            MapperMergeContext dedupContext = MapperMergeContext.from(builderContext, Long.MAX_VALUE);
+            MapperMergeContext dedupContext = mergeContext.withUnlimitedParseFieldLimitsBudget(builderContext);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 // Nested builders are a genuine document boundary and must survive subobjects:false rather than
@@ -1007,8 +1012,7 @@ public class ObjectMapper extends Mapper {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            // The implicit _unmapped sink is injected on every mapping-source parse, so it must never be serialized back out.
-            if (mapper instanceof MetadataFieldMapper || (mapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink())) {
+            if (mapper instanceof MetadataFieldMapper) {
                 continue;
             }
             if (count++ == 0) {
@@ -1067,9 +1071,15 @@ public class ObjectMapper extends Mapper {
         boolean isFragment,
         boolean columnarStored
     ) {
+        // The _unmapped sink arrives among the root's metadata mappers. A columnar_stored root writes the _source precomputed at index
+        // time, which already holds the absorbed fields, so the sink isn't loaded there.
+        if (isRoot() && columnarStored) {
+            mappers = mappers.stream().filter(m -> m instanceof UnmappedSinkFieldMapper == false).toList();
+        }
+        Mapper sink = mappers.stream().filter(UnmappedSinkFieldMapper.class::isInstance).findFirst().orElse(null);
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))
-            .map(m -> innerSyntheticFieldLoader(filter, m))
+            .map(m -> innerSyntheticFieldLoader(filter, m, sink))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toArray(SourceLoader.SyntheticFieldLoader[]::new);
         return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
@@ -1079,19 +1089,29 @@ public class ObjectMapper extends Mapper {
         return syntheticFieldLoader(filter, mappers.values(), false, false);
     }
 
-    private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
+    private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper, @Nullable Mapper sink) {
         // We always need the ignored source to load other fields
         if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceMapper) {
             return ignoredSourceMapper.syntheticFieldLoader();
         }
 
-        if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
+        // The _unmapped sink renders its keys under their own paths, so it is filtered per key in prepare() rather than by its own name.
+        if (filter != null
+            && mapper instanceof UnmappedSinkFieldMapper == false
+            && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
         if (mapper instanceof ObjectMapper objectMapper) {
             // columnarStored is not propagated: the single-blob shortcut in write() is guarded by isRoot(),
             // which is only true for RootObjectMapper, never for child object mappers.
+            // Nested objects are separate Lucene documents and fields absorbed inside them are stored on those documents, so the root's
+            // _unmapped sink is loaded by every nested mapper alongside its own children.
+            if (sink != null && objectMapper instanceof NestedObjectMapper) {
+                List<Mapper> children = new ArrayList<>(objectMapper.mappers.values());
+                children.add(sink);
+                return objectMapper.syntheticFieldLoader(filter, children, false, false);
+            }
             return objectMapper.syntheticFieldLoader(filter);
         }
 
@@ -1117,7 +1137,19 @@ public class ObjectMapper extends Mapper {
         // F.e. objects that only contain fields that are destinations of copy_to.
         private boolean writersHaveValues;
         // Use an ordered map between field names and writers to order writing by field name.
+        // Null when the writers of the current document are in orderedWriters instead.
         private TreeMap<String, FieldWriter> currentWriters;
+        // The writers of the current document, in field name order, when it has no ignored values and so there is nothing to merge them
+        // with. Only used if fieldsOrderedByName, as the fields then already are in the order to write them in.
+        private final List<FieldWriter> orderedWriters = new ArrayList<>();
+        // A writer for each of the fields, created once as it does not hold any per-document state.
+        private final FieldWriter.FieldLoader[] fieldWriters;
+        // Whether fields are in strictly increasing order of their field name, so that sorting them by name (and telling apart two with
+        // the same name) is not needed when there are no ignored values to merge with them.
+        private final boolean fieldsOrderedByName;
+        // The _unmapped sink among the fields, if any. A document with absorbed keys can't use orderedWriters: they're merged in by name.
+        @Nullable
+        private final UnmappedSinkSyntheticFieldLoader unmappedSink;
 
         private final boolean columnarStored;
 
@@ -1131,6 +1163,20 @@ public class ObjectMapper extends Mapper {
             this.isFragment = isFragment;
             this.filter = filter;
             this.columnarStored = columnarStored;
+            this.fieldWriters = new FieldWriter.FieldLoader[fields.length];
+            boolean ordered = true;
+            UnmappedSinkSyntheticFieldLoader sink = null;
+            for (int i = 0; i < fields.length; i++) {
+                fieldWriters[i] = new FieldWriter.FieldLoader(fields[i]);
+                if (i > 0 && fields[i - 1].fieldName().compareTo(fields[i].fieldName()) >= 0) {
+                    ordered = false;
+                }
+                if (fields[i] instanceof UnmappedSinkSyntheticFieldLoader s) {
+                    sink = s;
+                }
+            }
+            this.fieldsOrderedByName = ordered;
+            this.unmappedSink = sink;
             String fullPath = ObjectMapper.this.isRoot() ? null : fullPath();
             this.parserConfig = filter == null
                 ? XContentParserConfiguration.EMPTY
@@ -1200,6 +1246,21 @@ public class ObjectMapper extends Mapper {
                 }
             }
 
+            if (fieldsOrderedByName
+                && (ignoredValues == null || ignoredValues.isEmpty())
+                && (unmappedSink == null || unmappedSink.hasValue() == false)) {
+                currentWriters = null;
+                orderedWriters.clear();
+                for (int i = 0; i < fields.length; i++) {
+                    if (fields[i].hasValue()) {
+                        orderedWriters.add(fieldWriters[i]);
+                    }
+                }
+                writersHaveValues |= orderedWriters.isEmpty() == false;
+                return;
+            }
+
+            orderedWriters.clear();
             currentWriters = new TreeMap<>();
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
@@ -1219,7 +1280,9 @@ public class ObjectMapper extends Mapper {
 
             for (SourceLoader.SyntheticFieldLoader field : fields) {
                 if (field.hasValue()) {
-                    if (currentWriters.containsKey(field.fieldName()) == false) {
+                    if (field instanceof UnmappedSinkSyntheticFieldLoader sink) {
+                        addUnmappedSinkWriters(sink);
+                    } else if (currentWriters.containsKey(field.fieldName()) == false) {
                         writersHaveValues |= true;
                         currentWriters.put(field.fieldName(), new FieldWriter.FieldLoader(field));
                     } else {
@@ -1230,6 +1293,26 @@ public class ObjectMapper extends Mapper {
                     }
                 }
             }
+        }
+
+        /**
+         * Adds a writer per key absorbed into the _unmapped sink, so absorbed fields render under their original dotted paths, sorted among
+         * the mapped fields and filtered per key, as if they had never been absorbed. Keys are full paths, so inside a nested object they
+         * are written relative to it.
+         */
+        private void addUnmappedSinkWriters(UnmappedSinkSyntheticFieldLoader sink) {
+            for (Map.Entry<String, List<String>> entry : sink.valuesByKey().entrySet()) {
+                String key = entry.getKey();
+                if ((filter != null && filter.isPathFiltered(key, false)) || currentWriters.containsKey(key)) {
+                    continue;
+                }
+                String leafKey = isRoot() ? key : key.substring(ObjectMapper.this.fullPath().length() + 1);
+                writersHaveValues = true;
+                currentWriters.put(key, new FieldWriter.UnmappedSinkKey(leafKey, entry.getValue()));
+            }
+
+            // The sink itself is never written, so it is reset here
+            sink.reset();
         }
 
         @Override
@@ -1261,7 +1344,7 @@ public class ObjectMapper extends Mapper {
                 b.startObject(leafName());
             }
 
-            for (var writer : currentWriters.values()) {
+            for (var writer : currentWriters != null ? currentWriters.values() : orderedWriters) {
                 if (writer.hasValue()) {
                     writer.writeTo(b);
                 }
@@ -1326,6 +1409,18 @@ public class ObjectMapper extends Mapper {
                 @Override
                 public boolean hasValue() {
                     return loader.hasValue();
+                }
+            }
+
+            record UnmappedSinkKey(String key, List<String> values) implements FieldWriter {
+                @Override
+                public void writeTo(XContentBuilder builder) throws IOException {
+                    FlattenedFieldSyntheticWriterHelper.writeField(builder, values, key);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return true;
                 }
             }
 

@@ -126,6 +126,16 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
 
+    /**
+     * KDF input used when the keystore has no password. PBKDF2 uses the password as an HMAC key, and HMAC pads a key shorter
+     * than the hash block size with zero bytes, so this input derives exactly the same cipher key as the empty password that
+     * unprotected keystores have always used, and existing unprotected keystores need no conversion. It exists only so that
+     * providers which enforce a minimum password length for password based key derivation (e.g. FIPS 140 approved mode,
+     * 112 bits) accept the input. It is not a secret and provides no protection: protection of secure settings at rest
+     * comes only from an operator supplied password.
+     */
+    private static final char[] UNPROTECTED_KDF_INPUT = new char[32];
+
     /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 210000;
 
@@ -345,6 +355,11 @@ public class KeyStoreWrapper implements SecureSettings {
         return formatVersion < CIPHER_KEY_BITS_256_VERSION ? 128 : CIPHER_KEY_BITS;
     }
 
+    /** The password handed to the KDF; an unprotected keystore uses {@link #UNPROTECTED_KDF_INPUT}, equivalent to the empty password. */
+    private static char[] kdfInput(char[] password) {
+        return password.length == 0 ? UNPROTECTED_KDF_INPUT : password;
+    }
+
     /**
      * Decrypts the underlying keystore data.
      *
@@ -375,7 +390,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         Cipher cipher = createCipher(
             Cipher.DECRYPT_MODE,
-            password,
+            kdfInput(password),
             salt,
             iv,
             getKdfIterationCountForVersion(formatVersion),
@@ -467,7 +482,7 @@ public class KeyStoreWrapper implements SecureSettings {
             random.nextBytes(iv);
             // encrypted data
             byte[] encryptedBytes = encrypt(
-                password,
+                kdfInput(password),
                 salt,
                 iv,
                 getKdfIterationCountForVersion(CURRENT_VERSION),

@@ -57,7 +57,12 @@ public record ColumnIteratorMetadata(
         return new ColumnIteratorMetadata(OFFSET_EMPTY, 0L, (short) -1, (byte) -1, 0, maxDoc);
     }
 
-    static ColumnIteratorMetadata dense(int maxDoc) {
+    /**
+     * Presence of a column every one of whose {@code maxDoc} documents has a value: nothing is written for it,
+     * and a document's rank is its id. What {@link ColumnIteratorWriter} records for such a column, and what a
+     * writer that knows its column is dense without walking it records directly.
+     */
+    public static ColumnIteratorMetadata dense(int maxDoc) {
         return new ColumnIteratorMetadata(OFFSET_DENSE, 0L, (short) -1, (byte) -1, maxDoc, maxDoc);
     }
 

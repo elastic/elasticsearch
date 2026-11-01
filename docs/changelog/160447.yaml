@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160447
+summary: Skip date folders from a timestamp filter
+type: enhancement

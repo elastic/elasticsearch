@@ -226,7 +226,7 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
                     ss.outputDir(),
                     kind,
                     selection.taskPaths(),
-                    selection.candidateCount(),
+                    selection.candidateTaskPaths(),
                     selection.skipReason()
                 )
             );

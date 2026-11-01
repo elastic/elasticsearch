@@ -23,11 +23,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,7 +47,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
@@ -91,21 +91,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         "stateless.cluster.primary_relocation.pre_flush_slow_upload_queue_threshold",
         TimeValue.timeValueSeconds(10),
         TimeValue.ZERO,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /// Controls the heap-based limit on concurrent outgoing primary relocations on stateless indexing nodes. Must be
-    /// strictly positive: 0 is disallowed (consistent with the minimum of
-    /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
-    ///
-    /// The effective limit is `min(max_concurrent_outgoing_recoveries, ceil(heapGb * max_concurrent_outgoing_recoveries_per_heap_gb))`.
-    /// See [ThrottledPrimaryRelocations].
-    ///
-    public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
-        "indices.recovery.max_concurrent_outgoing_recoveries_per_heap_gb",
-        Double.MAX_VALUE,
-        Double.MIN_NORMAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -175,6 +160,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     protected void doStart() {
         if (throttledPrimaryRelocations != null) {
             clusterService.addListener(throttledPrimaryRelocations);
+            throttledPrimaryRelocations.start();
         }
     }
 
@@ -350,8 +336,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+            // Completed with the pinned upload bound by markRelocating, failed below if the handoff never gets that far.
+            // See StatelessCommitService#installUploadBoundListener
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
+                primaryContext,
+                handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
+                // Install the upload bound listener before the final flush, so that a registering search shard cannot pick up a
+                // commit above the upload bound that markRelocating pins after it.
+                statelessCommitServiceProvider.get().installUploadBoundListener(indexShard, uploadBoundListener);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
@@ -568,6 +562,17 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         finalHandoffListener
                     );
                 }), recoveryExecutor, threadContext);
+            };
+
+            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+                try {
+                    handoffConsumer.accept(primaryContext, handoffResultListener);
+                } catch (Exception e) {
+                    // Unwind before IndexShard#relocated releases the operation permits, such that a retry stays blocked
+                    // until state is clean. No-op if markRelocating already completed the listener.
+                    uploadBoundListener.onFailure(e);
+                    throw e;
+                }
             }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
         }), recoveryExecutor, threadContext);
     }
@@ -668,9 +673,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final RelocationRunner runner;
         private final ByteSizeValue maxHeap;
 
-        /// Effective max concurrent outgoing relocations, derived from
-        /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] and
-        /// [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING].
+        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingSettings#watchOutgoingRecoveryLimit].
         private int effectiveMaxConcurrentOutgoingRelocations;
         private int activeRelocationCount = 0;
 
@@ -683,24 +686,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.executor = executor;
             this.runner = runner;
             this.maxHeap = maxHeap;
+        }
 
-            final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-            final List<Setting<?>> outgoingThrottleSettings = List.of(
-                PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
-            );
-            this.effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(
-                clusterSettings.get(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
-                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING)
-            );
-            // These settings jointly determine the effective outgoing relocation limit. Watch them as a group so that a
-            // single cluster-settings update that changes more than one is applied atomically before startRelocationsUpToLimit runs.
-            clusterSettings.addSettingsUpdateConsumer(
-                settings -> applyOutgoingThrottleSettings(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
-                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings)
-                ),
-                outgoingThrottleSettings
+        void start() {
+            DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(
+                clusterService.getClusterSettings(),
+                maxHeap,
+                this::applyMaxConcurrentOutgoingRelocations
             );
         }
 
@@ -784,29 +776,19 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
         }
 
-        // visible for testing
-        void applyOutgoingThrottleSettings(int newMax, double newHeapRatio) {
+        private void applyMaxConcurrentOutgoingRelocations(int newMax) {
             final boolean maxIncreased;
             synchronized (this) {
                 final int oldMax = effectiveMaxConcurrentOutgoingRelocations;
-                effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(newMax, newHeapRatio);
-                maxIncreased = oldMax < effectiveMaxConcurrentOutgoingRelocations;
+                effectiveMaxConcurrentOutgoingRelocations = newMax;
+                maxIncreased = oldMax < newMax;
             }
             if (maxIncreased) {
-                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
-                // applier thread stops before the thread pool shuts down so this should never be rejected.
+                // Move off the calling thread (the cluster applier thread for updates). The generic executor has an
+                // unbounded queue and the cluster applier thread stops before the thread pool shuts down so this should
+                // never be rejected.
                 executor.execute(this::startRelocationsUpToLimit);
             }
-        }
-
-        /// Computes the effective max concurrent outgoing relocations from the static and heap-based limits.
-        private int effectiveMaxConcurrentRelocations(int maxConcurrent, double perHeapGb) {
-            final double heapInGb = maxHeap.getGbFrac();
-            assert heapInGb >= 0;
-            if (heapInGb == 0) { // Heap size unknown, fall back to the static limit.
-                return maxConcurrent;
-            }
-            return Math.min(maxConcurrent, (int) Math.ceil(heapInGb * perHeapGb));
         }
 
         private void startRelocationsUpToLimit() {

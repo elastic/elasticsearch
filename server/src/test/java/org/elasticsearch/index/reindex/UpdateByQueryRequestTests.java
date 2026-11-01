@@ -13,15 +13,25 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.index.reindex.AbstractBulkIndexByPaginatedSearchRequest.MAX_DESCRIPTION_PARAMS_LENGTH;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<UpdateByQueryRequest> {
     public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {
@@ -70,6 +80,53 @@ public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
             e.getMessage(),
             containsString("Cross-cluster calls are not supported in this context but remote indices were requested")
         );
+    }
+
+    /** Params that fit in the limit are rendered exactly as {@link Script#toString()} renders them. */
+    public void testDescriptionIncludesSmallScriptParamsInFull() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("name", "value");
+        params.put("count", 3);
+        params.put("flag", true);
+        params.put("nothing", null);
+        params.put("list", List.of("a", 1, Map.of("k", "v")));
+        params.put("nested", Map.of("empty", List.of()));
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "ctx._source.a = params.name", params);
+
+        UpdateByQueryRequest request = new UpdateByQueryRequest("index").setScript(script);
+
+        assertThat(request.getDescription(), equalTo("update-by-query [index] updated with " + script));
+    }
+
+    /** Large params, such as whole documents keyed by id, must not be copied into the task description. */
+    public void testDescriptionTruncatesLargeNestedScriptParams() {
+        Map<String, Object> docs = new HashMap<>();
+        for (int i = 0; i < 100; i++) {
+            // not Latin-1, so that a full copy would be stored as UTF-16
+            docs.put("doc-" + i, Map.of("message", "€".repeat(MAX_DESCRIPTION_PARAMS_LENGTH * 10), "tags", List.of("a", "b")));
+        }
+        Script script = new Script(
+            ScriptType.INLINE,
+            Script.DEFAULT_SCRIPT_LANG,
+            "ctx._source = params.docs[ctx._id]",
+            Map.of("docs", docs)
+        );
+
+        String description = new UpdateByQueryRequest("index").setScript(script).getDescription();
+
+        assertThat(
+            description,
+            startsWith("update-by-query [index] updated with Script{type=inline, lang='painless', idOrCode='ctx._source")
+        );
+        assertThat(renderedParams(description), startsWith("{docs={doc-"));
+        assertThat(renderedParams(description).length(), equalTo(MAX_DESCRIPTION_PARAMS_LENGTH + "...}".length()));
+        assertThat(description, endsWith("...}"));
+    }
+
+    /** The part of the description after {@code params=}, which is where the script params are rendered. */
+    private static String renderedParams(String description) {
+        String marker = "params=";
+        return description.substring(description.indexOf(marker) + marker.length());
     }
 
     @Override

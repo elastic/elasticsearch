@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.Request;
@@ -26,9 +25,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
+import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -48,6 +50,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.hamcrest.Matchers.containsString;
@@ -298,9 +302,8 @@ public class HttpExporterTests extends ESTestCase {
         );
     }
 
-    public void testExporterWithUnknownBlacklistedClusterAlerts() {
-        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+    public void testExporterWithUnknownBlacklistedClusterAlerts() throws Exception {
+        mockSslProfile();
 
         final List<String> blacklist = new ArrayList<>();
         blacklist.add("does_not_exist");
@@ -341,8 +344,7 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testExporterWithHostOnly() throws Exception {
-        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        mockSslProfile();
 
         final Settings.Builder builder = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", "http")
@@ -388,10 +390,8 @@ public class HttpExporterTests extends ESTestCase {
         );
     }
 
-    public void testCreateRestClient() throws IOException {
-        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+    public void testCreateRestClient() throws Exception {
+        mockSslProfile();
         List<String> expectedWarnings = new ArrayList<>();
 
         final Settings.Builder builder = Settings.builder()
@@ -806,6 +806,14 @@ public class HttpExporterTests extends ESTestCase {
 
     private static String exporterName() {
         return "xpack.monitoring.exporters._http";
+    }
+
+    private void mockSslProfile() throws Exception {
+        final var env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        final SslProfile profile = mock(SslProfile.class);
+        when(profile.configuration()).thenReturn(SslSettingsLoader.load(Settings.EMPTY, null, env));
+        when(profile.sslContext()).thenReturn(SSLContext.getDefault());
+        when(sslService.profileForSettings(any(Settings.class))).thenReturn(profile);
     }
 
 }

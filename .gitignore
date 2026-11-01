@@ -105,7 +105,6 @@ qa/vector/.data
 flakiness-refs.json
 flakiness-plan.json
 flakiness-skipped.json
-flakiness-precompile.json
 flakiness-outcomes.json
 flakiness-project-targets.tgz
 flakiness-status/

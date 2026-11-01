@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
-    public EsqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
-    }
 
     public EsqlIllegalArgumentException(String message, Throwable cause) {
         super(message, cause);

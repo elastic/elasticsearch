@@ -43,6 +43,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final CharArraySet keywordLookup;
     private final Pattern keywordPattern;
     private final AnalysisMode analysisMode;
+    private final Object sharingKey;
 
     KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -70,6 +71,18 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         }
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
+        if (updateable && settings.get("keywords_path") != null) {
+            // An updateable filter is rebuilt from the file on shard recovery and on reload, so the shared
+            // instance would not keep the content read here. Keying on that content could hand a new index
+            // keywords the file no longer has, so these never share.
+            this.sharingKey = this;
+        } else {
+            this.sharingKey = new Key(
+                patternString,
+                keywordLookup == null ? null : new Analysis.StableCharArraySet(keywordLookup, ignoreCase),
+                analysisMode
+            );
+        }
     }
 
     @Override
@@ -86,4 +99,10 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         }
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String keywordsPattern, Analysis.StableCharArraySet keywords, AnalysisMode analysisMode) {}
 }

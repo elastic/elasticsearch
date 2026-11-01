@@ -11,7 +11,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -35,11 +37,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ExpandSearchPhaseTests extends ESTestCase {
 
@@ -596,6 +603,180 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
+        }
+    }
+
+    public void testChargedHitsTakeOverInnerSearchCharges() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        MockSearchPhaseContext context = new MockSearchPhaseContext(1, breaker);
+        long outerBytes = 1024L;
+        long innerBytes = 2048L;
+        try {
+            runExpand(
+                context,
+                chargedOuterSections(breaker, outerBytes, 2),
+                List.of(() -> chargedInnerItem(breaker, innerBytes), () -> chargedInnerItem(breaker, innerBytes))
+            );
+            context.assertNoFailure();
+            // The inner responses are released, but their hits now belong to the outer response, so their charges do too.
+            assertThat(breaker.getUsed(), equalTo(outerBytes + 2 * innerBytes));
+        } finally {
+            context.results.close();
+            releaseResponse(context);
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargedHitsChargeUnchargedInnerHitsWithoutBreaking() {
+        // The inner hits go over the limit, but the inner multi-search has already admitted them, so they must not trip.
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("2kb");
+        MockSearchPhaseContext context = new MockSearchPhaseContext(1, breaker);
+        long outerBytes = 1024L;
+        try {
+            runExpand(context, chargedOuterSections(breaker, outerBytes, 1), List.of(ExpandSearchPhaseTests::unchargedInnerItem));
+            context.assertNoFailure();
+            SearchHit innerHit = context.searchResponse.get().getHits().getAt(0).getInnerHits().get("inner").getAt(0);
+            assertThat(breaker.getUsed(), equalTo(outerBytes + innerHit.ramBytesUsed()));
+            assertThat(breaker.getUsed(), greaterThan(breaker.getLimit()));
+        } finally {
+            context.results.close();
+            releaseResponse(context);
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testInnerFailureReleasesTakenOverCharges() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        MockSearchPhaseContext context = new MockSearchPhaseContext(1, breaker);
+        long outerBytes = 1024L;
+        Exception failure = new IllegalStateException("boom");
+        try (var sections = chargedOuterSections(breaker, outerBytes, 2)) {
+            runExpand(
+                context,
+                sections,
+                List.of(() -> chargedInnerItem(breaker, 2048L), () -> new MultiSearchResponse.Item(null, failure))
+            );
+            assertThat(context.phaseFailure.get(), sameInstance(failure));
+            assertNull(context.searchResponse.get());
+            assertThat(breaker.getUsed(), equalTo(outerBytes));
+        } finally {
+            context.results.close();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testThrowReleasesTakenOverCharges() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        MockSearchPhaseContext context = new MockSearchPhaseContext(1, breaker);
+        long outerBytes = 1024L;
+        try (var sections = chargedOuterSections(breaker, outerBytes, 2)) {
+            // One item for two outer hits, so the phase throws after it takes over the first charge.
+            runExpand(context, sections, List.of(() -> chargedInnerItem(breaker, 2048L)));
+            assertThat(context.phaseFailure.get(), Matchers.instanceOf(NoSuchElementException.class));
+            assertNull(context.searchResponse.get());
+            assertThat(breaker.getUsed(), equalTo(outerBytes));
+        } finally {
+            context.results.close();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testUnchargedHitsLeaveInnerSearchCharges() {
+        // Uncharged outer hits have no charge to keep whole, so the inner responses release their own charges.
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        MockSearchPhaseContext context = new MockSearchPhaseContext(1, breaker);
+        try {
+            runExpand(
+                context,
+                outerSections(2),
+                List.of(() -> chargedInnerItem(breaker, 2048L), ExpandSearchPhaseTests::unchargedInnerItem)
+            );
+            context.assertNoFailure();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            context.results.close();
+            releaseResponse(context);
+        }
+    }
+
+    private static void runExpand(
+        MockSearchPhaseContext context,
+        SearchResponseSections sections,
+        List<Supplier<MultiSearchResponse.Item>> items
+    ) {
+        context.getRequest()
+            .source(
+                new SearchSourceBuilder().collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("inner")))
+            );
+        context.searchTransport = new SearchTransportService(null, null, null) {
+            @Override
+            void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                assertThat(items.size(), lessThanOrEqualTo(request.requests().size()));
+                ActionListener.respondAndRelease(
+                    listener,
+                    new MultiSearchResponse(items.stream().map(Supplier::get).toArray(MultiSearchResponse.Item[]::new), 1)
+                );
+            }
+        };
+        newExpandSearchPhase(context, sections, null).run();
+    }
+
+    private static SearchResponseSections outerSections(int numHits) {
+        SearchHit[] hits = new SearchHit[numHits];
+        for (int i = 0; i < numHits; i++) {
+            hits[i] = new SearchHit(i, "ID" + i);
+            hits[i].setDocumentField(new DocumentField("someField", List.of("value" + i)));
+        }
+        return new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0F),
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null
+        );
+    }
+
+    private static SearchResponseSections chargedOuterSections(CircuitBreaker breaker, long bytes, int numHits) {
+        var sections = outerSections(numHits);
+        breaker.addWithoutBreaking(bytes);
+        sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
+        return sections;
+    }
+
+    private static MultiSearchResponse.Item chargedInnerItem(CircuitBreaker breaker, long bytes) {
+        breaker.addWithoutBreaking(bytes);
+        var sections = new SearchResponseSections(innerHits(), null, null, false, null, null, 1, null);
+        sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
+        try (sections) {
+            return new MultiSearchResponse.Item(
+                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null, null, null),
+                null
+            );
+        }
+    }
+
+    private static SearchHits innerHits() {
+        SearchHit hit = new SearchHit(2, "ID");
+        hit.sourceRef(new BytesArray(new byte[4096]));
+        return new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+    }
+
+    private static void releaseResponse(MockSearchPhaseContext context) {
+        var resp = context.searchResponse.get();
+        if (resp != null) {
+            resp.decRef();
+        }
+    }
+
+    private static MultiSearchResponse.Item unchargedInnerItem() {
+        SearchHits hits = innerHits();
+        try {
+            return new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(hits), null);
+        } finally {
+            hits.decRef();
         }
     }
 

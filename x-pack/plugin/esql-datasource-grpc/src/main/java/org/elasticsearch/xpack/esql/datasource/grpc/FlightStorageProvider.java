@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -84,8 +85,8 @@ public final class FlightStorageProvider implements StorageProvider {
     public boolean supportsStableMetadata() {
         // Arrow Flight objects have no last-modified timestamp (FlightStorageObject reports null), so there is
         // no stable per-file identity to invalidate a schema/stats cache entry on. Bypass caching entirely
-        // rather than cache under an unknowable version. This matters more now that the identity-keyed caches
-        // no longer have a TTL: a null-mtime entry would otherwise be stale forever, not just for the TTL.
+        // rather than cache under an unknowable version. A null-mtime entry would be stale for as long as the
+        // identity-keyed caches hold it, which their clock bounds but does not make correct.
         return false;
     }
 
@@ -112,7 +113,7 @@ public final class FlightStorageProvider implements StorageProvider {
     static Location flightLocation(StoragePath path) {
         String host = path.host();
         if (host == null || host.isEmpty()) {
-            throw new IllegalArgumentException("Flight location requires a host: " + path);
+            throw new IllegalArgumentException("Flight location requires a host");
         }
         int port = path.port() > 0 ? path.port() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
         return Location.forGrpcInsecure(host, port);
@@ -129,12 +130,12 @@ public final class FlightStorageProvider implements StorageProvider {
             return info != null && info.getEndpoints().isEmpty() == false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while checking Flight object [" + path + "]", e);
+            throw new IOException("Interrupted while checking Flight object [" + target + "]", e);
         } catch (Exception e) {
             if (e instanceof IOException ioe) {
                 throw ioe;
             }
-            throw new IOException("Failed to check Flight object [" + path + "]: " + e.getMessage(), e);
+            throw new IOException("Failed to check Flight object [" + target + "]", e);
         }
     }
 
@@ -157,6 +158,12 @@ public final class FlightStorageProvider implements StorageProvider {
             this.knownLength = length;
             this.knownLastModified = lastModified;
         }
+
+        /**
+         * Flight objects are not {@code AbstractMeteredStorageObject}s and keep no I/O counters, so there is nothing to attach.
+         */
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
         @Override
         public InputStream newStream() throws IOException {

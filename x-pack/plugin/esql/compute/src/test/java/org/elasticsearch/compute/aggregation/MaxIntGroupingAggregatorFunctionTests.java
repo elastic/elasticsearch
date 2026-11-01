@@ -21,7 +21,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MaxIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class MaxIntGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new MaxIntAggregatorFunctionSupplier();

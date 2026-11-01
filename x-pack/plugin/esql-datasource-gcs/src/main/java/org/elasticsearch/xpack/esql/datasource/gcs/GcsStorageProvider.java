@@ -26,6 +26,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -283,6 +284,16 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateGcsScheme(path);
+        String bucket = path.host();
+        String objectName = extractObjectName(path);
+        GcsStorageObject object = new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length, lastModified);
+        object.seedVersion(version);
+        return object;
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateGcsScheme(path);
         String bucket = path.host();
@@ -316,6 +327,7 @@ public class GcsStorageProvider implements StorageProvider {
         List<StoragePath> directories = new ArrayList<>();
         String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
         try {
+            ExternalPlanningIo.addMetadataGet(0);
             var page = storage().list(bucket, Storage.BlobListOption.prefix(objectPrefix), Storage.BlobListOption.currentDirectory());
             for (Blob blob : page.iterateAll()) {
                 if (files.size() + directories.size() >= limit) {
@@ -333,10 +345,7 @@ public class GcsStorageProvider implements StorageProvider {
                 files.add(toStorageEntry(blob, pathPrefix));
             }
         } catch (Exception e) {
-            throw new IOException(
-                "Failed to list children in bucket [" + bucket + "] with prefix [" + objectPrefix + "]: " + GcsFailureDetail.of(e),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path: " + GcsFailureDetail.of(e), e);
         }
         return new StorageChildren(files, directories);
     }
@@ -349,7 +358,13 @@ public class GcsStorageProvider implements StorageProvider {
     /** One conversion from an SDK blob to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(Blob blob, String pathPrefix) {
         Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
-        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified);
+        String generation = blob.getGeneration() != null ? Long.toString(blob.getGeneration()) : null;
+        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified, generation);
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
     }
 
     @Override
@@ -368,7 +383,7 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 403) {
                 return existsViaRead(bucket, objectName, path);
             }
-            throw new IOException("Failed to check existence of " + path + ": " + GcsFailureDetail.of(e) + credentialHint(), e);
+            throw new IOException("Failed to check existence of external data: " + GcsFailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -380,9 +395,7 @@ public class GcsStorageProvider implements StorageProvider {
                 return false;
             }
             throw new IOException(
-                "Failed to check existence of "
-                    + path
-                    + " (metadata denied, read also failed): "
+                "Failed to check existence of external data (metadata denied, read also failed): "
                     + GcsFailureDetail.of(e)
                     + credentialHint(),
                 e
@@ -518,18 +531,15 @@ public class GcsStorageProvider implements StorageProvider {
                         Storage.BlobListOption.currentDirectory() };
                 }
 
+                ExternalPlanningIo.addMetadataGet(0);
                 com.google.api.gax.paging.Page<Blob> page = storage.list(bucket, options);
                 currentIterator = page.iterateAll().iterator();
             } catch (Exception e) {
                 String msg = (e instanceof StorageException se && se.getCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects in the configured path. "
                         + "Verify that the configured credentials have storage.objects.list permission, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg, e));
             }
         }

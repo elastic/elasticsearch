@@ -204,7 +204,7 @@ public class TermsReduceBenchmark {
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             request,
             executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             controller,
             isCanceled::get,
             SearchProgressListener.NOOP,

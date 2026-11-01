@@ -69,7 +69,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        project.getPluginManager().apply(DockerSupportPlugin.class);
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
         project.getPlugins().apply(JdkDownloadPlugin.class);
         project.getPluginManager().apply("elasticsearch.java");

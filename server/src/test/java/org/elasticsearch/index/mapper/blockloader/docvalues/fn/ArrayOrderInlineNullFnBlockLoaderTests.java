@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class ArrayOrderInlineNullFnBlockLoaderTests extends ESTestCase {
 
     private static final String FIELD = "field";
-    private static final CircuitBreaker BREAKER = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker BREAKER = NoopCircuitBreaker.INSTANCE;
 
     private static BytesRef b(String s) {
         return new BytesRef(s);

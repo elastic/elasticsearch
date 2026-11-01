@@ -18,12 +18,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Turns the concrete, runnable {@link PlanEntry}s of a {@link FlakinessPlan} into the ready batch commands
@@ -44,8 +43,8 @@ import java.util.stream.Collectors;
  */
 public final class CommandBuilder {
 
-    /** The REST-loop wrapper: repeats a gradle invocation {@code restIters} times, preserving each run's XML. */
-    static final String REPEAT_REST = ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh";
+    /** The repeat wrapper: runs a gradle invocation a given number of times, preserving each run's XML. */
+    static final String REPEAT_GRADLE_RUN = ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh";
 
     private static final String G = PlanCommand.GRADLE_PLACEHOLDER;
 
@@ -56,6 +55,24 @@ public final class CommandBuilder {
         public static final int DEFAULT_INTERNAL_CLUSTER_TEST_ITERS = 20;
         public static final int DEFAULT_REST_ITERS = 10;
         public static final long DEFAULT_SUITE_TIMEOUT_MS = 3_600_000L;
+
+        /**
+         * Upper bound on unit test {@code -Dtests.iters} within a single gradle run; more iterations are split
+         * across several runs (see {@code CommandBuilder#javaTestCommand}). 25 splits the default 100 into 4
+         * equal runs. All iterations of a suite in one run share Lucene's budget of 9999 temp dirs, and at about
+         * 10 temp dirs per test run this keeps a class with up to about 40 test methods under it. Heavier
+         * classes still exhaust it, and the analyzer reports those iterations as not completed.
+         */
+        public static final int MAX_TEST_ITERS_PER_RUN = 25;
+
+        /**
+         * Upper bound on internalClusterTest {@code -Dtests.iters} within a single gradle run. It equals
+         * {@link #DEFAULT_INTERNAL_CLUSTER_TEST_ITERS}, so the default command stays a single run and the cap only
+         * applies when an iteration override raises the count. These suites are much less exposed to the temp
+         * dir budget than unit tests, because {@code InternalTestCluster} creates one temp dir per cluster and
+         * puts the node paths inside it.
+         */
+        public static final int MAX_INTERNAL_CLUSTER_TEST_ITERS_PER_RUN = 20;
 
         public static Config defaults() {
             return new Config(DEFAULT_TEST_ITERS, DEFAULT_INTERNAL_CLUSTER_TEST_ITERS, DEFAULT_REST_ITERS, DEFAULT_SUITE_TIMEOUT_MS);
@@ -127,7 +144,8 @@ public final class CommandBuilder {
                 : t.fqcn() != null ? t.fqcn()
                 : t.suitePath() != null ? t.suitePath()
                 : "";
-            seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
+            String key = t.gradleProject() + "|" + t.kind() + "|" + identity;
+            seen.merge(key, t, CommandBuilder::mergeEntryTasks);
         }
         return new ArrayList<>(seen.values());
     }
@@ -170,7 +188,7 @@ public final class CommandBuilder {
                             Kinds.DISPOSITION_RUN,
                             null,
                             null,
-                            first.runnableTasks()
+                            unionTasks(dirSuites.stream().flatMap(suite -> suite.runnableTasks().stream()).toList())
                         )
                     );
                 } else {
@@ -193,46 +211,65 @@ public final class CommandBuilder {
      * test cluster and running the same suite.
      */
     private static List<PlanEntry> deduplicateYamlRunners(List<PlanEntry> tests) {
-        Set<String> seen = new LinkedHashSet<>();
+        Map<String, PlanEntry> runnersByProject = new LinkedHashMap<>();
         List<PlanEntry> result = new ArrayList<>();
         for (PlanEntry t : tests) {
-            if (t.kind().equals(Kinds.YAML_REST_TEST_RUNNER)) {
-                if (seen.add(t.gradleProject()) == false) {
-                    continue;
-                }
+            if (t.kind().equals(Kinds.YAML_REST_TEST_RUNNER) == false) {
+                result.add(t);
+                continue;
             }
-            result.add(t);
+            runnersByProject.merge(t.gradleProject(), t, CommandBuilder::mergeEntryTasks);
         }
+        result.addAll(runnersByProject.values());
         return result;
+    }
+
+    private static PlanEntry mergeEntryTasks(PlanEntry left, PlanEntry right) {
+        return new PlanEntry(
+            left.gradleProject(),
+            left.sourceSet(),
+            left.kind(),
+            left.fqcn(),
+            left.suitePath(),
+            left.yamlTest(),
+            left.disposition(),
+            left.reason(),
+            left.expandedFrom(),
+            unionTasks(Stream.concat(left.runnableTasks().stream(), right.runnableTasks().stream()).toList())
+        );
+    }
+
+    private static List<String> unionTasks(List<String> tasks) {
+        return tasks.stream().distinct().toList();
     }
 
     private static String batchCommand(List<RunUnit> batch, Config cfg) {
         String kind = batch.get(0).entry().kind();
         return switch (kind) {
-            case Kinds.TEST -> G
-                + " -Dtests.iters="
-                + cfg.testIters()
-                + " -Dtests.timeoutSuite="
-                + cfg.suiteTimeoutMs()
-                + "! "
-                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
-            case Kinds.INTERNAL_CLUSTER_TEST -> G
-                + " -Dtests.iters="
-                + cfg.internalClusterTestIters()
-                + " -Dtests.timeoutSuite="
-                + cfg.suiteTimeoutMs()
-                + "! "
-                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
-            case Kinds.JAVA_REST_TEST -> REPEAT_REST
+            case Kinds.TEST -> javaTestCommand(batch, cfg.testIters(), Config.MAX_TEST_ITERS_PER_RUN, cfg.suiteTimeoutMs());
+            case Kinds.INTERNAL_CLUSTER_TEST -> javaTestCommand(
+                batch,
+                cfg.internalClusterTestIters(),
+                Config.MAX_INTERNAL_CLUSTER_TEST_ITERS_PER_RUN,
+                cfg.suiteTimeoutMs()
+            );
+            case Kinds.JAVA_REST_TEST -> REPEAT_GRADLE_RUN
                 + " "
                 + cfg.restIters()
                 + " "
                 + G
                 + " "
                 + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), "--rerun");
-            case Kinds.YAML_REST_TEST_RUNNER -> REPEAT_REST + " " + cfg.restIters() + " " + G + " " + batch.get(0).taskPath() + " --rerun";
+            case Kinds.YAML_REST_TEST_RUNNER -> REPEAT_GRADLE_RUN
+                + " "
+                + cfg.restIters()
+                + " "
+                + G
+                + " "
+                + batch.get(0).taskPath()
+                + " --rerun";
             case Kinds.YAML_REST_TEST_SUITE -> yamlSuiteCommand(batch, cfg);
-            case Kinds.YAML_REST_TEST_CASE -> REPEAT_REST
+            case Kinds.YAML_REST_TEST_CASE -> REPEAT_GRADLE_RUN
                 + " "
                 + cfg.restIters()
                 + " "
@@ -241,6 +278,23 @@ public final class CommandBuilder {
                 + tasksWithFilters(batch, t -> "--tests \"" + t.fqcn() + "." + t.yamlTest() + "\"", "--rerun");
             default -> throw new IllegalStateException("unexpected batch kind: " + kind);
         };
+    }
+
+    /**
+     * A {@code -Dtests.iters} command for the java kinds, split into several gradle runs when {@code iters}
+     * exceeds {@code maxItersPerRun}.
+     *
+     * <p>Iterations are spread evenly, rounding up, so the total can exceed {@code iters} by fewer than
+     * {@code runs} iterations.
+     */
+    private static String javaTestCommand(List<RunUnit> batch, int iters, int maxItersPerRun, long suiteTimeoutMs) {
+        int runs = Math.ceilDiv(iters, maxItersPerRun);
+        int itersPerRun = Math.ceilDiv(iters, runs);
+        String gradle = G + " -Dtests.iters=" + itersPerRun + " -Dtests.timeoutSuite=" + suiteTimeoutMs + "! ";
+        if (runs == 1) {
+            return gradle + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
+        }
+        return REPEAT_GRADLE_RUN + " " + runs + " " + gradle + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), "--rerun");
     }
 
     /**
@@ -258,7 +312,7 @@ public final class CommandBuilder {
             .stream()
             .map(e -> "-Dtests.rest.suite." + e.getKey() + "=" + String.join(",", e.getValue()))
             .collect(Collectors.joining(" "));
-        return REPEAT_REST + " " + cfg.restIters() + " " + G + " " + tasks + " " + suiteProps;
+        return REPEAT_GRADLE_RUN + " " + cfg.restIters() + " " + G + " " + tasks + " " + suiteProps;
     }
 
     /**

@@ -177,7 +177,7 @@ public class PodIdentityTwoPluginIT extends ESRestTestCase {
         req.addParameter("wait_for_completion", "true");
         try (XContentBuilder b = jsonBuilder()) {
             // Exclude global state: after the ES|QL data-source PUT, cluster state may hold
-            // PEK-encrypted credentials that trigger SnapshotEncryptedDataWarningFilter's warning
+            // PEK-encrypted credentials that trigger SnapshotEncryptedDataFilter's warning
             // when include_global_state is true — unrelated to Pod Identity credential isolation.
             b.startObject().field("indices", "*").field("include_global_state", false).endObject();
             req.setJsonEntity(Strings.toString(b));

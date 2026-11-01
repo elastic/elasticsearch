@@ -107,7 +107,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "test-cluster-0")
+                .put("index.routing.allocation.include._name", "ilm-cluster-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -227,7 +227,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        String allocateNodeName = "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3";
+        String allocateNodeName = "ilm-cluster-0,ilm-cluster-1,ilm-cluster-2,ilm-cluster-3";
         AllocateAction allocateAction = new AllocateAction(null, null, Map.of("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);

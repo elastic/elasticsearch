@@ -52,6 +52,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
@@ -70,6 +71,12 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
+
+    /** The tests here create {@link TimeSeriesAggregationBuilder}s, which emit the deprecation warning. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
 
     private static final Map<Map<String, String>, Map<Long, Map<String, Double>>> data = new HashMap<>();
     private static int numberOfDimensions;

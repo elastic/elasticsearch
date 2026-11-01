@@ -1,0 +1,5 @@
+area: Searchable Snapshots
+issues: []
+pr: 164229
+summary: Forbid changing searchable snapshot identity on restore
+type: bug

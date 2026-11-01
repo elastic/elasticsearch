@@ -56,6 +56,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -802,6 +803,79 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
         }
 
+    }
+
+    public void testRestorePreservesSearchableSnapshotIdentity() throws Exception {
+        createRepository("repository", "fs");
+        createAndPopulateIndex("source", Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1));
+        createSnapshot("repository", "source-snapshot", List.of("source"));
+        mountSnapshot("repository", "source-snapshot", "source", "mounted", Settings.EMPTY);
+        createSnapshot("repository", "mounted-snapshot", List.of("mounted"));
+
+        final List<String> identityKeys = List.of(
+            SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.getKey(),
+            SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.getKey(),
+            SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(),
+            SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(),
+            SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey(),
+            SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.getKey()
+        );
+        final Settings identitySettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "mounted")
+            .get()
+            .getIndexToSettings()
+            .get("mounted")
+            .filter(identityKeys::contains);
+        assertAcked(indicesAdmin().prepareDelete("mounted"));
+
+        for (String key : identityKeys) {
+            for (String ignored : List.of(key, "index.store.snapshot.*", "index.store.*")) {
+                final var exception = expectThrows(
+                    SnapshotRestoreException.class,
+                    () -> clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repository", "mounted-snapshot")
+                        .setIndices("mounted")
+                        .setIgnoreIndexSettings(ignored)
+                        .get()
+                );
+                assertThat(exception.getMessage(), containsString("cannot change or remove setting ["));
+            }
+            for (Settings changes : List.of(
+                Settings.builder().put(key, "replacement").build(),
+                Settings.builder().put(key, "").build(),
+                Settings.builder().putNull(key).build(),
+                Settings.builder().put(key, "replacement").put("index.store.type", "fs").build()
+            )) {
+                final var exception = expectThrows(
+                    SnapshotRestoreException.class,
+                    () -> clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repository", "mounted-snapshot")
+                        .setIndices("mounted")
+                        .setIndexSettings(changes)
+                        .get()
+                );
+                assertThat(exception.getMessage(), containsString("cannot change or remove setting [" + key + "]"));
+            }
+        }
+        assertFalse(indexExists("mounted"));
+
+        final var restoreRequestBuilder = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repository", "mounted-snapshot")
+            .setIndices("mounted")
+            .setWaitForCompletion(true);
+        if (randomBoolean()) {
+            // Reapply only some of the settings, optionally removing them first; all six values must survive the restore.
+            final var reappliedKeys = randomSubsetOf(randomIntBetween(1, identityKeys.size() - 1), identityKeys);
+            restoreRequestBuilder.setIgnoreIndexSettings(randomSubsetOf(reappliedKeys))
+                .setIndexSettings(identitySettings.filter(reappliedKeys::contains));
+        }
+        final RestoreSnapshotResponse response = restoreRequestBuilder.get();
+        assertThat(response.getRestoreInfo().successfulShards(), equalTo(1));
+        assertThat(response.getRestoreInfo().failedShards(), equalTo(0));
+        assertEquals(
+            identitySettings,
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "mounted")
+                .get()
+                .getIndexToSettings()
+                .get("mounted")
+                .filter(identityKeys::contains)
+        );
     }
 
     public void testSnapshotOfSearchableSnapshotIncludesNoDataButCanBeRestored() throws Exception {

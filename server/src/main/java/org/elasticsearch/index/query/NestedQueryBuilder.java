@@ -304,7 +304,8 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
         }
         final BitSetProducer parentFilter;
         Query innerQuery;
-        NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+        // join to the innermost enclosing ancestor of the path, which is not the current level for a nested query on another object
+        NestedObjectMapper objectMapper = context.nestedScope().nearestAncestorOf(path);
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
         } else {

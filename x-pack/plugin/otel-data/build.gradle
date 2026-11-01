@@ -137,13 +137,18 @@ sourceSets {
 
 tasks.withType(GenerateProtoTask.class).matching { it.name == "generateProto" }.configureEach {
   // Avoid unnecessary String allocations in the generated AnyValue class
-  // We always need the ByteString (UTF-8) representation of string attributes
+  // We always need the ByteString (UTF-8) representation of string attributes.
+  // Use a plain file edit rather than ant.replace: Task.getAnt() is deprecated in Gradle 9.9
+  // (scheduled for removal in Gradle 10) and would fail the build under warning-mode=fail.
+  def anyValueFile = layout.buildDirectory.file("generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java")
   doLast {
-      ant.replace(
-        file: 'build/generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java',
-        token: 'java.lang.String s = input.readStringRequireUtf8();',
-        value: 'com.google.protobuf.ByteString s = input.readBytes();',
-        encoding: 'UTF-8'
+      def file = anyValueFile.get().asFile
+      file.setText(
+        file.getText('UTF-8').replace(
+          'java.lang.String s = input.readStringRequireUtf8();',
+          'com.google.protobuf.ByteString s = input.readBytes();'
+        ),
+        'UTF-8'
       )
   }
 }

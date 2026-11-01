@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /** A real {@link DriverContext} because {@link AsyncExternalSourceOperator#close()} deposits into its sink. */
@@ -87,7 +87,9 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.finish(true);
         assertNull(operator.getOutput());
 
+        assertTrue(operator.finalStatusAfterAsyncActions());
         operator.close();
+        assertNotNull("status() must stay readable after close", operator.status());
         driverContext.finish();
 
         // time_to_first_row recorded exactly once (on the first page), tagged with type and format. The value is

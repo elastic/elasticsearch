@@ -1,0 +1,5 @@
+FROM (FROM (ROW value = "1"), (ROW value = "2")), (ROW value = "3")
+| KEEP value
+| EVAL l = value::long, d = value::double
+| KEEP l, d
+| LIMIT 10

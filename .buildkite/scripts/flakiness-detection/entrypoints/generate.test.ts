@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { run, type GenerateIO } from "./generate.ts";
-import type { FlakinessPlan, PlanCommand, RunnableCommand } from "../domain.ts";
+import type { FlakinessPlan, PlanCommand, ReportInputs, RunnableCommand } from "../domain.ts";
 
 // generate is now a thin consumer of the Java-produced plan: read plan (local-or-download) -> shape +
 // upload, with no batching. These tests drive run() through an injected I/O boundary so we can assert the
@@ -8,7 +8,7 @@ import type { FlakinessPlan, PlanCommand, RunnableCommand } from "../domain.ts";
 // buildkite-agent.
 
 interface Recorded {
-  uploads: { commands: RunnableCommand[]; hasNotApplicable: boolean }[];
+  uploads: { commands: RunnableCommand[]; report: ReportInputs }[];
   annotations: { style: string; body: string }[];
   files: { name: string; body: string }[];
   logs: string[];
@@ -18,10 +18,11 @@ function fakeIO(plan: FlakinessPlan | undefined, isCI = true): { io: GenerateIO;
   const rec: Recorded = { uploads: [], annotations: [], files: [], logs: [] };
   const io: GenerateIO = {
     isCI,
+    jobId: "0198-generate",
     readPlan: () => plan,
-    writeFile: (name, body) => rec.files.push({ name, body }),
+    publish: (name, body) => rec.files.push({ name, body }),
     annotate: (style, body) => rec.annotations.push({ style, body }),
-    upload: (commands, opts) => rec.uploads.push({ commands, hasNotApplicable: opts.hasNotApplicable }),
+    upload: (commands, report) => rec.uploads.push({ commands, report }),
     log: (msg) => rec.logs.push(msg),
   };
   return { io, rec };
@@ -35,32 +36,16 @@ const UNIT_CMD: PlanCommand = {
 };
 
 describe("generate run() - buildFailed", () => {
-  test("writes the precompile marker and uploads an analyze-only pipeline", () => {
+  test("uploads an analyze-only pipeline that is told the compile failed", () => {
     const plan: FlakinessPlan = { buildFailed: true, reason: "precompile", entries: [] };
     const { io, rec } = fakeIO(plan);
 
     run(io);
 
-    // Analyze-only upload: zero batch commands but hasNotApplicable so the analyze step still runs.
     expect(rec.uploads).toHaveLength(1);
     expect(rec.uploads[0].commands).toEqual([]);
-    expect(rec.uploads[0].hasNotApplicable).toBe(true);
-    // The build_failed marker is written for the analyze step to record.
-    expect(rec.files).toHaveLength(1);
-    expect(rec.files[0].name).toBe("flakiness-precompile.json");
-    expect(JSON.parse(rec.files[0].body)).toEqual({ outcome: "build_failed", reason: "precompile" });
-  });
-
-  test("does not write the precompile marker when not in CI", () => {
-    const plan: FlakinessPlan = { buildFailed: true, reason: "precompile", entries: [] };
-    const { io, rec } = fakeIO(plan, false);
-
-    run(io);
-
+    expect(rec.uploads[0].report).toEqual({ producerJobId: "0198-generate", compileFailed: true, skippedCount: 0 });
     expect(rec.files).toEqual([]);
-    // Still uploads analyze-only (upload itself is a no-op outside CI at the buildkite layer).
-    expect(rec.uploads).toHaveLength(1);
-    expect(rec.uploads[0].hasNotApplicable).toBe(true);
   });
 });
 
@@ -86,16 +71,12 @@ describe("generate run() - happy path", () => {
     );
     expect(uploaded[0].command).not.toContain("__GRADLE__");
     expect(uploaded[0].key).toBe("flakiness-detection:unit");
-    // No skip entries -> analyze not forced via hasNotApplicable; the batch step's presence is enough.
-    expect(rec.uploads[0].hasNotApplicable).toBe(false);
-    // The skipped file is written even with nothing to skip, so a stale one from a previous run can never
-    // survive to be re-uploaded. Analyze reads an empty list the same as an absent file.
-    expect(rec.files).toHaveLength(1);
-    expect(rec.files[0].name).toBe("flakiness-skipped.json");
-    expect(JSON.parse(rec.files[0].body)).toEqual([]);
+    expect(rec.uploads[0].report).toEqual({ producerJobId: "0198-generate", compileFailed: false, skippedCount: 0 });
+    // Nothing skipped, so no skip list: the analyze step is told the count is 0 and does not read one.
+    expect(rec.files).toEqual([]);
   });
 
-  test("writes flakiness-skipped.json for skip entries and forces hasNotApplicable", () => {
+  test("writes flakiness-skipped.json for skip entries and declares their count", () => {
     const plan: FlakinessPlan = {
       buildFailed: false,
       entries: [
@@ -115,7 +96,7 @@ describe("generate run() - happy path", () => {
 
     run(io);
 
-    expect(rec.uploads[0].hasNotApplicable).toBe(true);
+    expect(rec.uploads[0].report.skippedCount).toBe(1);
     const skipped = rec.files.find((f) => f.name === "flakiness-skipped.json");
     expect(skipped).toBeDefined();
     const parsed = JSON.parse(skipped!.body);
@@ -165,8 +146,7 @@ describe("generate run() - happy path", () => {
     run(io);
 
     expect(rec.uploads).toEqual([]);
-    // Still writes an empty skip list: that is what stops a previous run's list surviving to be re-uploaded.
-    expect(JSON.parse(rec.files[0].body)).toEqual([]);
+    expect(rec.files).toEqual([]);
   });
 
   test("missing commands field is treated as empty (no throw, no upload)", () => {

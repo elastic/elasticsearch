@@ -97,6 +97,81 @@ avg_cost:double        | _timeseries:keyword
 8.833333333333334      | "{""cluster"":""qa""}"
 ;
 
+// FORK aligns its branches at resolution like a union does, so the WITHOUT
+// grouping must already carry its final _timeseries name there too.
+without_avg_fork
+skip_flattened_rewrite: without_unsupported
+required_capability: esql_without_grouping
+required_capability: fork_v9
+required_capability: ts_without_grouping_named_at_resolution
+TS k8s
+| STATS avg_cost = avg(network.cost) BY WITHOUT(pod, region)
+| FORK (WHERE avg_cost > 6) (WHERE avg_cost <= 6)
+| KEEP avg_cost, _timeseries, _fork
+| SORT _fork, avg_cost;
+
+avg_cost:double        | _timeseries:keyword        | _fork:keyword
+6.208333333333333      | "{""cluster"":""prod""}"    | fork1
+8.833333333333334      | "{""cluster"":""qa""}"      | fork1
+5.291666666666667      | "{""cluster"":""staging""}" | fork2
+;
+
+
+// A user alias on WITHOUT names the output column and stays addressable downstream.
+without_alias_keep
+skip_flattened_rewrite: without_unsupported
+required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
+TS k8s
+| STATS total_cost = sum(network.cost) BY dims = WITHOUT(pod, region)
+| KEEP dims, total_cost
+| SORT total_cost;
+
+dims:keyword              | total_cost:double
+"{""cluster"":""staging""}" | 15.875
+"{""cluster"":""prod""}"    | 18.625
+"{""cluster"":""qa""}"      | 26.5
+;
+
+without_alias_drop
+skip_flattened_rewrite: without_unsupported
+required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
+TS k8s
+| STATS total_cost = sum(network.cost) BY dims = WITHOUT(pod, region)
+| DROP dims
+| SORT total_cost;
+
+total_cost:double
+15.875
+18.625
+26.5
+;
+
+// An unmapped field excluded under nullify mode excludes nothing: the grouping
+// still resolves and every dimension stays in _timeseries.
+without_unmapped_dimension_nullify
+skip_flattened_rewrite: without_unsupported
+required_capability: esql_without_grouping
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_without_grouping_named_at_resolution
+SET unmapped_fields="nullify"\;
+TS k8s
+| STATS max_cost = max(network.cost) BY WITHOUT(missing_dimension)
+| SORT max_cost;
+
+max_cost:double | _timeseries:keyword
+0.0             | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75            | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625           | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25            | "{""cluster"":""qa"",""pod"":""one""}"
+7.875           | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375           | "{""cluster"":""qa"",""pod"":""two""}"
+9.5             | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75           | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875          | "{""cluster"":""qa"",""pod"":""three""}"
+;
+
 
 without_max
 skip_flattened_rewrite: without_unsupported

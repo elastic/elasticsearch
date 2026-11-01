@@ -20,16 +20,26 @@ public class TruncateTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int length;
 
+    private final Object sharingKey;
+
     TruncateTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.length = settings.getAsInt("length", -1);
         if (length <= 0) {
             throw new IllegalArgumentException("length parameter must be provided");
         }
+        this.sharingKey = new Key(length);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new TruncateTokenFilter(tokenStream, length);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int length) {}
 }

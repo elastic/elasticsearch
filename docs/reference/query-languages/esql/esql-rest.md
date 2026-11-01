@@ -716,7 +716,7 @@ When a query reads from an external source (for example, a query that begins wit
 
 * **Async stop** (`POST /_query/async/{id}/stop`) signals the running query to wind down without discarding what it has already produced. Rows already accepted into the response pipeline at the moment stop arrives are returned with `is_partial: true`; rows that the source is still in the middle of delivering are dropped. If async stop races with the natural completion of a fast query, the response is returned as-is with `is_partial: false`.
 * **Async delete** (`DELETE /_query/async/{id}`) cancels the underlying task before deleting the saved entry. The running query fails with a task-cancelled error; no partial body is returned.
-* **Task cancel or client disconnect** (cancellation via the [task management API](esql-task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
+* **Task cancel or client disconnect** (cancellation via the [task management API](/reference/query-languages/query-task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
 
 In other words, only async stop is a partial-result path for external queries — task cancel, client disconnect, and async delete all fall on the hard-fail side. This matches the behaviour for queries against {{es}} indices, with one nuance specific to external sources: a query that touches no {{es}} index has no per-cluster status to flip, so the `is_partial` flag is set directly on the response when async stop fires.
 -->

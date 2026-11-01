@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.kql;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,7 +25,7 @@ public class KqlRestIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .build();
 
-    public KqlRestIT(final ClientYamlTestCandidate testCandidate) {
+    public KqlRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

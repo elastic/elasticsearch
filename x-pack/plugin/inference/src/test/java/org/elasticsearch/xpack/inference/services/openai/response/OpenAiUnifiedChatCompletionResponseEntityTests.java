@@ -221,6 +221,9 @@ public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
         assertThat(toolCalls.get(0).index(), is(0));
         assertThat(toolCalls.get(1).index(), is(1));
         assertThat(toolCalls.get(2).index(), is(2));
+
+        var nullIndices = json.replace("\"id\": \"call_", "\"index\": null, \"id\": \"call_");
+        assertEquals(result, OpenAiUnifiedChatCompletionResponseEntity.fromResponse(nullIndices.getBytes(StandardCharsets.UTF_8)));
     }
 
     public void testFromResponse_MultipleChoices_ResetsToolCallIndexPerChoice() throws IOException {
@@ -363,7 +366,15 @@ public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
             }
             """;
 
-        expectThrows(Exception.class, () -> OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8))
+        );
+        var nullIndex = json.replace("\"id\": \"call_b\"", "\"index\": null, \"id\": \"call_b\"");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> OpenAiUnifiedChatCompletionResponseEntity.fromResponse(nullIndex.getBytes(StandardCharsets.UTF_8))
+        );
     }
 
     public void testFromResponse_NullToolCalls_ParsesAsNull() throws IOException {

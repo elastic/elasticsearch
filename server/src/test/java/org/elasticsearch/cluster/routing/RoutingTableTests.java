@@ -237,49 +237,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    public void testAllActiveShardsGrouped() {
-        assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], true).size(), is(0));
-        assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], false).size(), is(0));
-
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
-
-        initPrimaries();
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
-
-        startInitializingShards(TEST_INDEX_1);
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(),
-            is(this.numberOfShards)
-        );
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
-            is(this.numberOfShards)
-        );
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
-
-        startInitializingShards(TEST_INDEX_2);
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_2 }, false).size(),
-            is(this.numberOfShards)
-        );
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
-            is(2 * this.numberOfShards)
-        );
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, true).size(),
-            is(this.totalNumberOfShards)
-        );
-
-        try {
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, "not_exists" }, true);
-        } catch (IndexNotFoundException e) {
-            fail("Calling with non-existing index should be ignored at the moment");
-        }
-    }
-
     public void testAllAssignedShardsGrouped() {
         assertThat(clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
         assertThat(
@@ -527,6 +484,44 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 }
             }
         }
+    }
+
+    public void testAddReplicaRecoveryPriority() {
+        final var index = new Index("index", "uuid");
+        final var shardId = new ShardId(index, 0);
+        final var builder = new IndexRoutingTable.Builder(ShardRoutingRoleStrategy.NO_SHARD_CREATION, index);
+        builder.addShard(TestShardRouting.newShardRouting(shardId, "node1", true, STARTED));
+
+        final ShardRouting existingReplica;
+        if (rarely()) {
+            existingReplica = null;
+        } else {
+            final var existingReplicaState = randomFrom(UNASSIGNED, INITIALIZING, STARTED);
+            existingReplica = TestShardRouting.newShardRouting(
+                shardId,
+                existingReplicaState == UNASSIGNED ? null : "node2",
+                false,
+                existingReplicaState
+            );
+            builder.addShard(existingReplica);
+        }
+        builder.addReplica(ShardRouting.Role.DEFAULT);
+        final var addedReplica = builder.build()
+            .shard(0)
+            .replicaShards()
+            .stream()
+            .filter(shard -> shard != existingReplica)
+            .findFirst()
+            .orElseThrow();
+        assertThat(addedReplica.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.REPLICA_ADDED));
+        assertThat(
+            addedReplica.recoveryPriority(),
+            equalTo(
+                existingReplica != null && existingReplica.started()
+                    ? ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                    : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            )
+        );
     }
 
     public void testRoutingNodesRoundtrip() {

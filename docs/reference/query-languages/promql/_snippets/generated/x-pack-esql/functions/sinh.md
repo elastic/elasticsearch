@@ -21,7 +21,3 @@
 ```
 sinh(some_metric)
 ```
-
-**Differences from Prometheus**
-
-On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the `±Inf` that Prometheus returns.

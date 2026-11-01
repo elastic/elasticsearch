@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -43,7 +44,10 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        // The three-argument form, because that is the one the provider calls: its two-argument entry point
+        // forwards to it. A mock does not run the interface default, so stubbing only the two-argument form
+        // leaves the call the provider makes returning null, and the wrapper closes a null delegate.
+        when(delegate.listObjects(any(), any(), anyBoolean())).thenReturn(emptyIterator);
 
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
         assertEquals(5, limiter.availablePermits());
@@ -98,7 +102,10 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        // The three-argument form, because that is the one the provider calls: its two-argument entry point
+        // forwards to it. A mock does not run the interface default, so stubbing only the two-argument form
+        // leaves the call the provider makes returning null, and the wrapper closes a null delegate.
+        when(delegate.listObjects(any(), any(), anyBoolean())).thenReturn(emptyIterator);
         when(delegate.exists(any())).thenReturn(true);
 
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
@@ -112,7 +119,7 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
             assertFalse("node-local permit exhaustion is not a remote throttle", thrown.throttling());
             assertTrue("permit exhaustion must be retryable", RetryPolicy.DEFAULT.isRetryable(thrown));
-            assertEquals(thrown.getCause().getMessage(), thrown.getMessage());
+            assertThat(thrown.getMessage(), containsString(thrown.getCause().getMessage()));
             assertEquals(1, thrown.getMessage().toLowerCase(Locale.ROOT).split("timed out", -1).length - 1);
         } finally {
             held.close();
@@ -136,7 +143,10 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        // The three-argument form, because that is the one the provider calls: its two-argument entry point
+        // forwards to it. A mock does not run the interface default, so stubbing only the two-argument form
+        // leaves the call the provider makes returning null, and the wrapper closes a null delegate.
+        when(delegate.listObjects(any(), any(), anyBoolean())).thenReturn(emptyIterator);
         when(delegate.exists(any())).thenReturn(true);
 
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);

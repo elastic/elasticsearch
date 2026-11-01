@@ -19,10 +19,12 @@ import java.lang.annotation.Target;
  * implementation of the interface backed by native (FFM) method handles, and registers it with
  * {@link LibraryProvider} so it can be looked up at runtime.
  *
- * <p>The annotated type must be an interface. Every abstract method must be annotated with
+ * <p>The annotated type must be an interface, or an abstract class with a no-arg constructor the
+ * generated subclass can call. An abstract class lets the binding wrap its native methods in
+ * concrete ones. Every abstract method must be annotated with
  * either {@link Function @Function} (a native symbol binding) or {@link StructFactory
  * @StructFactory} (constructs a nested {@link StructSpecification @StructSpecification} struct);
- * the processor reports a compile error otherwise. The interface may also enclose
+ * the processor reports a compile error otherwise. The type may also enclose
  * {@code @StructSpecification} records and interfaces that describe C struct layouts referenced
  * by its methods.
  *

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161565
+summary: "ES|QL|DS: forward `attachMetrics` in storage decorators"
+type: bug

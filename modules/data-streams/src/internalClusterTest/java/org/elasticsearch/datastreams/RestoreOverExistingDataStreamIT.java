@@ -42,6 +42,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests the atomic delete-and-restore of an existing data stream: the destination data stream and its backing/failure-store
@@ -369,6 +371,52 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
+     * When the aliases of the snapshot are not restored, the aliases that exist are the ones in effect after the restore, like they are for
+     * an index that is restored over: the data stream that is restored over is put back in the aliases that it was in, with their filter
+     * and write flag, even though deleting it took it out of them, and the aliases that only the snapshot has do not come back.
+     */
+    public void testRestoreOverExistingDataStreamKeepsItsAliasesWhenTheAliasesOfTheSnapshotAreNotRestored() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotAlias = "snapshot-alias";
+        final String currentAlias = "current-alias";
+        createRepositoryAndSnapshottedDataStream(snapshotAlias);
+        // Move the aliases away from those of the snapshot
+        final IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        aliasesRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).alias(snapshotAlias).index(DATA_STREAM_NAME));
+        aliasesRequest.addAliasAction(
+            new AliasActions(AliasActions.Type.ADD).alias(currentAlias)
+                .index(DATA_STREAM_NAME)
+                .filter("{\"term\":{\"field\":\"value\"}}")
+                .writeIndex(true)
+        );
+        assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
+        final DataStreamAlias aliasBefore = currentDataStreamAliases().get(currentAlias);
+        assertThat(aliasBefore.getWriteDataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(aliasBefore.getFilter(DATA_STREAM_NAME), notNullValue());
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .restoreOverExisting(true)
+                .includeAliases(false),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+
+        final Map<String, DataStreamAlias> aliases = currentDataStreamAliases();
+        assertThat("the aliases of the snapshot must not come back", aliases, not(hasKey(snapshotAlias)));
+        final DataStreamAlias aliasAfter = aliases.get(currentAlias);
+        assertThat("the data stream must be back in the alias that it was in", aliasAfter, notNullValue());
+        assertThat(aliasAfter.getDataStreams(), contains(DATA_STREAM_NAME));
+        assertThat(aliasAfter.getWriteDataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(aliasAfter.getFilter(DATA_STREAM_NAME).string(), equalTo(aliasBefore.getFilter(DATA_STREAM_NAME).string()));
+    }
+
+    /**
      * The ordinary restore path passes every repository {@link IndexMetadata} through the configured
      * {@link IndexMetadataRestoreTransformer} before it is applied; the restore must do the same rather than inserting the raw
      * snapshot metadata directly, since a caller resolving a {@link RestoreService.DataStreamRestoreTarget} has no way to apply that
@@ -656,6 +704,77 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             "a retry with the same restore UUID must not re-delete-and-restore",
             currentDataStream().getIndices().get(0),
             equalTo(firstRestoredIndex)
+        );
+    }
+
+    /**
+     * While the restore is held in flight, the restored data stream's backing index is reported with the UUID the caller passed, and
+     * nothing is reported once the restore is over.
+     */
+    public void testRestoreOverExistingDataStreamReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                restoreUuid,
+                true,
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), currentDataStream().getIndices().get(0).getName(), restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(), nullValue());
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for
+     * {@link org.elasticsearch.snapshots.ShardRestoringException}, so the {@code restoreOverExistingDataStreams} overload without the
+     * parameter never sets {@link RestoreInProgress.Entry#reportShardRestoring()} on the restore's entry, and the lookup reports nothing
+     * while the restore is in flight.
+     */
+    public void testRestoreOverExistingDataStreamDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    private ShardRestoringException reportableRestoreException() {
+        return reportableRestoreExceptionOnMaster(
+            state -> state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME).getIndices().get(0)
         );
     }
 

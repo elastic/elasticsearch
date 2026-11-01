@@ -247,6 +247,17 @@
           "type": "boolean",
           "description": "run this transform in unattended mode",
           "default": false
+        },
+        "indexer_request_timeout": {
+          "$id": "#root/settings/indexer_request_timeout",
+          "title": "indexer request timeout",
+          "type": "string",
+          "default": "30s",
+          "description": "Starting GetCheckpoint timeout. Doubles on consecutive failures up to 12h.",
+          "examples": [
+            "30s",
+            "12h"
+          ]
         }
       }
     },

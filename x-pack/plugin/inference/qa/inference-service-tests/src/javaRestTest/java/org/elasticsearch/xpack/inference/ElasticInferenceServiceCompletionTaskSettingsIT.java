@@ -7,22 +7,14 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -30,15 +22,11 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.deleteModel;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.putModel;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.updateEndpoint;
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -52,7 +40,7 @@ import static org.hamcrest.Matchers.is;
  *
  * <p>Note: {@code skip_validate_and_start} applies only to PUT, not to {@code _update}. Updating a
  * {@code chat_completion} endpoint always triggers a live {@code unifiedCompletionInfer} call to the mock,
- * so tests that update a {@code chat_completion} endpoint must pre-enqueue an {@link #SSE_RESPONSE}.
+ * so tests that update a {@code chat_completion} endpoint must enqueue a {@link #streamResponse} first.
  *
  * <p>Scenarios:
  * <ol>
@@ -70,7 +58,7 @@ import static org.hamcrest.Matchers.is;
  *   <li>UPDATE {@code completion} with reasoning → 400 (unknown settings).</li>
  * </ol>
  */
-public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestCase {
+public class ElasticInferenceServiceCompletionTaskSettingsIT extends BaseEisMockGatewayRestTest {
 
     private static final String SERVICE = "elastic";
     private static final String MODEL_ID = "eis-test-model";
@@ -79,44 +67,11 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
     private static final String EFFORT_HIGH = "high";
     private static final String SUMMARY_DETAILED = "detailed";
 
-    /**
-     * Minimal single-chunk SSE streaming response body. Content does not affect request-inspection
-     * assertions; it only needs to be a valid SSE stream so the {@link AsyncInferenceResponseConsumer}
-     * completes normally and the outgoing EIS request is captured by the mock.
-     */
-    private static final String SSE_RESPONSE = """
-        data: {\
-            "id":"1",\
-            "object":"completion",\
-            "created":1677858242,\
-            "model":"eis-test-model",\
-            "choices":[\
-                {\
-                    "finish_reason":"stop",\
-                    "index":0,\
-                    "delta":{\
-                        "role":"assistant",\
-                        "content":"Hello world!"\
-                    }\
-                }\
-            ]\
-        }
-
-        data: [DONE]
-
-        """;
-
     private static final MockElasticInferenceServiceAuthorizationServer mockEISServer =
         new MockElasticInferenceServiceAuthorizationServer();
 
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "false")
-        .setting(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), mockEISServer::getUrl)
+    private static final ElasticsearchCluster cluster = eisClusterBuilder(mockEISServer).setting("xpack.security.enabled", "false")
         .setting(ElasticInferenceServiceSettings.AUTHORIZATION_ENABLED.getKey(), "false")
-        .setting(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), "false")
         .setting("xpack.inference.skip_validate_and_start", "true")
         .build();
 
@@ -125,8 +80,8 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
     public static final TestRule ruleChain = RuleChain.outerRule(mockEISServer).around(cluster);
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     @SuppressWarnings("unchecked")
@@ -168,7 +123,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
         var inferenceId = "test-stored-reasoning-applied";
         try {
             putModel(inferenceId, chatCompletionConfig(EFFORT_MEDIUM, null), TaskType.CHAT_COMPLETION);
-            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(SSE_RESPONSE));
+            mockEISServer.getWebServer().enqueue(streamResponse(MODEL_ID));
 
             executeStreamRequest(inferenceId, XContentHelper.stripWhitespace("""
                 {
@@ -176,8 +131,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
                 }
                 """));
 
-            var capturedBody = mockEISServer.getWebServer().requests().getLast().getBody();
-            var requestMap = entityAsMap(new StringEntity(capturedBody, ContentType.APPLICATION_JSON));
+            var requestMap = lastRequestBody(mockEISServer);
             var reasoning = (Map<String, Object>) requestMap.get(UnifiedCompletionUtils.REASONING_FIELD);
             assertThat(reasoning.get(UnifiedCompletionUtils.EFFORT_FIELD), is(EFFORT_MEDIUM));
         } finally {
@@ -190,7 +144,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
         var inferenceId = "test-body-reasoning-wins";
         try {
             putModel(inferenceId, chatCompletionConfig(EFFORT_LOW, null), TaskType.CHAT_COMPLETION);
-            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(SSE_RESPONSE));
+            mockEISServer.getWebServer().enqueue(streamResponse(MODEL_ID));
 
             executeStreamRequest(inferenceId, XContentHelper.stripWhitespace(Strings.format("""
                 {
@@ -199,8 +153,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
                 }
                 """, EFFORT_HIGH)));
 
-            var capturedBody = mockEISServer.getWebServer().requests().getLast().getBody();
-            var requestMap = entityAsMap(new StringEntity(capturedBody, ContentType.APPLICATION_JSON));
+            var requestMap = lastRequestBody(mockEISServer);
             var reasoning = (Map<String, Object>) requestMap.get(UnifiedCompletionUtils.REASONING_FIELD);
             assertThat(reasoning.get(UnifiedCompletionUtils.EFFORT_FIELD), is(EFFORT_HIGH));
         } finally {
@@ -246,7 +199,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
             // mirrors testUpdateChatCompletionEndpoint_ClearsReasoning_WhenSetToNull.
             assertNull(initialEndpoint.get(ModelConfigurations.TASK_SETTINGS));
 
-            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(SSE_RESPONSE));
+            mockEISServer.getWebServer().enqueue(streamResponse(MODEL_ID));
             updateEndpoint(inferenceId, reasoningTaskSettingsUpdate(EFFORT_MEDIUM), TaskType.CHAT_COMPLETION);
 
             var updatedEndpoint = getModel(inferenceId);
@@ -269,7 +222,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
             var initialReasoning = (Map<String, Object>) initialTaskSettings.get(UnifiedCompletionUtils.REASONING_FIELD);
             assertThat(initialReasoning.get(UnifiedCompletionUtils.EFFORT_FIELD), is(EFFORT_MEDIUM));
 
-            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(SSE_RESPONSE));
+            mockEISServer.getWebServer().enqueue(streamResponse(MODEL_ID));
             updateEndpoint(inferenceId, clearReasoningTaskSettingsUpdate(), TaskType.CHAT_COMPLETION);
 
             var updatedEndpoint = getModel(inferenceId);
@@ -368,34 +321,5 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
               "task_settings": { "reasoning": null }
             }
             """);
-    }
-
-    /**
-     * Fires a {@code POST _inference/chat_completion/{inferenceId}/_stream} request asynchronously and
-     * blocks until the response is fully consumed. The purpose is to trigger the node to forward the
-     * outgoing request to the EIS mock; SSE events are not asserted.
-     */
-    private void executeStreamRequest(String inferenceId, String body) throws Exception {
-        var request = new Request("POST", "_inference/chat_completion/" + inferenceId + "/_stream");
-        request.setJsonEntity(body);
-
-        var responseConsumer = new AsyncInferenceResponseConsumer();
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
-        var latch = new CountDownLatch(1);
-        var failure = new AtomicReference<Exception>();
-        client().performRequestAsync(request, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                failure.set(exception);
-                latch.countDown();
-            }
-        });
-        assertTrue(latch.await(ESRestTestCase.TEST_REQUEST_TIMEOUT.getSeconds(), TimeUnit.SECONDS));
-        assertNull(failure.get());
     }
 }

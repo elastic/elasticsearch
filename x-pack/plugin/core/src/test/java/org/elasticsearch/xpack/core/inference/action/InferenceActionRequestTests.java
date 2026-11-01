@@ -15,6 +15,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
@@ -24,10 +26,12 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.SUPPORTED_INFERENCE_ACTION_TASK_TYPES;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -85,6 +89,17 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             InferenceContextTests.createRandom()
         );
         assertThat(request.getInferenceTimeout(), is(inferenceTimeout));
+    }
+
+    public void testTaskIsCancellable() {
+        var task = createTestInstance().createTask(
+            randomNonNegativeLong(),
+            "transport",
+            InferenceAction.NAME,
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        assertThat(task, instanceOf(CancellableTask.class));
     }
 
     public void testParsing() throws IOException {

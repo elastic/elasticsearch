@@ -53,19 +53,45 @@ public record IvfSegmentConfig(
      * quantization precision. The writer uses document-side parameters for indexing; the reader uses
      * {@code queryBitsPerDim} for scoring. Set {@code queryBitsPerDim} to 0 for the float scoring path.
      *
-     * <p>Use {@link #of(int, int, float)} to construct with validation, analogous to
+     * <p>Use {@link #of(int, int, float, int)} to construct with validation, analogous to
      * {@link QuantEncoding#fromDocAndQueryBits(byte, byte)} for OSQ.
      */
-    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int queryBitsPerDim, int trainingIterations, int trainingFactor)
-        implements
-            QuantConfig {
+    public record AshConfig(
+        float projectedDimsFraction,
+        int maxProjectedDims,
+        int bitsPerDim,
+        int queryBitsPerDim,
+        int trainingIterations,
+        int trainingFactor
+    ) implements QuantConfig {
         private static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
 
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
+        public static final int DEFAULT_MAX_PROJECTED_DIMS = 1024;
         public static final int DEFAULT_BITS_PER_DIM = 2;
         public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
-        public static final int DEFAULT_TRAINING_ITERATIONS = 5;
+        /**
+         * Procrustes iterations used to refine the rotation applied to the PCA subspace. With zero, the default, the
+         * rotation is a random orthogonal matrix and no projected training sample is needed; any positive value runs
+         * that many iterations on a projected training sample.
+         */
+        public static final int DEFAULT_TRAINING_ITERATIONS = 0;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /**
+         * Training-sample factor used on the flush path. Training streams the sample through a
+         * {@code originalDim x originalDim} second-moment matrix, so its memory no longer grows with the
+         * sample size and flush can use the same factor as merge.
+         */
+        public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 10;
+
+        /**
+         * Returns the training-sample factor to use when learning W at flush time. Merge uses
+         * {@link #trainingFactor()}.
+         */
+        public int flushTrainingFactor() {
+            return DEFAULT_FLUSH_TRAINING_FACTOR;
+        }
 
         /**
          * Returns {@code true} if the given bits-per-dimension value is supported for ASH document encoding.
@@ -92,9 +118,10 @@ public record IvfSegmentConfig(
          * @param bitsPerDim document encoding bits per projected dimension
          * @param queryBitsPerDim query quantization bits (0 for float scoring path)
          * @param projectedDimsFraction fraction of original dimensions to project to, in (0, 1]
+         * @param maxProjectedDims maximum projected dims to use
          * @throws IllegalArgumentException if any parameter is out of range
          */
-        public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction) {
+        public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction, int maxProjectedDims) {
             validateBitsPerDim(bitsPerDim);
             if (queryBitsPerDim < 0 || queryBitsPerDim > 8) {
                 throw new IllegalArgumentException(
@@ -104,13 +131,21 @@ public record IvfSegmentConfig(
             if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
                 throw new IllegalArgumentException("ASH projectedDimsFraction must be in (0, 1], got: " + projectedDimsFraction);
             }
-            return new AshConfig(projectedDimsFraction, bitsPerDim, queryBitsPerDim, DEFAULT_TRAINING_ITERATIONS, DEFAULT_TRAINING_FACTOR);
+            return new AshConfig(
+                projectedDimsFraction,
+                maxProjectedDims,
+                bitsPerDim,
+                queryBitsPerDim,
+                DEFAULT_TRAINING_ITERATIONS,
+                DEFAULT_TRAINING_FACTOR
+            );
         }
 
         /** Returns an AshConfig with all default values. */
         public static AshConfig defaults() {
             return new AshConfig(
                 DEFAULT_PROJECTED_DIMS_FRACTION,
+                DEFAULT_MAX_PROJECTED_DIMS,
                 DEFAULT_BITS_PER_DIM,
                 DEFAULT_QUERY_BITS_PER_DIM,
                 DEFAULT_TRAINING_ITERATIONS,

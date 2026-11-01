@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
@@ -327,7 +328,12 @@ public final class ESNextRescoreOversampleTestFixture {
                 IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(QuantEncoding.TWO_BIT_4BIT_QUERY), false, 3f)
             );
         };
-        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
+
+        // Use quality profile so that doc bits are uncapped
+        Codec codec = createDiskBbqCodec(
+            flushConfig,
+            IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY)
+        );
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
         writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 

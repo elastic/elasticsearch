@@ -25,6 +25,9 @@ $$$script-options$$$
 | `on_failure` | no | - | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
+:::{note}
+While custom code can run within {{es}}, troubleshooting its failures or optimizing its performance falls outside the of [scope of Elastic's support](https://www.elastic.co/support_policy#6).
+:::
 
 ## Access source fields [script-processor-access-source-fields]
 

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Allocation tracking for lambdas and method references (PR 8). The test context ({@link PainlessTestScript}) does not
@@ -147,6 +148,16 @@ public class AllocationLambdaTests extends AllocationTestCase {
                 + "AllocationEstimatorTestObject o = new AllocationEstimatorTestObject(); c(o::constantAllocating); return null;"
         );
         assertTrue("expected per-invocation bound instance-method-reference charges to be counted, but only [" + bytes + "]", bytes >= 96);
+    }
+
+    public void testBoundReferenceToTargetWithInjectedConstantCharged() {
+        // Pattern.split takes the injected regex limit factor; the charge must bind it before running the estimator.
+        String functions = "String[] split(Function f) { f.apply('a,b,c') } ";
+        long base = allocatedBytes(functions + "Pattern p = /,/; return 'x';");
+        long withSplit = allocatedBytes(functions + "Pattern p = /,/; split(p::split); return 'x';");
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b,c");
+
+        assertEquals(expected, withSplit - base);
     }
 
     public void testBoundReferenceToUnannotatedTargetCompletes() {

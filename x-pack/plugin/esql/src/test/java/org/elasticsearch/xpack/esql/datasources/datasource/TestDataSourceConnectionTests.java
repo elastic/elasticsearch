@@ -48,7 +48,7 @@ public class TestDataSourceConnectionTests extends ESTestCase {
 
     private DataSourceModule buildModule(DataSourcePlugin plugin) {
         List<DataSourcePlugin> plugins = List.of(plugin);
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         return new DataSourceModule(
             plugins,
             DataSourceCapabilities.build(plugins),

@@ -127,6 +127,38 @@ public class FallbackPostMapperTests extends ESTestCase {
         assertNull(FallbackPostMapper.resolvePrecaptureReason(fc));
     }
 
+    /**
+     * The columnar batch path decides what to leave to the row path with {@link FallbackPostMapper#capturesScalarValues} and
+     * {@link FallbackPostMapper#mayKeepArraySource} instead of building a {@code FieldContext}. Over every combination of inputs,
+     * whatever {@link FallbackPostMapper#resolvePrecaptureReason} captures, they must report as captured, so the two cannot drift.
+     */
+    public void testBatchPredicatesCoverEveryRowPathCapture() {
+        for (boolean syntheticFallback : new boolean[] { false, true }) {
+            for (Mapper.SourceKeepMode mode : Mapper.SourceKeepMode.values()) {
+                for (boolean inArrayScope : new boolean[] { false, true }) {
+                    for (boolean parsesArrayValue : new boolean[] { false, true }) {
+                        var fc = ctx().syntheticFallback(syntheticFallback)
+                            .sourceKeepMode(mode)
+                            .inArrayScope(inArrayScope)
+                            .parsesArrayValue(parsesArrayValue)
+                            .build();
+                        String description = fc.toString();
+                        FallbackPostMapper.Reason reason = FallbackPostMapper.resolvePrecaptureReason(fc);
+                        if (reason != null && inArrayScope == false) {
+                            assertTrue(description, FallbackPostMapper.capturesScalarValues(syntheticFallback, mode));
+                        }
+                        if (reason != null) {
+                            assertTrue(description, FallbackPostMapper.mayKeepArraySource(syntheticFallback, mode));
+                        }
+                        if (FallbackPostMapper.capturesScalarValues(syntheticFallback, mode)) {
+                            assertNotNull(description, reason);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private static Builder ctx() {
         return new Builder();
     }

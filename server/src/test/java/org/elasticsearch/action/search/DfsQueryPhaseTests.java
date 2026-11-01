@@ -15,7 +15,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -131,7 +130,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -214,7 +213,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -299,7 +298,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -397,7 +396,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),

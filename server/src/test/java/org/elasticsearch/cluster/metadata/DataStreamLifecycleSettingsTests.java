@@ -10,10 +10,15 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -32,6 +37,8 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
             dataStreamLifecycleSettings.getGlobalRetention(true),
             equalTo(DataStreamGlobalRetention.create(TimeValue.timeValueDays(30), null))
         );
+        // The setting is registered by the ILM plugin; without it the minimum lifecycle cannot be enabled.
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
     }
 
     public void testMonitorsDefaultRetention() {
@@ -182,5 +189,67 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
             dataStreamLifecycleSettings.getGlobalRetention(true),
             equalTo(DataStreamGlobalRetention.create(null, TimeValue.timeValueDays(30)))
         );
+    }
+
+    public void testMinimumLifecycleForTimeSeriesRespectiveToDlmOnly() {
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(),
+            Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, true).build()
+        );
+        // In DLM only mode all data streams have an initial lifecycle, there is no need for this flag.
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+
+        dataStreamLifecycleSettings = createWithMinimumLifecycleSetting(
+            Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false).build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+
+        // Even if the setting is registered and set, it is ignored in DLM only mode.
+        dataStreamLifecycleSettings = createWithMinimumLifecycleSetting(
+            Settings.builder()
+                .put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, true)
+                .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true)
+                .build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+    }
+
+    public void testMinimumLifecycleIsDisabledWhenSettingIsNotRegistered() {
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true).build()
+            )
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+    }
+
+    public void testMinimumLifecycleForTimeSeriesSettingMonitored() {
+        // Simulate ILM being loaded: register the setting in ClusterSettings.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
+
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+
+        // Dynamically disable.
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, false).build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+
+        // Dynamically re-enable.
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true).build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+    }
+
+    static DataStreamLifecycleSettings createWithMinimumLifecycleSetting(Settings nodeSettings) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        return DataStreamLifecycleSettings.create(new ClusterSettings(nodeSettings, settingsSet), nodeSettings);
     }
 }

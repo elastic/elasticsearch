@@ -545,3 +545,8 @@ tests:
   - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=esql/46_downsample/Sort from multiple indices one with aggregate metric double}
   issue: https://github.com/elastic/elasticsearch/issues/164215
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/164232

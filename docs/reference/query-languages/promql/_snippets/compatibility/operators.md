@@ -83,7 +83,9 @@ An `or` chain takes at most 8 operands by default.
 
 **Supported**
 
-One-to-one, many-to-one, and one-to-many matching between operands aggregated with `by(...)`, including `on`, `ignoring`, `group_left`, and `group_right`.
+Arithmetic between unaggregated metrics stored together in the same time series, such as `network.bytes_in / network.connections`, without explicit vector matching modifiers.
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` One-to-one, many-to-one, and one-to-many matching between operands aggregated with `by(...)`, including `on`, `ignoring`, `group_left`, and `group_right`.
 For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 **Not supported yet**
@@ -93,7 +95,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 23 | Two metrics that aren't aggregated {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `a / b` | Aggregate both by the labels to match on: `sum by (instance) (a) / sum by (instance) (b)` | [#158184]({{es-issue}}158184) |
+| 23 | Different unaggregated metrics stored as separate series with a `__name__` dimension {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `a / b` | Aggregate both by the labels to match on: `sum by (instance) (a) / sum by (instance) (b)` | [#158184]({{es-issue}}158184) |
 | 24 | `on`, `ignoring`, `group_left`, or `group_right` with an operand that isn't aggregated | `a / on(instance) b`, `a * on(pod) group_left(node) b` | Aggregate both operands by the labels to match on | [#157669]({{es-issue}}157669) |
 | 25 | Operands aggregated differently {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `sum(a) / b`, `b / scalar(sum(a))`, `topk(2, a) * b` | Aggregate both operands alike: `sum(a) / sum(b)`. A number, such as `sum(a) * 2`, and `or` are supported | [#158184]({{es-issue}}158184) |
 | 26 | Nested aggregation next to an operand that reads a metric {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `count(count by (pod) (a)) / sum(b)` | - | [#158184]({{es-issue}}158184) |

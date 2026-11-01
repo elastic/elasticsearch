@@ -1,0 +1,14 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "@timestamp": { "type": "date" },
+        "attributes": { "type": "flattened" },
+        "meta": {
+            "properties": {
+                "labels": { "type": "flattened" }
+            }
+        },
+        "notes": { "type": "flattened" }
+    }
+}

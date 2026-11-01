@@ -153,6 +153,28 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * An all-pruned listing is one inference-anchor file. The next unfiltered query on the same coordinator
+     * must list every file, not reuse the hinted one-file cache entry.
+     */
+    public void testAllPrunedThenUnfilteredSeesEveryFile() throws Exception {
+        for (TextFormat format : TextFormat.values()) {
+            Path root = createTempDir().resolve("allpruned_" + format.tag);
+            writePartition(root.resolve("year=2024"), format, List.of(new String[] { "1", "alpha" }, new String[] { "2", "beta" }));
+            writePartition(root.resolve("year=2025"), format, List.of(new String[] { "3", "gamma" }, new String[] { "4", "delta" }));
+            writePartition(root.resolve("year=2026"), format, List.of(new String[] { "5", "epsilon" }, new String[] { "6", "zeta" }));
+
+            String dataset = registerHivePartitioned("allpruned_" + format.tag, root, "year", format);
+            String coordinator = internalCluster().getNodeNames()[0];
+
+            long zero = count(coordinator, "FROM " + dataset + " | WHERE year == 2099 | STATS c = COUNT(*)");
+            assertEquals("[" + format + "] zero-match filter returns no rows", 0L, zero);
+
+            long unfiltered = count(coordinator, "FROM " + dataset + " | STATS c = COUNT(*)");
+            assertEquals("[" + format + "] the unfiltered query must count every row, not the cached anchor", 6L, unfiltered);
+        }
+    }
+
+    /**
      * The trap the fallback exists to avoid: {@code rewriteSegment} spells the value with {@code String.valueOf}, so
      * {@code WHERE month == 6} narrows the glob to {@code month=6} — but the folder on disk is the zero-padded
      * {@code month=06}. The rewritten glob matches nothing; without the fallback that is an error (or, if naively

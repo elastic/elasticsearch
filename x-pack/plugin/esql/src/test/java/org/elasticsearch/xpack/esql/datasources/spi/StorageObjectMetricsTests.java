@@ -94,6 +94,28 @@ public class StorageObjectMetricsTests extends ESTestCase {
         assertEquals(expectedRetries, snap.retryCount());
     }
 
+    public void testAddBytesAndPublishStreamBytesDoNotMintRequests() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.addRequest(123L, 0L);
+        counters.addBytes(256L);
+        counters.addBytes(256L);
+        counters.addBytes(0L);
+        counters.publishStreamBytes(512L);
+
+        StorageObjectMetrics snap = counters.snapshot();
+        assertEquals(1L, snap.requestCount());
+        assertEquals(123L, snap.requestNanos());
+        assertEquals(512L, snap.bytesRead());
+        assertEquals(0L, snap.retryCount());
+    }
+
+    public void testAddBytesIgnoresNonPositive() {
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.addBytes(0L);
+        counters.addBytes(-8L);
+        assertTrue(counters.snapshot().isZero());
+    }
+
     public void testStorageObjectDefaultsToZero() {
         StorageObject obj = new MinimalStorageObject();
         assertSame(StorageObjectMetrics.ZERO, obj.metrics());

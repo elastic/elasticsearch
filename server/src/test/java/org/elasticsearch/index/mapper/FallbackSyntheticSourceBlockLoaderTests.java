@@ -9,26 +9,35 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for {@link FallbackSyntheticSourceBlockLoader}'s row stride reader. When {@code _ignored_source} is stored in binary doc values
- * the reader holds a forward-only doc values iterator, so it must report that it can't be reused for an earlier document.
+ * the reader holds a forward-only doc values iterator, so it must report that it can't be reused for an earlier document, and it has to
+ * account for the block buffer of that iterator on the circuit breaker.
  */
 public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCase {
 
@@ -67,6 +76,120 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
                 assertFalse("must not be reused for a doc in an earlier block", reader.canReuse(10));
             }
         });
+    }
+
+    /**
+     * Besides the flat estimate, the reader accounts for the bound the doc values report for their private block buffer, which can be
+     * as large as the segment's largest block, and gives all of it back on close. Without this, a query that reads many fields holds
+     * one such buffer per field while the breaker only sees the flat estimate.
+     */
+    public void testAccountsForTheBlockBufferBoundAndReleasesItOnClose() throws IOException {
+        withIndex(1000, 2048, (mapperService, ctx) -> {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(4));
+            BlockLoader loader = loader(mapperService);
+            var docValues = ctx.reader().getBinaryDocValues(IgnoredSourceFieldMapper.NAME);
+            assertThat(
+                "the doc values must reach the TSDB reader for the bound to be known",
+                docValues,
+                instanceOf(BlockLoader.OptionalDecodeMemoryUsageEstimator.class)
+            );
+            long bound = ((BlockLoader.OptionalDecodeMemoryUsageEstimator) docValues).maxDecodeBytes();
+            assertThat("a block holds at least one value", bound, greaterThan(2048L));
+
+            try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, ctx)) {
+                assertThat(breaker.getUsed(), equalTo(BlockSourceReader.ESTIMATED_SIZE + bound));
+                readDoc(loader, reader, storedFields(mapperService, ctx, loader), 10);
+            }
+            assertThat(breaker.getUsed(), equalTo(0L));
+        });
+    }
+
+    /**
+     * A reader that has already opened its doc values is built even if the block bound it then accounts for does not fit in the breaker, so
+     * the breaker ends up over its limit and the next reader fails while accounting for its own flat estimate with
+     * a {@link CircuitBreakingException}, before any block is decompressed. A query that reads many fields therefore stops after the
+     * first reader that goes over, and everything accounted for is given back on close.
+     */
+    public void testCircuitBreaksTheNextReaderWhenTheBlockBufferBoundExceedsTheBreaker() throws IOException {
+        // Each value is 2MB, so the segment's largest block cannot fit in a 1MB breaker.
+        long limit = ByteSizeValue.ofMb(1).getBytes();
+        withIndex(2, 2 * 1024 * 1024, (mapperService, ctx) -> {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
+            BlockLoader loader = loader(mapperService);
+            try (BlockLoader.RowStrideReader first = loader.rowStrideReader(breaker, ctx)) {
+                assertThat("the bound is accounted for without breaking", breaker.getUsed(), greaterThan(limit));
+                expectThrows(CircuitBreakingException.class, () -> loader.rowStrideReader(breaker, ctx));
+            }
+            assertThat(breaker.getUsed(), equalTo(0L));
+        });
+    }
+
+    /**
+     * The reader accounts for its flat estimate before it opens the doc values, so a failure to open them must give it back:
+     * the constructor never returns, so {@code close} is never called.
+     */
+    public void testReleasesWhatWasAccountedForWhenOpeningTheDocValuesFails() throws IOException {
+        withIndex(3, (mapperService, ctx) -> {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            BlockLoader loader = loader(mapperService);
+            LeafReader failing = new FilterLeafReader(ctx.reader()) {
+                @Override
+                public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+                    throw new IOException("simulated failure to open the doc values");
+                }
+
+                @Override
+                public CacheHelper getCoreCacheHelper() {
+                    return in.getCoreCacheHelper();
+                }
+
+                @Override
+                public CacheHelper getReaderCacheHelper() {
+                    return in.getReaderCacheHelper();
+                }
+            };
+            expectThrows(IOException.class, () -> loader.rowStrideReader(breaker, failing.getContext()));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        });
+    }
+
+    public void testObjectAndDottedNameInParentKeptInIgnoredSource() throws IOException {
+        var params = new BlockLoaderTestCase.Params(
+            IndexMode.STANDARD,
+            SourceFieldMapper.Mode.SYNTHETIC,
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        var mapping = mapping(b -> {
+            b.startObject("obj").field("type", "object").field("synthetic_source_keep", "all");
+            {
+                b.startObject("properties");
+                b.startObject("sub").field("type", "object");
+                {
+                    b.startObject("properties");
+                    b.startObject("field").field("type", "keyword").field("doc_values", false).endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+        });
+        var settings = BlockLoaderTestCase.getSettingsForParams(params)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), randomBoolean());
+        MapperService mapperService = createMapperService(settings.build(), mapping);
+
+        var runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        runner.mapperService(mapperService);
+        runner.document(mapperService.documentMapper().parse(source("""
+            {
+              "obj": {
+                "sub": { "field": "a", "fielx": "x" },
+                "other": "y",
+                "sub.field": "b"
+              }
+            }""")));
+        runner.fieldName("obj.sub.field");
+        runner.run(List.of(new BytesRef("a"), new BytesRef("b")));
     }
 
     private BlockLoader loader(MapperService mapperService) {
@@ -124,7 +247,7 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
             getVersion(),
             settings,
             () -> true,
-            mapping(b -> b.startObject("field").field("type", "keyword").field("doc_values", false).endObject())
+            mapping(b -> b.startObject("field").field("type", "keyword").field("doc_values", false).field("index", false).endObject())
         );
         withLuceneIndex(mapperService, writer -> {
             for (int i = 0; i < numDocs; i++) {

@@ -58,6 +58,17 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         Setting.Property.NodeScope
     );
 
+    /**
+     * The number of most recent segments whose {@code _id} terms the relocation target prewarms. {@code 0} disables the prewarming.
+     */
+    public static final Setting<Integer> ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING = Setting.intSetting(
+        "stateless.cluster.primary_relocation.id_lookup_prewarm_max_segments",
+        5,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;

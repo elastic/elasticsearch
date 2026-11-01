@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -28,6 +29,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -45,9 +47,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToF
  * <p>The bug: {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} built
  * all three cache keys from the raw config map. For dataset queries, connection settings
  * (endpoint, region) and credentials live in a {@code _datasource} sub-map, not at the top
- * level. {@link org.elasticsearch.xpack.esql.datasources.cache.EndpointRegion} and
- * {@link org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey#computeCredentialHash}
- * both scan only top-level keys, so every dataset query produced {@code endpoint=""} and
+ * level. The key builders scanned only top-level keys, so every dataset query produced no endpoint and
  * {@code credentialHash=0} — all datasets shared one cache partition.
  *
  * <p>The fix: all cache-key build sites in {@code ExternalSourceResolver} now call
@@ -95,7 +95,12 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
     static DataSourcesS3HttpFixture fixtureA = new DataSourcesS3HttpFixture();
     static DataSourcesS3HttpFixture fixtureB = new DataSourcesS3HttpFixture();
 
-    private static final ElasticsearchCluster cluster = ExternalDistributedClusters.testCluster(() -> fixtureA.getAddress());
+    // DEBUG on the cache service so that, should the cold-scan assertion fail again, the node logs captured with the test
+    // output show whether "refusing to enrich" fired.
+    private static final ElasticsearchCluster cluster = ExternalDistributedClusters.testCluster(
+        () -> fixtureA.getAddress(),
+        spec -> spec.setting("logger." + ExternalSourceCacheService.class.getName(), "DEBUG")
+    );
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule((base, description) -> new org.junit.runners.model.Statement() {
@@ -109,13 +114,18 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        // The warm-stats cache is coordinator-local, so a client given every address decides warmth by which
+        // node served which earlier query. Pinned as ExternalCsvMultiNodePushdownIT does.
+        return cluster.getHttpAddress(0);
     }
 
     @BeforeClass
     public static void uploadFiles() {
-        addBlobToFixture(fixtureA.getHandler(), FILE_KEY, ndjson(ROWS_A));
-        addBlobToFixture(fixtureB.getHandler(), FILE_KEY, ndjson(ROWS_B));
+        // One mtime for A and B: the cold-scan assertion needs a harvest to match both entries, and separate timestamps
+        // could straddle a second boundary, which is the granularity the HEAD this test resolves through reports.
+        Instant uploaded = Instant.now();
+        addBlobToFixture(fixtureA.getHandler(), FILE_KEY, ndjson(ROWS_A), uploaded);
+        addBlobToFixture(fixtureB.getHandler(), FILE_KEY, ndjson(ROWS_B), uploaded);
         addBlobToFixture(fixtureA.getHandler(), FILE_KEY_2, ndjson(ROWS_FILE_2));
         addBlobToFixture(fixtureA.getHandler(), FILE_KEY_3, ndjson(ROWS_FILE_3));
     }
@@ -196,7 +206,8 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
         // external_warm_aggregates > 0 means the COUNT(*) was served from the schema-cache stats
         // without re-scanning S3. Only after this signal can we be sure that dataset B returning 7
         // reflects cache isolation rather than a cold scan that produced the correct answer by chance.
-        // Stripe reconciliation is async, so retry until warm or the 30 s deadline passes.
+        // Reconcile runs inline before the response on this rail, so this should pass first try; the retry guards
+        // a regression where it stops landing before the response.
         String warmQuery = "FROM " + DATASET_A + " | STATS count = COUNT(*)";
         assertBusy(() -> assertCoordinatorWarm(warmQuery), 30, TimeUnit.SECONDS);
 
@@ -210,6 +221,22 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
             ROWS_B,
             countB
         );
+
+        // B's harvest matches A's entry too: one bucket and key, so the same path and format config, and the same
+        // mtime because uploadFiles gives both blobs one. A contribution does not say which store it came from, so
+        // under the current refusal the enrichment path drops it rather than write B's count into A's record. B
+        // therefore cannot warm, and waiting for it waits for the harvest that refusal drops.
+        assertColdScan("FROM " + DATASET_B + " | STATS count = COUNT(*)");
+        long countAAgain = count("FROM " + DATASET_A + " | STATS count = COUNT(*)");
+        assertEquals(
+            "Dataset A re-queried after B must still report its own row count; "
+                + ROWS_B
+                + " means B's harvest was enriched into A's cache entry",
+            ROWS_A,
+            countAAgain
+        );
+        // The refusal drops B's contribution and leaves A's entry alone, so A is still served warm.
+        assertCoordinatorWarm("FROM " + DATASET_A + " | STATS count = COUNT(*)");
     }
 
     /**
@@ -289,6 +316,30 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
             warmAggregates
         );
         assertTrue("Expected external_warm_aggregates > 0 but got " + warmAggregates, warmAggregates.intValue() > 0);
+    }
+
+    /**
+     * Asserts the coordinator scanned {@code query} instead of serving it warm. The scan signal carries half the
+     * assertion: an absent warm field on its own would also hold if nothing warmed anywhere.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertColdScan(String query) throws IOException {
+        Settings pragmas = Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build();
+        RestEsqlTestCase.RequestObjectBuilder req = new RestEsqlTestCase.RequestObjectBuilder().query(query)
+            .pragmasOk()
+            .pragmas(pragmas)
+            .profile(true);
+        Map<String, Object> result = RestEsqlTestCase.runEsqlSync(req, new AssertWarnings.NoWarnings(), null);
+        Map<String, Object> profile = (Map<String, Object>) result.get("profile");
+        assertNotNull("Expected a profile in the response", profile);
+        // The field is emitted only when the count is positive, so absence is the whole negative.
+        assertNull(
+            "Expected no warm short-circuit for a dataset whose harvest cannot be attributed; profile=" + profile,
+            profile.get("external_warm_aggregates")
+        );
+        Number splits = (Number) profile.get("splits_scanned");
+        assertNotNull("Expected splits_scanned in the profile: the query must have scanned", splits);
+        assertTrue("Expected at least one split scanned, got " + splits, splits.intValue() > 0);
     }
 
     private static byte[] ndjson(int rows) {

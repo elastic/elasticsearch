@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 161519
+summary: Speed up ES|QL scans of dense doc id ranges by collecting them in bulk
+type: enhancement

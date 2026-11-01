@@ -10,6 +10,7 @@
 package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -26,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -774,7 +776,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.indices.IndicesRequestCache:DEBUG",
-        reason = "asserts that the inherited cancellation was actually retried"
+        reason = "counts the reloads so that a failure says which recovery path the waiters took"
     )
     public void testWaitingThreadsDoNotInheritLoaderCancellation() throws Exception {
         final int threads = 8;
@@ -794,75 +796,82 @@ public class IndicesRequestCacheTests extends ESTestCase {
             keyPerRound.add(XContentHelper.toXContent(new TermQueryBuilder("id", "round-" + round), XContentType.JSON, false));
         }
 
-        try {
-            // a waiter only reaches the retry when it loses the put-if-absent race, so pin that the path was really taken
-            MockLog.assertThatLogger(() -> {
-                for (int round = 0; round < rounds; round++) {
-                    BytesReference termBytes = keyPerRound.get(round);
+        // a waiter recovers either by reloading, which logs, or, once Cache#computeIfAbsent has dropped the failed future from the
+        // segment map, through an ordinary cache miss, which does not. Both are correct, so count the reloads but never assert on them.
+        ReloadCount reloads = new ReloadCount();
+        try (MockLog mockLog = MockLog.capture(IndicesRequestCache.class)) {
+            mockLog.addExpectation(reloads);
+            for (int round = 0; round < rounds; round++) {
+                BytesReference termBytes = keyPerRound.get(round);
+                int reloadsBeforeRound = reloads.count();
 
-                    // released once every thread but the computing one is parked on the in-flight computation
-                    CountDownLatch waitersParked = new CountDownLatch(threads - 1);
-                    AtomicReference<Thread> cancelledThread = new AtomicReference<>();
-                    List<Throwable> failures = new ArrayList<>();
-                    List<String> values = new ArrayList<>();
-                    AtomicInteger loads = new AtomicInteger();
+                // released once every thread but the computing one is parked on the in-flight computation
+                CountDownLatch waitersParked = new CountDownLatch(threads - 1);
+                AtomicReference<Thread> cancelledThread = new AtomicReference<>();
+                List<Throwable> failures = new ArrayList<>();
+                List<String> values = new ArrayList<>();
+                AtomicInteger loads = new AtomicInteger();
 
-                    CheckedSupplier<BytesReference, IOException> loader = () -> {
-                        loads.incrementAndGet();
-                        if (cancelledThread.compareAndSet(null, Thread.currentThread())) {
-                            safeAwait(waitersParked);
-                            throw new TaskCancelledException("task cancelled [http channel [some other client] closed]");
-                        }
-                        try (BytesStreamOutput out = new BytesStreamOutput()) {
-                            out.writeString("computed_value");
-                            return out.bytes();
-                        }
-                    };
-
-                    startInParallel(threads, i -> {
-                        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
-                        try {
-                            // the callback is registered where this thread starts waiting on another thread's computation
-                            BytesReference value = cache.getOrCompute(
-                                entity,
-                                loader,
-                                mappingKey,
-                                reader,
-                                termBytes,
-                                callback -> waitersParked.countDown()
-                            );
-                            synchronized (values) {
-                                values.add(value.streamInput().readString());
-                            }
-                        } catch (Exception e) {
-                            if (Thread.currentThread() != cancelledThread.get()) {
-                                synchronized (failures) {
-                                    failures.add(e);
-                                }
-                            }
-                        }
-                    });
-
-                    assertNotNull("one thread must have computed the entry", cancelledThread.get());
-                    for (Throwable failure : failures) {
-                        fail("a thread which was never cancelled failed with " + ExceptionsHelper.stackTrace(failure));
+                CheckedSupplier<BytesReference, IOException> loader = () -> {
+                    loads.incrementAndGet();
+                    if (cancelledThread.compareAndSet(null, Thread.currentThread())) {
+                        safeAwait(waitersParked);
+                        throw new TaskCancelledException("task cancelled [http channel [some other client] closed]");
                     }
-                    assertThat(values, hasSize(threads - 1));
-                    assertThat(values, everyItem(equalTo("computed_value")));
-                    // the cancelled load plus the single reload the waiters share, except that a waiter which inherits a
-                    // cancellation on every attempt stops retrying and loads for itself, one extra load at most per waiter
-                    assertThat("the waiters must share a reload rather than each recomputing", loads.get(), greaterThanOrEqualTo(2));
-                    assertThat("no request may load more than once", loads.get(), lessThanOrEqualTo(threads));
+                    try (BytesStreamOutput out = new BytesStreamOutput()) {
+                        out.writeString("computed_value");
+                        return out.bytes();
+                    }
+                };
+
+                startInParallel(threads, i -> {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    try {
+                        // the callback is registered where this thread starts waiting on another thread's computation
+                        BytesReference value = cache.getOrCompute(
+                            entity,
+                            loader,
+                            mappingKey,
+                            reader,
+                            termBytes,
+                            callback -> waitersParked.countDown()
+                        );
+                        synchronized (values) {
+                            values.add(value.streamInput().readString());
+                        }
+                    } catch (Exception e) {
+                        if (Thread.currentThread() != cancelledThread.get()) {
+                            synchronized (failures) {
+                                failures.add(e);
+                            }
+                        }
+                    }
+                });
+
+                // thread scheduling decides how the waiters recovered, so report it with every failure
+                String state = Strings.format(
+                    "round [%d] of [%d] with [%d] threads: loads [%d], reloads logged [%d] in this round and [%d] so far, values %s",
+                    round,
+                    rounds,
+                    threads,
+                    loads.get(),
+                    reloads.count() - reloadsBeforeRound,
+                    reloads.count(),
+                    values
+                );
+
+                assertNotNull("one thread must have computed the entry, " + state, cancelledThread.get());
+                for (Throwable failure : failures) {
+                    fail("a thread which was never cancelled failed, " + state + ", with " + ExceptionsHelper.stackTrace(failure));
                 }
-            },
-                IndicesRequestCache.class,
-                new MockLog.SeenEventExpectation(
-                    "inherited cancellation retried",
-                    IndicesRequestCache.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "reloading request cache entry for * the computation it waited on was cancelled by another request"
-                )
-            );
+                assertThat("every waiter must be given a value, " + state, values, hasSize(threads - 1));
+                assertThat("every waiter must be given the computed value, " + state, values, everyItem(equalTo("computed_value")));
+                // the cancelled load, plus a reload for the waiters. A waiter given a cancellation on every attempt stops retrying
+                // and loads for itself, which is common on a busy host, so allow the one extra load per waiter that costs.
+                assertThat("the cancelled load must be followed by a reload, " + state, loads.get(), greaterThanOrEqualTo(2));
+                assertThat("no request may load more than once, " + state, loads.get(), lessThanOrEqualTo(threads));
+            }
+            mockLog.assertAllExpectationsMatched();
         } finally {
             IOUtils.close(reader, writer, dir, cache);
         }
@@ -1006,6 +1015,34 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public long ramBytesUsed() {
             return 42;
+        }
+    }
+
+    /**
+     * Counts the reloads {@link IndicesRequestCache} logs when a waiter inherits another request's cancellation.
+     */
+    private static class ReloadCount implements MockLog.LoggingExpectation {
+
+        private static final String RELOAD_MESSAGE_PREFIX = "reloading request cache entry for ";
+
+        private final AtomicInteger reloads = new AtomicInteger();
+
+        @Override
+        public void match(LogEvent event) {
+            if (Level.DEBUG.equals(event.getLevel())
+                && event.getLoggerName().equals(IndicesRequestCache.class.getCanonicalName())
+                && event.getMessage().getFormattedMessage().startsWith(RELOAD_MESSAGE_PREFIX)) {
+                reloads.incrementAndGet();
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            // nothing to assert, any number of reloads is correct
+        }
+
+        int count() {
+            return reloads.get();
         }
     }
 }

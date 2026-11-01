@@ -7,13 +7,11 @@ Please refer to the javadocs provided in these classes in that package for more 
 The entry point for working with metrics is `MeterRegistry`.
 
 ## Implementation
-We use elastic's apm-java-agent as an implementation of the API we expose.
+We use the OpenTelemetry SDK as an implementation of the API we expose.
 the implementation can be found in `:modules:apm`
-The apm-java-agent is responsible for buffering metrics and upon metrics_interval
-send them over to apm server.
-Metrics_interval is configured via a `telemetry.agent.metrics_interval` setting
-The agent also collects a number of JVM metrics.
-see https://www.elastic.co/guide/en/apm/agent/java/current/metrics.html#metrics-jvm
+The SDK buffers metrics and upon `telemetry.export.interval`
+sends them over to apm server.
+`SystemMetrics` also collects a number of JVM metrics.
 
 
 ## How to choose an instrument
@@ -107,25 +105,23 @@ This works because the default boundaries go down to fractions, with good resolu
 ### Local mock APM server
 
 The quickest way to verify that your metrics are working is to run `./gradlew run --with-apm-server`.
-This will run an ES node (or nodes in serverless) and also start a mock APM server that logs all messages it receives from apm-agent.
+This will run an ES node (or nodes in serverless) and also start a mock APM server that logs all messages it receives.
 
-To verify specific metrics or transactions, you can filter the output using one or several of the options below. Each of these takes a comma-separated list of wildcard expressions.
-- `-apm-metrics`
-- `-apm-transactions`
-- `-apm-transactions-excludes`
+To verify specific metrics, you can filter the output with `--apm-metrics`, which takes a comma-separated list of wildcard expressions.
 
 For example:
 ```
-./gradlew run -Dtests.es.logger.level=WARN --with-apm-server --apm-metric="es.rest.requests.total", --apm-transactions="cluster:monitor/*" --apm-transactions-excludes="cluster:monitor/xpack/*"```
+./gradlew run -Dtests.es.logger.level=WARN --with-apm-server --apm-metrics="es.rest.requests.total"
 ```
 
 ### With APM server in cloud
 You can also run local ES node with an apm server in cloud.
-Create a new deployment in cloud, then click the 'hamburger' on the left, scroll to Observability and click APM under it.
-At the upper right corner there is `Add data` link, then scroll down to `ApmAgents` section and pick Java
-There you should be able to see `elastic.apm.secret_token` and `elastic.apm.server_url. You will use them in the next step.
+Create a new deployment in cloud, then copy the APM endpoint from the deployment's Integrations Server page.
+The secret token is shown at the end of provisioning. You can also find it in Kibana under Fleet > Agent policies,
+in the Elastic APM integration settings under Agent authorization.
+You will use them in the next step
 
-edit your `~/.gradle/init.d/apm.gradle` and replace the secret_token and the server_url.
+edit your `~/.gradle/init.d/apm.gradle` and replace the secret_token and the endpoint.
 ```groovy
 rootProject {
     if (project.name == 'elasticsearch' && Boolean.getBoolean('metrics.enabled')) {
@@ -134,7 +130,7 @@ rootProject {
                 setting 'xpack.security.audit.enabled', 'true'
                 keystore 'telemetry.secret_token', 'TODO-REPLACE'
                 setting 'telemetry.metrics.enabled', 'true'
-                setting 'telemetry.agent.server_url', 'https://TODO-REPLACE-URL.apm.eastus2.staging.azure.foundit.no:443'
+                setting 'telemetry.export.endpoint', 'https://TODO-REPLACE-URL.apm.eastus2.staging.azure.foundit.no:443'
             }
         }
     }
@@ -144,7 +140,7 @@ rootProject {
 If you would like to add tracing add following settings to the above configuration:
 ```groovy
 setting 'telemetry.tracing.enabled', 'true'
-setting 'telemetry.agent.transaction_sample_rate', '1.0' //ensure every transaction is sampled
+setting 'telemetry.tracing.sample_rate', '1.0' //ensure every trace is sampled
 ```
 
 The example use:
@@ -153,12 +149,8 @@ The example use:
 ```
 
 #### Logging
-with any approach you took to run your ES with APM you will find apm-agent.json file
-in ES's logs directory. If there are any problems with connecting to APM you will see WARN/ERROR messages.
-We run apm-agent with logs at WARN level, so normally you should not see any logs there.
-
-When running ES in cloud, logs are being also indexed in a logging cluster, so you will be able to find them
-in kibana. The `datastream.dataset` is `elasticsearch.apm_agent`
+Export errors returned by the endpoint, such as authentication failures, are logged in the ES log.
+An unreachable endpoint is not logged, so if no data arrives, check the endpoint URL.
 
 
 ### Testing

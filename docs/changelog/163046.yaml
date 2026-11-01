@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 163046
+summary: Bump bundled JDK to 27.0.1.0.2 to address CVE-2026-91403 (compromised eMudhra intermediate CAs)
+type: upgrade

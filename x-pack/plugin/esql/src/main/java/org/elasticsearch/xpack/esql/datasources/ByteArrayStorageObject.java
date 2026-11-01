@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -54,6 +55,10 @@ final class ByteArrayStorageObject implements StorageObject {
         this.length = length;
         this.lastModified = lastModified;
     }
+
+    /** In-memory bytes produce no storage I/O, so there are no counters to attach. */
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
     @Override
     public InputStream newStream() {

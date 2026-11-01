@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 157745
+pr: 157746
+summary: Honor `GetCheckpoint` timeout on node transport requests and add `settings.indexer_request_timeout`
+type: bug

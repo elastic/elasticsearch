@@ -9,7 +9,7 @@ lexer grammar Lookup;
 //
 // LOOKUP ON key
 //
-DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_MODE);
+DEV_LOOKUP :      'lookup_🐔' {this.isDevVersion()}?      -> pushMode(LOOKUP_MODE);
 
 mode LOOKUP_MODE;
 LOOKUP_PIPE : PIPE -> type(PIPE), popMode;

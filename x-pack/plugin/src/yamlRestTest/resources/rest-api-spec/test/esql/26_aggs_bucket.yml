@@ -302,6 +302,22 @@
       reason: "BUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
+      indices.create:
+        index: test_dates
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+  - do:
+      indices.create:
+        index: test_numbers
+        body:
+          mappings:
+            properties:
+              number:
+                type: long
+  - do:
       bulk:
         refresh: true
         body:
@@ -434,6 +450,14 @@
       reason: "BUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
+      indices.create:
+        index: test_dates
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+  - do:
       bulk:
         refresh: true
         body:
@@ -467,6 +491,14 @@
           capabilities: [column_metadata_bucket_v2, approximation_v7]
       reason: "BUCKET metadata gated behind SET column_metadata=true; approximation exposes its own metadata. Both must coexist."
 
+  - do:
+      indices.create:
+        index: test_dates
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
   - do:
       bulk:
         refresh: true

@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
-      reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] everywhere expands into no column"
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
+      reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] contributes nothing to the _unmapped_fields object"
 
   # dynamic:false keeps every field but id unmapped no matter what the documents write to it, so those are only ever discoverable
   # by reading _source on the data node - which is the path this test is about.
@@ -223,17 +223,24 @@ setup:
           - { "id": "5", "real_field": "value" }
 
 ---
-'valueless unmapped field expands into no column':
+'valueless unmapped field contributes nothing, so the whole column is null':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM load-all-valueless | SORT id'
-  - length: { columns: 1 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
   - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - length: { values: 5 }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  - match: { values.2: [ "3", null ] }
+  - match: { values.3: [ "4", null ] }
+  - match: { values.4: [ "5", null ] }
 
 ---
 'explicitly kept valueless unmapped field is a null column':
@@ -253,7 +260,7 @@ setup:
   - match: { values.4: [ null ] }
 
 ---
-'valueless values are null in a column another document filled':
+'valueless values are absent from the object another document filled':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -262,16 +269,16 @@ setup:
           query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-mixed | SORT id'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: specific_unmapped_field }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0: [ "1", null ] }
   - match: { values.1: [ "2", null ] }
   - match: { values.2: [ "3", null ] }
   - match: { values.3: [ "4", null ] }
-  - match: { values.4: [ "5", "present" ] }
+  - match: { values.4: [ "5", { specific_unmapped_field: present } ] }
 
 ---
-'a column one index brings into existence still covers the valueless index':
+'one index with a value and one without share the single column':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -280,26 +287,26 @@ setup:
           query: 'SET unmapped_fields="load_all"; FROM load-all-valueless,load-all-valueless-mixed'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: specific_unmapped_field }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - length: { values: 10 }
 
 ---
-'nully objects and arrays of objects expand into no column':
+'nully objects and arrays of objects contribute nothing':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM load-all-valueless-nested | SORT id'
-  # Only the object that has something in it earns a column.
+  # Only the object that has something in it appears, under its flattened dotted name.
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: object_with_a_value.baz }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0: [ "1", null ] }
   - match: { values.1: [ "2", null ] }
-  - match: { values.2: [ "3", "world" ] }
+  - match: { values.2: [ "3", { object_with_a_value.baz: world } ] }
 
 ---
 'nulls are stripped from an array that is kept':
@@ -310,50 +317,56 @@ setup:
         body:
           query: 'SET unmapped_fields="load_all"; FROM load-all-array-nulls | SORT id'
   - length: { columns: 2 }
-  - match: { columns.1.name: tags }
-  - match: { values.0: [ "1", "web" ] }
-  - match: { values.1: [ "2", ["web", "api"] ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { values.0: [ "1", { tags: web } ] }
+  - match: { values.1: [ "2", { tags: [ "web", "api" ] } ] }
 
 ---
-'nully valueless field under synthetic source expands into no column':
+'nully valueless field under synthetic source contributes nothing':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM nully-valueless-synthetic | SORT id | LIMIT 10'
-  - length: { columns: 1 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
   - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - length: { values: 4 }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  - match: { values.2: [ "3", null ] }
+  - match: { values.3: [ "4", null ] }
 
 ---
-'nully documents are null in a column another synthetic-source document fills':
+'nully documents are absent from the object another synthetic-source document fills':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM nully-valueless-mixed-synthetic | SORT id | LIMIT 10'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: specific_unmapped_field }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0: [ "1", null ] }
   - match: { values.1: [ "2", null ] }
   - match: { values.2: [ "3", null ] }
   - match: { values.3: [ "4", null ] }
-  - match: { values.4: [ "5", "present" ] }
+  - match: { values.4: [ "5", { specific_unmapped_field: present } ] }
 
 ---
-'nully objects under synthetic source expand into no column':
+'nully objects under synthetic source contribute nothing':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM nully-nested-synthetic | SORT id | LIMIT 10'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: object_with_a_value.baz }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0: [ "1", null ] }
   - match: { values.1: [ "2", null ] }
-  - match: { values.2: [ "3", "world" ] }
+  - match: { values.2: [ "3", { object_with_a_value.baz: world } ] }
 
 ---
 'drop_null_columns false does not surface LOAD_ALL suppressed nully field':
@@ -362,30 +375,29 @@ setup:
         drop_null_columns: false
         body:
           query: 'SET unmapped_fields="load_all"; FROM nully-drop-null-cols | SORT id | LIMIT 10'
-  # Only id and real_field appear; nully_field is absent because LOAD_ALL suppressed it.
+  # nully_field never appears in the object because LOAD_ALL suppressed it; only real_field does.
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: real_field }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0: [ "1", null ] }
   - match: { values.1: [ "2", null ] }
   - match: { values.2: [ "3", null ] }
   - match: { values.3: [ "4", null ] }
-  - match: { values.4: [ "5", "value" ] }
+  - match: { values.4: [ "5", { real_field: value } ] }
 
 ---
-'drop_null_columns true shows LOAD_ALL suppressed nully field absent from all_columns':
+'drop_null_columns true keeps the single column because one row has a value':
   - do:
       esql.query:
         drop_null_columns: true
         body:
           query: 'SET unmapped_fields="load_all"; FROM nully-drop-null-cols | SORT id | LIMIT 10'
-  # all_columns: every column the query produced — id and real_field only; nully_field was never produced.
   - length: { all_columns: 2 }
   - match: { all_columns.0.name: id }
-  - match: { all_columns.1.name: real_field }
-  # columns: subset with at least one non-null value — both id and real_field qualify (real_field has "value" in doc 5).
+  - match: { all_columns.1.name: _unmapped_fields }
+  # _unmapped_fields has a non-null value in doc 5, so it survives drop_null_columns.
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: real_field }
-  - match: { values.4: [ "5", "value" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { values.4: [ "5", { real_field: value } ] }

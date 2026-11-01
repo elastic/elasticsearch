@@ -39,12 +39,14 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.escf.ColumnarOffsetsBuilder;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
@@ -266,7 +268,7 @@ public class NumberFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -421,6 +423,9 @@ public class NumberFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 ignoreMalformed,
                 coerce,
@@ -1581,7 +1586,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
-                if (hasDocValues && context.indexSortedOnField(field)) {
+                if (hasDocValues && context.canUseIndexSortRangeQuery(field)) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                 }
                 return query;
@@ -1731,7 +1736,7 @@ public class NumberFieldMapper extends FieldMapper {
 
                 for (Object value : values) {
                     if (hasDecimalPart(value) == false) {
-                        v[upTo++] = parse(value, true);
+                        v[upTo++] = objectToLong(value, true);
                     }
                 }
 
@@ -1803,7 +1808,7 @@ public class NumberFieldMapper extends FieldMapper {
                     } else {
                         query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
-                    if (hasDocValues && context.indexSortedOnField(field)) {
+                    if (hasDocValues && context.canUseIndexSortRangeQuery(field)) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                     }
                     return query;
@@ -2101,6 +2106,9 @@ public class NumberFieldMapper extends FieldMapper {
         public static long objectToLong(Object value, boolean coerce) {
             if (value instanceof Long) {
                 return (Long) value;
+            }
+            if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
+                return ((Number) value).longValue();
             }
 
             double doubleValue = objectToDouble(value);
@@ -2742,6 +2750,7 @@ public class NumberFieldMapper extends FieldMapper {
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
     private final String offsetsFieldName;
+    private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> offsetsFallback;
     private final boolean indexTerms;
 
     private final IndexSettings indexSettings;
@@ -2778,6 +2787,8 @@ public class NumberFieldMapper extends FieldMapper {
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
+        // The recorded value is the sortable long (doc values) representation, see parseCreateField.
+        this.offsetsFallback = (b, v) -> type.writeValue(b, (Long) v);
         this.indexSettings = builder.indexSettings;
         this.indexTerms = builder.indexTerms.getValue();
 
@@ -2805,8 +2816,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
-        return (allowMultipleValues == false || docValuesParameters.multiValue() == false)
-            && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+        return isSingleValueEnforced() && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    private boolean isSingleValueEnforced() {
+        return allowMultipleValues == false || docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -2873,13 +2887,13 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean shouldEnforceSingleValueBatch() {
-        return docValuesParameters.multiValue() == false;
+        return isSingleValueEnforced();
     }
 
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
                 Strings.format(
@@ -2889,6 +2903,7 @@ public class NumberFieldMapper extends FieldMapper {
                 )
             );
         }
+        final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
             source,
@@ -2896,8 +2911,11 @@ public class NumberFieldMapper extends FieldMapper {
             coerce(),
             ctx.recycler(),
             nullSortableLong,
+            recordsOffsets,
             ctx::addResource
         );
+        assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
+            : "ARRAY source produced " + EscfColumnKind.name(outData.kind());
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
@@ -2929,6 +2947,7 @@ public class NumberFieldMapper extends FieldMapper {
                     coerce(),
                     ctx.recycler(),
                     nullValue != null ? NumberType.FLOAT.toSortableLong(nullValue) : null,
+                    false,
                     ctx::addResource
                 );
                 ctx.addColumn(
@@ -2936,6 +2955,17 @@ public class NumberFieldMapper extends FieldMapper {
                 );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
+            }
+        }
+        if (recordsOffsets && outData.kind() == EscfColumnKind.ARRAY) {
+            LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(
+                EscfColumn.from(outData),
+                offsetsFieldName,
+                ctx.recycler(),
+                ctx::addResource
+            );
+            if (offsets != null) {
+                ctx.addColumn(offsets);
             }
         }
     }
@@ -2979,7 +3009,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSyntheticSource) {
                     // Save a copy of the field so synthetic source can load it
-                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                    FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                 }
                 return;
             } else {
@@ -2996,9 +3026,9 @@ public class NumberFieldMapper extends FieldMapper {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
                 // when the value is stored into the doc values.
                 long sortableLongValue = type.toSortableLong(value);
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
             }
         }
 

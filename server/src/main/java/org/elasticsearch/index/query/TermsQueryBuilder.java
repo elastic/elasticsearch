@@ -12,13 +12,19 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -55,7 +62,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     private final String fieldName;
     private final BinaryValues values;
     private final TermsLookup termsLookup;
-    private final Supplier<List<?>> supplier;
+    private final Supplier<BinaryValues> supplier;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -164,7 +171,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         this.supplier = null;
     }
 
-    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
+    private TermsQueryBuilder(String fieldName, Supplier<BinaryValues> supplier) {
         this.fieldName = fieldName;
         this.values = null;
         this.termsLookup = null;
@@ -323,38 +330,101 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
+        // Checked on the shard against this index's own max_terms_count. Inline terms values are only capped
+        // here; lookup values are also capped earlier, while the lookup is resolved.
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount) {
-            throw new IllegalArgumentException(
-                "The number of terms ["
-                    + values.size()
-                    + "] used in the Terms Query request has exceeded "
-                    + "the allowed maximum of ["
-                    + maxTermsCount
-                    + "]. "
-                    + "This maximum can be set by changing the ["
-                    + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
-                    + "] index level setting."
-            );
+            throw tooManyTermsException(values.size(), maxTermsCount);
         }
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+        values.chargeDecodedBytes(context);
         return fieldType.termsQuery(values, context);
     }
 
-    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
-        getRequest.preference("_local").routing(termsLookup.routing());
-        client.get(getRequest, actionListener.map(getResponse -> {
-            List<Object> terms = new ArrayList<>();
-            if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+    private static IllegalArgumentException tooManyTermsException(int termsCount, int maxTermsCount) {
+        return new IllegalArgumentException(
+            "The number of terms ["
+                + termsCount
+                + "] used in the Terms Query request has exceeded "
+                + "the allowed maximum of ["
+                + maxTermsCount
+                + "]. "
+                + "This maximum can be set by changing the ["
+                + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
+                + "] index level setting."
+        );
+    }
+
+    /**
+     * Resolves the {@code index.max_terms_count} limit to apply while rewriting on the coordinating node, which has no single
+     * index scope. The most permissive limit across the resolved local indices is returned so this early check never rejects a
+     * value list that a target shard would accept; each shard still enforces its own limit when the query is built. When no
+     * local index metadata is available, {@link Integer#MAX_VALUE} is returned, leaving enforcement to the shard-level check.
+     */
+    private static int resolveMaxTermsCount(QueryRewriteContext context) {
+        ResolvedIndices resolvedIndices = context.getResolvedIndices();
+        if (resolvedIndices == null) {
+            return Integer.MAX_VALUE;
+        }
+        Collection<IndexMetadata> localIndices = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        if (localIndices.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        int maxTermsCount = 0;
+        for (IndexMetadata indexMetadata : localIndices) {
+            maxTermsCount = Math.max(maxTermsCount, IndexSettings.MAX_TERMS_COUNT_SETTING.get(indexMetadata.getSettings()));
+        }
+        return maxTermsCount;
+    }
+
+    /**
+     * Resolves a {@code terms} lookup: fetches the referenced document and extracts the values at the lookup path.
+     * <p>
+     * Registered as a unique async action ({@link QueryRewriteContext#registerUniqueAsyncAction}) so that clauses pointing at
+     * the same document (same index, id, path and routing) share one fetch instead of fetching per clause. The
+     * {@code index.max_terms_count} limit is applied here, so an oversized lookup is rejected before the query is built.
+     */
+    private static final class TermsLookupFetch extends QueryRewriteAsyncAction<BinaryValues, TermsLookupFetch> {
+        private final TermsLookup termsLookup;
+        // The limit is the same for every clause of a request, so it is not part of the dedup identity below.
+        private final int maxTermsCount;
+
+        TermsLookupFetch(TermsLookup termsLookup, int maxTermsCount) {
+            this.termsLookup = termsLookup;
+            this.maxTermsCount = maxTermsCount;
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<BinaryValues> listener) {
+            GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
+            getRequest.preference("_local").routing(termsLookup.routing());
+            client.get(getRequest, listener.map(getResponse -> {
+                if (getResponse.isSourceEmpty()) {
+                    return new BinaryValues(List.of(), false);
+                }
+                // extracted values come straight from the document source, so they still need converting (unlike inline values,
+                // which are already converted while parsing the query)
                 List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
-                terms.addAll(extractedValues);
-            }
-            return terms;
-        }));
+                if (extractedValues.size() > maxTermsCount) {
+                    // reject here, during rewrite, before the values are copied into every clause and serialized to the data nodes
+                    throw tooManyTermsException(extractedValues.size(), maxTermsCount);
+                }
+                return new BinaryValues(extractedValues, true);
+            }));
+        }
+
+        @Override
+        public int doHashCode() {
+            return termsLookup.hashCode();
+        }
+
+        @Override
+        public boolean doEquals(TermsLookupFetch other) {
+            return termsLookup.equals(other.termsLookup);
+        }
     }
 
     @Override
@@ -375,11 +445,11 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
-            SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, listener.map(list -> {
-                supplier.set(list);
-                return null;
-            })));
+            SetOnce<BinaryValues> supplier = new SetOnce<>();
+            queryRewriteContext.registerUniqueAsyncAction(
+                new TermsLookupFetch(termsLookup, resolveMaxTermsCount(queryRewriteContext)),
+                supplier::set
+            );
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
 
@@ -432,6 +502,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     @SuppressWarnings("rawtypes")
     public static final class BinaryValues extends AbstractCollection implements Writeable {
 
+        private static final long BYTES_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+
         @Nullable
         private BytesReference valueRef;
 
@@ -439,18 +511,82 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
         private final Collection<?> values;
 
+        /**
+         * Heap the values take after deserialization beyond their serialized size. The serialized size is already held by the
+         * in-flight requests breaker until the request that carried them responds, so only the difference is charged.
+         */
+        private final long decodedBytesOverWire;
+
+        // guarded by this
+        private int decodedBytesHolders;
+        @Nullable
+        private CircuitBreaker decodedBytesBreaker;
+
         private BinaryValues(StreamInput in) throws IOException {
             this.valueRef = null;
             this.convert = false;
-            int ignored = in.readVInt();
+            int serializedBytes = in.readVInt();
             int ignored2 = in.readByte();
             assert ignored2 == StreamOutput.GENERIC_LIST_HEADER;
-            values = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+            List<Object> decoded = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+            values = decoded;
+            decodedBytesOverWire = Math.max(0L, ramBytesUsed(decoded) - serializedBytes);
         }
 
         private BinaryValues(Collection<?> values, boolean convert) {
             this.convert = convert;
             this.values = values;
+            this.decodedBytesOverWire = 0L;
+        }
+
+        private static long ramBytesUsed(List<Object> values) {
+            long bytes = RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * values.size()
+            );
+            for (Object value : values) {
+                if (value instanceof BytesRef bytesRef) {
+                    bytes += BYTES_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytesRef.bytes);
+                } else {
+                    bytes += RamUsageEstimator.sizeOfObject(value, 0);
+                }
+            }
+            return bytes;
+        }
+
+        /**
+         * Charges {@link #decodedBytesOverWire} to the request breaker once per deserialized copy, held while at least one search
+         * context that built a query from it is open. With the batched query phase every shard search of a node shares one copy,
+         * so a per-context charge would count the same memory once per shard.
+         */
+        private void chargeDecodedBytes(SearchExecutionContext context) {
+            CircuitBreaker breaker = context.getCircuitBreaker();
+            if (decodedBytesOverWire == 0L || breaker == null) {
+                return;
+            }
+            synchronized (this) {
+                if (decodedBytesHolders == 0) {
+                    breaker.addEstimateBytesAndMaybeBreak(decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
+                    decodedBytesBreaker = breaker;
+                } else {
+                    assert decodedBytesBreaker == breaker : "decoded terms shared by contexts with different breakers";
+                }
+                decodedBytesHolders++;
+            }
+            context.addQueryConstructionReleasable(Releasables.releaseOnce(this::releaseDecodedBytes));
+        }
+
+        private synchronized void releaseDecodedBytes() {
+            assert decodedBytesHolders > 0 : "decoded terms released more often than charged";
+            if (--decodedBytesHolders == 0) {
+                assert decodedBytesBreaker != null : "charged decoded terms without a breaker";
+                decodedBytesBreaker.addWithoutBreaking(-decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
+                decodedBytesBreaker = null;
+            }
+        }
+
+        // Package-private for testing.
+        long decodedBytesOverWire() {
+            return decodedBytesOverWire;
         }
 
         private static BytesReference serialize(Collection<?> values, boolean convert) {

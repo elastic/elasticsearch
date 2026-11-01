@@ -5,6 +5,8 @@ max_toc_depth: 2
 exclude:
   - README.md
   - AGENTS.md
+  - "**/AGENTS.md"
+  - "**/CLAUDE.md"
   - internal/*
   - reference/query-languages/esql/kibana/**
   - reference/query-languages/esql/README.md
@@ -112,3 +114,4 @@ subs:
   nlp:   "natural language processing"
   index-manage-app:   "Index Management"
   connectors-app:   "Connectors"
+  es-labs:   "Elasticsearch Labs"

@@ -9,7 +9,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.regex.Regex;
 
@@ -24,8 +23,8 @@ import java.util.function.Predicate;
 /**
  * Discovers eligible recovery sources from a snapshot for the data recovery API.
  * <p>
- * It filters candidates (excluding system, backing, and incomplete indices/streams),
- * applies a multi-target expression list, and returns a bounded result.
+ * It filters backing and failure-store indices, classifies source completeness, applies a multi-target expression list, and returns a
+ * bounded result. Callers must only pass snapshots that exclude system indices and system data streams.
  */
 public final class RecoverySourceDiscovery {
 
@@ -35,7 +34,7 @@ public final class RecoverySourceDiscovery {
      * An eligible logical recovery source returned by the source-discovery API. Sources are ordered
      * deterministically by {@link #name()} and each name appears at most once in a result set.
      */
-    public record RecoverySource(String name, Type type) implements Comparable<RecoverySource> {
+    public record RecoverySource(String name, Type type, boolean complete) implements Comparable<RecoverySource> {
 
         /** Whether the source is a standalone index or a data stream. */
         public enum Type {
@@ -54,7 +53,7 @@ public final class RecoverySourceDiscovery {
 
     /**
      * Returns up to {@code size} eligible recovery sources from a snapshot, ordered by name.
-     * Excludes system resources, backing/failure-store indices, and incomplete indices or streams.
+     * Excludes backing/failure-store indices and incomplete indices or streams.
      * Expressions support wildcards and {@code -} negation; empty returns all eligible sources.
      *
      * @param snapshotInfo    the snapshot to evaluate
@@ -64,20 +63,51 @@ public final class RecoverySourceDiscovery {
      * @throws IllegalArgumentException if {@code size} is not positive
      */
     public static Result discover(SnapshotInfo snapshotInfo, ProjectMetadata projectMetadata, List<String> expressions, int size) {
+        return discover(snapshotInfo, projectMetadata, expressions, size, false);
+    }
+
+    /**
+     * Returns up to {@code size} recovery sources from a snapshot, ordered by name.
+     * Excludes backing/failure-store indices. Incomplete logical sources are included only when
+     * {@code includeIncompleteSources} is {@code true}, and their {@link RecoverySource#complete()} value is {@code false}.
+     * Expressions support wildcards and {@code -} negation; empty returns all eligible sources.
+     *
+     * @param snapshotInfo    the snapshot to evaluate
+     * @param projectMetadata project metadata captured in the snapshot
+     * @param expressions     multi-target expression list; empty means return all eligible sources
+     * @param size            maximum number of sources to return; must be positive
+     * @param includeIncompleteSources whether to include logical sources that were not completely captured
+     * @throws IllegalArgumentException if {@code size} is not positive
+     */
+    public static Result discover(
+        SnapshotInfo snapshotInfo,
+        ProjectMetadata projectMetadata,
+        List<String> expressions,
+        int size,
+        boolean includeIncompleteSources
+    ) {
         if (size <= 0) {
             throw new IllegalArgumentException("size must be positive, got [" + size + "]");
         }
 
-        SortedSet<RecoverySource> candidates = buildCandidates(snapshotInfo, projectMetadata);
+        SortedSet<RecoverySource> candidates = buildCandidates(snapshotInfo, projectMetadata, includeIncompleteSources);
 
         return filterAndCollect(size, candidates, buildMatcher(expressions));
     }
 
     /**
      * Builds the full set of eligible candidates from the snapshot, sorted by name.
-     * Excludes system indices/streams, backing and failure-store indices, and incomplete indices/streams.
+     * Excludes backing and failure-store indices and incomplete indices/streams.
      */
     static SortedSet<RecoverySource> buildCandidates(SnapshotInfo snapshotInfo, ProjectMetadata projectMetadata) {
+        return buildCandidates(snapshotInfo, projectMetadata, false);
+    }
+
+    static SortedSet<RecoverySource> buildCandidates(
+        SnapshotInfo snapshotInfo,
+        ProjectMetadata projectMetadata,
+        boolean includeIncompleteSources
+    ) {
         Map<String, DataStream> dataStreams = projectMetadata.dataStreams();
 
         Set<String> backingAndFailureIndexNames = new java.util.HashSet<>();
@@ -92,22 +122,23 @@ public final class RecoverySourceDiscovery {
             if (backingAndFailureIndexNames.contains(indexName)) {
                 continue;
             }
-            IndexMetadata meta = projectMetadata.index(indexName);
-            if (meta != null && meta.isSystem()) {
+            final boolean complete = snapshotInfo.isIndexComplete(indexName);
+            if (complete == false && includeIncompleteSources == false) {
                 continue;
             }
-            if (snapshotInfo.isIndexComplete(indexName) == false) {
-                continue;
-            }
-            candidates.add(new RecoverySource(indexName, RecoverySource.Type.INDEX));
+            candidates.add(new RecoverySource(indexName, RecoverySource.Type.INDEX, complete));
         }
 
         for (String dsName : snapshotInfo.dataStreams()) {
             DataStream ds = dataStreams.get(dsName);
-            if (ds == null || ds.isSystem() || snapshotInfo.isDataStreamComplete(ds) == false) {
+            if (ds == null) {
                 continue;
             }
-            candidates.add(new RecoverySource(dsName, RecoverySource.Type.DATA_STREAM));
+            final boolean complete = snapshotInfo.isDataStreamComplete(ds);
+            if (complete == false && includeIncompleteSources == false) {
+                continue;
+            }
+            candidates.add(new RecoverySource(dsName, RecoverySource.Type.DATA_STREAM, complete));
         }
 
         return candidates;

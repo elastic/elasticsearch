@@ -1,0 +1,68 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.range.docvalue_fields_fix"]
+      reason: "docvalue_fields on range fields returns one gte/lte map per range"
+      test_runner_features: [ contains ]
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              ip:
+                type: ip_range
+              long:
+                type: long_range
+              double:
+                type: double_range
+              date:
+                type: date_range
+                format: yyyy-MM-dd
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          ip: ["10.0.0.0/8", { "gte": "192.168.1.1", "lte": "192.168.1.10" }]
+          long: { "gte": 10, "lt": 20 }
+          double: { "gte": 1.5 }
+          date: { "gte": "2016-10-31", "lte": "2016-11-01" }
+
+---
+"docvalue_fields on range fields":
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "ip", "long", "double", "date" ]
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0.fields.ip: 2 }
+  # ip ranges are not stored in a defined order
+  - contains: { hits.hits.0.fields.ip: { "gte": "10.0.0.0", "lte": "10.255.255.255" } }
+  - contains: { hits.hits.0.fields.ip: { "gte": "192.168.1.1", "lte": "192.168.1.10" } }
+  - length: { hits.hits.0.fields.long: 1 }
+  - match: { hits.hits.0.fields.long.0.gte: 10 }
+  - match: { hits.hits.0.fields.long.0.lte: 19 }
+  - length: { hits.hits.0.fields.double: 1 }
+  - match: { hits.hits.0.fields.double.0.gte: 1.5 }
+  - match: { hits.hits.0.fields.double.0.lte: null }
+  - length: { hits.hits.0.fields.date: 1 }
+  - match: { hits.hits.0.fields.date.0.gte: "2016-10-31" }
+  - match: { hits.hits.0.fields.date.0.lte: "2016-11-01" }
+
+---
+"docvalue_fields on date_range with format":
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ { "field": "date", "format": "epoch_millis" } ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.date.0.gte: "1477872000000" }
+  - match: { hits.hits.0.fields.date.0.lte: "1478044799999" }

@@ -314,4 +314,18 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         assertNull("no PainlessClass means no callable members", lookup.lookupPainlessClass(AllocationExternalEstimators.class));
         assertFalse(lookup.getClasses().stream().anyMatch(c -> c == AllocationExternalEstimators.class));
     }
+
+    // ---- getter shortcuts ----
+
+    public void testGetterShortcutCharged() {
+        // o.estimatedValue resolves to getEstimatedValue(), so the shorthand read charges the same as the call.
+        String call = "AllocationEstimatorTestObject o = new AllocationEstimatorTestObject(); int v = o.getEstimatedValue(); return \"x\";";
+        String shortcut = "AllocationEstimatorTestObject o = new AllocationEstimatorTestObject(); int v = o.estimatedValue; return \"x\";";
+        assertEquals(72L, allocatedBytes(call));
+        assertEquals(72L, allocatedBytes(shortcut));
+    }
+
+    public void testGetterShortcutTripsLimit() {
+        assertTripsLimit("AllocationEstimatorTestObject o = new AllocationEstimatorTestObject(); int v = o.estimatedValue; return \"x\";");
+    }
 }

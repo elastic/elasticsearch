@@ -69,7 +69,7 @@ public final class ExternalStatsRequirementExtractor {
      * {@link Sample} on the walk from that aggregate down to the relation. The path-key derivation
      * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalConfigs}
      * ({@code BytesRefs.toString(literal.value())}), so the keys match the resolver's
-     * {@code icebergPaths} by construction.
+     * {@code externalSourcePaths} by construction.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the set of literal path strings whose resolution must eagerly aggregate global stats
@@ -126,7 +126,7 @@ public final class ExternalStatsRequirementExtractor {
     }
 
     /**
-     * Path-key derivation kept in lockstep with {@code PreAnalyzer#icebergPaths} and
+     * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
      * {@code EsqlSession#extractExternalConfigs}: a non-null {@link Literal} {@code tablePath}
      * rendered via {@code BytesRefs.toString}. Returns {@code null} for a non-literal {@code tablePath}
      * so detection never throws; that path is then absent from the set and, since the resolver

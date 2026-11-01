@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.DenseCollector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -46,6 +48,11 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     }
 
     @Override
+    protected ExpressionEvaluator createEvaluator(BlockFactory blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards) {
+        return new LuceneQueryExpressionEvaluator(blockFactory, shards);
+    }
+
+    @Override
     protected boolean usesScoring() {
         // Be consistent for a single test execution
         return useScoring;
@@ -63,6 +70,11 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
 
     @Override
     protected void assertTermResultMatch(BooleanBlock resultVector, int position, boolean isMatch) {
+        assertThat(resultVector.getBoolean(position), equalTo(isMatch));
+    }
+
+    @Override
+    protected void assertEvaluatedResultMatch(BooleanBlock resultVector, int position, boolean isMatch) {
         assertThat(resultVector.getBoolean(position), equalTo(isMatch));
     }
 }

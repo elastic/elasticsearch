@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -72,6 +73,14 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(
+            throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            throttling,
+            retryAfterMs,
+            e
+        );
     }
 }

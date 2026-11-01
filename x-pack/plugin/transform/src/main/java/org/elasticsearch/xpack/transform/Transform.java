@@ -370,7 +370,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 crossProjectModeDecider,
                 hasLinkedProjects,
                 services.projectResolver(),
-                cloudCredentialManager
+                cloudCredentialManager,
+                clock
             )
         );
 

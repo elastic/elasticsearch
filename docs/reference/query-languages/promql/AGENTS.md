@@ -56,8 +56,8 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 
 Each generated function and operator entry can end with one note, `stdDivergence`, set on its definition
 (`PromqlFunctionDefinition`, or `OPERATOR_DEFS` in `PromqlDocsSupport`) and rendered as **Differences from Prometheus**.
-It states first the uses Prometheus accepts and Elasticsearch rejects, as "not supported yet", with an example each, then
-the uses that run but return a different result.
+It states first the uses Prometheus accepts and Elasticsearch rejects, with an example each, in one form:
+"`<use>`, such as `<example>`, isn't supported yet." It then states the uses that run but return a different result.
 
 What the function supports goes in its description or `extendedDescription`. Keep these notes in step with the
 compatibility rows that name the function or operator.

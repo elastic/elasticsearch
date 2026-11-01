@@ -47,13 +47,13 @@ public class PromqlBuiltinFunctionDefinitions {
      * translator (see {@code AcrossSeriesReduction#translate}) appends the ranking/limiting step itself.
      */
     private static final String LABEL_FUNCTION_NOT_SUPPORTED_YET =
-        "Not supported yet outside an enclosing `by(...)` aggregation, such as a call that isn't aggregated or one under "
-            + "`without(...)`, over an aggregation, such as `label_replace(sum by (job) (x), ...)`, or with a destination "
-            + "label named `step`, which is an output column of the `PROMQL` command. ";
+        "A call outside an enclosing `by(...)` aggregation, such as one that isn't aggregated or one under `without(...)`, "
+            + "a call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, and a destination label named "
+            + "`step`, which is an output column of the `PROMQL` command, aren't supported yet. ";
 
     private static final String SORT_DIVERGENCE =
-        "Not supported yet below the top level of the query, such as `abs(sort(x))`, where {{prom}} applies the ordering "
-            + "too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
+        "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "
+            + "ordering there too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
             + "labels, where {{es}} returns them in input order.";
 
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
@@ -67,7 +67,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .stdDivergence(
             "`without(...)`, such as `topk without (instance) (1, x)`, and a `k` that isn't a number literal, such as "
                 + "`topk(scalar(a), b)`, aren't supported yet. "
-                + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "A `k` close to `Integer.MAX_VALUE` can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit. "
                 + "A `NaN` value ranks above `+Inf` rather than last, so a series whose value is `NaN` wins a slot ahead "
                 + "of a series with a comparable value. {{prom}} ranks `NaN` farthest from the top and returns the "
@@ -90,7 +90,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
             "`without(...)`, such as `bottomk without (instance) (1, x)`, isn't supported yet. "
-                + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "A `k` close to `Integer.MAX_VALUE` can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit."
         )
         .name("bottomk");
@@ -112,7 +112,7 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "Within a shard, elements follow storage order (first-k) rather than truly arbitrary order. "
                 + "Across shards the merge keeps k of those partials with no global tsid sort, so the subset is not "
                 + "stable. "
-                + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "A `k` close to `Integer.MAX_VALUE` can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit."
         )
         .name("limitk");

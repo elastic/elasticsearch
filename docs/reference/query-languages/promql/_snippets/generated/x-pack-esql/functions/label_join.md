@@ -36,5 +36,5 @@ sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "inst
 :::{note}
 **Differences from {{prom}}**
 
-Not supported yet outside an enclosing `by(...)` aggregation, such as a call that isn't aggregated or one under `without(...)`, over an aggregation, such as `label_replace(sum by (job) (x), ...)`, or with a destination label named `step`, which is an output column of the `PROMQL` command. Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+A call outside an enclosing `by(...)` aggregation, such as one that isn't aggregated or one under `without(...)`, a call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, and a destination label named `step`, which is an output column of the `PROMQL` command, aren't supported yet. Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
 :::

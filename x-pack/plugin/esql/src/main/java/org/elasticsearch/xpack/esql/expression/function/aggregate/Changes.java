@@ -59,7 +59,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
             PromqlFunctionDefinition.COUNT_NOTE
-                + " A single Elasticsearch field has a fixed type, so transitions between float and native histogram samples "
+                + " A single {{es}} field has a fixed type, so transitions between float and native histogram samples "
                 + "cannot be represented."
         )
         .name("changes");

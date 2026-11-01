@@ -15,8 +15,8 @@ In the examples on this page, `h` is a native histogram metric.
 **Supported**
 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Native histograms, stored as `exponential_histogram` fields.
-`histogram_quantile`, `increase`, and `sum` support them, and so do `histogram_count`, `histogram_sum`, `histogram_avg`, `histogram_fraction`, and `changes` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`.
-For example: `histogram_quantile(0.9, sum by (job) (increase(h[5m])))`.
+`histogram_quantile`, `increase`, and `sum` support them, such as `histogram_quantile(0.9, sum by (job) (increase(h[5m])))`.
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `histogram_count`, `histogram_sum`, `histogram_avg`, `histogram_fraction`, and `changes` support them too.
 
 Classic histograms, stored as `_bucket` series with an `le` label, such as `histogram_quantile(0.9, sum by (le) (rate(x_bucket[5m])))`.
 

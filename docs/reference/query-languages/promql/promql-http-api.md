@@ -12,7 +12,7 @@ products:
 
 These endpoints run under the `/_prometheus/` prefix.
 They are intended for {{prom}}-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
-To connect Grafana to {{es}}, see [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md).
+To connect Grafana to {{es}}, refer to [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md).
 
 These APIs only consider metric data stored in indices with `index.mode: time_series`, such as [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
@@ -51,7 +51,7 @@ This endpoint evaluates a {{promql}} expression over a time window and returns m
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (see [Differences from {{prom}}](#promql-http-api-differences)).
+The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ### Instant query [promql-http-api-query-instant]
 
@@ -65,11 +65,11 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | {{promql}} expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (see [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (refer to [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (see [Differences from {{prom}}](#promql-http-api-differences)).
+The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
@@ -136,7 +136,7 @@ At least one `match[]` parameter is required.
 
 This endpoint returns metric-level information such as type, help, and unit, analogous to {{prom}} `TYPE`, `HELP`, and `UNIT` lines.
 
-The `help` field is always an empty string for now (see [Differences from {{prom}}](#promql-http-api-differences)).
+The `help` field is always an empty string (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -244,7 +244,7 @@ Errors return a non-2xx HTTP status and a JSON body of the form:
 }
 ```
 
-Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or {{promql}} that {{es}} does not evaluate yet (see [{{prom}} compatibility](prometheus-compatibility.md)). Those failures usually return `errorType: bad_data`.
+Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or {{promql}} that {{es}} does not evaluate yet (refer to [{{prom}} compatibility](prometheus-compatibility.md)). Those failures usually return `errorType: bad_data`.
 
 Server errors (HTTP 5xx) and timeout responses reflect operational failures inside {{es}}. Those responses typically use `errorType: timeout` or `execution` depending on the situation.
 

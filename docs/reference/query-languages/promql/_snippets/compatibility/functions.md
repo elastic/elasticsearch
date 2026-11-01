@@ -6,7 +6,7 @@
 % applies to every version. "Not supported yet" columns: # | Construct | Example | Workaround | Issue.
 % "Behaves differently" columns: # | Construct | Example | Elasticsearch | Prometheus | Issue.
 
-Follows [Functions](https://prometheus.io/docs/prometheus/latest/querying/functions/) in the {{prom}} documentation, sorted by function name.
+Rows follow [Functions](https://prometheus.io/docs/prometheus/latest/querying/functions/) in the {{prom}} documentation and are sorted by function name.
 Each [function reference entry](/reference/query-languages/promql/functions.md) lists further differences.
 
 **Supported**

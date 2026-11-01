@@ -4,7 +4,7 @@ stack: preview 9.4, ga 9.5
 ```
 
 The `PROMQL` source command queries [time series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) using [**{{prom}} Query Language ({{promql}})**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
-Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts {{promql}} syntax instead of ES|QL.
+Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts {{promql}} syntax instead of {{esql}}.
 
 ::::{note}
 `PROMQL` supports most, but not all, of {{promql}}. Refer to [{{prom}} compatibility](#esql-prometheus-compatibility) for unsupported constructs and differences from {{prom}}, and to [{{promql}} functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
@@ -21,7 +21,7 @@ PROMQL [ <option>=<value> ... ] [ <result_name>= ](<PromQL Expression>)
 
 ## Options
 
-The options are inspired by the {{prom}} [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) with some additions specific to ES|QL.
+The options are inspired by the {{prom}} [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) with some additions specific to {{esql}}.
 
 `index`
 :   A list of indices, data streams, or aliases. Supports wildcards and date math.
@@ -77,7 +77,7 @@ such as `time=?_tend`.
 ## Description
 
 The `PROMQL` command takes standard {{promql}} parameters and a {{promql}} expression, runs the query, and returns the
-results as regular ES|QL columns. You can continue to process the columns with other ES|QL commands.
+results as regular {{esql}} columns. You can continue to process the columns with other {{esql}} commands.
 
 ### Time range [esql-promql-time-range]
 
@@ -215,9 +215,9 @@ PROMQL index=metrics-generic.prometheus-*
 ::::{include} ../examples/k8s-timeseries-promql.csv-spec/not_equals_filter.md
 ::::
 
-### Post-processing with ES|QL
+### Post-processing with {{esql}}
 
-Pipe {{promql}} results into ES|QL commands for further aggregation:
+Pipe {{promql}} results into {{esql}} commands for further aggregation:
 
 ::::{include} ../examples/k8s-timeseries-promql.csv-spec/post_processing_stats_by_cluster.md
 ::::
@@ -236,7 +236,7 @@ PROMQL index=metrics-generic.prometheus-*
 
 ### Enrich with a lookup
 
-Join {{promql}} results with external data using ES|QL commands:
+Join {{promql}} results with external data using {{esql}} commands:
 
 ```esql
 PROMQL index=metrics-generic.prometheus-*
@@ -246,8 +246,7 @@ PROMQL index=metrics-generic.prometheus-*
 
 ## {{prom}} compatibility [esql-prometheus-compatibility]
 
-This section lists the differences with {{prom}} v3.x.x.
-Headings follow the {{prom}} querying documentation.
+This section lists the differences from {{prom}} 3.x.
 
 :::{include} ../../../../promql/_snippets/compatibility/basics.md
 :::

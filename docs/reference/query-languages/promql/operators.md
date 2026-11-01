@@ -79,14 +79,14 @@ Operators used inside instant vector selectors (`{...}`) to match series by labe
 `^` is right-associative; all other binary operators are left-associative. Use parentheses to override the default precedence.
 
 ::::{note}
-This list also includes the operators that are [not supported yet](#promql-operators-not-supported) in {{es}}. See also [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-operators).
+This list also includes the operators that are [not supported yet](#promql-operators-not-supported) in {{es}}. Also refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-operators).
 ::::
 
 ## Vector matching [promql-operators-vector-matching]
 
 When a binary operator is applied between two instant vectors, {{promql}} matches samples that have identical label sets (one-to-one matching). {{prom}} provides modifiers that change which labels are considered (`on(...)` and `ignoring(...)`) and that enable many-to-one and one-to-many matching (`group_left` and `group_right`).
 
-For the vector matching modifiers that {{es}} supports, see [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-vector-matching).
+For the vector matching modifiers that {{es}} supports, refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-vector-matching).
 
 ## The `bool` modifier [promql-operators-bool-modifier]
 

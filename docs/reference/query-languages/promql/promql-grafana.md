@@ -15,7 +15,7 @@ Because the API follows the [{{prom}} query API](https://prometheus.io/docs/prom
 
 Grafana then treats {{es}} like any other {{prom}} backend: dashboard panels, query autocompletion, template variables, and [Metrics Drilldown](https://grafana.com/docs/grafana/latest/visualizations/simplified-exploration/metrics/) all use {{promql}} against metrics stored in {{es}} [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
-This guide covers connecting Grafana to {{es}}. To ingest metrics from {{prom}}, see [{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
+This guide covers connecting Grafana to {{es}}. To ingest metrics from {{prom}}, refer to [{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
 
 ::::{important}
 Before you build dashboards, review [{{prom}} compatibility](prometheus-compatibility.md).
@@ -60,7 +60,7 @@ When the key is created, copy the **Encoded** value (select the **Encoded** form
 You can configure a separate Grafana data source per index pattern to give teams scoped access to their own metrics.
 Add an index expression after `/_prometheus/`, for example `https://<es_endpoint>/_prometheus/metrics-prod-*`.
 Index aliases are also supported as the index expression – you need to scope the API key to the alias name rather than the underlying index pattern.
-See [Index scoping](promql-http-api.md#promql-http-api-index-scope).
+Refer to [Index scoping](promql-http-api.md#promql-http-api-index-scope).
 ::::
 
 ## Add the data source [promql-grafana-datasource]
@@ -79,12 +79,12 @@ Configure the data source through the Grafana UI or through [provisioning](https
 3. Click **Save & test**.
 
 Grafana confirms the connection, and autocompletion starts working in the query editor.
-The data source has more options than the ones above; for the authoritative steps and the full option reference, see the [Grafana {{prom}} data source documentation](https://grafana.com/docs/grafana/latest/datasources/prometheus/configure/).
+The data source has more options than the ones listed here. For the authoritative steps and the full option reference, refer to the [Grafana {{prom}} data source documentation](https://grafana.com/docs/grafana/latest/datasources/prometheus/configure/).
 
 ::::{note}
 Grafana sends {{prom}} queries with `POST` by default, which {{es}} accepts on authenticated HTTPS endpoints such as {{es-serverless}}.
 If TLS terminates before {{es}} and the node receives plain HTTP, set the data source **HTTP method** to `GET` instead.
-See [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-format-overview).
+Refer to [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-format-overview).
 ::::
 
 ### Add the data source with provisioning [promql-grafana-datasource-provisioning]
@@ -118,7 +118,7 @@ Mount the `provisioning` directory into Grafana at `/etc/grafana/provisioning`.
 
 ## Use dashboards [promql-grafana-dashboard]
 
-Existing {{prom}} dashboards work against {{es}} without changes, as long as the {{promql}} they use is supported (see [{{prom}} compatibility](prometheus-compatibility.md)).
+Existing {{prom}} dashboards work against {{es}} without changes, as long as the {{promql}} they use is supported (refer to [{{prom}} compatibility](prometheus-compatibility.md)).
 You can point an existing dashboard at {{es}} or build a new one on top of the data source.
 
 ### Point an existing dashboard at {{es}} [promql-grafana-dashboard-switch]
@@ -145,8 +145,8 @@ Grafana shows the data source's error message directly on the panel: hover or cl
 For most errors {{es}} returns a descriptive message, and you can act on it without reproducing anything:
 
 - A message that a {{promql}} construct or query parameter is **not supported yet** points to a [documented limitation](prometheus-compatibility.md). Adjust the query, or wait for the feature. No issue needed.
-- An authentication or authorization message (`401`/`403`) points to the API key. See [Common symptoms](#promql-grafana-troubleshooting-symptoms).
-- A `406 Not Acceptable` on every query points to the form-encoded `POST` requirement. See [Common symptoms](#promql-grafana-troubleshooting-symptoms).
+- An authentication or authorization message (`401`/`403`) points to the API key. Refer to [Common symptoms](#promql-grafana-troubleshooting-symptoms).
+- A `406 Not Acceptable` on every query points to the form-encoded `POST` requirement. Refer to [Common symptoms](#promql-grafana-troubleshooting-symptoms).
 
 If the message is clear and matches a documented limitation, you're done.
 If it is unclear, the panel returns wrong or empty data with no error, or you suspect the data source layer, continue to Step 2.
@@ -189,7 +189,7 @@ For metric discovery, autocompletion, or template-variable problems, check the r
 
 | Symptom | Likely cause | What to check                                                                                                                                                                                    |
 | --- | --- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version, and make sure TLS terminates at {{es}}. See [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-format-overview) |
+| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version, and make sure TLS terminates at {{es}}. Refer to [Form-encoded POST requests](prometheus-compatibility.md#prometheus-compatibility-format-overview) |
 | `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*` and `exemplars-*.prometheus-*`                              |
 | Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly                                           |
 | `bad_data` error on a specific expression | Unsupported {{promql}} construct | Compare the expression against [{{prom}} compatibility](prometheus-compatibility.md)                                                                         |

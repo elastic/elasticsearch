@@ -34,5 +34,5 @@ When you use the {{prom}}-compatible HTTP API or embed {{promql}} in an {{esql}}
 * [Functions](promql/functions.md): {{promql}} function reference organized by category, including {{es}}-specific differences from {{prom}}.
 * [Operators](promql/operators.md): {{promql}} operator reference organized by category, including {{es}}-specific differences from {{prom}}.
 * [{{prom}} data source in Grafana](promql/promql-grafana.md): Use {{es}} as a {{prom}} data source in Grafana for dashboards, autocomplete, and Metrics Drilldown.
-* [{{prom}} compatibility](promql/prometheus-compatibility.md): How behavior differs from {{prom}}, including unsupported {{promql}} constructs, HTTP behavior, instant-query nuances, staleness semantics, exemplars, and related topics.
+* [{{prom}} compatibility](promql/prometheus-compatibility.md): What {{es}} supports, what isn't supported yet, and what behaves differently from {{prom}}, for both {{promql}} and the HTTP API.
 

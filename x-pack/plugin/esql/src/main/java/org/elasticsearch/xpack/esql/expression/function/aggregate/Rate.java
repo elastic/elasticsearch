@@ -67,7 +67,7 @@ public class Rate extends TimeSeriesAggregateFunction
         .example("rate(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .stdDivergence(
-            "Not supported yet on native histograms: use `increase` instead, such as "
+            "`rate` on native histograms, such as `rate(h[5m])`, isn't supported yet. Use `increase` instead, such as "
                 + "`histogram_quantile(0.99, sum by (job) (increase(h[5m])))`. "
                 + PromqlFunctionDefinition.RATE_INCREASE_NOTE
         )

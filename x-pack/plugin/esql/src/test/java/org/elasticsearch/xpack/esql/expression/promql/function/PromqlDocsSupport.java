@@ -76,9 +76,9 @@ public final class PromqlDocsSupport {
         + "/prometheus-compatibility.md#prometheus-compatibility-vector-matching), aren't supported yet.";
 
     /** The comparison operand combinations {{es}} rejects, shared by every comparison operator. */
-    private static final String COMPARISON_NOT_SUPPORTED_YET = "Not supported yet: comparing two instant vectors, such as "
-        + "`x > y`, a scalar as the first operand, such as `100 < x`, a second operand that isn't a number literal, such as "
-        + "`x > time()`, and a comparison inside another expression, such as `(x > 100) + 1` or `count(x > 100)`. "
+    private static final String COMPARISON_NOT_SUPPORTED_YET = "Comparing two instant vectors, such as `x > y`, a scalar as "
+        + "the first operand, such as `100 < x`, a second operand that isn't a number literal, such as `x > time()`, and a "
+        + "comparison inside another expression, such as `(x > 100) + 1` or `count(x > 100)`, aren't supported yet. "
         + "Refer to [{{prom}} compatibility]("
         + DOCS_ROOT
         + "/prometheus-compatibility.md#prometheus-compatibility-comparison-binary-operators).";

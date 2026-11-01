@@ -27,5 +27,5 @@ irate(http_requests_total[5m])
 :::{note}
 **Differences from {{prom}}**
 
-Not supported yet on native histograms, such as `irate(h[5m])`.
+`irate` on native histograms, such as `irate(h[5m])`, isn't supported yet.
 :::

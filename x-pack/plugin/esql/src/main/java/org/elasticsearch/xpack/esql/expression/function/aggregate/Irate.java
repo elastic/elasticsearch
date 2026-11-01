@@ -67,7 +67,7 @@ public class Irate extends TimeSeriesAggregateFunction
         .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("irate(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .stdDivergence("Not supported yet on native histograms, such as `irate(h[5m])`.")
+        .stdDivergence("`irate` on native histograms, such as `irate(h[5m])`, isn't supported yet.")
         .name("irate");
 
     private static final TransportVersion IRATE_V2 = TransportVersion.fromName("esql_irate_v2");

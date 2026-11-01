@@ -27,5 +27,5 @@ rate(http_requests_total[5m])
 :::{note}
 **Differences from {{prom}}**
 
-Not supported yet on native histograms: use `increase` instead, such as `histogram_quantile(0.99, sum by (job) (increase(h[5m])))`. {{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value from the adjacent buckets' samples, falling back to {{prom}}-style extrapolation wherever an adjacent bucket has no samples (the series edges and any gaps). {{prom}} instead extrapolates within each range window, so results can differ slightly.
+`rate` on native histograms, such as `rate(h[5m])`, isn't supported yet. Use `increase` instead, such as `histogram_quantile(0.99, sum by (job) (increase(h[5m])))`. {{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value from the adjacent buckets' samples, falling back to {{prom}}-style extrapolation wherever an adjacent bucket has no samples (the series edges and any gaps). {{prom}} instead extrapolates within each range window, so results can differ slightly.
 :::

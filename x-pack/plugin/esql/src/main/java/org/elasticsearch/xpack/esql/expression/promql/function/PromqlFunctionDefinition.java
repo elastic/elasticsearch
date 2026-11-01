@@ -373,16 +373,16 @@ public final class PromqlFunctionDefinition {
      * ({@code histogram_quantile}, {@code histogram_fraction}).
      */
     public static final String HISTOGRAM_OVER_SELECTION_NOT_SUPPORTED_YET =
-        "{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Use over `topk`, `bottomk`, `limitk`, `limit_ratio`, "
-            + "or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with "
+        "{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` An argument computed by `topk`, `bottomk`, `limitk`, "
+            + "`limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with "
             + "`by(...)` first, such as `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))`.";
     /**
      * Shared "Differences from Prometheus" note for the native-histogram component functions ({@code histogram_count},
      * {@code histogram_sum}, {@code histogram_avg}).
      */
     public static final String NATIVE_HISTOGRAM_ONLY_NOTE =
-        "Accepts only native histograms. Classic histogram buckets, such as `histogram_count(rate(x_bucket[5m]))`, return "
-            + "an error, where {{prom}} returns no results.";
+        "Accepts only native histograms. Classic histogram buckets, such as `rate(x_bucket[5m])`, return an error, where "
+            + "{{prom}} returns no results.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
     public static final String QUANTILE_APPROXIMATION_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "

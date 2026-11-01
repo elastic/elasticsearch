@@ -10,7 +10,7 @@ products:
 
 # Logical/set operators [promql-logical-set-operators]
 
-These binary operators combine two instant vectors by matching their label sets. For the set operators that {{es}} supports, and their restrictions, see [Not supported yet](../operators.md#promql-operators-not-supported) and [{{prom}} compatibility](../prometheus-compatibility.md#prometheus-compatibility-logical-set-binary-operators).
+These binary operators combine two instant vectors by matching their label sets. For the set operators that {{es}} supports, and their restrictions, refer to [Not supported yet](../operators.md#promql-operators-not-supported) and [{{prom}} compatibility](../prometheus-compatibility.md#prometheus-compatibility-logical-set-binary-operators).
 
 :::{include} ../_snippets/generated/x-pack-esql/operators/lists/logical-set.md
 :::

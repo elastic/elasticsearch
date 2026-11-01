@@ -27,5 +27,5 @@ delta(cpu_temp_celsius[2h])
 :::{note}
 **Differences from {{prom}}**
 
-Not supported yet on native histograms, such as `delta(h[5m])`.
+`delta` on native histograms, such as `delta(h[5m])`, isn't supported yet.
 :::

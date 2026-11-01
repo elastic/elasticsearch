@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
@@ -78,6 +79,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -86,6 +89,8 @@ public class SecurityRestFilterTests extends ESTestCase {
     private ThreadContext threadContext;
     private AuthenticationService authcService;
     private SecondaryAuthenticator secondaryAuthenticator;
+    private AuditTrail secondaryAuditTrail;
+    private AuditTrail primaryAuditTrail;
     private RestChannel channel;
     private SecurityRestFilter filter;
     private RestHandler restHandler;
@@ -104,11 +109,13 @@ public class SecurityRestFilterTests extends ESTestCase {
                 Set.of(XPackSettings.AUDIT_ENABLED)
             )
         );
+        secondaryAuditTrail = mock(AuditTrail.class);
+        primaryAuditTrail = mock(AuditTrail.class);
         secondaryAuthenticator = new SecondaryAuthenticator(
             Settings.EMPTY,
             threadContext,
             authcService,
-            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService)
+            new AuditTrailService(secondaryAuditTrail, TestUtils.newTestLicenseState(), clusterService)
         );
         filter = getFilter(NOOP_OPERATOR_PRIVILEGES_SERVICE);
     }
@@ -119,7 +126,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             true,
             threadContext,
             secondaryAuthenticator,
-            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
+            new AuditTrailService(primaryAuditTrail, TestUtils.newTestLicenseState(), clusterService),
             privilegesService
         );
     }
@@ -149,18 +156,10 @@ public class SecurityRestFilterTests extends ESTestCase {
         HttpRequest httpRequest = mock(HttpRequest.class);
         when(request.getHttpRequest()).thenReturn(httpRequest);
 
-        Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
-        doAnswer(i -> {
-            final Object[] arguments = i.getArguments();
-            @SuppressWarnings("unchecked")
-            ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
-            callback.onResponse(primaryAuthentication);
-            return null;
-        }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
-
         Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
+            AuditUtil.generateRequestId(threadContext);
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(secondaryAuthentication);
@@ -175,6 +174,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharset.UTF_8))
         );
 
+        authenticateSecondaryInHttpPipeline(httpRequest);
+
         AtomicReference<SecondaryAuthentication> secondaryAuthRef = new AtomicReference<>();
         ActionListener<Boolean> listener = ActionListener.wrap(proceed -> {
             assertThat(proceed, is(Boolean.TRUE));
@@ -184,9 +185,51 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter.intercept(request, channel, restHandler, listener);
 
         verifyNoMoreInteractions(channel);
+        verify(secondaryAuditTrail).authenticationSuccess(request);
 
         assertThat(secondaryAuthRef.get(), notNullValue());
         assertThat(secondaryAuthRef.get().getAuthentication(), sameInstance(secondaryAuthentication));
+    }
+
+    public void testProcessSecondaryAuthenticationFailureAfterAuditingPrimarySuccess() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        HttpRequest httpRequest = mock(HttpRequest.class);
+        when(request.getHttpRequest()).thenReturn(httpRequest);
+
+        final ElasticsearchSecurityException secondaryFailure = new ElasticsearchSecurityException("invalid secondary credentials");
+        doAnswer(i -> {
+            final Object[] arguments = i.getArguments();
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
+            callback.onFailure(secondaryFailure);
+            return null;
+        }).when(authcService).authenticate(eq(httpRequest), eq(false), anyActionListener());
+
+        threadContext.putHeader(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, "Basic " + randomAlphaOfLengthBetween(8, 16));
+        authenticateSecondaryInHttpPipeline(httpRequest);
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        filter.intercept(request, channel, restHandler, future);
+
+        final ElasticsearchSecurityException ex = expectThrows(ExecutionException.class, ElasticsearchSecurityException.class, future::get);
+        assertThat(ex.getMessage(), containsString("secondary user"));
+        assertThat(ex.getCause(), sameInstance(secondaryFailure));
+        verify(primaryAuditTrail).authenticationSuccess(request);
+        verifyNoInteractions(secondaryAuditTrail);
+        verifyNoMoreInteractions(channel);
+    }
+
+    /**
+     * Restores the context seen by the listener, like the HTTP validator snapshots it onto the request.
+     */
+    private void authenticateSecondaryInHttpPipeline(HttpRequest httpRequest) throws Exception {
+        PlainActionFuture<ThreadContext.StoredContext> authenticatedContext = new PlainActionFuture<>();
+        secondaryAuthenticator.authenticateAndAttachResultToContext(
+            httpRequest,
+            authenticatedContext.map(ignored -> threadContext.newStoredContext())
+        );
+        authenticatedContext.get().restore();
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {

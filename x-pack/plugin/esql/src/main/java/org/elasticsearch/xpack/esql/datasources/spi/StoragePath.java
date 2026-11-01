@@ -43,6 +43,13 @@ public final class StoragePath {
     private final int port;           // -1 if not specified
     private final String path;        // path within the storage
 
+    /**
+     * Sentinel with no scheme, bucket, or key. {@link #objectName()} returns {@code ""}, so
+     * structured exception constructors that need a path but have none available produce a
+     * condition-only message (e.g. {@code "Malformed external data"}).
+     */
+    public static final StoragePath NONE = new StoragePath("none://", "none", null, "", -1, "");
+
     private StoragePath(String location, String scheme, String userInfo, String host, int port, String path) {
         this.location = location;
         this.scheme = scheme;
@@ -245,6 +252,23 @@ public final class StoragePath {
         return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
 
+    /**
+     * Returns the last path segment of {@code location} (the safe, displayable part). Returns an
+     * empty string when the name cannot be extracted safely (null input, parse failure, trailing
+     * slash). Never returns the full URI — fails closed rather than leaking a bucket or prefix.
+     */
+    public static String objectName(String location) {
+        if (location == null) {
+            return "";
+        }
+        try {
+            String name = StoragePath.of(location).objectName();
+            return name != null ? name : "";
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
+
     public StoragePath parentDirectory() {
         if (path.isEmpty() || path.equals(PATH_SEPARATOR)) {
             return null;
@@ -333,6 +357,28 @@ public final class StoragePath {
             return path;
         }
         return path.substring(lastSlash + 1);
+    }
+
+    /**
+     * The literal text a matching key must carry immediately after {@link #patternPrefix()}, or {@code ""} when the
+     * pattern's first segment begins with a metacharacter.
+     * <p>
+     * {@code patternPrefix} cuts at the last {@code /} before the first metacharacter, because that is the widest
+     * thing every provider can list. This is the rest of the literal run — for
+     * {@code .../transactions/date=2024-01-0*}&#47;{@code *.csv} the prefix is {@code .../transactions/} and this is
+     * {@code date=2024-01-0}. Together they name the narrowest key prefix that cannot exclude a match, which is what
+     * a flat-namespace store can be asked for directly instead of being asked for the whole parent and filtered.
+     * <p>
+     * It never holds a {@code /}, since the cut is at the last separator at or before the first metacharacter. So a
+     * provider may compare it against one path segment, or append it to a key prefix, without re-splitting it.
+     */
+    public String literalNamePrefix() {
+        if (isPattern() == false) {
+            return "";
+        }
+        int firstMeta = firstGlobMetacharacter();
+        int lastSlash = path.lastIndexOf('/', firstMeta);
+        return lastSlash < 0 ? path.substring(0, firstMeta) : path.substring(lastSlash + 1, firstMeta);
     }
 
     private String authorityPrefix() {

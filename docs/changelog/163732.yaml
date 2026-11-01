@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 163732
+summary: Fix NPE in datafeed delayed data check
+type: bug

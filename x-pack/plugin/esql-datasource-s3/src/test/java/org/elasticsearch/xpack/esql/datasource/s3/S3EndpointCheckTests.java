@@ -374,7 +374,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         Predicate<String> allowLoopback = hostAndPort -> hostAndPort.startsWith("127.0.0.1:");
         ValidationException errors = new ValidationException();
         S3EndpointCheck.validate(stsConfig("http://127.0.0.1:9000"), allowLoopback, errors);
-        assertThat(errors.getMessage(), containsString("sts_endpoint [http://127.0.0.1:9000] must use https"));
+        assertThat(errors.getMessage(), containsString("sts_endpoint must use https"));
 
         ValidationException overHttps = new ValidationException();
         S3EndpointCheck.validate(stsConfig("https://127.0.0.1:9000"), allowLoopback, overHttps);

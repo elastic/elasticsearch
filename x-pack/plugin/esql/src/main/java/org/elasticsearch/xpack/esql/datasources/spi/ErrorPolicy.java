@@ -148,6 +148,22 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     /** Keys recognised by {@link #fromConfig}. */
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
 
+    /**
+     * What this policy contributes to the identity of a read, for the harvest fingerprint that decides whether one
+     * read's statistics may enrich another's entry.
+     * <p>
+     * It belongs there because the policy decides <em>which rows survive</em>: under {@code skip_row} or
+     * {@code null_field} a committed count is a survivor count and the column statistics are of null-filled cells,
+     * so they describe a different measurement of the same bytes than a {@code fail_fast} read makes. Sharing them
+     * across policies serves a strict query a lenient scan's number while its own scan would abort — a masked abort,
+     * not a slow query.
+     * <p>
+     * {@code logErrors} is excluded: it changes what is written to a log, never which rows survive.
+     */
+    public String readIdentity() {
+        return mode.name() + ':' + maxErrors + ':' + maxErrorRatio;
+    }
+
     public ErrorPolicy {
         if (mode == null) {
             throw new IllegalArgumentException("mode must not be null");

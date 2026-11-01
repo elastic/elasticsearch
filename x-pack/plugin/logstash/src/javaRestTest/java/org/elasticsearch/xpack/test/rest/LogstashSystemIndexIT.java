@@ -203,6 +203,31 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         }
     }
 
+    public void testPipelineSizeLimit() throws IOException {
+        // Temporarily lower the limit so we don't need to allocate megabytes in the test
+        final int smallLimit = 100;
+        Request updateSettings = new Request("PUT", "/_cluster/settings");
+        updateSettings.setJsonEntity("{\"persistent\":{\"logstash.pipeline.max_size\":\"" + smallLimit + "b\"}}");
+        client().performRequest(updateSettings);
+
+        try {
+            String body = getPipelineJson("2020-03-09T15:42:30.229Z");
+            assertTrue("test body must exceed the temporary limit", body.length() > smallLimit);
+
+            Request putRequest = new Request("PUT", "/_logstash/pipeline/test_pipeline");
+            putRequest.setJsonEntity(body);
+
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putRequest));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(EntityUtils.toString(exception.getResponse().getEntity()), containsString("exceeds the maximum allowed size of"));
+        } finally {
+            // Restore the default
+            Request restoreSettings = new Request("PUT", "/_cluster/settings");
+            restoreSettings.setJsonEntity("{\"persistent\":{\"logstash.pipeline.max_size\":null}}");
+            client().performRequest(restoreSettings);
+        }
+    }
+
     private static void assertPipelineEquals(String actualPipelineJson, String expectedPipelineJson) throws IOException {
         Map<String, Object> actualMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), actualPipelineJson, false);
         assertThat(actualMap.size(), is(1));
@@ -224,10 +249,22 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
     }
 
     private String getPipelineJson(String date) throws IOException {
+        return getPipelineJson(date, "test pipeline");
+    }
+
+    private String getPipelineJson(String date, String description) throws IOException {
+        return getPipelineJson(date, description, """
+            "input": {},
+            "filter": {},
+            "output": {}
+            """);
+    }
+
+    private String getPipelineJson(String date, String description, String pipeline) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {
-                builder.field("description", "test pipeline");
+                builder.field("description", description);
                 builder.field("last_modified", date);
                 builder.startObject("pipeline_metadata");
                 {
@@ -236,11 +273,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
                 }
                 builder.endObject();
                 builder.field("username", "john.doe");
-                builder.field("pipeline", """
-                    "input": {},
-                    "filter": {},
-                    "output": {}
-                    """);
+                builder.field("pipeline", pipeline);
                 builder.startObject("pipeline_settings");
                 {
                     builder.field("pipeline.batch.delay", 50);

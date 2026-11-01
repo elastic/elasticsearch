@@ -33,7 +33,7 @@ public class NarrowArrowBufTests extends ESTestCase {
 
     @Before
     public void setup() {
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = new BlockFactory(NoopCircuitBreaker.INSTANCE, BigArrays.NON_RECYCLING_INSTANCE);
         allocator = blockFactory.arrowAllocator();
     }
 

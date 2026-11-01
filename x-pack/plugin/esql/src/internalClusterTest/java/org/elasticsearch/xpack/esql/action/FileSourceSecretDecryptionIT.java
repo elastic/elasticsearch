@@ -153,7 +153,10 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
             capturedConstructionThread = Thread.currentThread().getName();
             return new Configured<>(
                 new CredentialGatedLocalStorageProvider(SCHEME, capturedSecret, expectedCredentialOverride),
-                capturedSecretKeyPresent ? Set.of(SECRET_KEY) : Set.of()
+                capturedSecretKeyPresent ? Set.of(SECRET_KEY) : Set.of(),
+                // The only key consumed here is a secret, and a secret never identifies a configuration.
+                "",
+                ""
             );
         }
     }
@@ -404,6 +407,99 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
         );
         // Decryption itself must still have succeeded: the captured value is the wrong (but plaintext) secret.
         assertEquals("provider must have observed the decrypted (wrong) secret", wrongSecret, capturedSecret);
+    }
+
+    public void testSnapshotRestoreRequiresCredentialReentry() throws Exception {
+        final String repoName = "secret-snap-repo";
+        final String snapshotName = "secret-snap";
+
+        // Unique per run so the StorageProviderRegistry cache doesn't short-circuit provider creation.
+        final String secretValue = SECRET_VALUE + "_snap_" + SECRET_SEQ.incrementAndGet();
+        expectedCredentialOverride = secretValue;
+
+        Path fixture = createTempFile("secret-snap-fixture-", ".csv");
+        Files.writeString(fixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob") + "\n");
+        String uri = SCHEME + "://" + StoragePath.fileUri(fixture).substring("file://".length());
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "secret_src",
+                    "test",
+                    null,
+                    new HashMap<>(Map.of(SECRET_KEY, secretValue))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "secret_ds", "secret_src", uri, null, new HashMap<>(Map.of("format", "csv")))
+            )
+        );
+
+        // Baseline: credential present, query returns rows.
+        try (var response = run(syncEsqlQueryRequest("FROM secret_ds | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(2));
+        }
+
+        // Snapshot with global state: secret_token is stripped from the blob.
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "secret_ds" }))
+            .get();
+        client().execute(
+            DeleteDataSourceAction.INSTANCE,
+            new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "secret_src" })
+        ).get();
+
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // After restore the data source exists (config survived) but secret_token was stripped.
+        // The credential-gated provider rejects the read because no plaintext credential is delivered.
+        Exception failureAfterRestore = null;
+        try (var ignored = run(syncEsqlQueryRequest("FROM secret_ds | LIMIT 5"), TIMEOUT)) {
+            fail("expected query to fail: credential was stripped from the snapshot");
+        } catch (Exception e) {
+            failureAfterRestore = e;
+        }
+        assertNotNull("query must fail after restore with no credential", failureAfterRestore);
+
+        // Re-enter the credential via PUT.
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "secret_src",
+                    "test",
+                    null,
+                    new HashMap<>(Map.of(SECRET_KEY, secretValue))
+                )
+            )
+        );
+
+        // Query must succeed again once credentials are restored.
+        try (var response = run(syncEsqlQueryRequest("FROM secret_ds | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(2));
+        }
+
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
     }
 
     private static void writeParquetFile(Path target, int rowCount) throws IOException {

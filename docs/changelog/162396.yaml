@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 162392
+pr: 162396
+summary: Fix wrong scores, ranks and order when a chunked fetch falls back to a classic fetch
+type: bug

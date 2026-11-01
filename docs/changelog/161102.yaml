@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161102
+summary: Keep one schema file when partitions prune
+type: bug

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -129,6 +131,8 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertEquals(REGISTRY.functionName(DateExtract.class), REGISTRY.resolveAlias("DATE_EXTRACT"));
         assertEquals(REGISTRY.functionName(DateTrunc.class), REGISTRY.resolveAlias("DATE_TRUNC"));
         assertEquals(REGISTRY.functionName(Year.class), REGISTRY.resolveAlias("YEAR"));
+        assertEquals("to_datetime", REGISTRY.functionName(ToDatetime.class));
+        assertEquals(REGISTRY.functionName(ToDatetime.class), REGISTRY.resolveAlias("TO_DT"));
     }
 
     public void testYearFoldsDatetimeLiteral() {
@@ -153,6 +157,78 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
 
     public void testYearUnresolvedFieldUnchanged() {
         assertUnchanged("YEAR", List.of(new UnresolvedAttribute(SRC, "start")), utc());
+    }
+
+    public void testToDatetimeFoldsKeywordLiteral() {
+        Literal folded = foldLiteral("TO_DATETIME", List.of(keyword("2026-07-13T00:00:00.000Z")), utc());
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(JULY_13_2026_UTC, folded.value());
+        assertEquals(SRC, folded.source());
+    }
+
+    public void testToDatetimeFoldsUnderItsAlias() {
+        assertEquals(JULY_13_2026_UTC, foldLiteral("to_dt", List.of(keyword("2026-07-13")), utc()).value());
+    }
+
+    public void testToDatetimeIsIdentityOnADatetimeLiteral() {
+        Literal folded = foldLiteral("TO_DATETIME", List.of(datetime(JULY_13_2026_UTC)), utc());
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(JULY_13_2026_UTC, folded.value());
+    }
+
+    /**
+     * The shape this arm exists for. The outer call folds only because the inner one did, and the hint has to name
+     * the day the QUERY reads: under a negative offset that is the day before the one spelled in the string, and a
+     * hint naming the calendar day in the text would prune the folder the query actually wants.
+     */
+    public void testToDatetimeFoldLetsTheOuterCallFoldInTheQuerysZone() {
+        Configuration minus5 = config(ZoneOffset.ofHours(-5));
+        UnresolvedFunction inner = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(keyword("2026-07-13T00:00:00Z")));
+        Literal innerFolded = (Literal) DateFunctionComparisonRewriter.tryFoldCall(inner, minus5, REGISTRY);
+        assertEquals(JULY_13_2026_UTC, innerFolded.value());
+        assertEquals(12L, foldLiteral("DATE_EXTRACT", List.of(keyword("DAY_OF_MONTH"), innerFolded), minus5).value());
+    }
+
+    public void testToDatetimeFoldsOffsetlessStringUsingQueryZone() {
+        // "2026-07-13" with no zone offset: parsed in -05:00 → 2026-07-13T05:00:00Z
+        Configuration minus5 = config(ZoneOffset.ofHours(-5));
+        long expectedMillis = Instant.parse("2026-07-13T05:00:00Z").toEpochMilli();
+        Literal folded = foldLiteral("TO_DATETIME", List.of(keyword("2026-07-13")), minus5);
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(expectedMillis, folded.value());
+        // DATE_EXTRACT in the same zone reads day 13; a zone-blind fold (always UTC) would give day 12
+        assertEquals(13L, foldLiteral("DATE_EXTRACT", List.of(keyword("DAY_OF_MONTH"), folded), minus5).value());
+    }
+
+    public void testToDatetimeFoldsDateNanosLiteral() {
+        Literal nanos = new Literal(SRC, DateUtils.toNanoSeconds(JULY_13_2026_UTC), DataType.DATE_NANOS);
+        UnresolvedFunction call = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(nanos));
+        Literal folded = (Literal) DateFunctionComparisonRewriter.tryFoldCall(call, utc(), REGISTRY);
+        assertNotNull("DATE_NANOS argument must fold to a DATETIME millis literal", folded);
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(JULY_13_2026_UTC, folded.value());
+    }
+
+    /**
+     * Declines rather than folds. Each of these would make the fold disagree with what {@code ToDatetime} evaluates,
+     * and a hint that disagrees prunes folders the query would have read - a silent short read, which is worse than
+     * listing too much. A numeric argument is a fold gap, not a disagreement: evaluation converts it, so the only
+     * cost of declining is that no hint is emitted.
+     */
+    public void testToDatetimeDeclinesWhatItCannotFoldExactly() {
+        assertUnchanged("TO_DATETIME", List.of(keyword("not-a-date")), utc());
+        assertUnchanged("TO_DATETIME", List.of(keyword("1964-06-02 00:00:00")), utc());
+        assertUnchanged("TO_DATETIME", List.of(new Literal(SRC, null, DataType.KEYWORD)), utc());
+        assertUnchanged("TO_DATETIME", List.of(new Literal(SRC, 1700000000000L, DataType.LONG)), utc());
+        assertUnchanged("TO_DATETIME", List.of(new UnresolvedAttribute(SRC, "start")), utc());
+        assertUnchanged("TO_DATETIME", List.of(keyword("2026-07-13"), keyword("extra")), utc());
+    }
+
+    public void testToDatetimeDeclinesAMultivaluedLiteral() {
+        // BytesRef, not String: Literal asserts noPlainStrings for KEYWORD, so a String fixture would trip that
+        // assertion in the test's own setup rather than reaching the fold.
+        List<BytesRef> values = List.of(new BytesRef("2026-07-13"), new BytesRef("2026-07-14"));
+        assertUnchanged("TO_DATETIME", List.of(new Literal(SRC, values, DataType.KEYWORD)), utc());
     }
 
     public void testDateExtractDateNanosLiteral() {

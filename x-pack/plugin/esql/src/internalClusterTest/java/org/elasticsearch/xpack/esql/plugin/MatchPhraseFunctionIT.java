@@ -116,7 +116,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after LIMIT"));
+        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function cannot be used after LIMIT"));
     }
 
     public void testNotWhereMatchPhrase() {
@@ -326,7 +326,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function is only supported in WHERE and STATS commands"));
 
         var query = """
             FROM test
@@ -362,7 +362,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function is only supported in WHERE and STATS commands"));
     }
 
     public void testRuntimeMatchPhraseAfterLimit() {
@@ -943,7 +943,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(
             error.getMessage(),
             containsString(
-                "line 3:33: [MatchPhrase] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
+                "line 3:33: [MATCH_PHRASE] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
                     + "in non-STANDARD mode [lookup]"
             )
         );

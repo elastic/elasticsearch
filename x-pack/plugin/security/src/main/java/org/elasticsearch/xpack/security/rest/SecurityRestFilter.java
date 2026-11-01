@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
@@ -86,22 +85,14 @@ public class SecurityRestFilter implements RestInterceptor {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
             try {
                 auditTrailService.get().authenticationSuccess(wrappedRequest);
-            } catch (ElasticsearchStatusException e) {
+                secondaryAuthenticator.completeAuthentication(wrappedRequest);
+            } catch (Exception e) {
                 handleException(aggregatedRestRequest, e, listener);
                 return;
             }
-            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-                if (secondaryAuthentication != null) {
-                    logger.trace(
-                        "Found secondary authentication {} in REST request [{}]",
-                        secondaryAuthentication,
-                        aggregatedRestRequest.uri()
-                    );
-                }
-                WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
+            WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
-                doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
-            }, e -> handleException(aggregatedRestRequest, e, listener)));
+            doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
         };
         if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
             aggregate(request, aggregationCallback::accept);

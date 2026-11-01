@@ -213,6 +213,24 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Whether no streamed hits are queued for this shard, which is the case before any chunk arrives and again after the hits
+     * are handed to a result.
+     */
+    boolean isEmpty() {
+        return queue.isEmpty();
+    }
+
+    /**
+     * Hands the charge accumulated here to the result that now owns the hits.
+     */
+    void transferBreakerBytesTo(FetchSearchResult result) {
+        long bytes = totalBreakerBytes.getAndSet(0);
+        if (bytes > 0L) {
+            result.setCoordinatorSearchHitsSizeBytes(bytes, circuitBreaker);
+        }
+    }
+
+    /**
      * Releases accumulated hits and circuit breaker bytes when hits are released from memory.
      */
     @Override

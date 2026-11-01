@@ -67,4 +67,9 @@ public abstract class CompoundOutputEvalExecSerializationTests extends AbstractP
         List<String> outputFieldNames,
         List<Attribute> outputFields
     );
+
+    public void testOutputIsCached() {
+        PhysicalPlan plan = createTestInstance();
+        assertSame(plan.output(), plan.output());
+    }
 }

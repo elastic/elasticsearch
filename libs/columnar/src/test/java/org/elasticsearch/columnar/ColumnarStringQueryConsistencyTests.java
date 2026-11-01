@@ -37,6 +37,8 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.test.ESTestCase;
 
@@ -68,8 +70,8 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
     private record Case(String label, Query query, Predicate<String[]> expected) {}
 
     public void testQueriesAgreeWithTheValues() throws Exception {
-        withIndex((searcher, docs) -> {
-            for (Case c : cases()) {
+        withIndex((searcher, docs, singleValued) -> {
+            for (Case c : cases(singleValued)) {
                 final FixedBitSet expected = expected(docs, c.expected());
                 assertEquals(c.label(), expected, collect(searcher, c.query(), docs.length));
                 assertEquals(c.label() + " count", expected.cardinality(), searcher.count(c.query()));
@@ -87,8 +89,8 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
 
     /** The same queries from several threads at once, over one reader. */
     public void testConcurrentSearches() throws Exception {
-        withIndex((searcher, docs) -> {
-            final List<Case> cases = cases();
+        withIndex((searcher, docs, singleValued) -> {
+            final List<Case> cases = cases(singleValued);
             final List<FixedBitSet> expected = new ArrayList<>();
             for (Case c : cases) {
                 expected.add(expected(docs, c.expected()));
@@ -120,7 +122,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
     }
 
     private interface IndexCheck {
-        void check(IndexSearcher searcher, String[][] docs) throws Exception;
+        void check(IndexSearcher searcher, String[][] docs, boolean singleValued) throws Exception;
     }
 
     /**
@@ -131,6 +133,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
         final String[][] docs = new String[between(2_000, 20_000)][];
         final double present = randomFrom(1.0, 0.9, 0.3, 0.02);
         final boolean multiValued = randomBoolean();
+        final boolean singleValued = multiValued == false && randomBoolean();
         String current = randomFrom(VOCABULARY);
         for (int d = 0; d < docs.length; d++) {
             if (random().nextInt(12) == 0) {
@@ -150,8 +153,9 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
             (field, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            policy,
-            SummaryPolicy.NONE
+            StringColumnOptionsSelector.always(
+                StringColumnOptions.DEFAULT.withPolicies(policy, SummaryPolicy.NONE).withSingleValued(singleValued)
+            )
         );
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format))
             .setMaxBufferedDocs(between(500, 8000))
@@ -164,7 +168,8 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
                     final Document doc = new Document();
                     doc.add(new StringField(ID, Integer.toString(d), Field.Store.YES));
                     if (docs[d] != null) {
-                        doc.add(new Field(FIELD, encode(docs[d]), columnarBinaryFieldType()));
+                        final BytesRef blob = singleValued ? new BytesRef(docs[d][0]) : encode(docs[d]);
+                        doc.add(new Field(FIELD, blob, columnarBinaryFieldType()));
                     }
                     writer.addDocument(doc);
                     if (deletes && d > 0 && random().nextInt(20) == 0) {
@@ -193,7 +198,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
                         live[leaf.docBase + d] = true;
                     }
                 }
-                check.check(newSearcher(reader, false, true), withLiveness(byDoc, live));
+                check.check(newSearcher(reader, false, true), withLiveness(byDoc, live), singleValued);
             }
         }
     }
@@ -210,25 +215,29 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
     private static final String[] ABSENT = new String[0];
     private static final String[] DELETED = new String[] { "\u0000deleted" };
 
-    private static List<Case> cases() {
+    private static List<Case> cases(boolean singleValued) {
         final List<Case> cases = new ArrayList<>();
         final String[] probes = { "", "a", "ab", "abc", "google", "absent", "zz-a-longer-value" };
         for (String probe : probes) {
             final BytesRef term = new BytesRef(probe);
             cases.add(
-                new Case("term [" + probe + "]", ColumnarStringTermQuery.term(FIELD, term, s -> {}), v -> any(v, x -> x.equals(probe)))
+                new Case(
+                    "term [" + probe + "]",
+                    ColumnarStringTermQuery.term(FIELD, term, singleValued, s -> {}),
+                    v -> any(v, x -> x.equals(probe))
+                )
             );
             cases.add(
                 new Case(
                     "prefix [" + probe + "]",
-                    ColumnarStringTermQuery.prefix(FIELD, term, s -> {}),
+                    ColumnarStringTermQuery.prefix(FIELD, term, singleValued, s -> {}),
                     v -> any(v, x -> x.startsWith(probe))
                 )
             );
             cases.add(
                 new Case(
                     "contains [" + probe + "]",
-                    ColumnarStringTermQuery.contains(FIELD, term, s -> {}),
+                    ColumnarStringTermQuery.contains(FIELD, term, singleValued, s -> {}),
                     v -> any(v, x -> x.contains(probe))
                 )
             );
@@ -236,7 +245,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
                 new Case(
                     "not [" + probe + "]",
                     new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
-                        .add(ColumnarStringTermQuery.term(FIELD, term, s -> {}), Occur.MUST_NOT)
+                        .add(ColumnarStringTermQuery.term(FIELD, term, singleValued, s -> {}), Occur.MUST_NOT)
                         .build(),
                     v -> v != DELETED && any(v, x -> x.equals(probe)) == false
                 )
@@ -251,6 +260,7 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
                         FIELD,
                         Operations.determinize(new RegExp(pattern).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
                         pattern,
+                        singleValued,
                         s -> {}
                     ),
                     v -> any(v, x -> x.matches(regex))
@@ -260,18 +270,20 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
         cases.add(
             new Case(
                 "prefix [a] and contains [b]",
-                new BooleanQuery.Builder().add(ColumnarStringTermQuery.prefix(FIELD, new BytesRef("a"), s -> {}), Occur.FILTER)
-                    .add(ColumnarStringTermQuery.contains(FIELD, new BytesRef("b"), s -> {}), Occur.FILTER)
-                    .build(),
+                new BooleanQuery.Builder().add(
+                    ColumnarStringTermQuery.prefix(FIELD, new BytesRef("a"), singleValued, s -> {}),
+                    Occur.FILTER
+                ).add(ColumnarStringTermQuery.contains(FIELD, new BytesRef("b"), singleValued, s -> {}), Occur.FILTER).build(),
                 v -> any(v, x -> x.startsWith("a")) && any(v, x -> x.contains("b"))
             )
         );
         cases.add(
             new Case(
                 "contains [google] and not contains [.google.]",
-                new BooleanQuery.Builder().add(ColumnarStringTermQuery.contains(FIELD, new BytesRef("google"), s -> {}), Occur.FILTER)
-                    .add(ColumnarStringTermQuery.contains(FIELD, new BytesRef(".google."), s -> {}), Occur.MUST_NOT)
-                    .build(),
+                new BooleanQuery.Builder().add(
+                    ColumnarStringTermQuery.contains(FIELD, new BytesRef("google"), singleValued, s -> {}),
+                    Occur.FILTER
+                ).add(ColumnarStringTermQuery.contains(FIELD, new BytesRef(".google."), singleValued, s -> {}), Occur.MUST_NOT).build(),
                 v -> any(v, x -> x.contains("google")) && any(v, x -> x.contains(".google.")) == false
             )
         );

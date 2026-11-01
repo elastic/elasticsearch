@@ -456,13 +456,16 @@ public final class MethodWriter extends GeneratorAdapter {
         Type interfaceType,
         Type receiverType,
         String interfaceCanonicalTypeName,
+        boolean pushesScript,
         boolean chargesAllocation
     ) {
-        Type methodType = chargesAllocation
-            ? Type.getMethodType(interfaceType, receiverType, CLASS_TYPE)
-            : Type.getMethodType(interfaceType, receiverType);
-        Object[] params = chargesAllocation ? new Object[] { interfaceCanonicalTypeName, 1 } : new Object[] { interfaceCanonicalTypeName };
-        invokeDefCall(name, methodType, DefBootstrap.REFERENCE, params);
+        if (pushesScript) {
+            // The script follows the receiver. The flag says whether to charge the target.
+            Type methodType = Type.getMethodType(interfaceType, receiverType, CLASS_TYPE);
+            invokeDefCall(name, methodType, DefBootstrap.REFERENCE, interfaceCanonicalTypeName, chargesAllocation ? 1 : 0);
+        } else {
+            invokeDefCall(name, Type.getMethodType(interfaceType, receiverType), DefBootstrap.REFERENCE, interfaceCanonicalTypeName);
+        }
     }
 
     public void invokeMethodCall(PainlessMethod painlessMethod) {

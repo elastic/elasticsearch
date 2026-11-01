@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 
 import static org.elasticsearch.index.mapper.BlockSourceReader.ESTIMATED_SIZE;
 
@@ -124,8 +123,20 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
          */
         private final MultiValuedSortableBinaryDocValues ignoredSourceDocValues;
         private final Thread creationThread;
+        /** What this reader has accounted for on the breaker, released by {@link #close}. */
+        private final long accountedBytes;
         private int docId = -1;
 
+        /**
+         * Besides the flat {@link BlockSourceReader#ESTIMATED_SIZE}, a reader on the doc values format also accounts for the block buffer
+         * of its private {@link MultiValuedSortableBinaryDocValues}. The buffer is allocated lazily, once the reader decodes a block, and
+         * can be as large as the segment's largest block, so a query that reads many fields would otherwise hold one copy per field while
+         * the breaker only sees the flat estimate. What it accounts for is the upper bound the doc values report, added before any block is
+         * decompressed. It does not break the reader that has just opened its doc values, but it leaves the breaker over its limit when it
+         * does not fit, so the next reader fails while accounting for its flat estimate with a
+         * {@link org.elasticsearch.common.breaker.CircuitBreakingException} rather than the query running out of memory. Everything is
+         * released if opening the doc values fails, as {@code TrackingBinaryDocValues#get} does.
+         */
         IgnoredSourceRowStrideReader(
             CircuitBreaker breaker,
             String fieldName,
@@ -134,20 +145,38 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
             LeafReader leafReader
         ) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "account for ignored source block estimation");
+            long accounted = ESTIMATED_SIZE;
+            MultiValuedSortableBinaryDocValues docValues = null;
+            boolean success = false;
+            try {
+                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+                    docValues = Objects.requireNonNull(
+                        MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                    );
+                    // 0 means no buffer beyond a value's own bytes and -1 means no estimate, so neither adds to what is accounted for
+                    long retained = docValues.maxDecodeBytes();
+                    if (retained > 0) {
+                        // No breaking here, we managed to create docValues instance.
+                        // The next reader will do the first breaker check and this would then break.
+                        breaker.addWithoutBreaking(retained, "account for ignored source block estimation based on max decode bytes");
+                        accounted += retained;
+                    }
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    breaker.addWithoutBreaking(-accounted);
+                }
+            }
             this.breaker = breaker;
             this.creationThread = Thread.currentThread();
             this.fieldName = fieldName;
             this.sourceFilter = sourceFilter;
             this.reader = reader;
             this.ignoredSourceFormat = ignoredSourceFormat;
-            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
-                this.ignoredSourceDocValues = Objects.requireNonNull(
-                    MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
-                );
-            } else {
-                this.ignoredSourceDocValues = null;
-            }
+            this.ignoredSourceDocValues = docValues;
+            this.accountedBytes = accounted;
         }
 
         @Override
@@ -230,52 +259,44 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             var type = XContentDataHelper.decodeType(nameValue.value());
             assert type.isPresent();
 
-            String nameAtThisLevel = fieldName.substring(nameValue.name().length() + 1);
-            var filterParserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.of(nameAtThisLevel), Set.of(), true);
             try (
                 XContentParser parser = type.get()
                     .xContent()
-                    .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
+                    .createParser(
+                        XContentParserConfiguration.EMPTY,
+                        nameValue.value().bytes,
+                        nameValue.value().offset + 1,
+                        nameValue.value().length - 1
+                    )
             ) {
-                parser.nextToken();
-                var fieldNames = new Stack<String>() {
-                    {
-                        push(nameValue.name());
-                    }
-                };
+                if (parser.nextToken() != null) {
+                    parseFieldAtPath(parser, nameValue.name(), blockValues);
+                }
+            }
+        }
 
-                while (parser.currentToken() != null) {
-                    // We are descending into an object/array hierarchy of arbitrary depth
-                    // until we find the field that we need.
-                    while (true) {
-                        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                            fieldNames.push(parser.currentName());
-                            var nameInParser = String.join(".", fieldNames);
-                            if (nameInParser.equals(fieldName)) {
-                                parser.nextToken();
-                                break;
-                            }
-                        } else {
-                            assert parser.currentToken() == XContentParser.Token.START_OBJECT
-                                || parser.currentToken() == XContentParser.Token.START_ARRAY;
-                        }
-
-                        parser.nextToken();
-                    }
-                    parseWithReader(parser, blockValues);
+        private void parseFieldAtPath(XContentParser parser, String path, List<T> blockValues) throws IOException {
+            assert fieldName.startsWith(path) && path.length() < fieldName.length() : "[" + path + "] not prefix of [" + fieldName + "]";
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                    String childPath = path + "." + parser.currentName();
                     parser.nextToken();
-
-                    // We are coming back up in object/array hierarchy.
-                    // If arrays are present we will explore all array items by going back down again.
-                    while (parser.currentToken() == XContentParser.Token.END_OBJECT
-                        || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-                        // When exiting an object arrays we'll see END_OBJECT followed by END_ARRAY, but we only need to pop the object name
-                        // once.
-                        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-                            fieldNames.pop();
+                    if (fieldName.startsWith(childPath)) {
+                        if (childPath.length() == fieldName.length()) {
+                            parseWithReader(parser, blockValues);
+                        } else if (fieldName.charAt(childPath.length()) == '.') {
+                            parseFieldAtPath(parser, childPath, blockValues);
+                        } else {
+                            parser.skipChildren();
                         }
-                        parser.nextToken();
+                    } else {
+                        parser.skipChildren();
                     }
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                for (token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    parseFieldAtPath(parser, path, blockValues);
                 }
             }
         }
@@ -296,7 +317,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            breaker.addWithoutBreaking(-accountedBytes);
         }
 
         @Override
@@ -349,14 +370,8 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 return;
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                        if (nullValue != null) {
-                            convertValue(nullValue, accumulator);
-                        }
-                    } else {
-                        parseNonNullValue(parser, accumulator);
-                    }
+                for (var token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    parse(parser, accumulator);
                 }
                 return;
             }

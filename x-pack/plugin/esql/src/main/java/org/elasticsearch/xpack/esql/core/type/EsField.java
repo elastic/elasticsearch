@@ -27,6 +27,7 @@ public class EsField implements Writeable {
     private static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = TransportVersion.fromName(
         "esql_serialize_timeseries_field_type"
     );
+    public static final TransportVersion ESQL_SERIALIZE_PASSTHROUGH_FIELD = TransportVersion.fromName("esql_serialize_passthrough_field");
 
     /**
      * Fields in a TSDB can be either dimensions or metrics.  This enum provides a way to store, serialize, and operate on those field
@@ -126,6 +127,7 @@ public class EsField implements Writeable {
     private final String name;
     private final boolean isAlias;
     private final TimeSeriesFieldType timeSeriesFieldType;
+    private final boolean isPassthrough;
 
     public EsField(
         String name,
@@ -145,12 +147,25 @@ public class EsField implements Writeable {
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
+        this(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType, false);
+    }
+
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isPassthrough
+    ) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
         this.properties = properties;
         this.isAlias = isAlias;
         this.timeSeriesFieldType = timeSeriesFieldType;
+        this.isPassthrough = isPassthrough;
     }
 
     public EsField(StreamInput in) throws IOException {
@@ -160,6 +175,7 @@ public class EsField implements Writeable {
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
         this.timeSeriesFieldType = readTimeSeriesFieldType(in);
+        this.isPassthrough = in.getTransportVersion().supports(ESQL_SERIALIZE_PASSTHROUGH_FIELD) && in.readBoolean();
     }
 
     public static <A extends EsField> A readFrom(StreamInput in) throws IOException {
@@ -183,6 +199,9 @@ public class EsField implements Writeable {
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);
         writeTimeSeriesFieldType(out);
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_PASSTHROUGH_FIELD)) {
+            out.writeBoolean(isPassthrough);
+        }
     }
 
     protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
@@ -225,7 +244,9 @@ public class EsField implements Writeable {
     }
 
     public EsField withDataType(DataType esDataType) {
-        return esDataType == this.esDataType ? this : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+        return esDataType == this.esDataType
+            ? this
+            : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
     }
 
     public EsField withWidenedSmallNumeric() {
@@ -253,7 +274,7 @@ public class EsField implements Writeable {
      * override this so that state (e.g. a keyword's {@code normalized} flag, which decides exact-match eligibility) is not lost.
      */
     public EsField withProperties(Map<String, EsField> newProperties) {
-        return new EsField(name, esDataType, newProperties, aggregatable, isAlias, timeSeriesFieldType);
+        return new EsField(name, esDataType, newProperties, aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
     }
 
     /**
@@ -261,6 +282,13 @@ public class EsField implements Writeable {
      */
     public boolean isAlias() {
         return isAlias;
+    }
+
+    /**
+     * Whether this field is a passthrough source in every index where it is mapped.
+     */
+    public boolean isPassthrough() {
+        return isPassthrough;
     }
 
     /**
@@ -304,6 +332,7 @@ public class EsField implements Writeable {
         EsField field = (EsField) o;
         return aggregatable == field.aggregatable
             && isAlias == field.isAlias
+            && isPassthrough == field.isPassthrough
             && esDataType == field.esDataType
             && Objects.equals(name, field.name)
             && Objects.equals(properties, field.properties)
@@ -312,7 +341,7 @@ public class EsField implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(esDataType, aggregatable, properties, name, isAlias, timeSeriesFieldType);
+        return Objects.hash(esDataType, aggregatable, properties, name, isAlias, timeSeriesFieldType, isPassthrough);
     }
 
     public static final class Exact {

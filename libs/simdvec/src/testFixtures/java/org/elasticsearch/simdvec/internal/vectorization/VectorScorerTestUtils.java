@@ -19,24 +19,29 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class VectorScorerTestUtils {
 
-    public static int[] generateFilteredOffsets(Random random, int numVectors, int filteredVectors) {
-        var allOffsets = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
-        for (int i = 0; i < filteredVectors; i++) {
-            int allOffsetsLength = allOffsets.size();
-            allOffsets.remove(random.nextInt(0, allOffsetsLength));
+    /** A mask over the first {@code count} vectors of a block with {@code filtered} of them, chosen at random, not selected. */
+    public static int generateFilteredMask(Random random, int count, int filtered) {
+        int[] positions = new int[count];
+        Arrays.setAll(positions, i -> i);
+        int mask = BulkMask.all(count);
+        for (int i = 0; i < filtered; i++) {
+            int pick = random.nextInt(i, count);
+            int dropped = positions[pick];
+            positions[pick] = positions[i];
+            mask &= ~(1 << dropped);
         }
-        return allOffsets.stream().mapToInt(i -> i).toArray();
+        return mask;
     }
 
     public record VectorData(

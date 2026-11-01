@@ -225,10 +225,10 @@ public class UriPartsProcessorTests extends ESTestCase {
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
-        Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
-        expectedSourceAndMetadata.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
-        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
-            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        Map<String, Object> expectedSource = new HashMap<>();
+        expectedSource.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
+        for (Map.Entry<String, Object> entry : expectedSource.entrySet()) {
+            assertThat(output.getSource(), hasEntry(entry.getKey(), entry.getValue()));
         }
     }
 
@@ -269,15 +269,15 @@ public class UriPartsProcessorTests extends ESTestCase {
         // Adding a random field, so we can check the doc is leaved unchanged.
         source.put(randomIdentifier(), randomIdentifier());
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
-        Map<String, Object> expectedSourceAndMetadata = Map.copyOf(input.getSourceAndMetadata());
+        Map<String, Object> expectedSource = Map.copyOf(input.getSource());
 
         UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false, true);
         IngestDocument output = processor.execute(input);
 
-        assertThat(output.getSourceAndMetadata().entrySet(), hasSize(expectedSourceAndMetadata.size()));
+        assertThat(output.getSource().entrySet(), hasSize(expectedSource.size()));
 
-        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
-            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        for (Map.Entry<String, Object> entry : expectedSource.entrySet()) {
+            assertThat(output.getSource(), hasEntry(entry.getKey(), entry.getValue()));
         }
     }
 
@@ -294,10 +294,10 @@ public class UriPartsProcessorTests extends ESTestCase {
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
-        Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
+        Map<String, Object> expectedSource = new HashMap<>();
 
         if (removeIfSuccessful == false) {
-            expectedSourceAndMetadata.put("field", uri);
+            expectedSource.put("field", uri);
         }
 
         Map<String, Object> values;
@@ -307,10 +307,10 @@ public class UriPartsProcessorTests extends ESTestCase {
         } else {
             values = expectedValues;
         }
-        expectedSourceAndMetadata.put("url", values);
+        expectedSource.put("url", values);
 
-        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
-            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        for (Map.Entry<String, Object> entry : expectedSource.entrySet()) {
+            assertThat(output.getSource(), hasEntry(entry.getKey(), entry.getValue()));
         }
     }
 

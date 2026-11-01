@@ -63,9 +63,9 @@ class FlightSplitProvider implements SplitProvider {
             return SplitDiscoveryResult.of(splits);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted during Flight split discovery for [" + endpoint + "/" + target + "]", e);
+            throw new IllegalStateException("Interrupted during Flight split discovery for [" + target + "]", e);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed Flight split discovery for [" + endpoint + "/" + target + "]", e);
+            throw new IllegalStateException("Failed Flight split discovery for [" + target + "]", e);
         }
     }
 }

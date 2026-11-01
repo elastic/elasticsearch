@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161945
+summary: Fix MATCH on merged columns with analyzers, and name the field in TO_TEXT analyzer errors
+type: bug

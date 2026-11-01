@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_SERVICES_PA
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_SERVICES_PATH;
 
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetInferenceServicesAction extends BaseRestHandler {
     @Override
     public String getName() {

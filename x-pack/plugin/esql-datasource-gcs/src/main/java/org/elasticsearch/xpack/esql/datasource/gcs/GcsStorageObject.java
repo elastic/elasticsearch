@@ -25,7 +25,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -76,6 +79,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private volatile Boolean cachedExists;
     /** Generation the readers are pinned to via {@code generationMatch}; {@link #contentGeneration()}. */
     private final AtomicReference<Long> cachedGeneration = new AtomicReference<>();
+    /** Generation the last metadata probe saw, reported by {@link #probedVersion()}. It never becomes the pin. */
+    private volatile String probedGeneration;
 
     // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
     // them here would require wrapping the Storage instance. Not counted in this PR.
@@ -140,18 +145,13 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             ReadChannel reader = openReader();
-            // GCS ReadChannel does not expose content length on open; fall back to cached size if known.
-            if (cachedLength != null) {
-                bytes = cachedLength;
-            }
-            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
+            return metered(new GcsTransientTypingInputStream(Channels.newInputStream(reader), path));
         } catch (StorageException e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -173,11 +173,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (toEnd == false) {
                 reader.limit(position + length);
             }
-            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
+            return metered(new GcsTransientTypingInputStream(Channels.newInputStream(reader), path));
         } catch (StorageException e) {
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -187,7 +187,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLength;
     }
@@ -490,23 +490,21 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
                 boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
                 long retryAfterMs = throttling ? retryAfterMsFromChain(se) : 0L;
-                return new ExternalUnavailableException(
-                    throttling,
-                    retryAfterMs,
-                    cause,
-                    "GCS store unavailable reading [{}] (HTTP {})",
-                    path,
-                    se.getCode()
-                );
+                Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+                logger.debug("GCS {} for [{}]", condition, path.objectName(), cause);
+                return new ExternalUnavailableException(condition, path, "HTTP " + se.getCode(), "", throttling, retryAfterMs);
             }
             if (se.getCode() == 412) {
-                return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+                logger.debug("GCS precondition failed for [{}]", path.objectName(), cause);
+                return new ExternalObjectChangedException(path);
             }
             if (se.getCode() == 404) {
-                return new IOException("Object not found: " + path, cause);
+                logger.debug("GCS object not found for [{}]", path.objectName(), cause);
+                return new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "");
             }
         }
-        return new IOException(context + " " + path + ": " + GcsFailureDetail.of(cause), cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + " [" + path.objectName() + "]: " + GcsFailureDetail.of(cause));
     }
 
     /**
@@ -530,6 +528,12 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     public String contentGeneration() {
         Long pinned = cachedGeneration.get();
         return pinned == null ? null : Long.toString(pinned);
+    }
+
+    /** The generation the metadata probe saw. Reads are not conditional on it until a pin is seeded from it. */
+    @Override
+    public String probedVersion() {
+        return probedGeneration;
     }
 
     private ReadChannel openReader() {
@@ -571,6 +575,21 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
+     * Seeds the generation pin with the generation a listing reported, so the reader opens with {@code generationMatch}
+     * from its first request. A version that is not a generation number leaves the object unpinned.
+     */
+    void seedVersion(String version) {
+        if (version == null) {
+            return;
+        }
+        try {
+            cachedGeneration.compareAndSet(null, Long.parseLong(version));
+        } catch (NumberFormatException e) {
+            // Not a generation number: the object stays unpinned, and so unversioned for the footer cache.
+        }
+    }
+
+    /**
      * Adopts the generation of a metadata GET issued on the read path as the pin, and refreshes the
      * cached size from it. Never overwrites an existing pin, and refreshes the size only from the
      * pinned generation — a newer generation's size is not what the pinned readers will deliver.
@@ -589,7 +608,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             }
         }
         if (pinned.equals(generation) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+            throw new ExternalObjectChangedException(path);
         }
         if (blob.getSize() != null) {
             cachedLength = blob.getSize();
@@ -599,8 +618,10 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private void fetchMetadata() throws IOException {
         try {
             Blob blob = storage.get(BlobId.of(bucket, objectName));
+            ExternalPlanningIo.addMetadataGet(0);
             if (blob != null) {
                 cachedExists = true;
+                probedGeneration = blob.getGeneration() == null ? null : Long.toString(blob.getGeneration());
                 // exists()/length()/lastModified() must not establish or move the read pin, and must not
                 // report a newer generation's size as the size the pinned readers will deliver.
                 Long pinned = cachedGeneration.get();
@@ -615,12 +636,14 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
             }
         } catch (StorageException e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e.getCode() == 404) {
                 setNotFound();
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get metadata for " + path + ": " + GcsFailureDetail.of(e), e);
+                logger.debug("GCS metadata unavailable for [{}]", path.objectName(), e);
+                throw new ExternalClientException(Condition.METADATA_UNAVAILABLE, path, GcsFailureDetail.of(e), "");
             }
         }
     }
@@ -634,15 +657,22 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             try (InputStream is = Channels.newInputStream(reader)) {
                 objectExists = is.read() >= 0;
             }
+            ExternalPlanningIo.addMetadataGet(objectExists ? 1 : 0);
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof StorageException se && se.getCode() == 404) {
                 setNotFound();
                 return;
             }
-            throw new IOException(
-                "Failed to get metadata for " + path + " (metadata denied, range read also failed): " + GcsFailureDetail.of(e),
-                e
+            logger.debug("GCS metadata unavailable (range read also failed) for [{}]", path.objectName(), e);
+            ExternalClientException metadataEx = new ExternalClientException(
+                Condition.METADATA_UNAVAILABLE,
+                path,
+                GcsFailureDetail.of(e),
+                ""
             );
+            metadataEx.setDetail("metadata access denied and range read also failed");
+            throw metadataEx;
         }
 
         if (objectExists) {
@@ -651,9 +681,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             // from a range read. The caller must know the length from listing (glob expansion).
             if (cachedLength == null) {
                 throw new IOException(
-                    "Failed to determine object size for "
-                        + path
-                        + ": GCS metadata access denied and object size cannot be determined from a range read. "
+                    "Failed to determine external object size: "
+                        + "GCS metadata access denied and object size cannot be determined from a range read. "
                         + "Use glob patterns (which include size from listing) instead of direct file paths."
                 );
             }
@@ -678,6 +707,6 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "GcsStorageObject{bucket=" + bucket + ", objectName=" + objectName + ", path=" + path + "}";
+        return "GcsStorageObject[" + path.objectName() + "]";
     }
 }

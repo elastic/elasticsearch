@@ -117,7 +117,7 @@ public class S3EndpointRedirectTests extends ESTestCase {
     /** Drives one range read through the async client and waits for it to settle, however it settles. */
     private static void readOneRange(S3StorageProvider provider, StoragePath path) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         provider.newObject(path, 1024).readBytesAsync(0, 16, factory, Runnable::run, ActionListener.running(done::countDown));
         assertTrue("the async read never settled", done.await(30, TimeUnit.SECONDS));
     }

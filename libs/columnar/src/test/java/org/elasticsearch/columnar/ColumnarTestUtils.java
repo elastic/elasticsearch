@@ -18,9 +18,11 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -33,16 +35,22 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** Shared test helpers for ColumNAR unit tests. */
@@ -214,6 +222,17 @@ public final class ColumnarTestUtils {
         return type;
     }
 
+    public static Codec singleValuedStringCodec() {
+        return columnarCodec(
+            new ColumNARDocValuesFormat(
+                (fieldName, type) -> NumericPipeline::defaultPipeline,
+                field -> ColumnarFieldType.STRING,
+                ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+                StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(true))
+            )
+        );
+    }
+
     /**
      * One value as the {@link StringBinaryPayload} a string field is written as. The surface carries slots
      * rather than bare bytes — the count travels with them, so a document holding several is not a document
@@ -243,69 +262,105 @@ public final class ColumnarTestUtils {
 
     /**
      * Hides the columnar instance behind a plain {@link BinaryDocValues}, leaving only the surface every
-     * binary doc values has.
+     * binary doc values has. Each leaf answers from its own values, the leaf and reader cache helpers are
+     * disabled, and a reopened reader is wrapped the same way.
      */
     public static DirectoryReader hideTheColumn(DirectoryReader in) throws IOException {
+        return filterBinaryDocValues(in, (leaf, name) -> {
+            final BinaryDocValues values = leaf.getBinaryDocValues(name);
+            return values == null ? null : new BinaryDocValues() {
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return values.binaryValue();
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return values.advanceExact(target);
+                }
+
+                @Override
+                public int docID() {
+                    return values.docID();
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return values.nextDoc();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return values.advance(target);
+                }
+
+                @Override
+                public long cost() {
+                    return values.cost();
+                }
+            };
+        });
+    }
+
+    /**
+     * Hides the values of every binary doc values field in every leaf while keeping the field infos, so the
+     * fields still report {@link DocValuesType#BINARY} but {@code getBinaryDocValues} returns {@code null}.
+     */
+    public static DirectoryReader dropTheColumn(DirectoryReader in) throws IOException {
+        return filterBinaryDocValues(in, (leaf, name) -> null);
+    }
+
+    public static void assertBinaryFieldWithoutValues(final DirectoryReader reader, final String field) throws IOException {
+        for (final LeafReaderContext leaf : reader.leaves()) {
+            final FieldInfo info = leaf.reader().getFieldInfos().fieldInfo(field);
+            assertNotNull(field + " is not in the field infos", info);
+            assertEquals(DocValuesType.BINARY, info.getDocValuesType());
+            assertNull(field + " has values", leaf.reader().getBinaryDocValues(field));
+        }
+    }
+
+    /**
+     * The payload of one document holding {@code slots} in order. No slots at all is a document with an empty
+     * array.
+     */
+    public static BytesRef slotsPayload(final BytesRef... slots) {
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(Arrays.asList(slots)));
+    }
+
+    private interface BinaryDocValuesOf {
+        BinaryDocValues of(LeafReader leaf, String name) throws IOException;
+    }
+
+    private static DirectoryReader filterBinaryDocValues(final DirectoryReader in, final BinaryDocValuesOf of) throws IOException {
         return new FilterDirectoryReader(in, new FilterDirectoryReader.SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader leaf) {
                 return new FilterLeafReader(leaf) {
                     @Override
                     public BinaryDocValues getBinaryDocValues(String name) throws IOException {
-                        final BinaryDocValues values = in.leaves().get(0).reader().getBinaryDocValues(name);
-                        return values == null ? null : new BinaryDocValues() {
-                            @Override
-                            public BytesRef binaryValue() throws IOException {
-                                return values.binaryValue();
-                            }
-
-                            @Override
-                            public boolean advanceExact(int target) throws IOException {
-                                return values.advanceExact(target);
-                            }
-
-                            @Override
-                            public int docID() {
-                                return values.docID();
-                            }
-
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return values.nextDoc();
-                            }
-
-                            @Override
-                            public int advance(int target) throws IOException {
-                                return values.advance(target);
-                            }
-
-                            @Override
-                            public long cost() {
-                                return values.cost();
-                            }
-                        };
+                        return of.of(leaf, name);
                     }
 
                     @Override
                     public CacheHelper getCoreCacheHelper() {
-                        return leaf.getCoreCacheHelper();
+                        return null;
                     }
 
                     @Override
                     public CacheHelper getReaderCacheHelper() {
-                        return leaf.getReaderCacheHelper();
+                        return null;
                     }
                 };
             }
         }) {
             @Override
-            protected DirectoryReader doWrapDirectoryReader(DirectoryReader reader) {
-                return reader;
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader reader) throws IOException {
+                return filterBinaryDocValues(reader, of);
             }
 
             @Override
             public CacheHelper getReaderCacheHelper() {
-                return in.getReaderCacheHelper();
+                return null;
             }
         };
     }

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 162158
+summary: Improve memory usage in `ConcurrentSegmentSourceProvider`
+type: bug

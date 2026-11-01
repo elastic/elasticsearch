@@ -96,7 +96,7 @@ public class FlakinessTargetsTests {
     }
 
     private static SourceSetDisposition disposition(String sourceSet, String outputDir, List<String> tasks) {
-        return new SourceSetDisposition(sourceSet, Path.of(outputDir), sourceSet, tasks, tasks.size(), null);
+        return new SourceSetDisposition(sourceSet, Path.of(outputDir), sourceSet, tasks, tasks, null);
     }
 
     /** A file written by an older resolve (or a hand-crafted one) may carry no classDirs at all. */
@@ -137,9 +137,9 @@ public class FlakinessTargetsTests {
      */
     @Test
     public void testUnresolvedOnlyForClassRefsNoProjectClaimed() {
-        FlakinessRef claimedUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.ATests", null, null);
-        FlakinessRef orphanUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.GoneTests", null, null);
-        FlakinessRef orphanExplicit = new FlakinessRef(FlakinessRef.SOURCE_EXPLICIT, null, null, null, "org.foo.AlsoGoneTests");
+        FlakinessRef claimedUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.ATests", null, null, null, null);
+        FlakinessRef orphanUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.GoneTests", null, null, null, null);
+        FlakinessRef orphanExplicit = new FlakinessRef(FlakinessRef.SOURCE_EXPLICIT, null, null, null, "org.foo.AlsoGoneTests", null, null);
         FlakinessRef orphanChangedFile = changedFile("docs/README.asciidoc");
 
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
@@ -168,8 +168,8 @@ public class FlakinessTargetsTests {
      */
     @Test
     public void testUnknownRefSourceIsReportedNotSilentlyDropped() {
-        FlakinessRef futureSource = new FlakinessRef("some-future-source", null, "org.foo.ATests", null, null);
-        FlakinessRef missingSource = new FlakinessRef(null, null, "org.foo.BTests", null, null);
+        FlakinessRef futureSource = new FlakinessRef("some-future-source", null, "org.foo.ATests", null, null, null, null);
+        FlakinessRef missingSource = new FlakinessRef(null, null, "org.foo.BTests", null, null, null, null);
 
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
             List.of(futureSource, missingSource),
@@ -198,15 +198,126 @@ public class FlakinessTargetsTests {
         assertThat(merged.targets(), contains(target));
     }
 
+    @Test
+    public void testMergeDedupesTaskScopedTargetsByUnioningRunnableTasks() {
+        BaseTarget first = target(":a", "test", "org.foo.ATests", List.of(":a:testA"), List.of(":a:testA"), null);
+        BaseTarget second = target(":a", "test", "org.foo.ATests", List.of(":a:testB"), List.of(":a:testB"), null);
+
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
+            List.of(changedFile("a/src/test/java/org/foo/ATests.java")),
+            List.of(
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, first)), List.of(), List.of()),
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, second)), List.of(), List.of())
+            )
+        );
+
+        assertThat(
+            merged.targets(),
+            contains(target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB"), List.of(":a:testA", ":a:testB"), null))
+        );
+    }
+
+    @Test
+    public void testMergePreservesExactCandidateTaskUnionForTaskScopedTargets() {
+        BaseTarget first = target(
+            ":a",
+            "test",
+            "org.foo.ATests",
+            List.of(":a:testA", ":a:testB"),
+            List.of(":a:testA", ":a:testB", ":a:testC"),
+            null
+        );
+        BaseTarget second = target(
+            ":a",
+            "test",
+            "org.foo.ATests",
+            List.of(":a:testC", ":a:testD"),
+            List.of(":a:testC", ":a:testD", ":a:testE"),
+            null
+        );
+
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
+            List.of(changedFile("a/src/test/java/org/foo/ATests.java")),
+            List.of(
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, first)), List.of(), List.of()),
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, second)), List.of(), List.of())
+            )
+        );
+
+        assertThat(
+            merged.targets(),
+            contains(
+                target(
+                    ":a",
+                    "test",
+                    "org.foo.ATests",
+                    List.of(":a:testA", ":a:testB", ":a:testC", ":a:testD"),
+                    List.of(":a:testA", ":a:testB", ":a:testC", ":a:testD", ":a:testE"),
+                    null
+                )
+            )
+        );
+    }
+
+    @Test
+    public void testMergeCandidateTaskUnionIncludesTasksCappedAwayOnOneSide() {
+        BaseTarget first = target(
+            ":qa:rolling",
+            "javaRestTest",
+            "org.elasticsearch.SomeIT",
+            List.of(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest"),
+            List.of(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"),
+            null
+        );
+        BaseTarget second = target(
+            ":qa:rolling",
+            "javaRestTest",
+            "org.elasticsearch.SomeIT",
+            List.of(":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"),
+            List.of(":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"),
+            null
+        );
+
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
+            List.of(changedFile("qa/rolling/src/javaRestTest/java/org/elasticsearch/SomeIT.java")),
+            List.of(
+                new FlakinessJson.ProjectTargetsFile(":qa:rolling", List.of(new FlakinessJson.RefTarget(0, first)), List.of(), List.of()),
+                new FlakinessJson.ProjectTargetsFile(":qa:rolling", List.of(new FlakinessJson.RefTarget(0, second)), List.of(), List.of())
+            )
+        );
+
+        assertThat(
+            merged.targets(),
+            contains(
+                target(
+                    ":qa:rolling",
+                    "javaRestTest",
+                    "org.elasticsearch.SomeIT",
+                    List.of(":qa:rolling:bcUpgradeTest", ":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:v9.6.0#bwcTest"),
+                    List.of(":qa:rolling:bcUpgradeTest", ":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:v9.6.0#bwcTest"),
+                    null
+                )
+            )
+        );
+    }
+
     private static FlakinessRef changedFile(String path) {
-        return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null);
+        return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null, null, null);
     }
 
     private static BaseTarget runnable(String project, String sourceSet, String fqcn) {
-        return target(project, sourceSet, fqcn, List.of(project + ":" + sourceSet), null);
+        List<String> tasks = List.of(project + ":" + sourceSet);
+        return target(project, sourceSet, fqcn, tasks, tasks, null);
     }
 
-    private static BaseTarget target(String project, String sourceSet, String fqcn, List<String> runnableTasks, String skipReason) {
-        return new BaseTarget(project, sourceSet, sourceSet, fqcn, null, null, runnableTasks, runnableTasks.size(), skipReason);
+    private static BaseTarget target(
+        String project,
+        String sourceSet,
+        String fqcn,
+        List<String> runnableTasks,
+        List<String> candidateTaskPaths,
+        String skipReason
+    ) {
+        return new BaseTarget(project, sourceSet, sourceSet, fqcn, null, null, runnableTasks, candidateTaskPaths, skipReason);
     }
 }

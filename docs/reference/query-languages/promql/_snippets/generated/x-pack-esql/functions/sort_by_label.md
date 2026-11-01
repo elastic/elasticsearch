@@ -2,7 +2,7 @@
 
 ## `sort_by_label` [promql-fn-sort_by_label]
 
-{applies_to}`stack: preview 9.6`
+{applies_to}`stack: preview 9.7`
 
 :::{include} brief-summary/sort_by_label.md
 :::

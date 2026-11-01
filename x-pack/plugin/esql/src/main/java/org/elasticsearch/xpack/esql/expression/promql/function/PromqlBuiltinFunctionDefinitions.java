@@ -265,7 +265,7 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "values, get a stable order rather than Prometheus's unstable natsort. Digit runs longer than "
                 + "about 20 digits are still compared numerically, where Prometheus falls back to text comparison."
         )
-        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_7)
         .name("sort_by_label");
 
     public static final PromqlFunctionDefinition SORT_BY_LABEL_DESC = PromqlFunctionDefinition.def()
@@ -294,7 +294,7 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "values, get a stable order rather than Prometheus's unstable natsort. Digit runs longer than "
                 + "about 20 digits are still compared numerically, where Prometheus falls back to text comparison."
         )
-        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_7)
         .name("sort_by_label_desc");
 
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()

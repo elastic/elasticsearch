@@ -22,6 +22,8 @@
 abs(rate(http_requests_total[5m]))
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns `null` and emits a warning. {{prom}}, which operates on floating-point values, returns the absolute value instead.
+:::

@@ -426,7 +426,7 @@ public final class PromqlDocsSupport {
         }
 
         if (def.stdDivergence() != null) {
-            blocks.add("**Differences from {{prom}}**\n\n" + def.stdDivergence());
+            blocks.add(":::{note}\n**Differences from {{prom}}**\n\n" + def.stdDivergence() + "\n:::");
         }
 
         String rendered = String.join("\n\n", blocks) + "\n";
@@ -662,7 +662,7 @@ public final class PromqlDocsSupport {
         // "Unknown language" warnings. These examples are bare PromQL expressions, not ES|QL.
         blocks.add("**Example**\n\n```\n" + opDef.example() + "\n```");
         if (opDef.stdDivergence() != null) {
-            blocks.add("**Differences from {{prom}}**\n\n" + opDef.stdDivergence());
+            blocks.add(":::{note}\n**Differences from {{prom}}**\n\n" + opDef.stdDivergence() + "\n:::");
         }
         String rendered = String.join("\n\n", blocks) + "\n";
         callbacks.write(snippetsOperatorsDir(), opDef.name(), "md", rendered, false);

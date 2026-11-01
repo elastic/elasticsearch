@@ -24,6 +24,8 @@ Operates on gauges: counter inputs are automatically and transparently converted
 delta(cpu_temp_celsius[2h])
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 Not supported yet on native histograms, such as `delta(h[5m])`.
+:::

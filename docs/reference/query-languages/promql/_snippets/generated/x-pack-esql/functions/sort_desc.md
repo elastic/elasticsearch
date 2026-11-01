@@ -24,6 +24,8 @@ Ordering is observable only on instant queries. Range queries return the series 
 sort_desc(http_requests_total)
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 Not supported yet below the top level of the query, such as `abs(sort(x))`, where {{prom}} applies the ordering too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their labels, where {{es}} returns them in input order.
+:::

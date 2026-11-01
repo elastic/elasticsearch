@@ -22,6 +22,8 @@
 count(http_requests_total)
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 Returns a `long` integer count rather than a floating-point value.
+:::

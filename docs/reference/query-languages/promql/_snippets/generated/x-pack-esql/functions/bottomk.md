@@ -25,6 +25,8 @@
 bottomk(3, http_requests_total)
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 `without(...)`, such as `bottomk without (instance) (1, x)`, isn't supported yet. A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit.
+:::

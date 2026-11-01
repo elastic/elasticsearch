@@ -25,6 +25,8 @@
 topk(3, http_requests_total)
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 `without(...)`, such as `topk without (instance) (1, x)`, and a `k` that isn't a number literal, such as `topk(scalar(a), b)`, aren't supported yet. A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit. A `NaN` value ranks above `+Inf` rather than last, so a series whose value is `NaN` wins a slot ahead of a series with a comparable value. {{prom}} ranks `NaN` farthest from the top and returns the comparable series instead. `bottomk` is unaffected, because its ascending ranking already places `NaN` last.
+:::

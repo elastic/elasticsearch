@@ -22,6 +22,8 @@ An `instant_vector`, or a `scalar` when both operands are scalars.
 requests_total == 256
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 Not supported yet: comparing two instant vectors, such as `x > y`, a scalar as the first operand, such as `100 < x`, a second operand that isn't a number literal, such as `x > time()`, and a comparison inside another expression, such as `(x > 100) + 1` or `count(x > 100)`. Refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-comparison-binary-operators).
+:::

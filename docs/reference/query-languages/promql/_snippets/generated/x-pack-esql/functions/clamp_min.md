@@ -25,6 +25,8 @@
 clamp_min(http_requests_total, 0)
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 A `min` that isn't a number literal, such as `clamp_min(a, scalar(b))`, isn't supported yet.
+:::

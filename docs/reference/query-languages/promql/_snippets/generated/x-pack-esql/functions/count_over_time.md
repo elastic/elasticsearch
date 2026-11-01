@@ -22,6 +22,8 @@
 count_over_time(http_requests_total[5m])
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 Returns a `long` integer count rather than a floating-point value.
+:::

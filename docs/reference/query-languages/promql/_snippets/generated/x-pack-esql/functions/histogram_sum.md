@@ -22,6 +22,8 @@
 histogram_sum(increase(http_request_duration_seconds[5m]))
 ```
 
+:::{note}
 **Differences from {{prom}}**
 
 Accepts only native histograms. Classic histogram buckets, such as `histogram_count(rate(x_bucket[5m]))`, return an error, where {{prom}} returns no results.
+:::

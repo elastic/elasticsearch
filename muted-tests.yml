@@ -158,6 +158,11 @@ tests:
   - :qa:mixed-cluster:v8.16.6#mixedClusterTest
   method: test {yaml=logsdb/10_settings/missing hostname field}
   issue: https://github.com/elastic/elasticsearch/issues/164178
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/164209
 
 # Examples:
 #

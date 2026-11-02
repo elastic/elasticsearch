@@ -864,6 +864,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testIndexMode() throws Exception {
+        // Pinned to 1 shard and 0 replicas: this test creates up to 30 indices, and with random shard counts it can go over
+        // the 2048 open files limit of the test file system, which causes a master failover and a flaky failure.
         final Settings baseSettings = indexSettings(1, 0).build();
         Map<String, IndexMode> indexModes = new HashMap<>();
         // metrics

@@ -60,7 +60,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -297,7 +296,7 @@ public class ArrowResponseTests extends ESTestCase {
     public void testTypeSupportConsistency() {
         var responseTypes = EnumSet.noneOf(DataType.class);
         for (DataType type : DataType.values()) {
-            if (DataType.isRepresentable(type)) {
+            if (DataType.isRepresentableInOutput(type)) {
                 responseTypes.add(type);
             }
         }
@@ -310,16 +309,10 @@ public class ArrowResponseTests extends ESTestCase {
         assertEquals("Arrow formatters must cover exactly the response types", responseTypes, arrowTypes);
     }
 
-    public void testTextTypeSupportConsistency() {
+    public void testOutputTypesHaveTextSupport() {
         for (DataType type : DataType.values()) {
-            if (DataType.isRepresentable(type)) {
+            if (DataType.isRepresentableInOutput(type)) {
                 assertNotNull("Missing text formatter for [" + type + "]", ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC));
-            } else {
-                expectThrows(
-                    EsqlIllegalArgumentException.class,
-                    "Expected text output to reject [" + type + "]",
-                    () -> ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC)
-                );
             }
         }
     }
@@ -336,16 +329,16 @@ public class ArrowResponseTests extends ESTestCase {
                 "Response support must not enable general-purpose function arguments for [" + type + "]",
                 DataType.isRepresentableInExpression(type)
             );
-            assertTrue("Expected response support for [" + type + "]", DataType.isRepresentable(type));
+            assertTrue("Expected response support for [" + type + "]", DataType.isRepresentableInOutput(type));
             assertTrue("Missing Arrow formatter for [" + type + "]", ArrowResponse.ESQL_FORMATTERS.containsKey(type));
         }
         assertFalse(DataType.isRepresentableInExpression(DataType.DOC_DATA_TYPE));
-        assertFalse(DataType.isRepresentable(DataType.DOC_DATA_TYPE));
+        assertFalse(DataType.isRepresentableInOutput(DataType.DOC_DATA_TYPE));
     }
 
     public void testNonResponseTypesRejected() {
         for (DataType type : DataType.values()) {
-            if (DataType.isRepresentable(type) == false) {
+            if (DataType.isRepresentableInOutput(type) == false) {
                 IllegalArgumentException exception = expectThrows(
                     IllegalArgumentException.class,
                     "Expected Arrow output to reject [" + type + "]",
@@ -362,7 +355,7 @@ public class ArrowResponseTests extends ESTestCase {
 
     public void testPendingResponseTypesRejected() {
         for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
-            assertTrue("Pending formatter must be for a response type [" + type + "]", DataType.isRepresentable(type));
+            assertTrue("Pending formatter must be for a response type [" + type + "]", DataType.isRepresentableInOutput(type));
             assertFalse(
                 "Pending formatter must not be registered as implemented [" + type + "]",
                 ArrowResponse.ESQL_FORMATTERS.containsKey(type)

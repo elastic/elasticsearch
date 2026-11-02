@@ -112,6 +112,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(
             new ShardId("index", "uuid", 0),
             randomContextId(),
+            randomFrom(FetchRequest.ContextAfterFetch.values()),
             new int[] { 0, 0, 0, 2, 2, 7 },
             new int[] { 1, 5, 100_000, 0, 9, 3 }
         );
@@ -120,6 +121,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         FetchRequest.ShardDocs empty = new FetchRequest.ShardDocs(
             new ShardId("index", "uuid", 0),
             randomContextId(),
+            randomFrom(FetchRequest.ContextAfterFetch.values()),
             new int[0],
             new int[0]
         );
@@ -127,18 +129,36 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
     }
 
     /**
+     * Whether the node frees the context of a shard once it answered survives the wire, for both answers.
+     */
+    public void testWhatHappensToTheContextRoundTrips() throws IOException {
+        for (FetchRequest.ContextAfterFetch afterFetch : FetchRequest.ContextAfterFetch.values()) {
+            FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(
+                new ShardId("index", "uuid", 0),
+                randomContextId(),
+                afterFetch,
+                new int[] { 0 },
+                new int[] { 1 }
+            );
+
+            assertThat(copyShardDocs(docs).afterFetch(), equalTo(afterFetch));
+        }
+    }
+
+    /**
      * The data node returns rows in the order of the documents, so a request never lists them in another order.
      */
     public void testRejectsUnsortedDocs() {
         ShardId shardId = new ShardId("index", "uuid", 0);
+        FetchRequest.ContextAfterFetch keep = FetchRequest.ContextAfterFetch.KEEP;
         IllegalArgumentException duplicate = expectThrows(
             IllegalArgumentException.class,
-            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), new int[] { 1, 1 }, new int[] { 4, 4 })
+            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), keep, new int[] { 1, 1 }, new int[] { 4, 4 })
         );
         assertThat(duplicate.getMessage(), containsString("sorted by segment and doc without duplicates"));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), new int[] { 2, 1 }, new int[] { 0, 5 })
+            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), keep, new int[] { 2, 1 }, new int[] { 0, 5 })
         );
     }
 
@@ -236,6 +256,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         return new FetchRequest.ShardDocs(
             new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), between(0, 10)),
             randomContextId(),
+            randomFrom(FetchRequest.ContextAfterFetch.values()),
             segments,
             docs
         );
@@ -252,6 +273,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             new ShardId("index", "uuid", 0).writeTo(out);
             randomContextId().writeTo(out);
+            out.writeEnum(randomFrom(FetchRequest.ContextAfterFetch.values()));
             out.writeVIntArray(runSegments);
             out.writeVIntArray(runLengths);
             out.writeVIntArray(gaps);

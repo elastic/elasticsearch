@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,6 +169,52 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
 
         assertAllFreed();
         service.closeLease(task.getId());
+    }
+
+    /**
+     * A node frees a context once it answered the fetch that read it for the last time. The lease doesn't free it again.
+     */
+    public void testTheLeaseDoesntFreeTheContextsTheirNodeFreed() throws Exception {
+        createIndexWithDocs(INDEX);
+        CancellableTask task = rootTask();
+        FetchContextLease.Execution execution = service.leaseFor(task).newExecution(QUERY_INDICES);
+        List<ShardSearchContextId> open = respond(INDEX);
+        execution.add(localNode(), open);
+        List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, SHARDS), open);
+        freedByTheNode.forEach(id -> searchService().freeReaderContext(id));
+        AtomicInteger freeRequests = countFreeRequests();
+
+        execution.freedByTheirNode(localNode(), freedByTheNode);
+        execution.fetchEnded();
+
+        assertAllFreed();
+        assertThat(freeRequests.get(), equalTo(SHARDS - freedByTheNode.size()));
+        service.closeLease(task.getId());
+    }
+
+    /**
+     * The lease doesn't refresh a context its node freed, so the keep-alive names only the contexts it still holds.
+     */
+    public void testARefreshSkipsTheContextsTheirNodeFreed() throws Exception {
+        createIndexWithDocs(INDEX);
+        List<ReceivedKeepAlive> received = captureKeepAlives();
+        CancellableTask task = rootTask();
+        FetchContextLease lease = service.leaseFor(task);
+        FetchContextLease.Execution execution = lease.newExecution(QUERY_INDICES);
+        List<ShardSearchContextId> open = respond(INDEX);
+        execution.add(localNode(), open);
+        List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, SHARDS - 1), open);
+        freedByTheNode.forEach(id -> searchService().freeReaderContext(id));
+
+        execution.freedByTheirNode(localNode(), freedByTheNode);
+        lease.refresh();
+
+        assertBusy(() -> assertThat(received, hasSize(1)));
+        service.closeLease(task.getId());
+        assertAllFreed();
+        Set<ShardSearchContextId> stillHeld = new HashSet<>(open);
+        freedByTheNode.forEach(stillHeld::remove);
+        assertThat(Set.copyOf(received.getFirst().request().contextIds()), equalTo(stillHeld));
     }
 
     /**

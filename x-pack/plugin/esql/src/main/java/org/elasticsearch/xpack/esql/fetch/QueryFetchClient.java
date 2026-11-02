@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -99,6 +100,7 @@ final class QueryFetchClient implements FetchOperator.Client {
             @Override
             public void onResponse(FetchResponse response) {
                 try {
+                    scope.fetchContexts().freedByTheirNode(node, freedByTheNode(shards, response));
                     listener.onResponse(response);
                 } finally {
                     drivers.onResponse(response.completionInfo());
@@ -120,6 +122,27 @@ final class QueryFetchClient implements FetchOperator.Client {
         } catch (Exception e) {
             countingDrivers.onFailure(e);
         }
+    }
+
+    /**
+     * The contexts that the node freed once it answered: those the request read for the last time, of the shards that
+     * loaded. A shard can fail before the node opened its context, for example when its index authorization dropped, and
+     * then the node frees nothing. The lease keeps those, and the ones of a request that failed as a whole, which may never
+     * have reached the node, and frees them once the fetch ended.
+     */
+    private static List<ShardSearchContextId> freedByTheNode(List<FetchRequest.ShardDocs> shards, FetchResponse response) {
+        List<FetchResponse.ShardResult> results = response.shardResults();
+        List<ShardSearchContextId> freed = new ArrayList<>();
+        for (int s = 0; s < shards.size() && s < results.size(); s++) {
+            FetchRequest.ShardDocs shard = shards.get(s);
+            FetchResponse.ShardResult result = results.get(s);
+            if (shard.afterFetch() == FetchRequest.ContextAfterFetch.FREE
+                && result.failure() == null
+                && result.shardId().equals(shard.shardId())) {
+                freed.add(shard.contextId());
+            }
+        }
+        return freed;
     }
 
     @Override

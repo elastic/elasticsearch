@@ -59,6 +59,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
     private static final FetchRequest.ShardDocs SHARD = new FetchRequest.ShardDocs(
         new ShardId("logs", "uuid", 0),
         new ShardSearchContextId("session", 7),
+        FetchRequest.ContextAfterFetch.KEEP,
         new int[] { 0, 0, 2 },
         new int[] { 3, 8, 1 }
     );
@@ -210,42 +211,150 @@ public class QueryFetchClientTests extends ComputeTestCase {
     public void testTheEndsOfTheCutAndTheFetchReachTheLeaseOfItsExecution() {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            // there is no node to free a context on, so the free action of _search only records what the lease frees. The
-            // thread pool runs the refresh of the held contexts, which never comes within the keep-alive of this test.
-            TransportService transportService = mock(TransportService.class);
-            when(transportService.getThreadPool()).thenReturn(threadPool);
-            SearchTransportService searchTransport = mock(SearchTransportService.class);
-            when(searchTransport.transportService()).thenReturn(transportService);
-            FetchContextLease lease = new FetchContextLease(
-                new FetchContextService(null, searchTransport),
-                rootTask,
-                threadContext.newRestorableContext(false),
-                TimeValue.timeValueMinutes(5)
-            );
-            FetchContextLease.Execution fetchContexts = lease.newExecution(
-                new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
-            );
+            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
             QueryFetchClient client = new QueryFetchClient(
                 (node, request, parentTask, listener) -> fail("nothing to send"),
                 threadContext,
                 this::nodes,
-                scope(fetchContexts),
+                scope(recorded.execution()),
                 List.of("logs-*")
             );
             ShardSearchContextId read = new ShardSearchContextId("session", 1);
             ShardSearchContextId unread = new ShardSearchContextId("session", 2);
-            fetchContexts.add(NODE, List.of(read, unread));
+            recorded.execution().add(NODE, List.of(read, unread));
 
             client.cutEnded(Set.of(read));
-            verify(searchTransport).sendFreeContext(any(), eq(unread), any());
-            verify(searchTransport, never()).sendFreeContext(any(), eq(read), any());
+            verify(recorded.frees()).sendFreeContext(any(), eq(unread), any());
+            verify(recorded.frees(), never()).sendFreeContext(any(), eq(read), any());
 
             client.fetchEnded();
-            verify(searchTransport).sendFreeContext(any(), eq(read), any());
-            lease.close();
+            verify(recorded.frees()).sendFreeContext(any(), eq(read), any());
+            recorded.lease().close();
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /**
+     * Once the response of the request that reads a context for the last time arrived, its node freed the context, so the
+     * lease of the execution no longer frees it.
+     */
+    public void testTheLeaseLetsGoOfTheContextsTheNodeFreedAfterTheirLastFetch() {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        List<FetchResponse.ShardResult> loaded = List.of(FetchResponse.ShardResult.succeeded(SHARD.shardId(), SHARD.docCount()));
+        FetchResponse response = new FetchResponse(blockFactory(), loaded, List.of(), FETCH_DRIVERS, 0, 0);
+        try {
+            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
+            QueryFetchClient client = new QueryFetchClient(
+                (node, request, parentTask, listener) -> listener.onResponse(response),
+                threadContext,
+                this::nodes,
+                scope(recorded.execution()),
+                List.of("logs-*")
+            );
+            FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
+            ShardSearchContextId readAgain = new ShardSearchContextId("session", 8);
+            recorded.execution().add(NODE, List.of(lastRead.contextId(), readAgain));
+
+            client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
+            client.fetchEnded();
+
+            verify(recorded.frees(), never()).sendFreeContext(any(), eq(lastRead.contextId()), any());
+            verify(recorded.frees()).sendFreeContext(any(), eq(readAgain), any());
+            recorded.lease().close();
+        } finally {
+            response.decRef();
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * A shard can fail before its node opened its context, for example when its index authorization dropped, and then the
+     * node frees nothing. The lease still frees the context of a shard that failed.
+     */
+    public void testAShardThatFailedLeavesItsContextToTheLease() {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        List<FetchResponse.ShardResult> failed = List.of(
+            FetchResponse.ShardResult.failed(SHARD.shardId(), new IllegalStateException("unauthorized"))
+        );
+        FetchResponse response = new FetchResponse(blockFactory(), failed, List.of(), FETCH_DRIVERS, 0, 0);
+        try {
+            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
+            QueryFetchClient client = new QueryFetchClient(
+                (node, request, parentTask, listener) -> listener.onResponse(response),
+                threadContext,
+                this::nodes,
+                scope(recorded.execution()),
+                List.of("logs-*")
+            );
+            FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
+            recorded.execution().add(NODE, List.of(lastRead.contextId()));
+
+            client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
+            client.fetchEnded();
+
+            verify(recorded.frees()).sendFreeContext(any(), eq(lastRead.contextId()), any());
+            recorded.lease().close();
+        } finally {
+            response.decRef();
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * A request that failed as a whole may never have reached its node, so the lease still frees the contexts it read for
+     * the last time.
+     */
+    public void testAFailedLastFetchLeavesItsContextsToTheLease() {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
+            QueryFetchClient client = new QueryFetchClient(
+                (node, request, parentTask, listener) -> listener.onFailure(new IllegalStateException("not connected")),
+                threadContext,
+                this::nodes,
+                scope(recorded.execution()),
+                List.of("logs-*")
+            );
+            FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
+            recorded.execution().add(NODE, List.of(lastRead.contextId()));
+
+            client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
+            client.fetchEnded();
+
+            verify(recorded.frees()).sendFreeContext(any(), eq(lastRead.contextId()), any());
+            recorded.lease().close();
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * A lease and its execution, and the free action of {@code _search} that records what the lease frees.
+     */
+    private record RecordedLease(FetchContextLease lease, FetchContextLease.Execution execution, SearchTransportService frees) {}
+
+    private RecordedLease leaseThatRecordsFrees(ThreadPool threadPool) {
+        // there is no node to free a context on, so the free action of _search only records what the lease frees. The thread
+        // pool runs the refresh of the held contexts, which never comes within the keep-alive of a test.
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        SearchTransportService searchTransport = mock(SearchTransportService.class);
+        when(searchTransport.transportService()).thenReturn(transportService);
+        FetchContextLease lease = new FetchContextLease(
+            new FetchContextService(null, searchTransport),
+            rootTask,
+            threadContext.newRestorableContext(false),
+            TimeValue.timeValueMinutes(5)
+        );
+        FetchContextLease.Execution execution = lease.newExecution(
+            new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+        );
+        return new RecordedLease(lease, execution, searchTransport);
+    }
+
+    private static FetchRequest.ShardDocs withAfterFetch(FetchRequest.ShardDocs shard, FetchRequest.ContextAfterFetch afterFetch) {
+        return new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), afterFetch, shard.segments(), shard.docs());
     }
 
     /**

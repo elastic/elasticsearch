@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Groups the documents of a cut into one fetch request per node, and remembers which response row each row of the cut
@@ -104,10 +105,11 @@ final class FetchBatchPlanner {
     }
 
     /**
-     * @param pages         the rows of the cut
+     * @param pages      the rows of the cut
      * @param docChannel the channel of the documents, which left the nodes that read them
+     * @param lastReads  the reader contexts no later batch reads, which their nodes free once they answered
      */
-    static Batch plan(List<Page> pages, int docChannel) {
+    static Batch plan(List<Page> pages, int docChannel, Set<ShardSearchContextId> lastReads) {
         int rows = 0;
         for (Page page : pages) {
             rows += page.getPositionCount();
@@ -155,7 +157,10 @@ final class FetchBatchPlanner {
         for (NodeAccumulator node : nodes.values()) {
             List<FetchRequest.ShardDocs> shards = new ArrayList<>(node.shards.size());
             for (ShardAccumulator shard : node.shards.values()) {
-                shards.add(shard.sort(responseRow));
+                FetchRequest.ContextAfterFetch afterFetch = lastReads.contains(shard.origin.contextId())
+                    ? FetchRequest.ContextAfterFetch.FREE
+                    : FetchRequest.ContextAfterFetch.KEEP;
+                shards.add(shard.sort(responseRow, afterFetch));
                 responseRow += shard.distinctDocs;
                 deduplicated |= shard.distinctDocs < shard.rows;
             }
@@ -212,7 +217,7 @@ final class FetchBatchPlanner {
          *
          * @param firstResponseRow the response row of the first document of this shard
          */
-        FetchRequest.ShardDocs sort(int firstResponseRow) {
+        FetchRequest.ShardDocs sort(int firstResponseRow, FetchRequest.ContextAfterFetch afterFetch) {
             this.firstResponseRow = firstResponseRow;
             Arrays.sort(docs);
             distinctDocs = 0;
@@ -227,7 +232,7 @@ final class FetchBatchPlanner {
                 segments[i] = (int) (docs[i] >>> 32);
                 docIds[i] = (int) docs[i];
             }
-            return new FetchRequest.ShardDocs(origin.shardId(), origin.contextId(), segments, docIds);
+            return new FetchRequest.ShardDocs(origin.shardId(), origin.contextId(), afterFetch, segments, docIds);
         }
 
         int responseRowOf(long segmentAndDoc) {

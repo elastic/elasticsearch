@@ -19,6 +19,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +39,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
             page(new Ref(N1_S0, 0, 4), new Ref(N1_S1, 0, 7), new Ref(N1_S0, 1, 2))
         );
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
 
             assertThat(batch.nodes().stream().map(FetchBatchPlanner.NodeBatch::nodeId).toList(), equalTo(List.of("n2", "n1")));
             FetchBatchPlanner.NodeBatch n1 = batch.nodes().get(1);
@@ -58,12 +59,32 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     }
 
     /**
+     * The node frees the context of a shard once it answered only when the batch reads it for the last time.
+     */
+    public void testFreesOnlyTheContextsTheBatchReadsForTheLastTime() {
+        List<Page> pages = List.of(page(new Ref(N1_S0, 0, 1), new Ref(N1_S1, 0, 2), new Ref(N2_S2, 0, 3)));
+        try {
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of(N1_S1.contextId(), N2_S2.contextId()));
+
+            List<FetchRequest.ShardDocs> shards = batch.nodes().stream().flatMap(node -> node.shards().stream()).toList();
+            assertThat(
+                shards.stream().map(FetchRequest.ShardDocs::afterFetch).toList(),
+                equalTo(
+                    List.of(FetchRequest.ContextAfterFetch.KEEP, FetchRequest.ContextAfterFetch.FREE, FetchRequest.ContextAfterFetch.FREE)
+                )
+            );
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
      * A document that several rows reference, for example after a row multiplying command, is asked for once.
      */
     public void testAsksForADocumentOnce() {
         List<Page> pages = List.of(page(new Ref(N1_S0, 1, 3), new Ref(N1_S0, 1, 3), new Ref(N1_S0, 0, 8)));
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
 
             assertShard(batch.nodes().getFirst().shards().getFirst(), new int[] { 0, 1 }, new int[] { 8, 3 });
             assertThat(batch.responseRows(), equalTo(new int[] { 1, 1, 0 }));
@@ -80,7 +101,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         int maxDoc = Integer.MAX_VALUE - 1;
         List<Page> pages = List.of(page(new Ref(N1_S0, 70_000, 0), new Ref(N1_S0, 1, maxDoc), new Ref(N1_S0, 2, 0), new Ref(N1_S0, 1, 5)));
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
 
             assertShard(batch.nodes().getFirst().shards().getFirst(), new int[] { 1, 1, 2, 70_000 }, new int[] { 5, maxDoc, 0, 0 });
             assertThat(batch.responseRows(), equalTo(new int[] { 3, 1, 2, 0 }));
@@ -92,7 +113,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     public void testEmptyCutAsksForNothing() {
         List<Page> pages = List.of(page());
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
             assertThat(batch.nodes(), equalTo(List.of()));
             assertThat(batch.responseRows().length, equalTo(0));
         } finally {
@@ -108,7 +129,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         List<Ref> rows = new ArrayList<>();
         List<Page> pages = randomCut(origins, rows);
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
 
             List<Ref> responses = responses(batch, origins, new boolean[shardCount(batch)]);
             assertThat("each document once", responses.stream().distinct().count(), equalTo((long) responses.size()));
@@ -124,7 +145,10 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         Page page = new Page(blockFactory.newConstantIntBlockWith(1, 2));
         try {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchBatchPlanner.plan(List.of(page), 0));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> FetchBatchPlanner.plan(List.of(page), 0, Set.of())
+            );
             assertThat(e.getMessage(), containsString("expected documents that left their node in channel [0]"));
         } finally {
             page.releaseBlocks();
@@ -141,7 +165,10 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
             page = new Page(builder.appendShard(0).appendSegment(0).appendDoc(0).build());
         }
         try {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchBatchPlanner.plan(List.of(page), 0));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> FetchBatchPlanner.plan(List.of(page), 0, Set.of())
+            );
             assertThat(e.getMessage(), containsString("expected documents that left their node in channel [0]"));
         } finally {
             page.releaseBlocks();
@@ -157,7 +184,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
             page(new Ref(N1_S0, 0, 4), new Ref(N1_S1, 0, 7), new Ref(N1_S0, 1, 2))
         );
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
             assertThat(batch.responseRows(), equalTo(new int[] { 0, 2, 5, 3, 1, 4 }));
 
             // the shards in the order of the batch: shard 2 of n2, then shards 1 and 0 of n1. Shard 0 answers last, so
@@ -178,7 +205,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
             page(new Ref(N1_S0, 0, 4), new Ref(N1_S1, 0, 7), new Ref(N1_S0, 1, 2))
         );
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
             assertThat(batch.responseRows(), equalTo(new int[] { 0, 2, 5, 3, 1, 4 }));
 
             // shard 2 of n2 answers first, with one document, so the rows of both shards of n1 move up by one
@@ -197,7 +224,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         List<Ref> rows = new ArrayList<>();
         List<Page> pages = randomCut(origins, rows);
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
             boolean[] failed = new boolean[shardCount(batch)];
             for (int s = 0; s < failed.length; s++) {
                 failed[s] = randomBoolean();
@@ -226,7 +253,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         List<Ref> rows = new ArrayList<>();
         List<Page> pages = randomCut(randomList(1, 6, FetchBatchPlannerTests::randomOrigin), rows);
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
             assertThat(batch.responseRowsWithout(new boolean[shardCount(batch)]), equalTo(batch.responseRows()));
         } finally {
             pages.forEach(Page::releaseBlocks);
@@ -239,7 +266,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     public void testResponseRowsWithoutRejectsAnotherNumberOfShards() {
         List<Page> pages = List.of(page(new Ref(N2_S2, 0, 5), new Ref(N1_S1, 3, 1), new Ref(N1_S0, 1, 9)));
         try {
-            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
+            FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0, Set.of());
             int wrongCount = randomValueOtherThan(3, () -> between(0, 6));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,

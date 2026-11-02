@@ -52,6 +52,7 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -84,6 +85,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -159,6 +161,76 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     }
 
     /**
+     * Once it answered, the node frees the contexts the request reads for the last time, and keeps the ones the
+     * coordinator reads again.
+     */
+    public void testFreesTheContextsOfTheirLastFetchAfterTheResponse() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        Set<ShardSearchContextId> lastReads = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), contextIds(shards)));
+        FetchRequest request = request(shards, allNs(), lastReads);
+
+        try (Fetched fetched = fetch(request)) {
+            assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+        }
+
+        awaitTheRelease();
+        for (OpenShard shard : shards) {
+            assertThat(
+                "read again " + shard.contextId(),
+                isOpen(shard.contextId()),
+                equalTo(lastReads.contains(shard.contextId()) == false)
+            );
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * A shard that fails to load still frees its context when the request reads it for the last time, because no later
+     * request reads it either.
+     */
+    public void testFreesTheContextOfAShardThatFailedToLoad() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        FetchRequest request = request(shards, allNs(), Set.copyOf(contextIds(shards)));
+        int maxConcurrentShardTasks = between(1, 10);
+        int failingDriver = between(0, shardOfEachDriver(request, maxConcurrentShardTasks).size() - 1);
+        SourceWrapper failOne = (driver, source) -> driver != failingDriver ? source : new DelegatingSource(source) {
+            @Override
+            public Page getOutput() {
+                throw new IllegalStateException("simulated failure");
+            }
+        };
+
+        try (Fetched fetched = fetch(request, newTask(), maxConcurrentShardTasks, failOne)) {
+            assertThat(fetched.results().stream().filter(r -> r.failure() != null).count(), equalTo(1L));
+        }
+
+        assertAllFreed();
+    }
+
+    /**
+     * A shard of an index the request may no longer read fails before it opens, and its context stays open: a request
+     * frees only the contexts it may read. The coordinator frees it as it frees any other context.
+     */
+    public void testFreesNoContextOfAShardItMayNotRead() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        FetchRequest request = request(shards, allNs(), Set.copyOf(contextIds(shards)));
+        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+
+        Fetched fetched;
+        try (var ignored = threadContext.stashContext()) {
+            AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(threadContext, IndicesAccessControl.ALLOW_NO_INDICES);
+            fetched = fetch(request);
+        }
+        fetched.close();
+
+        awaitTheRelease();
+        for (OpenShard shard : shards) {
+            assertTrue("still open " + shard.contextId(), isOpen(shard.contextId()));
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
      * A context that is gone, for example because its keep-alive passed, fails its shard. The other shards still load.
      */
     public void testAMissingContextFailsOnlyItsShard() throws Exception {
@@ -168,7 +240,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         List<FetchRequest.ShardDocs> withMissing = new ArrayList<>(request.shards());
         FetchRequest.ShardDocs shard = withMissing.get(missing);
         ShardSearchContextId gone = new ShardSearchContextId(shard.contextId().getSessionId(), Long.MAX_VALUE);
-        withMissing.set(missing, new FetchRequest.ShardDocs(shard.shardId(), gone, shard.segments(), shard.docs()));
+        withMissing.set(missing, new FetchRequest.ShardDocs(shard.shardId(), gone, shard.afterFetch(), shard.segments(), shard.docs()));
         FetchRequest partial = withShards(request, withMissing);
 
         try (Fetched fetched = fetch(partial)) {
@@ -223,7 +295,14 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         searchService().openReaderContext(shardId, TimeValue.timeValueMinutes(5), SplitShardCountSummary.IRRELEVANT, opened);
         ShardSearchContextId pointInTime = opened.actionGet(TimeValue.timeValueSeconds(10));
         try {
-            FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(shardId, pointInTime, new int[] { 0 }, new int[] { 0 });
+            // a request may not free a point in time it learned the id of either
+            FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(
+                shardId,
+                pointInTime,
+                randomFrom(FetchRequest.ContextAfterFetch.values()),
+                new int[] { 0 },
+                new int[] { 0 }
+            );
             FetchRequest request = request(List.of(), List.of());
             try (Fetched fetched = fetch(withShards(request, List.of(docs)))) {
                 assertThat(fetched.results().get(0).failure(), instanceOf(SearchContextMissingException.class));
@@ -245,6 +324,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         FetchRequest.ShardDocs outside = new FetchRequest.ShardDocs(
             shard.shardId(),
             shard.contextId(),
+            FetchRequest.ContextAfterFetch.KEEP,
             new int[] { 0, 10_000 },
             new int[] { 0, 0 }
         );
@@ -613,6 +693,25 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         return locations;
     }
 
+    /**
+     * Waits until the executor freed and dropped what it holds. It schedules that on the generic pool from the search
+     * thread that answered, so once both pools are idle it is done.
+     */
+    private void awaitTheRelease() throws Exception {
+        ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stats : threadPool.stats()) {
+                if (stats.name().equals(ThreadPool.Names.SEARCH) || stats.name().equals(ThreadPool.Names.GENERIC)) {
+                    assertThat(stats.name(), stats.active() + stats.queue(), equalTo(0));
+                }
+            }
+        });
+    }
+
+    private static List<ShardSearchContextId> contextIds(List<OpenShard> shards) {
+        return shards.stream().map(OpenShard::contextId).toList();
+    }
+
     private static List<Long> allNs() {
         List<Long> ns = new ArrayList<>(DOCS);
         for (long n = 0; n < DOCS; n++) {
@@ -626,6 +725,13 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      * the documents of each shard sorted by segment and doc.
      */
     private FetchRequest request(List<OpenShard> shards, Collection<Long> ns) {
+        return request(shards, ns, Set.of());
+    }
+
+    /**
+     * @param lastReads the contexts the request reads for the last time
+     */
+    private FetchRequest request(List<OpenShard> shards, Collection<Long> ns, Set<ShardSearchContextId> lastReads) {
         List<FetchRequest.ShardDocs> shardDocs = new ArrayList<>();
         for (OpenShard shard : shards) {
             List<int[]> wanted = new ArrayList<>();
@@ -641,7 +747,10 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             wanted.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(a[1], b[1]));
             int[] segments = wanted.stream().mapToInt(l -> l[0]).toArray();
             int[] docs = wanted.stream().mapToInt(l -> l[1]).toArray();
-            shardDocs.add(new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), segments, docs));
+            FetchRequest.ContextAfterFetch afterFetch = lastReads.contains(shard.contextId())
+                ? FetchRequest.ContextAfterFetch.FREE
+                : FetchRequest.ContextAfterFetch.KEEP;
+            shardDocs.add(new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), afterFetch, segments, docs));
         }
         shardDocs = shuffledList(shardDocs);
         return new FetchRequest(

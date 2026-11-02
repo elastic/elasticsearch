@@ -131,7 +131,9 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             });
             int[] segments = wanted.stream().mapToInt(e -> e.getValue()[0]).toArray();
             int[] docs = wanted.stream().mapToInt(e -> e.getValue()[1]).toArray();
-            shardDocs.add(new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), segments, docs));
+            shardDocs.add(
+                new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), FetchRequest.ContextAfterFetch.KEEP, segments, docs)
+            );
             for (Map.Entry<Long, int[]> doc : wanted) {
                 expected.add(Tuple.tuple("doc-" + doc.getKey(), doc.getKey()));
             }
@@ -140,7 +142,10 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
         OpenShard any = randomFrom(open);
         ShardSearchContextId gone = new ShardSearchContextId(any.contextId().getSessionId(), Long.MAX_VALUE);
         int missingPosition = between(0, shardDocs.size());
-        shardDocs.add(missingPosition, new FetchRequest.ShardDocs(any.shardId(), gone, new int[] { 0 }, new int[] { 0 }));
+        shardDocs.add(
+            missingPosition,
+            new FetchRequest.ShardDocs(any.shardId(), gone, FetchRequest.ContextAfterFetch.KEEP, new int[] { 0 }, new int[] { 0 })
+        );
         FetchRequest request = new FetchRequest(
             "session",
             "",

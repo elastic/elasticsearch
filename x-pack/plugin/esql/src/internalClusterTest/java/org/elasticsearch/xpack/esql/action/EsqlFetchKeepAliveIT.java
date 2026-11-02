@@ -139,21 +139,26 @@ public class EsqlFetchKeepAliveIT extends AbstractEsqlIntegTestCase {
 
     /**
      * The contexts of a query whose free requests got lost expire once their keep-alive passed, because nobody refreshes
-     * them after the query ended.
+     * them after the query ended. The winners of the cut sit in one index, whose contexts the fetch frees. The other index
+     * holds only losers, whose contexts the coordinator frees.
      */
     public void testTheContextsOfAQueryWhoseFreeIsLostStillExpire() throws Exception {
         internalCluster().startMasterOnlyNode(keepAlive(KEEP_ALIVE));
         // the coordinator picks the keep-alive of the contexts, so it must be a node with the short one
         String coordinator = randomFrom(internalCluster().startDataOnlyNodes(between(1, 3), keepAlive(KEEP_ALIVE)));
         countContexts();
-        String index = "keep_alive_lost";
-        assertAcked(indicesAdmin().prepareCreate(index).setSettings(indexSettings(between(1, 3), 0)).setMapping("ts", "type=long"));
+        String winners = "keep_alive_lost_winners";
+        String losers = "keep_alive_lost_losers";
+        for (String index : List.of(winners, losers)) {
+            assertAcked(indicesAdmin().prepareCreate(index).setSettings(indexSettings(between(1, 3), 0)).setMapping("ts", "type=long"));
+        }
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 40; i++) {
-            bulk.add(prepareIndex(index).setSource("ts", i, "payload", "payload-" + i));
+            bulk.add(prepareIndex(winners).setSource("ts", 100 + i, "payload", "payload-" + (100 + i)));
+            bulk.add(prepareIndex(losers).setSource("ts", i, "payload", "payload-" + i));
         }
         assertFalse(bulk.get().hasFailures());
-        ensureGreen(index);
+        ensureGreen(winners, losers);
         AtomicInteger lostFrees = new AtomicInteger();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             ((MockTransportService) transportService).<TransportRequest>addRequestHandlingBehavior(
@@ -165,7 +170,16 @@ public class EsqlFetchKeepAliveIT extends AbstractEsqlIntegTestCase {
             );
         }
 
-        EsqlQueryRequest request = fetchPhase("FROM " + index + " | SORT ts DESC | LIMIT 5 | KEEP ts, payload");
+        // without node-level reduction every shard sends rows, so the contexts of the losers reach the coordinator
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + winners + "," + losers + " | SORT ts DESC | LIMIT 5 | KEEP ts, payload")
+            .pragmas(
+                new QueryPragmas(
+                    Settings.builder()
+                        .put(QueryPragmas.FETCH_PHASE.getKey(), true)
+                        .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), false)
+                        .build()
+                )
+            );
         try (EsqlQueryResponse response = client(coordinator).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS)) {
             assertThat(getValuesList(response), hasSize(5));
         }

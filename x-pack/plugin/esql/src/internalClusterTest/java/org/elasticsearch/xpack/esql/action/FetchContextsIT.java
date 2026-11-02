@@ -169,11 +169,10 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * When every row is a winner, the fetch reads every context that kept rows. The fetch requests free none of them, so the
-     * coordinator's lease frees them all once the fetch ended, with one request of the free action of {@code _search} per
-     * context.
+     * When every row is a winner, the fetch reads every context that kept rows. A {@code TopN} cut reads each of them for
+     * the last time, so the data nodes free them once they answered, and the coordinator sends no free request.
      */
-    public void testTheLeaseFreesTheContextsAFetchRead() throws Exception {
+    public void testTheLastFetchFreesTheContextsItRead() throws Exception {
         String everyRow = "FROM " + INDEX + " | SORT ts DESC | LIMIT 100 | KEEP a, b, ts";
         try (EsqlQueryResponse response = run(request(everyRow, true))) {
             assertThat(getValuesList(response), hasSize(60));
@@ -184,8 +183,8 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
             assertThat(freed.get(), equalTo(registered.get()));
             assertThat(indicesAdmin().prepareStats(INDEX).setSearch(true).get().getTotal().getSearch().getOpenContexts(), equalTo(0L));
         });
-        // a shard without documents keeps no rows, and its data node frees its context itself
-        assertThat(freeRequests.get(), allOf(greaterThan(0), lessThanOrEqualTo(shards)));
+        // a shard without documents keeps no rows, and its data node frees its context itself too
+        assertThat(freeRequests.get(), equalTo(0));
     }
 
     /**

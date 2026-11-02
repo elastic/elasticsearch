@@ -72,7 +72,8 @@ import java.util.function.Supplier;
  * <p>
  * The executor holds the first reference on the context of each shard, and the pages take their own while they load. It
  * drops its references once the response is sent, on the generic pool, because dropping the last reference to a reader
- * can block.
+ * can block. Before that it frees the contexts the request reads for the last time, also when their shards failed to load,
+ * like the fetch phase of {@code _search} frees the context it read.
  */
 final class DataNodeFetchExecutor {
     private static final Logger logger = LogManager.getLogger(DataNodeFetchExecutor.class);
@@ -427,7 +428,9 @@ final class DataNodeFetchExecutor {
         }
 
         /**
-         * Drops the request's references on its shards, on the generic pool. Once, whichever way the request ended.
+         * Frees the contexts the request reads for the last time, then drops the request's references on its shards, on the
+         * generic pool. Once, whichever way the request ended. A shard that failed to open frees nothing, so a request may
+         * free only contexts it was allowed to read.
          */
         private void release() {
             if (released.compareAndSet(false, true) == false) {
@@ -436,6 +439,18 @@ final class DataNodeFetchExecutor {
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
+                    for (int position = 0; position < contexts.size(); position++) {
+                        FetchRequest.ShardDocs shard = request.shards().get(position);
+                        if (contexts.get(position) != null && shard.afterFetch() == FetchRequest.ContextAfterFetch.FREE) {
+                            // the request's reference keeps the reader open until it drops it below
+                            boolean found = searchService.freeReaderContext(shard.contextId());
+                            logger.debug(
+                                "freed fetch context [{}] after its last fetch{}",
+                                shard.contextId(),
+                                found ? "" : ", it was gone"
+                            );
+                        }
+                    }
                     List<Releasable> references = new ArrayList<>(contexts.size() + 1);
                     references.add(shardPages);
                     for (DefaultShardContext context : contexts) {

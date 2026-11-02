@@ -143,9 +143,8 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A {@code TopN} cut of one page sends one fetch request to each node with winners. The coordinator frees every
-     * context with a request of its own: the contexts of the losers once the cut ended, and the others once the fetch
-     * ended.
+     * A {@code TopN} cut of one page sends one fetch request to each node with winners, which frees its contexts once it
+     * answered. The coordinator frees the contexts of the losers once the cut ended, with a request for each.
      */
     public void testATopNCut() throws Exception {
         List<List<Object>> rows = runQuery(randomCoordinator(), "FROM " + PREFIX + "* | SORT ts DESC | LIMIT 10 | KEEP ts, payload", 0);
@@ -153,7 +152,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2, loserNode, 2)));
+        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 
@@ -167,13 +166,13 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2, loserNode, 2)));
+        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 
     /**
-     * Every winner sits on the coordinator, so the only fetch request stays on the coordinator. The node of the losers
-     * gets a free for each of its contexts.
+     * Every winner sits on the coordinator, so the only fetch request stays on the coordinator, and frees its contexts.
+     * The node of the losers gets a free for each of its contexts.
      */
     public void testATopNCutWhoseWinnersAllSitOnTheCoordinator() throws Exception {
         String query = "FROM " + PREFIX + "winner_*," + PREFIX + "loser_* | SORT ts DESC | LIMIT 10 | KEEP ts, payload";
@@ -188,13 +187,14 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertThat(rows, equalTo(expected));
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of(winnerNode, 2, loserNode, 2)));
+        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 
     /**
      * A {@code LIMIT} cut fetches its pages as they arrive, so how many requests a node gets depends on when its pages
-     * arrive. The limit is above the number of documents, so every row wins and every context is read.
+     * arrive. The limit is above the number of documents, so every row wins and every context is read. A fetch request
+     * that goes out once the input ended frees its contexts, and the coordinator frees the contexts read only before.
      */
     public void testALimitCut() throws Exception {
         String query = "FROM " + PREFIX + "winner_*," + PREFIX + "other_winner_* | LIMIT 100 | KEEP ts, payload";
@@ -211,7 +211,14 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         for (int fetchesOfNode : fetchCounts.values()) {
             assertThat("fetches of a node", fetchesOfNode, allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(2)));
         }
-        assertThat("frees", counts(frees), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2)));
+        Map<String, Integer> freeCounts = counts(frees);
+        assertTrue(
+            "frees go to nodes with winners only, but were " + freeCounts,
+            Set.of(winnerNode, otherWinnerNode).containsAll(freeCounts.keySet())
+        );
+        for (int freesOfNode : freeCounts.values()) {
+            assertThat("frees of a node", freesOfNode, lessThanOrEqualTo(2));
+        }
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 

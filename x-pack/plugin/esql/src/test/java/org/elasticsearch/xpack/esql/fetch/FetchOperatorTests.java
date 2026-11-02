@@ -52,6 +52,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -569,6 +571,125 @@ public class FetchOperatorTests extends ComputeTestCase {
             assertThat(releasedRows(output), equalTo(concat(first, second, third)));
             assertThat(requestedDocuments(client), equalTo(List.of(Set.copyOf(concat(first, second)), Set.copyOf(third))));
         } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * A whole cut goes out once its input ended, as the only batch, so it reads every context for the last time.
+     */
+    public void testAWholeCutReadsEveryContextForTheLastTime() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, wholeCut()).get(driverContext);
+        try {
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(1), 0, 3), new Ref(ORIGINS.get(0), 0, 4))));
+
+            operator.finish();
+
+            releasedRows(takeOutput(operator, 2));
+            assertThat(client.requests, hasSize(2));
+            for (Request request : client.requests) {
+                assertThat(afterFetchOf(request).values(), everyItem(equalTo(FetchRequest.ContextAfterFetch.FREE)));
+            }
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * A streamed batch that goes out before the input ended frees nothing, because a later page can read the same shard.
+     */
+    public void testAStreamedBatchBeforeTheEndOfTheInputFreesNothing() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
+        try {
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
+            releasedRows(takeOutput(operator, 1));
+
+            assertThat(client.requests, hasSize(2));
+            for (Request request : client.requests) {
+                assertThat(afterFetchOf(request).values(), everyItem(equalTo(FetchRequest.ContextAfterFetch.KEEP)));
+            }
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * Pages that wait while the input ends leave once a batch ended. They read for the last time the contexts that no other
+     * page reads, even those an earlier batch read.
+     */
+    public void testAStreamedBatchAfterTheEndOfTheInputFreesWhatNoOtherPageReads() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(1, 100)).get(driverContext);
+        try {
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 3), new Ref(ORIGINS.get(3), 0, 4))));
+            operator.finish();
+            assertThat("the second page waits for the first batch", client.requests, hasSize(2));
+
+            client.holdResponses.countDown();
+            releasedRows(takeOutput(operator, 2));
+
+            assertThat(client.requests, hasSize(4));
+            for (Request first : client.requests.subList(0, 2)) {
+                assertThat(afterFetchOf(first).values(), everyItem(equalTo(FetchRequest.ContextAfterFetch.KEEP)));
+            }
+            for (Request second : client.requests.subList(2, 4)) {
+                assertThat(afterFetchOf(second).values(), everyItem(equalTo(FetchRequest.ContextAfterFetch.FREE)));
+            }
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * A batch that goes out once the input ended keeps a context that a batch still in flight reads, so the node doesn't
+     * free it under that batch. The end of the fetch lets it go.
+     */
+    public void testAContextABatchInFlightReadsStaysOpen() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        CountDownLatch holdN1 = new CountDownLatch(1);
+        CountDownLatch holdN2 = new CountDownLatch(1);
+        client.holdResponsesOf.put("n1", holdN1);
+        client.holdResponsesOf.put("n2", holdN2);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        // a page of one row fills a batch, and two batches fetch at once
+        Operator operator = factory(client, batching(2, 1)).get(driverContext);
+        try {
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(2), 0, 1))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 2))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 3))));
+            operator.finish();
+            assertThat("the third page waits for a batch to end", client.requests, hasSize(2));
+
+            holdN2.countDown();
+            assertBusy(() -> assertThat(client.requests, hasSize(3)));
+            assertThat(
+                "the second batch still reads it",
+                afterFetchOf(client.requests.get(2)),
+                equalTo(Map.of(ORIGINS.get(0).contextId(), FetchRequest.ContextAfterFetch.KEEP))
+            );
+
+            holdN1.countDown();
+            releasedRows(takeOutput(operator, 3));
+        } finally {
+            holdN1.countDown();
+            holdN2.countDown();
             operator.close();
             awaitResponses(driverContext);
         }
@@ -1233,6 +1354,17 @@ public class FetchOperatorTests extends ComputeTestCase {
             }
         }
         return documents;
+    }
+
+    /**
+     * What the node of one request does with the context of each of its shards once it answered.
+     */
+    private static Map<ShardSearchContextId, FetchRequest.ContextAfterFetch> afterFetchOf(Request request) {
+        Map<ShardSearchContextId, FetchRequest.ContextAfterFetch> afterFetch = new HashMap<>();
+        for (FetchRequest.ShardDocs shard : request.shards()) {
+            afterFetch.put(shard.contextId(), shard.afterFetch());
+        }
+        return afterFetch;
     }
 
     private static DocOrigin originOf(FetchRequest.ShardDocs shard) {

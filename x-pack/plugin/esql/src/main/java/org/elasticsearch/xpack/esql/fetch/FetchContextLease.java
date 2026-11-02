@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -29,9 +30,10 @@ import java.util.function.Supplier;
 /**
  * The fetch contexts that the data nodes keep open for one query, as their responses list them. The coordinator holds one
  * lease per query, and every execution of the query keeps its own contexts in it, through its {@link Execution}. An
- * execution frees the contexts its rows don't read once its cut ended, and the others once its fetch ended. The lease
- * frees what is left when the query ends, whether it succeeded, failed or was cancelled. A context that a response lists
- * after its execution stopped reading it is freed at once.
+ * execution frees the contexts its rows don't read once its cut ended. A node frees a context itself once it answered
+ * the fetch request that read it for the last time, and the execution lets go of it then. The execution frees the others
+ * once its fetch ended. The lease frees what is left when the query ends, whether it succeeded, failed or was cancelled. A
+ * context that a response lists after its execution stopped reading it is freed at once.
  * <p>
  * The data nodes open the contexts with the {@link Execution#keepAlive keep-alive} of the query. While the lease holds
  * contexts, it refreshes them every third of it, so a query that waits for a slow node doesn't lose the readers of the
@@ -237,6 +239,22 @@ public final class FetchContextLease implements Releasable {
                 }
             }
             free(node, unread);
+        }
+
+        /**
+         * {@code node} freed the contexts {@code ids} itself, once it answered the fetch request that read them for the last
+         * time. The execution stops holding them, so it neither refreshes nor frees them.
+         */
+        public void freedByTheirNode(DiscoveryNode node, Collection<ShardSearchContextId> ids) {
+            if (ids.isEmpty()) {
+                return;
+            }
+            synchronized (FetchContextLease.this) {
+                List<ShardSearchContextId> held = this.held.get(node);
+                if (held != null) {
+                    held.removeAll(ids);
+                }
+            }
         }
 
         /**

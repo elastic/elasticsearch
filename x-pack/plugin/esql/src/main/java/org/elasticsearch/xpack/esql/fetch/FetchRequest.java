@@ -40,7 +40,8 @@ import java.util.Objects;
 
 /**
  * Asks one data node for the fetched columns of documents that survived a cut. For each shard it names the reader context
- * the query phase kept open and the documents to load, and it carries the fetch plan that loads them.
+ * the query phase kept open, whether the node frees it once it answered, and the documents to load, and it carries the
+ * fetch plan that loads them.
  * <p>
  * It carries the index expressions of the query, so it is authorized like the query's other requests to the node, with
  * the same wildcards and aliases. The node checks every shard against the access control of the request, so a shard
@@ -50,13 +51,32 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
     static final TransportVersion ESQL_FETCH = TransportVersion.fromName("esql_fetch_phase_plan");
 
     /**
+     * What the node does with the reader context of a shard once it answered.
+     */
+    public enum ContextAfterFetch {
+        /**
+         * Keeps it open, because the coordinator may read it again.
+         */
+        KEEP,
+        /**
+         * Frees it, because this request reads it for the last time, like the fetch phase of {@code _search} frees the
+         * context it read. The coordinator no longer holds it once the response arrives.
+         */
+        FREE
+    }
+
+    /**
      * The documents to load from one shard, sorted by segment and then by doc, without duplicates. The node returns their
      * rows in this order.
      *
-     * @param contextId the reader context the query phase kept open for the shard
+     * @param contextId  the reader context the query phase kept open for the shard
+     * @param afterFetch what the node does with the context once it answered
      */
-    public record ShardDocs(ShardId shardId, ShardSearchContextId contextId, int[] segments, int[] docs) implements Writeable {
+    public record ShardDocs(ShardId shardId, ShardSearchContextId contextId, ContextAfterFetch afterFetch, int[] segments, int[] docs)
+        implements
+            Writeable {
         public ShardDocs {
+            Objects.requireNonNull(afterFetch, "afterFetch");
             FetchDocsSourceOperator.ShardDocs.checkSorted(segments, docs);
         }
 
@@ -67,6 +87,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         static ShardDocs readFrom(StreamInput in) throws IOException {
             ShardId shardId = new ShardId(in);
             ShardSearchContextId contextId = new ShardSearchContextId(in);
+            ContextAfterFetch afterFetch = in.readEnum(ContextAfterFetch.class);
             int[] runSegments = in.readVIntArray();
             int[] runLengths = in.readVIntArray();
             int[] gaps = in.readVIntArray();
@@ -93,13 +114,14 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             if (position != gaps.length) {
                 throw new IllegalArgumentException("the runs hold [" + position + "] of [" + gaps.length + "] docs");
             }
-            return new ShardDocs(shardId, contextId, segments, docs);
+            return new ShardDocs(shardId, contextId, afterFetch, segments, docs);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             contextId.writeTo(out);
+            out.writeEnum(afterFetch);
             int runs = runs();
             int[] runSegments = new int[runs];
             int[] runLengths = new int[runs];
@@ -146,18 +168,19 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             ShardDocs that = (ShardDocs) o;
             return shardId.equals(that.shardId)
                 && contextId.equals(that.contextId)
+                && afterFetch == that.afterFetch
                 && Arrays.equals(segments, that.segments)
                 && Arrays.equals(docs, that.docs);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardId, contextId, Arrays.hashCode(segments), Arrays.hashCode(docs));
+            return Objects.hash(shardId, contextId, afterFetch, Arrays.hashCode(segments), Arrays.hashCode(docs));
         }
 
         @Override
         public String toString() {
-            return "ShardDocs[" + shardId + ", " + contextId + ", docs=" + docs.length + "]";
+            return "ShardDocs[" + shardId + ", " + contextId + ", " + afterFetch + ", docs=" + docs.length + "]";
         }
     }
 

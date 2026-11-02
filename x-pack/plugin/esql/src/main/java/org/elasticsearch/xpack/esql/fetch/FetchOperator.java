@@ -59,8 +59,10 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
@@ -84,9 +86,12 @@ import java.util.concurrent.atomic.LongAdder;
  * threads, which only store them. The driver thread then puts the fetched columns next to the rows, with the block factory
  * of the driver.
  * <p>
- * A fetch request frees no reader context, because a later batch can read the same shard. Once the input ends, the cut is
- * complete, and the reader contexts that none of its rows read can go before the fetch loads the documents. The others go
- * once the operator closes, when nothing fetches anymore.
+ * Once the input ends, the cut is complete, and the reader contexts that none of its rows read can go before the fetch
+ * loads the documents. A batch that goes out after that reads a context for the last time when no other page reads it,
+ * and its request asks the node to free the context once it answered, like the fetch phase of {@code _search}. So a
+ * {@code TopN} cut frees every context it reads with its fetch requests. A batch that goes out earlier frees nothing,
+ * because a later page can read the same shard. The contexts left go once the operator closes, when nothing fetches
+ * anymore.
  * <p>
  * A fetch can fail for some shards: a shard whose context is gone, a request a node rejected, a node that left. When the
  * query allows partial results, the page goes on without the rows of those shards, in the order of the cut, and the query
@@ -288,8 +293,15 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
     /**
      * A page of the cut that waits for a batch.
+     *
+     * @param contexts the reader contexts that the rows of the page read
      */
-    private record QueuedPage(Page cut, ActionListener<Fetched> listener) {}
+    private record QueuedPage(Page cut, Set<ShardSearchContextId> contexts, ActionListener<Fetched> listener) {}
+
+    /**
+     * The pages of a batch that goes out, and the reader contexts it reads for the last time.
+     */
+    private record TakenBatch(List<QueuedPage> pages, Set<ShardSearchContextId> lastReads) {}
 
     private final int docChannel;
     private final List<ElementType> fetchedTypes;
@@ -306,13 +318,17 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      */
     private final Queue<NodeRequest> requests = ConcurrentCollections.newQueue();
     /**
-     * The pages that wait for a batch, in the order of the cut. Guards {@link #queuedRows}, {@link #batchesInFlight} and
-     * {@link #inputEnded} too.
+     * The pages that wait for a batch, in the order of the cut. Guards {@link #queuedRows}, {@link #batchesInFlight},
+     * {@link #inputEnded} and {@link #pendingReads} too.
      */
     private final Deque<QueuedPage> queued = new ArrayDeque<>();
     private int queuedRows;
     private int batchesInFlight;
     private boolean inputEnded;
+    /**
+     * For each reader context, the pages that read it and wait for a batch or fetch in one.
+     */
+    private final Map<ShardSearchContextId, Integer> pendingReads = new HashMap<>();
     // a batch can go out from the thread that ended the batch before it
     private final LongAdder documents = new LongAdder();
     private final LongAdder planNanos = new LongAdder();
@@ -353,32 +369,39 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     @Override
     protected void performAsync(Page cut, ActionListener<Fetched> listener) {
         rowsReceived += cut.getPositionCount();
-        recordContextsRead(cut);
+        Set<ShardSearchContextId> contexts = contextsReadBy(cut);
+        contextsRead.addAll(contexts);
         synchronized (queued) {
-            queued.addLast(new QueuedPage(cut, listener));
+            queued.addLast(new QueuedPage(cut, contexts, listener));
             queuedRows += cut.getPositionCount();
+            for (ShardSearchContextId context : contexts) {
+                pendingReads.merge(context, 1, Integer::sum);
+            }
         }
         sendQueuedPages();
     }
 
     /**
-     * Records the reader contexts that the rows of {@code cut} read. The origins of a page can name contexts that none of its
-     * rows read, so the rows decide. A page whose documents didn't leave their node is the planner's to reject.
+     * The reader contexts that the rows of {@code cut} read. The origins of a page can name contexts that none of its rows
+     * read, so the rows decide. A page whose documents didn't leave their node is the planner's to reject.
      */
-    private void recordContextsRead(Page cut) {
+    private Set<ShardSearchContextId> contextsReadBy(Page cut) {
         if (cut.getBlock(docChannel) instanceof DocBlock docBlock && docBlock.asVector().origins() != null) {
             DocVector documents = docBlock.asVector();
             DocOrigins origins = documents.origins();
             IntVector ordinals = documents.shards();
+            Set<ShardSearchContextId> read = new HashSet<>();
             boolean[] recorded = new boolean[origins.size()];
             for (int p = 0; p < cut.getPositionCount(); p++) {
                 int ordinal = ordinals.getInt(p);
                 if (recorded[ordinal] == false) {
                     recorded[ordinal] = true;
-                    contextsRead.add(origins.get(ordinal).contextId());
+                    read.add(origins.get(ordinal).contextId());
                 }
             }
+            return read;
         }
+        return Set.of();
     }
 
     /**
@@ -404,9 +427,9 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      */
     private void sendQueuedPages() {
         while (true) {
-            List<QueuedPage> pages;
+            TakenBatch taken;
             synchronized (queued) {
-                pages = switch (batching) {
+                List<QueuedPage> pages = switch (batching) {
                     case Batching.WholeCut wholeCut -> takeWholeCut(wholeCut);
                     case Batching.Streaming streaming -> takeStreamingBatch(streaming);
                 };
@@ -414,8 +437,46 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                     return;
                 }
                 batchesInFlight++;
+                taken = new TakenBatch(pages, lastReads(pages));
             }
-            sendBatch(pages);
+            sendBatch(taken);
+        }
+    }
+
+    /**
+     * The reader contexts that {@code batch} reads for the last time: once the input ended, those that no other page reads,
+     * whether it waits or fetches in a batch still in flight. A context that an earlier batch still reads stays open, and
+     * the end of the fetch lets it go.
+     */
+    private Set<ShardSearchContextId> lastReads(List<QueuedPage> batch) {
+        assert Thread.holdsLock(queued);
+        if (inputEnded == false) {
+            return Set.of();
+        }
+        Map<ShardSearchContextId, Integer> readsOfBatch = new HashMap<>();
+        for (QueuedPage page : batch) {
+            for (ShardSearchContextId context : page.contexts()) {
+                readsOfBatch.merge(context, 1, Integer::sum);
+            }
+        }
+        Set<ShardSearchContextId> lastReads = new HashSet<>();
+        readsOfBatch.forEach((context, reads) -> {
+            if (pendingReads.get(context).equals(reads)) {
+                lastReads.add(context);
+            }
+        });
+        return lastReads;
+    }
+
+    /**
+     * The pages no longer wait or fetch, so they no longer read their contexts.
+     */
+    private void stopPending(List<QueuedPage> pages) {
+        assert Thread.holdsLock(queued);
+        for (QueuedPage page : pages) {
+            for (ShardSearchContextId context : page.contexts()) {
+                pendingReads.computeIfPresent(context, (c, reads) -> reads == 1 ? null : reads - 1);
+            }
         }
     }
 
@@ -458,13 +519,13 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         return pages;
     }
 
-    private void sendBatch(List<QueuedPage> pages) {
-        List<Page> cuts = pages.stream().map(QueuedPage::cut).toList();
-        ActionListener<FetchedBatch> listener = endingTheBatch(pages);
+    private void sendBatch(TakenBatch taken) {
+        List<Page> cuts = taken.pages().stream().map(QueuedPage::cut).toList();
+        ActionListener<FetchedBatch> listener = endingTheBatch(taken.pages());
         FetchBatchPlanner.Batch batch;
         long planStart = System.nanoTime();
         try {
-            batch = FetchBatchPlanner.plan(cuts, docChannel);
+            batch = FetchBatchPlanner.plan(cuts, docChannel, taken.lastReads());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -498,7 +559,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         return new ActionListener<>() {
             @Override
             public void onResponse(FetchedBatch fetched) {
-                batchEnded();
+                batchEnded(pages);
                 pages.getFirst().listener().onResponse(fetched);
                 for (QueuedPage page : pages.subList(1, pages.size())) {
                     page.listener().onResponse(LaterPageOfBatch.INSTANCE);
@@ -512,14 +573,15 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                     page.listener().onFailure(e);
                 }
                 failQueuedPages(e);
-                batchEnded();
+                batchEnded(pages);
             }
         };
     }
 
-    private void batchEnded() {
+    private void batchEnded(List<QueuedPage> pages) {
         synchronized (queued) {
             batchesInFlight--;
+            stopPending(pages);
         }
     }
 
@@ -532,6 +594,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             dropped = new ArrayList<>(queued);
             queued.clear();
             queuedRows = 0;
+            stopPending(dropped);
         }
         for (QueuedPage page : dropped) {
             page.listener().onFailure(e);

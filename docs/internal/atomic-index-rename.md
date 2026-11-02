@@ -239,7 +239,7 @@ snapshot index renamed and recovered again after a full restart
 T15); and the mixed-cluster gate (`IndexRenameRollingUpgradeIT`, compiled but
 not run locally, since it needs the previous version's distribution).
 
-### T15. ILM steps queued before a rename may see the old name
+### T15. ILM steps queued before a rename saw the old name (fixed)
 
 `ExecuteStepsUpdateTask` carries the `Index` the step was queued with and hands
 it to the step. The task itself finds the index metadata through `index(Index)`,
@@ -249,12 +249,13 @@ name string from that `Index` (`WaitForRolloverReadyStep`,
 `UpdateRolloverLifecycleDateStep`, `ReplaceDataStreamBackingIndexStep`, the
 shrink, downsample and searchable snapshot action steps). A step task queued
 just before a rename and executed just after it therefore fails once with a
-`NullPointerException` and moves the index to the ERROR step; the next ILM run
-starts from the current metadata and retryable steps recover. The production
-fix is one line in `ExecuteStepsUpdateTask`: hand the steps
-`indexMetadata.getIndex()` rather than the captured `Index`. Found by the ILM
-rename test, whose test-only wait step happened to look the index up by a
-fixed name and failed the same way.
+`NullPointerException` and moved the index to the ERROR step. Fixed:
+`ExecuteStepsUpdateTask` now hands the steps `indexMetadata.getIndex()`, the
+index as it is in the state being updated, rather than the captured `Index`.
+Found by the ILM rename test, whose test-only wait step happened to look the
+index up by a fixed name and failed the same way. `IndexLifecycleRunner` still
+keys some bookkeeping by index name (the busy-index set); a rename clears it
+one cycle late at worst.
 
 ### T14. Cross-cluster replication follows by UUID across a rename
 

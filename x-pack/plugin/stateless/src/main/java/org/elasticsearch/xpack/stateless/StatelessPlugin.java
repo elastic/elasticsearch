@@ -157,10 +157,13 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
+import org.elasticsearch.xpack.stateless.cache.SearchRelocationCacheTransplant;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimeSlottedAccumulator;
+import org.elasticsearch.xpack.stateless.cache.TransportGetCacheTransplantManifestAction;
+import org.elasticsearch.xpack.stateless.cache.TransportGetCacheTransplantRegionAction;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -688,6 +691,8 @@ public class StatelessPlugin extends Plugin
                 TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
                 TransportGetVirtualBatchedCompoundCommitChunkAction.class
             ),
+            new ActionHandler(TransportGetCacheTransplantManifestAction.TYPE, TransportGetCacheTransplantManifestAction.class),
+            new ActionHandler(TransportGetCacheTransplantRegionAction.TYPE, TransportGetCacheTransplantRegionAction.class),
 
             new ActionHandler(EnsureDocsSearchableAction.TYPE, TransportEnsureDocsSearchableAction.class),
             new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
@@ -874,6 +879,15 @@ public class StatelessPlugin extends Plugin
             services.telemetryProvider(),
             clusterService.getClusterSettings(),
             searchRecoveryTimeoutCalculationService
+        );
+        cacheWarmingService.setCacheTransplant(
+            new SearchRelocationCacheTransplant(
+                SearchRelocationCacheTransplant.remoteClient(services.remoteTransportClient(), threadPool.generic()),
+                nodeId -> clusterService.state().nodes().get(nodeId),
+                cacheService,
+                threadPool.executor(PREWARM_THREAD_POOL),
+                clusterService.getClusterSettings()
+            )
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
 
@@ -1499,6 +1513,9 @@ public class StatelessPlugin extends Plugin
             TimeSlottedAccumulator.TIME_SLOTS_PAST_COUNT_SETTING,
             TimeSlottedAccumulator.TIME_SLOTS_FUTURE_COUNT_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
+            SearchRelocationCacheTransplant.ENABLED_SETTING,
+            SearchRelocationCacheTransplant.ORDERING_SETTING,
+            SearchRelocationCacheTransplant.MAX_REGIONS_IN_FLIGHT_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
             SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,

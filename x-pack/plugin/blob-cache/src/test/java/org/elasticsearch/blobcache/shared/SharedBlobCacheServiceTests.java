@@ -5448,6 +5448,93 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testSnapshotResidentRegionsOrdersByFrequencyAndCopySkipsEvicted() throws Exception {
+        final long regionSize = size(1);
+        final long fileLength = regionSize * 2;
+        final long timestamp = 1234L;
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(8)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId shardId = randomShardId();
+            final TestCacheKey cacheKey = randomTestCacheKey(shardId);
+            final TestCacheKey otherShardKey = randomTestCacheKey(randomShardId());
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            populate(cacheService, cacheKey, fileLength, testData, timestamp);
+            populate(cacheService, otherShardKey, regionSize, randomByteArrayOfLength((int) regionSize), timestamp);
+
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+            assertEquals(cacheService.epoch(), 1L);
+            // Touch region 0 after the decay so its frequency is higher than region 1.
+            cacheService.get(cacheKey, fileLength, 0, timestamp);
+
+            var resident = cacheService.snapshotResidentRegions(shardId);
+            assertThat(resident, hasSize(2));
+            assertEquals(0, resident.get(0).region());
+            assertEquals(1, resident.get(1).region());
+            assertThat(resident.get(0).frequency(), greaterThan(resident.get(1).frequency()));
+            assertEquals(cacheKey, resident.get(0).key());
+            assertEquals((int) regionSize, resident.get(0).length());
+
+            ByteBuffer copied = ByteBuffer.allocate((int) regionSize);
+            var copy = cacheService.copyResidentRegion(cacheKey, 0, copied);
+            assertNotNull(copy);
+            assertEquals((int) regionSize, copy.length());
+            assertEquals(timestamp, copy.timestampMillis());
+            assertArrayEquals(Arrays.copyOfRange(testData, 0, (int) regionSize), Arrays.copyOf(copied.array(), copy.length()));
+
+            assertEquals(1, cacheService.forceEvict(shardId, (key, region) -> region == 0));
+            assertNull(cacheService.copyResidentRegion(cacheKey, 0, ByteBuffer.allocate((int) regionSize)));
+            assertThat(cacheService.snapshotResidentRegions(shardId), hasSize(1));
+            assertEquals(1, cacheService.snapshotResidentRegions(shardId).get(0).region());
+        }
+    }
+
+    private static void populate(
+        SharedBlobCacheService<TestCacheKey> cacheService,
+        TestCacheKey cacheKey,
+        long fileLength,
+        byte[] testData,
+        long timestamp
+    ) throws Exception {
+        final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+        var cacheFile = cacheService.getCacheFile(cacheKey, fileLength, SharedBlobCacheService.CacheMissHandler.NOOP, timestamp);
+        cacheFile.populateAndRead(
+            ByteRange.of(0L, fileLength),
+            ByteRange.of(0L, fileLength),
+            (channel, pos, relativePos, len) -> len,
+            (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                SharedBytes.copyToCacheFileAligned(
+                    channel,
+                    new java.io.ByteArrayInputStream(testData, relativePos, len),
+                    channelPos,
+                    relativePos,
+                    len,
+                    progressUpdater,
+                    writeBuffer.clear()
+                );
+                ActionListener.completeWith(completionListener, () -> null);
+            },
+            "test"
+        );
+    }
+
     private record TestCacheKey(ShardId shardId, String file) implements SharedBlobCacheService.KeyBase {}
 
     private static TestCacheKey randomTestCacheKey(ShardId shardId) {

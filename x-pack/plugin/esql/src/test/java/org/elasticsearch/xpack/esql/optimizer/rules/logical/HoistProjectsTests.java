@@ -790,21 +790,23 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * {@snippet lang="text":
-     * Limit[1000[INTEGER],false,false]
-     * \_MvExpand[fn{r}#6168,fn{r}#6182]
-     *   \_Project[[_meta_field{f}#6177, emp_no{f}#6171, first_name{f}#6172 AS fn#6168, gender{f}#6173, hire_date{f}#6178, job{f}#6179,
-     * job.raw{f}#6180, languages{f}#6174, last_name{f}#6175, long_noidx{f}#6181, salary{f}#6176]]
+     * Project[[_meta_field{f}#6177, emp_no{f}#6171, fn{r}#6182, gender{f}#6173, hire_date{f}#6178, job{f}#6179, job.raw{f}#6180,
+     * languages{f}#6174, last_name{f}#6175, long_noidx{f}#6181, salary{f}#6176]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_MvExpand[first_name{f}#6172,fn{r}#6182]
      *     \_EsRelation[test][_meta_field{f}#6177, emp_no{f}#6171, first_name{f}#..]
      * }
      */
-    public void testProjectStaysBelowMvExpand() {
-        LogicalPlan plan = new HoistProjects().apply(substituted("""
+    public void testMvExpandOverRenameIsPushedBelowTheProject() {
+        MvExpand mvExpand = hoistedPast("""
             FROM test
             | RENAME first_name AS fn
             | MV_EXPAND fn
-            """));
+            """, MvExpand.class);
 
-        as(plan.collect(MvExpand.class).getFirst().child(), Project.class);
+        assertThat(Expressions.name(mvExpand.target()), equalTo("first_name"));
+        assertThat(mvExpand.expanded().name(), equalTo("fn"));
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
@@ -1041,6 +1043,11 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
 
     public void testOperatorBatchRunsDoNotGrowWithEnrichBetweenLookupBlocks() {
         String block = "\n| ENRICH languages_idx ON languages WITH enriched%d = language_name";
+        assertThat(operatorRunsToConverge(lookupBlocks(30, block)), equalTo(operatorRunsToConverge(lookupBlocks(3, block))));
+    }
+
+    public void testOperatorBatchRunsDoNotGrowWithMvExpandBetweenLookupBlocks() {
+        String block = "\n| MV_EXPAND lang%d";
         assertThat(operatorRunsToConverge(lookupBlocks(30, block)), equalTo(operatorRunsToConverge(lookupBlocks(3, block))));
     }
 

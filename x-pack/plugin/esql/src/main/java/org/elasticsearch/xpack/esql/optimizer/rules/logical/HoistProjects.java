@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPlan> implements OptimizerRules.LocalAware<LogicalPlan> {
 
     private final PushDownJoinPastProject pushDownJoinPastProject = new PushDownJoinPastProject();
+    private final PushDownMvExpandPastProject pushDownMvExpandPastProject = new PushDownMvExpandPastProject();
     private final PushDownEval pushDownEval = new PushDownEval();
     private final CombineProjections combineProjections;
 
@@ -46,6 +48,7 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
     protected LogicalPlan rule(LogicalPlan plan) {
         return switch (plan) {
             case Join join when join.left() instanceof Project -> pushDownJoinPastProject.rule(join);
+            case MvExpand mvExpand when mvExpand.child() instanceof Project -> pushDownMvExpandPastProject.rule(mvExpand);
             case Project project when project.child() instanceof Project -> combineProjections.rule(project);
             case Eval eval when eval.child() instanceof Project -> pushDownEval.rule(eval);
             case Limit limit when limit.child() instanceof Project project -> project.replaceChild(limit.replaceChild(project.child()));

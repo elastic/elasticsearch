@@ -30,8 +30,11 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutCont
 
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import static java.util.Comparator.comparingLong;
 
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
@@ -321,18 +324,7 @@ public class SearchRecoveryTimeoutCalculationService {
         final int otherRelocationsToTarget = relocationsToTarget.otherFromNonShuttingDownNodes();
         final long now = threadPool.absoluteTimeInMillis();
 
-        final var shardsOfShuttingDownNodes = removalShutdownsOfNodesInCluster(state).map(
-            shutdown -> new ShuttingDownNodeShards(
-                graceDeadline(shutdown),
-                relocationsToTarget.fromShuttingDownNodes().getOrDefault(shutdown.getNodeId(), 0) + countPendingSearchShardsOnNode(
-                    state,
-                    shutdown.getNodeId()
-                )
-            )
-        )
-            .filter(nodeShards -> nodeShards.shards() > 0)
-            .sorted(Comparator.comparingLong(ShuttingDownNodeShards::graceDeadlineMillis))
-            .toList();
+        final var shardsOfShuttingDownNodes = shardsOfShuttingDownNodes(state, relocationsToTarget);
 
         long shardsWithEarlierOrSameDeadline = 0;
         EqualShare tightestEqualShare = null;
@@ -382,6 +374,25 @@ public class SearchRecoveryTimeoutCalculationService {
                 TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
             );
         }
+    }
+
+    private List<ShuttingDownNodeShards> shardsOfShuttingDownNodes(
+        final ClusterState state,
+        final SearchRelocationsToTarget relocationsToTarget
+    ) {
+        return removalShutdownsOfNodesInCluster(state) //
+            .map(
+                shutdown -> new ShuttingDownNodeShards(
+                    graceDeadline(shutdown),
+                    relocationsToTarget.fromShuttingDownNodes().getOrDefault(shutdown.getNodeId(), 0) + countPendingSearchShardsOnNode(
+                        state,
+                        shutdown.getNodeId()
+                    )
+                )
+            )
+            .filter(nodeShards -> nodeShards.shards() > 0)
+            .sorted(comparingLong(ShuttingDownNodeShards::graceDeadlineMillis))
+            .toList();
     }
 
     /// The share of the target's relocation limit that the `shardsCompetingForTarget` shards get, when `otherRelocationsToTarget`

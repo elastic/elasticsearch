@@ -49,7 +49,10 @@ public class PromqlBuiltinFunctionDefinitions {
     private static final String LABEL_FUNCTION_NOT_SUPPORTED_YET =
         "A call outside an enclosing `by(...)` aggregation, such as one that isn't aggregated or one under `without(...)`, "
             + "a call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, and a destination label named "
-            + "`step`, which is an output column of the `PROMQL` command, aren't supported yet. ";
+            + "`step`, which is an output column of the `PROMQL` command, aren't supported yet. {applies_to}`stack: ga 9.7+` "
+            + "{applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under `topk`, `bottomk`, `limitk`, "
+            + "or `limit_ratio`, is supported when the destination is a new label, such as "
+            + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`. ";
 
     private static final String SORT_DIVERGENCE =
         "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "

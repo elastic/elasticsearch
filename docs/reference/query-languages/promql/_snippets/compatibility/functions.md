@@ -27,7 +27,7 @@ The functions in the [{{promql}} functions](/reference/query-languages/promql/fu
 | 42 | `histogram_stddev`, `histogram_stdvar` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `histogram_stddev(h)` | - | [#164152]({{es-issue}}164152) |
 | 43 | `irate`, `delta` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `irate(h[5m])` | - | [#152263]({{es-issue}}152263) |
 | 44 | `label_replace` or `label_join` outside `by(...)` | `label_replace(x, "dst", "$1", "instance", "(.*):.*")` | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Use it inside `by(...)`: `sum by (dst) (label_replace(...))` | [#157672]({{es-issue}}157672) |
-| 45 | `label_replace` or `label_join` over an aggregation | `label_replace(sum by (job) (x), ...)` | - | [#157672]({{es-issue}}157672) |
+| 45 | `label_replace` or `label_join` over an aggregation | `label_replace(sum by (job) (x), ...)` | {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Aggregate with `by(...)` and write a new label: `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")` | [#157672]({{es-issue}}157672) |
 | 46 | `label_replace` or `label_join` that writes a label named `step` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `label_replace(x, "step", ...)` | `step` is an output column of the `PROMQL` command | - |
 | 47 | `predict_linear` | `predict_linear(x[1h], 3600)` | - | [#164004]({{es-issue}}164004) |
 | 48 | `rate` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(h[5m])` | Use `increase`: `histogram_quantile(0.99, sum by (job) (increase(h[5m])))` | [#152263]({{es-issue}}152263) |

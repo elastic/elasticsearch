@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseFailure;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -113,6 +114,7 @@ public enum SearchResponseUtils {
             skippedShards,
             tookInMillis,
             shardFailures,
+            List.of(),
             clusters,
             null,
             null,
@@ -134,6 +136,7 @@ public enum SearchResponseUtils {
         private int skippedShards;
         private long tookInMillis;
         private List<ShardSearchFailure> shardFailures;
+        private List<SearchPhaseFailure> phaseFailures = List.of();
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
 
@@ -201,6 +204,16 @@ public enum SearchResponseUtils {
             return this;
         }
 
+        public SearchResponseBuilder phaseFailures(SearchPhaseFailure... failures) {
+            phaseFailures = List.of(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder phaseFailures(List<SearchPhaseFailure> failures) {
+            phaseFailures = List.copyOf(failures);
+            return this;
+        }
+
         public SearchResponseBuilder clusters(Clusters clusters) {
             this.clusters = clusters;
             return this;
@@ -226,6 +239,7 @@ public enum SearchResponseUtils {
                 skippedShards,
                 tookInMillis,
                 shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                phaseFailures,
                 clusters,
                 pointInTimeId,
                 null,
@@ -343,6 +357,7 @@ public enum SearchResponseUtils {
         String scrollId = null;
         BytesReference searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
+        List<SearchPhaseFailure> phaseFailures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -405,6 +420,14 @@ public enum SearchResponseUtils {
                 } else {
                     parser.skipChildren();
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (SearchResponse.PHASE_FAILURES.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        phaseFailures.add(parseSearchPhaseFailure(parser));
+                    }
+                } else {
+                    parser.skipChildren();
+                }
             }
         }
 
@@ -424,6 +447,7 @@ public enum SearchResponseUtils {
                 skippedShards,
                 tookInMillis,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                phaseFailures,
                 clusters,
                 searchContextId,
                 null,
@@ -1177,6 +1201,25 @@ public enum SearchResponseUtils {
     public static SearchSortValues parseSearchSortValues(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         return new SearchSortValues(parser.list().toArray());
+    }
+
+    public static SearchPhaseFailure parseSearchPhaseFailure(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        String phase = null;
+        ElasticsearchException cause = null;
+        String currentFieldName = null;
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue() && SearchPhaseFailure.PHASE_FIELD.equals(currentFieldName)) {
+                phase = parser.text();
+            } else if (token == XContentParser.Token.START_OBJECT && SearchPhaseFailure.REASON_FIELD.equals(currentFieldName)) {
+                cause = ElasticsearchException.fromXContent(parser);
+            } else {
+                parser.skipChildren();
+            }
+        }
+        return new SearchPhaseFailure(phase, cause);
     }
 
     public static ShardSearchFailure parseShardSearchFailure(XContentParser parser) throws IOException {

@@ -63,6 +63,7 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
     final int numShards;
     final AtomicInteger numSuccess;
     public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
+    public final List<SearchPhaseFailure> nonFatalPhaseFailures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -167,6 +168,7 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
                 0,
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                List.copyOf(nonFatalPhaseFailures),
                 SearchResponse.Clusters.EMPTY,
                 searchContextId,
                 null,
@@ -177,6 +179,11 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
         if (existing != null) {
             existing.decRef();
         }
+    }
+
+    @Override
+    void addPhaseFailure(String phase, Exception cause) {
+        nonFatalPhaseFailures.add(new SearchPhaseFailure(phase, cause));
     }
 
     @Override

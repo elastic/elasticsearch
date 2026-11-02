@@ -57,6 +57,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class RankFeaturePhaseTests extends ESTestCase {
 
     private static final int DEFAULT_RANK_WINDOW_SIZE = 10;
@@ -497,6 +501,103 @@ public class RankFeaturePhaseTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the reranker fails and failures are allowed, the search continues with the query phase order and the failure is recorded
+     * as a phase failure. When failures are not allowed, the failure fails the phase and nothing is recorded as a phase failure.
+     */
+    public void testRerankerFailure() {
+        final boolean failuresAllowed = randomBoolean();
+        AtomicBoolean phaseDone = new AtomicBoolean(false);
+        final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+
+        SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(DEFAULT_RANK_BUILDER);
+
+        SearchPhaseController controller = searchPhaseController();
+        SearchShardTarget shard1Target = new SearchShardTarget("node0", new ShardId("test", "na", 0), null);
+
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        mockSearchPhaseContext.getRequest().source(searchSourceBuilder);
+        try (SearchPhaseResults<SearchPhaseResult> results = searchPhaseResults(controller, mockSearchPhaseContext)) {
+            final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            QuerySearchResult queryResult = new QuerySearchResult(ctx, shard1Target, null);
+            try {
+                queryResult.setShardIndex(shard1Target.getShardId().getId());
+                int totalHits = randomIntBetween(2, 100);
+                final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F), new ScoreDoc(2, 9.0F) };
+                populateQuerySearchResult(queryResult, totalHits, shard1Docs);
+                results.consumeResult(queryResult, () -> {});
+                mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
+                    @Override
+                    public void sendExecuteRankFeature(
+                        Transport.Connection connection,
+                        final RankFeatureShardRequest request,
+                        SearchTask task,
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
+                    ) {
+                        RankFeatureResult rankFeatureResult = new RankFeatureResult();
+                        buildRankFeatureResult(
+                            mockSearchPhaseContext.getRequest().source().rankBuilder(),
+                            rankFeatureResult,
+                            shard1Target,
+                            totalHits,
+                            shard1Docs
+                        );
+                        listener.onResponse(rankFeatureResult);
+                    }
+                };
+            } finally {
+                queryResult.decRef();
+            }
+
+            RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(
+                results,
+                null,
+                mockSearchPhaseContext,
+                failingRankFeaturePhaseRankCoordinatorContext(failuresAllowed, new IllegalStateException("reranker unavailable"))
+            ) {
+                @Override
+                public void moveToNextPhase(
+                    SearchPhaseResults<SearchPhaseResult> phaseResults,
+                    SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+                ) {
+                    phaseDone.set(true);
+                    finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                }
+            };
+            try {
+                rankFeaturePhase.run();
+
+                if (failuresAllowed) {
+                    mockSearchPhaseContext.assertNoFailure();
+                    assertTrue(phaseDone.get());
+                    assertThat(mockSearchPhaseContext.nonFatalPhaseFailures, hasSize(1));
+                    SearchPhaseFailure phaseFailure = mockSearchPhaseContext.nonFatalPhaseFailures.get(0);
+                    assertThat(phaseFailure.phase(), equalTo(RankFeaturePhase.NAME));
+                    assertThat(phaseFailure.cause(), instanceOf(IllegalStateException.class));
+                    assertThat(phaseFailure.cause().getMessage(), equalTo("reranker unavailable"));
+                    // the docs keep the query phase order
+                    assertThat(finalResults[0].length, equalTo(2));
+                    assertThat(finalResults[0][0].doc, equalTo(1));
+                    assertThat(finalResults[0][1].doc, equalTo(2));
+                } else {
+                    assertFalse(phaseDone.get());
+                    assertThat(mockSearchPhaseContext.nonFatalPhaseFailures, hasSize(0));
+                    assertNotNull(mockSearchPhaseContext.phaseFailure.get());
+                    assertThat(mockSearchPhaseContext.phaseFailure.get().getMessage(), equalTo("reranker unavailable"));
+                }
+            } finally {
+                rankFeaturePhase.rankPhaseResults.close();
+            }
+        } finally {
+            mockSearchPhaseContext.results.close();
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
+            }
+        }
+    }
+
     public void testRankFeatureWithPagination() {
         // request params used within SearchSourceBuilder and *RankContext classes
         final int from = 1;
@@ -812,6 +913,30 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     topResults[rank].rank = from + rank + 1;
                 }
                 return topResults;
+            }
+        };
+    }
+
+    private RankFeaturePhaseRankCoordinatorContext failingRankFeaturePhaseRankCoordinatorContext(
+        boolean failuresAllowed,
+        Exception failure
+    ) {
+        return new RankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE, failuresAllowed) {
+            @Override
+            protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                scoreListener.onFailure(failure);
+            }
+
+            @Override
+            public void computeRankScoresForGlobalResults(RankFeatureDoc[] featureDocs, ActionListener<RankFeatureDoc[]> rankListener) {
+                rankListener.onFailure(failure);
+            }
+
+            @Override
+            public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs, boolean rerankedScores) {
+                // this is only called for the fallback, with the docs in query phase order
+                assertFalse(rerankedScores);
+                return rankFeatureDocs;
             }
         };
     }

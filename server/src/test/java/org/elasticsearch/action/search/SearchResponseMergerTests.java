@@ -84,6 +84,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +96,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -298,6 +300,50 @@ public class SearchResponseMergerTests extends ESTestCase {
                     ShardSearchFailure expected = priorityQueue.poll().v2();
                     assertSame(expected, shardFailure);
                 }
+            } finally {
+                mergedResponse.decRef();
+            }
+        }
+    }
+
+    public void testMergePhaseFailures() throws InterruptedException {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                0,
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                searchTimeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
+            )
+        ) {
+            Set<String> expectedPhases = new HashSet<>();
+            for (int i = 0; i < numResponses; i++) {
+                SearchResponseUtils.SearchResponseBuilder builder = SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .clusters(SearchResponse.Clusters.EMPTY);
+                if (randomBoolean()) {
+                    String phase = "phase_" + i;
+                    expectedPhases.add(phase);
+                    builder.phaseFailures(new SearchPhaseFailure(phase, new IllegalStateException("failure " + i)));
+                }
+                SearchResponse searchResponse = builder.build();
+                try {
+                    addResponse(merger, searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                assertThat(
+                    mergedResponse.getPhaseFailures().stream().map(SearchPhaseFailure::phase).collect(Collectors.toSet()),
+                    equalTo(expectedPhases)
+                );
+                assertThat(mergedResponse.getPhaseFailures().size(), equalTo(expectedPhases.size()));
             } finally {
                 mergedResponse.decRef();
             }
@@ -979,6 +1025,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             topHits,
@@ -1783,6 +1830,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new ShardSearchFailure[] { failure },
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,

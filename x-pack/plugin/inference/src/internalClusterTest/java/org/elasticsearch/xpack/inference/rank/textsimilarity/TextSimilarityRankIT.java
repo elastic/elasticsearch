@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TextSimilarityRankIT extends ESSingleNodeTestCase {
 
@@ -228,6 +229,9 @@ public class TextSimilarityRankIT extends ESSingleNodeTestCase {
                         searchHitWith(5, 10, "4")
                     )
                 );
+                // the response reports the reranker failure
+                assertThat(response.getPhaseFailures(), hasSize(1));
+                assertThat(response.getPhaseFailures().get(0).phase(), equalTo("rank-feature"));
             }
         );
     }

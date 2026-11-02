@@ -263,6 +263,67 @@ setup:
   - match: { hits.hits.1._id: "doc_1" }
 
 ---
+"Text similarity reranking with allowed failure reports the failure in phase_failures":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ search_phase_failures ]
+      reason: phase_failures is only returned by nodes that support search_phase_failures
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+                  sort:
+                    - "subtopic"
+              rank_window_size: 10
+              inference_id: failing-rerank-model
+              inference_text: "science"
+              field: text
+              allow_rerank_failures: true
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - length: { phase_failures: 1 }
+  - match: { phase_failures.0.phase: "rank-feature" }
+  - exists: phase_failures.0.reason.type
+  - exists: phase_failures.0.reason.reason
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "science"
+              field: text
+              allow_rerank_failures: true
+          size: 10
+
+  - is_false: phase_failures
+
+---
 "text similarity reranking with explain":
 
   - requires:

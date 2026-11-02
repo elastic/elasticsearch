@@ -1,0 +1,50 @@
+/*
+ * Shared Gradle snippet registering the generative test tasks.
+ * Applied by the single-node and multi-node QA build.gradle files.
+ *
+ * Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes these by name.
+ *
+ * Required ext properties (must be set before applying):
+ *   - generativeTestsConfig: closure taking a StandaloneRestIntegTestTask, applying the project's test classes,
+ *     test filter and any project-specific settings
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+def generativeTestsConfig = ext.generativeTestsConfig
+
+tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  generativeTestsConfig(it)
+}
+
+// This branch's generator against the head of each maintained release branch, so generator fixes never need a backport.
+// GenerativeRestTest skips what the older cluster doesn't support. 9.4 is the first version to advertise the fn_<name>
+// capabilities GenerativeFunctionCatalog is restricted to; an older cluster would leave the generator with no functions.
+buildParams.bwcVersions.unreleasedWireCompatible
+  .findAll { it.onOrAfter(Version.fromString("9.4.0")) && it != VersionProperties.elasticsearchVersion }
+  .each { bwcVersion ->
+    // The release branch's own function definitions, so the generator only uses signatures that branch supports.
+    def bwcProject = project(buildParams.bwcVersions.unreleasedInfo(bwcVersion).gradleProjectPath)
+    def functionDefinitions = tasks.register("v${bwcVersion}#copyEsqlFunctionDefinitions", Sync) {
+      dependsOn "${bwcProject.path}:checkoutBwcBranch"
+      def checkoutDir = bwcProject.extensions.getByName('bwcGitConfig').checkoutDir
+      // 9.4 has them under kibana/definition, later branches under kibana/generated/x-pack-esql/definition.
+      from(checkoutDir.map { new File(it, 'docs/reference/query-languages/esql/kibana/definition/functions') })
+      from(checkoutDir.map { new File(it, 'docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions') })
+      into layout.buildDirectory.dir("bwc-esql-functions/${bwcVersion}")
+    }
+    tasks.register("v${bwcVersion}#generativeTests", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.old_cluster_version", bwcVersion)
+      inputs.files(functionDefinitions)
+      nonInputProperties.systemProperty('tests.esql.function_definitions', "${-> functionDefinitions.get().destinationDir}")
+      generativeTestsConfig(it)
+    }
+  }
+
+tasks.register('bwcGenerativeTests') {
+  dependsOn tasks.matching { it.name ==~ /v.+#generativeTests/ }
+}

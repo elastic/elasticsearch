@@ -7966,3 +7966,23 @@ mapped-1       | William Faulkner | text_state_mapped      | null
 nonexistent-1  | none             | text_state_nonexistent | null
 unmapped-1     | none             | text_state_unmapped    | null
 ;
+
+// #162512: a union nested in a subquery next to an outer FROM source keeps the row, and the unmapped fields, of every branch.
+loadAllNestedUnionNextToOuterSourceLoadsFromEveryBranch
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_all_nested_union
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data) | WHERE message == "42")
+| WHERE message == "42"
+| KEEP message, unmapped_message*
+;
+
+message:keyword | _unmapped_fields:_source
+42              | "{""unmapped_message"":""43""}"
+42              | "{""unmapped_message"":""43""}"
+42              | "{""unmapped_message"":""43""}"
+;

@@ -111,14 +111,25 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
             return plan;
         } else {
-            // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
-            // picks it up on Projects above the merge, whose child output only includes the column after refresh.
+            // One bottom-up pass over Projects and merges together. A Project keeps _unmapped_fields on branches of a merge, and picks it
+            // up above a merge only once that merge has been finished, since the merge's output includes the column after refresh. In
+            // turn a merge is finished only once the Projects of its branches have done so. With a pass for each, a union nested in a
+            // branch would still be unfinished when the Project above it was visited, so the outer union would find no column in that
+            // branch and null-fill it, hiding the value the nested union loads.
             LogicalPlan annotated = annotate(plan, pattern);
-            result = ViewUtils.transformUpOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-            result = ViewUtils.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
-            result = ViewUtils.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(annotated, DetermineUnmappedFieldsToKeep::passThroughOrFinishMerge);
         }
         return result;
+    }
+
+    private static LogicalPlan passThroughOrFinishMerge(LogicalPlan plan) {
+        if (plan instanceof Project project) {
+            return passThroughUnmappedFields(project);
+        }
+        if (plan instanceof MergePlan merge) {
+            return finishMergeUnmappedFields(merge);
+        }
+        return plan;
     }
 
     /**

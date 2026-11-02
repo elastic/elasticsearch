@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -519,6 +523,35 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(keepBranch, "unmapped_extra");
         assertKept(whereBranch, "first_name_suffix", "unmapped_extra");
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
+    }
+
+    /**
+     * A union nested in a branch, next to another source: the nested union is finished before the project above it passes
+     * {@code _unmapped_fields} through, so the outer union finds the column in every branch and does not null-fill it, which would hide
+     * what the relations below load (#162512).
+     */
+    public void testNestedSubqueryNextToOuterSourceDoesNotNullFillUnmappedFields() {
+        LogicalPlan plan = test().addLanguages().statement(setUnmappedLoadAll("""
+            FROM test, (FROM languages, (FROM languages) | WHERE language_code > 0)
+            """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(3));
+        for (EsRelation relation : relations) {
+            assertThat("expected [" + relation.indexPattern() + "] to be annotated", unmappedFieldsAttributes(relation), hasSize(1));
+        }
+        assertThat(nullFilledColumns(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
+    /**
+     * {@code language_code} is mapped in the nested union and unmapped in the {@code test} source next to it, so that source loads it
+     * from {@code _source} like a sibling of a flat union does, and does not null-fill it (#162512).
+     */
+    public void testNestedSubqueryNextToOuterSourceLoadsMappedSiblingField() {
+        LogicalPlan plan = test().addLanguages().statement(setUnmappedLoadAll("""
+            FROM test, (FROM languages, (FROM languages) | WHERE language_code > 0)
+            """));
+        assertThat(nullFilledColumns(plan), not(hasItem("language_code")));
     }
 
     public void testInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
@@ -1054,6 +1087,19 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             empty()
         );
         assertThat(Expressions.names(join.right().output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
+    /** The names of the columns that an {@link Eval} anywhere in {@code plan} fills with a {@code null} literal. */
+    private static List<String> nullFilledColumns(LogicalPlan plan) {
+        List<String> names = new ArrayList<>();
+        for (Eval eval : plan.collect(Eval.class)) {
+            for (Alias alias : eval.fields()) {
+                if (alias.child() instanceof Literal literal && literal.value() == null) {
+                    names.add(alias.name());
+                }
+            }
+        }
+        return names;
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

@@ -4664,6 +4664,13 @@ public class EsqlCapabilities {
          */
         METRICS_INFO_FIELD_PRESENCE,
 
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a union nested inside a subquery next to an outer {@code FROM} source keeps
+         * the rows and the {@code _unmapped_fields} values that its sibling sources load from {@code _source}, instead of
+         * null-filling them. See https://github.com/elastic/elasticsearch/issues/162512.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_NESTED_UNION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

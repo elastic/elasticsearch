@@ -32,9 +32,9 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         DateIndexNameProcessor processor = factory.create(null, null, null, config, null);
         assertThat(processor.getDateFormats().size(), equalTo(1));
         assertThat(processor.getField(), hasToString("_field"));
-        assertThat(processor.getIndexNamePrefixTemplate().newInstance(Map.of()).execute(), equalTo(""));
-        assertThat(processor.getDateRoundingTemplate().newInstance(Map.of()).execute(), equalTo("y"));
-        assertThat(processor.getIndexNameFormatTemplate().newInstance(Map.of()).execute(), equalTo("yyyy-MM-dd"));
+        assertThat(processor.getIndexNamePrefixTemplate(), hasToString(""));
+        assertThat(processor.getDateRoundingTemplate(), hasToString("y"));
+        assertThat(processor.getIndexNameFormatTemplate(), hasToString("yyyy-MM-dd"));
         assertThat(processor.getTimezone(), equalTo(ZoneOffset.UTC));
     }
 
@@ -56,7 +56,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("index_name_format", "yyyyMMdd");
 
         processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getIndexNameFormatTemplate().newInstance(Map.of()).execute(), equalTo("yyyyMMdd"));
+        assertThat(processor.getIndexNameFormatTemplate(), hasToString("yyyyMMdd"));
 
         config = new HashMap<>();
         config.put("field", "_field");
@@ -73,7 +73,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("date_rounding", "y");
 
         processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getIndexNamePrefixTemplate().newInstance(Map.of()).execute(), equalTo("_prefix"));
+        assertThat(processor.getIndexNamePrefixTemplate(), hasToString("_prefix"));
     }
 
     public void testRequiredFields() throws Exception {

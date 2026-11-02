@@ -57,7 +57,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         assertThat(networkProcessor.getDestinationIpField(), hasToString(destIpField));
         assertThat(networkProcessor.getTargetField(), hasToString(targetField));
         assertThat(networkProcessor.getInternalNetworks().size(), greaterThan(0));
-        assertThat(networkProcessor.getInternalNetworks().get(0).newInstance(Map.of()).execute(), equalTo("10.0.0.0/8"));
+        assertThat(networkProcessor.getInternalNetworks().get(0), hasToString("10.0.0.0/8"));
         assertThat(networkProcessor.getIgnoreMissing(), equalTo(ignoreMissing));
     }
 

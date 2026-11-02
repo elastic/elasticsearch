@@ -46,8 +46,8 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFieldsToKeep().get(0).newInstance(Map.of()).execute(), equalTo("field1"));
-        assertThat(removeProcessor.getFieldsToKeep().get(1).newInstance(Map.of()).execute(), equalTo("field2"));
+        assertThat(removeProcessor.getFieldsToKeep().get(0), hasToString("field1"));
+        assertThat(removeProcessor.getFieldsToKeep().get(1), hasToString("field2"));
     }
 
     public void testCreateMultipleFields() throws Exception {

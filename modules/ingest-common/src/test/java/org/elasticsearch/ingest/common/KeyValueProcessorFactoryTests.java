@@ -68,7 +68,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
         assertThat(processor.getExcludeKeys(), equalTo(Set.of()));
-        assertThat(processor.getTargetField().newInstance(Map.of()).execute(), equalTo("target"));
+        assertThat(processor.getTargetField(), hasToString("target"));
         assertTrue(processor.isIgnoreMissing());
     }
 

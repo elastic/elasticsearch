@@ -1420,7 +1420,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V6(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -4169,6 +4169,14 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for PromQL {@code label_replace} and {@code label_join} placed above a {@code by(...)} aggregation without
+         * an enclosing aggregation of their own - as a top-level expression or under an across-series reduction such as
+         * {@code topk} - when the derived label is not one of the aggregate's groupings. The derived identity then only
+         * refines the aggregate's, so no two series can collapse onto one label set.
+         */
+        PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
@@ -4651,6 +4659,18 @@ public class EsqlCapabilities {
          * than the score from before the {@code WHERE}.
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
+
+        /**
+         * The {@code Project}s of a chain of {@code LOOKUP JOIN} blocks are hoisted in ONE optimizer pass.
+         */
+        HOIST_PROJECTS_PAST_LOOKUP_JOINS,
+
+        /**
+         * {@code METRICS_INFO} reads which dimension and metric fields each time series has from doc values instead of
+         * {@code _source}. For a {@code flattened} dimension it reports the keys listed in {@code time_series_dimensions}
+         * rather than every key of the object.
+         */
+        METRICS_INFO_FIELD_PRESENCE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

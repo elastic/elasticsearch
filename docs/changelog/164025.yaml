@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 164025
+summary: Upgrade `OpenTelemetry` to 1.67.0
+type: upgrade

@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 164136
+summary: "Reindex: pick relocation node when handing off"
+type: enhancement

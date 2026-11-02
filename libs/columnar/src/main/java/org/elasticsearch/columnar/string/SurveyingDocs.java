@@ -19,6 +19,10 @@ import java.io.IOException;
  * ColumnIteratorWriter.write} so that writing the column's {@link org.apache.lucene.codecs.lucene90.IndexedDISI
  * IndexedDISI} presence structure and surveying the vocabulary happen in the same pass over the cursor.
  *
+ * <p>Only a column the writer has to survey itself goes through here: a flush surveys while it counts, before
+ * the writer is reached, and a merge mostly settles its terms from what its inputs recorded. What remains is a
+ * sparse merged column whose records cannot speak, and for it the presence walk is the survey's walk too.
+ *
  * <p>{@link org.apache.lucene.codecs.lucene90.IndexedDISI#writeBitSet IndexedDISI.writeBitSet} calls
  * {@link #nextDoc()} once, then advances through the default {@link DocIdSetIterator#intoBitSet intoBitSet},
  * which loops on {@link #nextDoc()}. Every document therefore passes through exactly one {@code nextDoc()}

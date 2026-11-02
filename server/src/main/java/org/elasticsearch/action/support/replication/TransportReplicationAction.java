@@ -423,25 +423,10 @@ public abstract class TransportReplicationAction<
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
         ActionListener<Response> listener = ActionListener.runBefore(
-            ActionListener.releaseAfter(new ChannelActionListener<>(channel), retainUntilCompleted(request)),
+            ActionListener.withRef(new ChannelActionListener<>(channel), request),
             releasable::close
         );
         runReroutePhase(task, request, listener, false);
-    }
-
-    /**
-     * Takes a reference to a request whose handler completes asynchronously, released once the response or failure has been sent.
-     * <p>
-     * The transport layer holds a request only until its handler returns: {@code InboundHandler} releases a request received from
-     * another node once {@code messageReceived} returns, and {@link TransportService} holds a request sent to the local node at most
-     * until then too, leaving it to the sender, whose own listener can complete first (for example when the node shuts down and fails
-     * its pending response handlers). The operation may still be running at that point, so a request that owns resources, such as a
-     * {@link org.elasticsearch.action.bulk.BulkShardRequest} with its source batch, must stay referenced until the operation is done.
-     * This is a no-op for requests that do not implement ref-counting.
-     */
-    private static Releasable retainUntilCompleted(TransportRequest request) {
-        request.mustIncRef();
-        return Releasables.releaseOnce(request::decRef);
     }
 
     protected Releasable checkOperationLimits(final Request request) {
@@ -449,9 +434,15 @@ public abstract class TransportReplicationAction<
     }
 
     /**
-     * Runs the primary phase for a request sent to this node's primary. The phase completes asynchronously, after this method has
-     * returned and the transport layer has released the request, so the request stays referenced until the response or failure has
-     * been sent on {@code channel}.
+     * Runs the primary phase for a request sent to this node's primary. The phase completes asynchronously, so the request stays
+     * referenced until the response or failure has been sent on {@code channel}.
+     * <p>
+     * The transport layer holds a request only until its handler returns: {@code InboundHandler} releases a request received from
+     * another node once {@code messageReceived} returns, and a request sent to the local node is otherwise held only by its sender, whose
+     * own listener can complete first (for example when the node shuts down and fails its pending response handlers). A request that
+     * owns resources, such as a {@link org.elasticsearch.action.bulk.BulkShardRequest} with its source batch, must outlive the operation.
+     * This is a no-op for requests that do not implement ref-counting. {@code handleOperationRequest} and {@link #handleReplicaRequest}
+     * hold their requests for the same reason.
      */
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
         Releasable releasable = checkPrimaryLimits(
@@ -461,7 +452,7 @@ public abstract class TransportReplicationAction<
         );
         // Every exit path below completes this listener, which is what releases the request.
         ActionListener<Response> listener = ActionListener.runBefore(
-            ActionListener.releaseAfter(new ChannelActionListener<>(channel), retainUntilCompleted(request)),
+            ActionListener.withRef(new ChannelActionListener<>(channel), request),
             releasable::close
         );
 
@@ -758,7 +749,7 @@ public abstract class TransportReplicationAction<
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         // Every exit path below completes this listener, which is what releases the request.
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(
-            ActionListener.releaseAfter(new ChannelActionListener<>(channel), retainUntilCompleted(replicaRequest)),
+            ActionListener.withRef(new ChannelActionListener<>(channel), replicaRequest),
             releasable::close
         );
 

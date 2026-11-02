@@ -330,6 +330,28 @@ index into or out of a user's DLS/FLS scope exactly as creating it under that
 name would. Niels's last CI run failed on security tests when the rename trick
 was extended to `assertAcked`; those failures have not been re-examined.
 
+Data stream backing indices follow the usual rule: a privilege granted on the
+data stream's name covers its backing indices, so `manage` on the data stream
+authorizes the source name of a backing index rename. The destination name does
+not exist yet and belongs to no data stream, so it must be matched by a role
+pattern directly; `manage` on the data stream alone is refused. After the
+rename the index is still the data stream's backing index, so access through
+the data stream name continues under the new name.
+
+`RenameIndexSecurityTests` (x-pack security internal cluster tests) covers the
+model: `manage` on both names succeeds; `manage` on the source alone, or on
+neither, is refused and leaves the index untouched; a backing index is renamed
+when the source is authorized through the data stream and the destination by
+pattern, and refused with the data stream privilege alone.
+
+One rule in the security plugin itself had to change for the UUID-only `Index`
+equality: `RBACEngine#shardIdAuthorized` resolved the shard's index through
+`ProjectMetadata#index(Index)`, which after T13 falls back to a by-UUID lookup.
+Authorization must only ever match the name the user was authorized for, so
+that check now looks the index up by name and additionally requires the UUID to
+match. Any future authorization code must use the strict by-name lookup, never
+`index(Index)`.
+
 ### T11. The `createIndex` rename trick is always on
 
 In the prototype every `ESIntegTestCase#createIndex` call renames unless the

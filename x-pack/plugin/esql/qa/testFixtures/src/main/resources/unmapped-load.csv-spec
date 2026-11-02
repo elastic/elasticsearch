@@ -1572,6 +1572,22 @@ Connected to 10.1.0.1
 42
 ;
 
+// The sort must not be pushed down to Lucene on a field that is unmapped in some of the indices: those values live only in _source.
+fieldIsPartiallyUnmappedAndRenamedMultiIndexSortAscLimit
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| KEEP message
+| RENAME message AS msg
+| SORT msg ASC
+| LIMIT 1
+;
+
+msg:keyword
+42
+;
+
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: optional_fields_v5
 required_capability: source_field_mapping

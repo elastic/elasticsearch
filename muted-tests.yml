@@ -556,3 +556,8 @@ tests:
   - :x-pack:plugin:inference:test
   method: testFromMap_ExplicitNullRateLimit_ThrowsException
   issue: https://github.com/elastic/elasticsearch/issues/164266
+- class: org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164269

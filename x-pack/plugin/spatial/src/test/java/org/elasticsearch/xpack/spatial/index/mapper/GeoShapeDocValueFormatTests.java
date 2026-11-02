@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -62,7 +63,7 @@ public class GeoShapeDocValueFormatTests extends ESSingleNodeTestCase {
         assertFalse(response.hasFailures());
         safeGet(indicesAdmin().refresh(new RefreshRequest(indexName).indicesOptions(IndicesOptions.lenientExpandOpenHidden())));
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(indexName)) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(indexName, SplitShardCountSummary.IRRELEVANT)) {
             try (var indexReader = searcher.getIndexReader()) {
                 var leaves = indexReader.leaves();
                 assertThat(leaves.size(), equalTo(1));

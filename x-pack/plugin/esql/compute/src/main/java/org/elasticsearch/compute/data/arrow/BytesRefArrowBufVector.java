@@ -80,9 +80,8 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
         int start = valueOffsetsBuffer.getInt((long) position * Integer.BYTES);
         int end = valueOffsetsBuffer.getInt((long) (position + 1) * Integer.BYTES);
         int length = end - start;
-        if (dest.bytes.length < length) {
-            dest.bytes = new byte[length];
-        }
+        // dest.bytes may be another vector's array (callers reuse one scratch across vectors): never write into it
+        dest.bytes = length == 0 ? BytesRef.EMPTY_BYTES : new byte[length];
         dest.offset = 0;
         dest.length = length;
         valueBuffer.getBytes(start, dest.bytes, 0, length);

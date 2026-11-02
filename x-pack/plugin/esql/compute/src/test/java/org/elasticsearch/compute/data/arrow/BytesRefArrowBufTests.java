@@ -619,6 +619,37 @@ public class BytesRefArrowBufTests extends ESTestCase {
         }
     }
 
+    /**
+     * Callers reuse one scratch {@link BytesRef} across vectors of different types (e.g. the multi-key block hash), so after a
+     * read from another vector the scratch's array belongs to that vector and must not be written to.
+     */
+    public void testGetBytesRefDoesNotWriteIntoTheScratchArray() {
+        try (
+            var constant = blockFactory.newConstantBytesRefVector(new BytesRef("iPad"), 2);
+            VarCharVector arrowVec = new VarCharVector("test", allocator)
+        ) {
+            arrowVec.allocateNew();
+            arrowVec.set(0, "S7-3".getBytes(StandardCharsets.UTF_8));
+            arrowVec.set(1, "A500".getBytes(StandardCharsets.UTF_8));
+            arrowVec.setValueCount(2);
+            try (
+                var vector = BytesRefArrowBufVector.of(arrowVec, blockFactory);
+                var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)
+            ) {
+                BytesRef scratch = new BytesRef();
+                constant.getBytesRef(0, scratch);
+                vector.getBytesRef(0, scratch);
+                assertEquals("S7-3", scratch.utf8ToString());
+                assertEquals("iPad", constant.getBytesRef(1, new BytesRef()).utf8ToString());
+
+                constant.getBytesRef(0, scratch);
+                block.getBytesRef(1, scratch);
+                assertEquals("A500", scratch.utf8ToString());
+                assertEquals("iPad", constant.getBytesRef(1, new BytesRef()).utf8ToString());
+            }
+        }
+    }
+
     public void testMultiValuedGetTotalValueCount() {
         try (ListVector listVector = createMultiValuedListVector()) {
             try (BytesRefArrowBufBlock block = blockFromListVector(listVector)) {

@@ -769,15 +769,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return null;
     }
 
-    /** A human-readable name for an {@link #identitySource} in a verification failure. */
+    /**
+     * A human-readable name for an {@link #identitySource} in a verification failure. Only called for the sources that
+     * {@link #checkRelabelConsumer} rejects, so a {@code by(...)} aggregation never reaches this method.
+     */
     private static String describeIdentitySource(LogicalPlan identitySource) {
         return switch (identitySource) {
             case null -> "raw (non-aggregated) series";
-            case AcrossSeriesAggregate agg when agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT -> "a `without(...)` aggregation";
-            case AcrossSeriesAggregate agg -> "an aggregation without a `by(...)` grouping";
+            case AcrossSeriesAggregate agg -> switch (agg.grouping()) {
+                case WITHOUT -> "a `without(...)` aggregation";
+                case NONE -> "an aggregation without a `by(...)` grouping";
+                case BY -> throw new AssertionError("a relabel over a `by(...)` aggregation is accepted before reaching here");
+            };
             case AcrossSeriesReduction reduction -> "[" + reduction.definition().name() + "]";
             case VectorBinaryOperator binaryOperator -> "a binary operator";
-            default -> "[" + identitySource.nodeName() + "]";
+            // These are the only nodes for which PromqlPlan#isIdentityTransparent returns false, so identitySource never
+            // yields anything else.
+            default -> throw new AssertionError("unexpected identity source [" + identitySource.nodeName() + "]");
         };
     }
 

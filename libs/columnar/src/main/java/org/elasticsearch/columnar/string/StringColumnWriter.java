@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
@@ -31,7 +32,6 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
-import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
@@ -110,7 +110,7 @@ public final class StringColumnWriter {
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
         Vocabulary.Survey survey,
-        DocsWithFieldCollector docsWithField,
+        DocsWithFieldSet docsWithField,
         Directory directory,
         IOContext context,
         ColumnOutputs outputs,
@@ -138,8 +138,8 @@ public final class StringColumnWriter {
         // intoBitSet, which loops on nextDoc(), so every document is seen exactly once. Otherwise the presence
         // pass reads no value at all, and none at all where the caller collected the presence.
         final boolean combinedPass = needsSurvey && numDocsWithField < maxDoc && docsWithField == null;
-        assert docsWithField == null || docsWithField.count() == numDocsWithField
-            : "the caller counted " + docsWithField.count() + " documents with the field but reports " + numDocsWithField;
+        assert docsWithField == null || docsWithField.cardinality() == numDocsWithField
+            : "the caller counted " + docsWithField.cardinality() + " documents with the field but reports " + numDocsWithField;
 
         final ColumnIteratorMetadata iterator;
         final Vocabulary.Terms vocabulary;

@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
@@ -51,7 +52,6 @@ import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
-import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -729,7 +729,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         Vocabulary.Survey survey = known == null ? null : new Vocabulary.Survey(known);
         // Whichever pass counts the column also sees which documents hold a value, so it keeps them and a
         // sparse column's presence is written from that instead of from a cursor of its own.
-        final DocsWithFieldCollector docsWithField = totals == null ? new DocsWithFieldCollector(maxDoc) : null;
+        final DocsWithFieldSet docsWithField = totals == null ? new DocsWithFieldSet() : null;
         if (totals == null && known == null && options.dictionary().enabled()) {
             final Vocabulary.Counted counted = Vocabulary.countAndSurvey(counter, options.dictionary(), options.summary(), docsWithField);
             totals = counted.totals();

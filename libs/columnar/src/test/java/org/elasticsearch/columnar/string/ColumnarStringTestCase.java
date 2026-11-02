@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -23,7 +24,6 @@ import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
-import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -377,8 +377,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /** The documents of {@code docSlots} that have at least one slot, as the consumer's counting pass collects them. */
-    protected static DocsWithFieldCollector docsWithField(final BytesRef[][] docSlots) {
-        final DocsWithFieldCollector docsWithField = new DocsWithFieldCollector(docSlots.length);
+    protected static DocsWithFieldSet docsWithField(final BytesRef[][] docSlots) {
+        final DocsWithFieldSet docsWithField = new DocsWithFieldSet();
         for (int doc = 0; doc < docSlots.length; doc++) {
             if (docSlots[doc] != null) {
                 docsWithField.add(doc);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
@@ -18,7 +19,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IntroSelector;
-import org.elasticsearch.columnar.substrate.DocsWithFieldCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -473,7 +473,7 @@ public final class Vocabulary {
         StringColumnValues values,
         DictionaryPolicy dictionaryPolicy,
         SummaryPolicy summaryPolicy,
-        DocsWithFieldCollector docsWithField
+        DocsWithFieldSet docsWithField
     ) throws IOException {
         final Surveyor surveyor = new Surveyor(dictionaryPolicy, summaryPolicy);
         int numDocsWithField = 0;

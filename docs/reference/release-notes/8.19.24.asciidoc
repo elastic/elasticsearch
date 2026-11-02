@@ -126,7 +126,7 @@ Snapshot/Restore::
 === Upgrades
 
 Infra/Core::
-* Bump bundled JDK to 27.0.1.0.2 to address CVE-2026-91403 (compromised eMudhra intermediate CAs) {es-pull}163046[#163046]
+* Bump bundled JDK to 27.0.1.0.2 {es-pull}163046[#163046]
 * Bump bundled JDK to 27.0.1.0.3 {es-pull}163627[#163627]
 * Upgrade Jackson to 2.21.8 {es-pull}163710[#163710]
 

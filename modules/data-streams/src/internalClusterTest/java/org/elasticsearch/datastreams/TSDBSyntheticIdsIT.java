@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -2074,7 +2075,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
             long size = indexShard.withEngineOrNull(engine -> {
                 if (engine != null) {
-                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field", SplitShardCountSummary.IRRELEVANT)) {
                         long segmentsTotalSize = 0L;
 
                         for (var leaf : searcher.getLeafContexts()) {
@@ -2142,7 +2143,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         nbVisitedShards += indexShard.withEngineOrNull(engine -> {
                             if (engine != null) {
                                 assertThat(engine.config().getCodec().getName(), equalTo(Elasticsearch96Codec.NAME));
-                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                try (var searcher = engine.acquireSearcher("test_codec", SplitShardCountSummary.IRRELEVANT)) {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
                                         assertThat(

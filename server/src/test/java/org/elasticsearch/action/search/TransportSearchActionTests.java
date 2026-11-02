@@ -69,8 +69,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1133,6 +1135,83 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     /**
+     * With no room at all, each remote response trips on arrival, so there is one trip per cluster, and the search fails although every
+     * cluster can be skipped.
+     */
+    public void testCCSRemoteReduceFailsWhenResponsesTripOnArrival() throws Exception {
+        assertResponsesTripOnArrival(1);
+        assertResponsesTripOnArrival(2);
+    }
+
+    private void assertResponsesTripOnArrival(int numClusters) throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ZERO);
+        Tuple<SearchResponse, Exception> result = ccsRemoteReduceOneHitPerCluster(numClusters, breaker);
+        assertNull(result.v1());
+        assertThat(result.v2(), instanceOf(CircuitBreakingException.class));
+        assertThat(breaker.getTrippedCount(), equalTo((long) numClusters));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** The handler charges a remote response's bytes from when they arrive until the transport releases them. */
+    public void testRemoteResponseHandlerReservesResponseBytes() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofKb(1));
+        var handler = new TransportSearchAction.RemoteResponseHandler(ActionListener.noop(), EsExecutors.DIRECT_EXECUTOR_SERVICE, breaker);
+        Releasable reservation = handler.reserveResponseBytes(100);
+        assertThat(breaker.getUsed(), equalTo(100L));
+        reservation.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A trip reserving a response reaches the listener as the trip itself, which marks it as this node's failure rather than the remote
+     * cluster's. Other transport failures pass through unchanged.
+     */
+    public void testRemoteResponseHandlerReportsItsOwnTrip() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(10));
+        AtomicReference<Exception> tripFailure = new AtomicReference<>();
+        var trippingHandler = new TransportSearchAction.RemoteResponseHandler(
+            ActionListener.wrap(r -> fail("unexpected response"), tripFailure::set),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            breaker
+        );
+        CircuitBreakingException trip = expectThrows(CircuitBreakingException.class, () -> trippingHandler.reserveResponseBytes(100));
+        trippingHandler.handleException(new RemoteTransportException("Failed to reserve memory", trip));
+        assertSame(trip, tripFailure.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        AtomicReference<Exception> otherFailure = new AtomicReference<>();
+        var handler = new TransportSearchAction.RemoteResponseHandler(
+            ActionListener.wrap(r -> fail("unexpected response"), otherFailure::set),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            breaker
+        );
+        TransportException failure = new RemoteTransportException("remote failed", new ElasticsearchException("boom"));
+        handler.handleException(failure);
+        assertSame(failure, otherFailure.get());
+    }
+
+    /**
+     * A trip on this node receiving a cluster's response fails the search even if the cluster can be skipped, while a 429 the remote
+     * cluster returns still only skips it.
+     */
+    public void testCCSListenerFailsSearchOnTripReceivingResponse() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        CCSListeners ccs = new CCSListeners(breaker, 10, true, "overloaded", "tripped");
+
+        CircuitBreakingException remoteTrip = new CircuitBreakingException("remote", 2, 1, CircuitBreaker.Durability.TRANSIENT);
+        ccs.listeners.get("overloaded").onFailure(new RemoteTransportException("remote failed", remoteTrip));
+        assertThat(ccs.clusters.getCluster("overloaded").getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+
+        CircuitBreakingException localTrip = new CircuitBreakingException("local", 2, 1, CircuitBreaker.Durability.TRANSIENT);
+        ccs.listeners.get("tripped").onFailure(localTrip);
+        assertThat(ccs.clusters.getCluster("tripped").getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, ccs.future::actionGet);
+        assertSame(localTrip, e);
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
      * Once a trip has failed the search, a cluster that answers later is marked successful but is neither held for the merge nor reported
      * as a partial result, and a cluster that fails later does not replace the trip as the failure the search returns.
      */
@@ -1322,7 +1401,7 @@ public class TransportSearchActionTests extends ESTestCase {
         return new SearchTask(2, "search", "search", () -> "desc", new TaskId("n", 1), Collections.emptyMap());
     }
 
-    /** Listeners for a minimize_roundtrips search over remote clusters that can't be skipped, merged with a breaker. */
+    /** Listeners for a minimize_roundtrips search over remote clusters, merged with a breaker. */
     private static final class CCSListeners {
         final SearchResponse.Clusters clusters;
         final SearchResponseMerger merger;
@@ -1330,12 +1409,17 @@ public class TransportSearchActionTests extends ESTestCase {
         final List<String> reported = new CopyOnWriteArrayList<>();
         final Map<String, ActionListener<SearchResponse>> listeners = new HashMap<>();
 
+        /** Over clusters that can't be skipped. */
         CCSListeners(CircuitBreaker breaker, int size, String... aliases) {
+            this(breaker, size, false, aliases);
+        }
+
+        CCSListeners(CircuitBreaker breaker, int size, boolean skipUnavailable, String... aliases) {
             Map<String, OriginalIndices> remoteIndices = new HashMap<>();
             for (String alias : aliases) {
                 remoteIndices.put(alias, new OriginalIndices(new String[] { "index" }, IndicesOptions.lenientExpandOpen()));
             }
-            clusters = new SearchResponse.Clusters(null, remoteIndices, true, alias -> false);
+            clusters = new SearchResponse.Clusters(null, remoteIndices, true, alias -> skipUnavailable);
             merger = TransportSearchAction.createSearchResponseMerger(
                 new SearchSourceBuilder().size(size),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
@@ -1362,7 +1446,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     alias,
                     TransportSearchAction.createCCSListener(
                         alias,
-                        false,
+                        skipUnavailable,
                         countDown,
                         exceptions,
                         merger,

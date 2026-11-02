@@ -148,7 +148,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -3757,9 +3756,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_Eval[[null[KEYWORD] AS _meta_field#32, null[INTEGER] AS emp_no#33, null[KEYWORD] AS first_name#34, null[TEXT] AS ge
      * nder#35, null[DATETIME] AS hire_date#36, null[TEXT] AS job#37, null[KEYWORD] AS job.raw#38, null[INTEGER] AS languages#39,
      * null[KEYWORD] AS last_name#40, null[LONG] AS long_noidx#41, TOSTRING(salary{f}#26) AS $$salary$converted_to$keyword#55]]
-     *             \_Subquery[]
-     *               \_Project[[salary{f}#26]]
-     *                 \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *             \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
      * }
      */
     public void testPushDownMvExpandPastProject5() {
@@ -3783,9 +3780,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var branch2 = as(union.children().get(1), Project.class);
         var eval2 = as(branch2.child(), Eval.class);
-        var subquery = as(eval2.child(), Subquery.class);
-        var subProject = as(subquery.child(), Project.class);
-        as(subProject.child(), EsRelation.class);
+        as(eval2.child(), EsRelation.class);
     }
 
     /**
@@ -3806,9 +3801,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *             \_Eval[[null[KEYWORD] AS _meta_field#36, null[INTEGER] AS emp_no#37, null[KEYWORD] AS first_name#38, null[TEXT] AS ge
      * nder#39, null[DATETIME] AS hire_date#40, null[TEXT] AS job#41, null[KEYWORD] AS job.raw#42, null[INTEGER] AS languages#43,
      * null[KEYWORD] AS last_name#44, null[LONG] AS long_noidx#45, TOSTRING(salary{f}#30) AS $$salary$converted_to$keyword#59]]
-     *               \_Subquery[]
-     *                 \_Project[[salary{f}#30]]
-     *                   \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *               \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
      * }
      */
     public void testPushDownMvExpandPastProject6() {
@@ -3834,9 +3827,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var branch2 = as(union.children().get(1), Project.class);
         var eval2 = as(branch2.child(), Eval.class);
-        var subquery = as(eval2.child(), Subquery.class);
-        var subProject = as(subquery.child(), Project.class);
-        as(subProject.child(), EsRelation.class);
+        as(eval2.child(), EsRelation.class);
     }
 
     /**
@@ -3857,9 +3848,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *             \_Eval[[null[KEYWORD] AS _meta_field#36, null[INTEGER] AS emp_no#37, null[KEYWORD] AS first_name#38, null[TEXT] AS ge
      * nder#39, null[DATETIME] AS hire_date#40, null[TEXT] AS job#41, null[KEYWORD] AS job.raw#42, null[INTEGER] AS languages#43,
      * null[KEYWORD] AS last_name#44, null[LONG] AS long_noidx#45, TOSTRING(salary{f}#30) AS $$salary$converted_to$keyword#59]]
-     *               \_Subquery[]
-     *                 \_Project[[salary{f}#30]]
-     *                   \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *               \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
      * }
      */
     public void testPushDownMvExpandPastProject7() {
@@ -3885,9 +3874,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var branch2 = as(union.children().get(1), Project.class);
         var eval2 = as(branch2.child(), Eval.class);
-        var subquery = as(eval2.child(), Subquery.class);
-        var subProject = as(subquery.child(), Project.class);
-        as(subProject.child(), EsRelation.class);
+        as(eval2.child(), EsRelation.class);
     }
 
     /**

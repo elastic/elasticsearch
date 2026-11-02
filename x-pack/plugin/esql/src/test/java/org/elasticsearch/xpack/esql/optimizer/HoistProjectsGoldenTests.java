@@ -141,7 +141,7 @@ public class HoistProjectsGoldenTests extends GoldenTestCase {
             """, LOGICAL);
     }
 
-    public void testProjectBelowMvExpandStaysBelowIt() {
+    public void testProjectBelowMvExpandIsHoistedPastIt() {
         runGoldenTest("""
             FROM employees
             | EVAL language_code = languages

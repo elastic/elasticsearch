@@ -159,6 +159,13 @@ public final class QueryPragmas implements Writeable {
     public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
 
     /**
+     * Fixed ceiling on the leaf branches of a parsed plan, so that nested FORKs cannot blow up the plan before analysis. It is well above
+     * the default {@link #MAX_BRANCH_COUNT}, which is enforced after the logical optimizer prunes empty branches. A configured
+     * {@code max_branch_count} above this value has no effect on queries that exceed it at parse time.
+     */
+    public static final int MAX_PARSED_BRANCH_COUNT = 128;
+
+    /**
      * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
      * chain.
      * <p>

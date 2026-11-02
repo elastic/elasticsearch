@@ -161,16 +161,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         public int maxCommandCount() {
             return pragmas.maxCommandCount(flags.maxCommandCount());
         }
-
-        /** Maximum number of leaf branches of the query, each FORK repeating its input once per branch. */
-        public int maxBranchCount() {
-            return pragmas.maxBranchCount(flags.maxBranchCount());
-        }
-
-        /** Label of the pragma or cluster setting that supplied {@link #maxBranchCount()}, for errors. */
-        public String maxBranchCountSource() {
-            return pragmas.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
-        }
     }
 
     ExpressionBuilder(ParsingContext context) {

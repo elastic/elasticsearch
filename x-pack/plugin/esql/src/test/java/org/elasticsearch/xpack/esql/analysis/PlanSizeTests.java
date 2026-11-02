@@ -63,13 +63,13 @@ public class PlanSizeTests extends ESTestCase {
      */
     public void testCheckPlanWidthCountsLeavesOncePerPath() {
         PlanSize planSize = PlanSize.unlimited();
-        planSize.checkPlanWidth(limitChain(10), 1, "test");
-        planSize.checkPlanWidth(sharedInputForks(1), 2, "test");
-        planSize.checkPlanWidth(sharedInputForks(4), 16, "test");
+        planSize.checkPlanWidth(limitChain(10), 1);
+        planSize.checkPlanWidth(sharedInputForks(1), 2);
+        planSize.checkPlanWidth(sharedInputForks(4), 16);
         expectThrows(
             VerificationException.class,
-            containsString("query resolved to at least 16 branches, exceeding the limit of 15 set by the test"),
-            () -> planSize.checkPlanWidth(sharedInputForks(4), 15, "test")
+            containsString("query resolved to at least 16 branches, exceeding the limit of 15"),
+            () -> planSize.checkPlanWidth(sharedInputForks(4), 15)
         );
     }
 
@@ -82,13 +82,13 @@ public class PlanSizeTests extends ESTestCase {
         LogicalPlan plan = emptySource();
         for (int depth = 1; depth <= 60; depth++) {
             plan = new Fork(EMPTY, List.of(new Limit(EMPTY, null, plan), new Limit(EMPTY, null, plan)), List.of());
-            planSize.checkPlanWidth(plan, Integer.MAX_VALUE, "test");
+            planSize.checkPlanWidth(plan, Integer.MAX_VALUE);
         }
         LogicalPlan deepest = plan;
         expectThrows(
             VerificationException.class,
             containsString("query resolved to at least " + Integer.MAX_VALUE + " branches"),
-            () -> planSize.checkPlanWidth(deepest, Integer.MAX_VALUE - 1, "test")
+            () -> planSize.checkPlanWidth(deepest, Integer.MAX_VALUE - 1)
         );
     }
 

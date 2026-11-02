@@ -95,11 +95,11 @@ public class PlanSize {
      * Fails if the leaf branches of {@code plan}, counted once per path as {@link UnionAll#unionStats} does, exceed
      * {@code maxBranchCount}
      */
-    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount, String maxBranchCountSource) {
+    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount) {
         UnionAll.UnionStats stats = UnionAll.unionStats(plan, unionStats);
         if (stats.leaves() > maxBranchCount) {
             throw new VerificationException(
-                List.of(Failure.fail(plan, UnionAll.PARTIAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, maxBranchCountSource))
+                List.of(Failure.fail(plan, UnionAll.PARTIAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount))
             );
         }
     }

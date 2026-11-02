@@ -4283,8 +4283,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
     }
 
-    private static final String MAX_BRANCH_COUNT_ERROR =
-        "query resolved to at least 30 branches, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting";
+    private static final String MAX_BRANCH_COUNT_ERROR = "exceeding the limit of 128";
 
     /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^(depth + 2) - 2 leaves. */
     private static String nestedForks(int depth) {
@@ -4297,13 +4296,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     /**
      * FORKs nested through UNION ALL subqueries double the leaf branches at every level, and every walk after the parser pays once per
-     * leaf. The parser applies the query-wide branch limit to each FORK it builds, so a 40-deep nesting, 2^42 leaves, is rejected at
-     * the fourth FORK before any command on top of it is applied; the same query is rejected by the verifier with the same message.
+     * leaf. The parser applies a fixed query-wide branch ceiling to each FORK it builds, so a 40-deep nesting, 2^42 leaves, is rejected at
+     * the sixth FORK before any command on top of it is applied. The configured {@code max_branch_count} is enforced after parsing.
      */
     public void testNestedForksPastTheBranchCountRejectedWhileParsing() {
         for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {
             expectVerificationError(nestedForks(10) + suffix, MAX_BRANCH_COUNT_ERROR);
         }
+        expectVerificationError(nestedForks(6), MAX_BRANCH_COUNT_ERROR);
         expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
@@ -4313,29 +4313,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testForksWithinTheBranchCountParse() {
         assertThat(query("FROM a" + " | EVAL x = 1".repeat(400) + " | FORK (WHERE x > 0) (WHERE x < 0)"), instanceOf(Fork.class));
         assertThat(query(nestedForks(2)), instanceOf(Fork.class));
-        InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
-        assertThat(
-            TEST_PARSER.parse(
-                nestedForks(3),
-                new QueryParams(),
-                inferenceSettings,
-                pragma(QueryPragmas.MAX_BRANCH_COUNT, 30),
-                EsqlFlags.DEFAULTS
-            ).plan(),
-            instanceOf(Fork.class)
-        );
-        expectVerificationError(nestedForks(3), MAX_BRANCH_COUNT_ERROR);
-        expectThrows(
-            VerificationException.class,
-            containsString("query resolved to at least 30 branches, exceeding the limit of 29 set by the [max_branch_count] query pragma"),
-            () -> TEST_PARSER.parse(
-                nestedForks(3),
-                new QueryParams(),
-                inferenceSettings,
-                pragma(QueryPragmas.MAX_BRANCH_COUNT, 29),
-                EsqlFlags.DEFAULTS
-            )
-        );
+        assertThat(query(nestedForks(5)), instanceOf(Fork.class));
     }
 
     public void testSecondForkOnOnePipelineInExplainRejectedWhileParsing() {

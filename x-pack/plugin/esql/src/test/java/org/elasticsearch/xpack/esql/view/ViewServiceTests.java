@@ -34,7 +34,6 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
@@ -291,50 +290,28 @@ public class ViewServiceTests extends ESTestCase {
     }
 
     /**
-     * A PUT request carries no pragmas, so the cluster setting is the only source of the command limit when a view is validated.
+     * A PUT request carries no pragmas, and the parser applies only its fixed branch ceiling to the FORKs of the definition; the
+     * configured {@code max_branch_count} is enforced when the view is used in a query.
      */
-    public void testPutViewValidatesAgainstConfiguredCommandLimit() {
-        int defaultLimit = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
-        // Each pipeline stays below the per-pipeline depth limit, only their sum exceeds the command limit.
-        String pipes = " | WHERE a > 0".repeat(defaultLimit / 2 + 1);
-        View view = new View("big-view", "FROM some-index, (FROM foo" + pipes + "), (FROM bar" + pipes + ")", null);
+    public void testPutViewValidatesAgainstFixedParserBranchLimit() {
+        View within = new View("forky-view", nestedForkBody(3), null);
+        View beyond = new View("forky-view", nestedForkBody(6), null);
         var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
 
-        expectThrows(
-            ParsingException.class,
-            containsString(
-                "ES|QL statement exceeded the maximum of [" + defaultLimit + "] commands allowed, including the commands in its subqueries"
-            ),
-            () -> viewService.validatePutView(project, view)
-        );
-
-        clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), defaultLimit + 100).build());
-        viewService.validatePutView(project, view);
-    }
-
-    /**
-     * A PUT request carries no pragmas, so the cluster setting is the only source of the branch limit when a view is validated;
-     * the parser applies it to each FORK of the definition, and reads the setting as it stands at validation time.
-     */
-    public void testPutViewValidatesAgainstConfiguredBranchLimit() {
-        String body = "FROM some-index | FORK (WHERE a > 0) (WHERE a < 0)";
-        for (int i = 0; i < 3; i++) {
-            body = "FROM (" + body + "), some-index | FORK (WHERE a > 0) (WHERE a < 0)";
-        }
-        View view = new View("forky-view", body, null);
-        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
-
+        viewService.validatePutView(project, within);
         expectThrows(
             VerificationException.class,
-            containsString(
-                "query resolved to at least 30 branches, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting"
-            ),
-            () -> viewService.validatePutView(project, view)
+            containsString("exceeding the limit of 128"),
+            () -> viewService.validatePutView(project, beyond)
         );
+    }
 
-        clusterService.getClusterSettings().applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 30).build());
-        viewService.validatePutView(project, view);
+    private static String nestedForkBody(int depth) {
+        String body = "FROM some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        for (int i = 0; i < depth; i++) {
+            body = "FROM (" + body + "), some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        }
+        return body;
     }
 
     public void testValidateViewWarnsWhenQueryIsNotValid() {

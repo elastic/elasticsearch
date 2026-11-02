@@ -32,10 +32,9 @@ public class UnionAll extends MergePlan {
             + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
             + " or split this into multiple queries.";
 
-    public static final String PARTIAL_BRANCH_COUNT_ERROR =
-        "query resolved to at least {} branches, exceeding the limit of {} set by the {}. "
-            + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
-            + " or split this into multiple queries.";
+    public static final String PARTIAL_BRANCH_COUNT_ERROR = "query resolved to at least {} branches, exceeding the limit of {}. "
+        + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
+        + " or split this into multiple queries.";
 
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);

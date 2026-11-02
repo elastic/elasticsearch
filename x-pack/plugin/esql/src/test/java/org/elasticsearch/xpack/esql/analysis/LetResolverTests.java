@@ -334,11 +334,7 @@ public class LetResolverTests extends ESTestCase {
             outsideLet = new StringBuilder("FROM (" + outsideLet + "), b | FORK (WHERE x > 0) (WHERE x < 0)");
         }
         String statement = "LET q = (FROM a); " + outsideLet;
-        expectThrows(
-            VerificationException.class,
-            containsString("query resolved to at least 30 branches, exceeding the limit of 20"),
-            () -> parseAndResolveLet(statement)
-        );
+        expectThrows(VerificationException.class, containsString("exceeding the limit of 128"), () -> parseAndResolveLet(statement));
     }
 
     // -----------------------------------------------------------------------

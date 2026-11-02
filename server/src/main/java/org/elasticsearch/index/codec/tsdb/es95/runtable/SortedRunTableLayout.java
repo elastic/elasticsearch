@@ -36,7 +36,8 @@ import java.io.IOException;
  */
 public final class SortedRunTableLayout {
 
-    private static final int START_DOCS_BLOCK_SHIFT = 16;
+    /** Block shift of the {@code startDoc[]} column, shared with {@link SortedSetRunTableLayout}. */
+    static final int START_DOCS_BLOCK_SHIFT = 16;
 
     private SortedRunTableLayout() {}
 

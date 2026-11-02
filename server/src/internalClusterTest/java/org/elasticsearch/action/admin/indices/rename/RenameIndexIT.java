@@ -30,7 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @TestLogging(
-    value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,org.elasticsearch.cluster.metadata.MetadataIndexStateService:DEBUG,"
+    value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
+        + "org.elasticsearch.cluster.metadata.MetadataIndexStateService:DEBUG,"
         + "org.elasticsearch.action.admin.indices.readonly:DEBUG,org.elasticsearch.action.support.replication:DEBUG",
     reason = "log index renames and block verification"
 )

@@ -229,11 +229,12 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         // Retry the reset since a late duplicate "skip all migrations" task from index creation can overwrite it
         assertBusy(() -> {
-            assertFalse(isSecurityMigrationTaskPresent());
+            assertFalse(isSecurityMigrationTaskPresent(clusterService().state()));
             resetMigration();
             // Make sure migration didn't run yet (blocked by the fallback name)
-            assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-            assertFalse(isSecurityMigrationTaskPresent());
+            ClusterState state = clusterService().state();
+            assertThat(getCurrentMigrationVersion(state), lessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION));
+            assertFalse(isSecurityMigrationTaskPresent(state));
         });
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         SecurityIndexManager.RoleMappingsCleanupMigrationStatus status = SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -364,7 +365,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
      */
     private void rerunMigrationsAndAssertRoleMappings(String... expectedRoleMappingNames) throws Exception {
         assertBusy(() -> {
-            assertFalse(isSecurityMigrationTaskPresent());
+            assertFalse(isSecurityMigrationTaskPresent(clusterService().state()));
             resetMigration();
             waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
             assertAllRoleMappings(expectedRoleMappingNames);
@@ -393,10 +394,6 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertThat(getCurrentMigrationVersion(), greaterThanOrEqualTo(expectedVersion));
     }
 
-    private void assertMigrationLessThan(int expectedVersion) {
-        assertThat(getCurrentMigrationVersion(), lessThan(expectedVersion));
-    }
-
     private int getCurrentMigrationVersion(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().getProject().index(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
@@ -405,9 +402,8 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         return Integer.parseInt(indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY).get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
     }
 
-    private boolean isSecurityMigrationTaskPresent() {
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(clusterService.state().metadata().getProject());
+    private boolean isSecurityMigrationTaskPresent(ClusterState state) {
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getProject());
         return tasks != null && tasks.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
     }
 

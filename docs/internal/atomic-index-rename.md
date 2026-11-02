@@ -503,13 +503,83 @@ transport action so that there is one privilege path and one audit action name
 (`indices:admin/aliases`) for both surfaces. The engineering consequences are
 in T3, T8, T9 and T10; none argued against the choice.
 
-### D2. Which other appliers need `indicesRenamed()`
+### D2. Which other appliers need `indicesRenamed()` (audited)
 
-`IndicesClusterStateService` is the only applier the prototype teaches about
-renames. Candidates to audit: `IndicesStore` (deletes shard folders for indices
-not in the routing table; keyed by `ShardId`, so UUID equality covers it, but
-unverified), `SearchService` (frees contexts on index removal), and the
-ILM/SLM/CCR/enrich cluster state listeners that key work by index name.
+`IndicesClusterStateService` is the only applier that needs to know about
+renames. Every other `ClusterStateApplier` and `ClusterStateListener` in
+server, the modules, x-pack and stateless was triaged, and the ones that keep
+per-index or per-shard state were read. Two properties make them safe without
+changes: `Index` and `ShardId` equality is by UUID (T1), so a map keyed by
+either still finds its entry under the new name, and `indicesDeleted()`
+excludes renamed indices, so nothing that reacts to deletions reacts to a
+rename. The lenient `index(Index)` / `hasIndex(Index)` lookups (T13) cover the
+rest.
+
+Verified safe, with the mechanism that makes them so:
+
+- `IndicesStore`: `folderNotFoundCache` is pruned with `hasIndex(Index)`, the
+  shard-active check sends the index UUID and the receiving node resolves the
+  shard through the UUID-keyed `IndicesService` map.
+- `SearchService`: no cluster state listener; contexts are freed only on
+  index removal, which a rename does not trigger, and request-side lookups go
+  through `indexServiceSafe(Index)`. Scrolls and points in time opened before
+  a rename keep working; hits from such a point in time may report the old
+  name, since the shard targets in its id carry it.
+- `SnapshotShardsService` (aborts shard snapshots of deleted indices, by
+  `ShardId`), `BlobStoreCacheMaintenanceService` (searchable snapshot cache
+  cleanup on deletion, by snapshot and index id), `StatelessMemoryMetricsService`
+  (by `ShardId`; the re-registration under the new name is a no-op because
+  the keys are equal), `TimestampFieldMapperService` (by `Index`, pruned with
+  `index(Index)`), `RemoveRefreshClusterBlockService` and
+  `ShardsMappingSizeCollector` (by `Index`), `ThrottlingRecoveryService` (by
+  allocation id and `ShardId`), `PeerRecoverySourceService` and
+  `RecoveryDirectCancellationService` (react to nodes and routing changes
+  only), `DelayedAllocationService` and `DiskThresholdMonitor` (recompute
+  from the routing table each time), `DanglingIndicesState` (excludes on-disk
+  indices by UUID, so a renamed index is never dangling).
+- ILM: `IndexLifecycleService` removes deleted indices from the policy
+  registry and otherwise iterates the current indices; the runner's
+  `busyIndices` dedup set is keyed by `Index`; the cluster state update tasks
+  look their index up with `index(Index)` and re-put the metadata under its
+  current name (T15 covers the one task that had to be told the current
+  name). Data stream lifecycle's error store is keyed by `Index`.
+- CCR: `ShardFollowTaskCleaner` decides whether a follower still exists with
+  `index(Index)`, so renaming a follower does not get its task cleaned up
+  (`CcrRenameIT#testRenameFollowerWhileFollowing`); `AutoFollowCoordinator`
+  tracks followed leaders by UUID, so a renamed leader is not followed twice
+  (`CcrRenameIT#testAutoFollowDoesNotFollowRenamedLeaderAgain`); the shard
+  follow tasks themselves are T14.
+- Stateless: `ObjectStoreService` garbage collection compares object store
+  index UUIDs with the cluster state (T12); the commit, cleanup, relocation
+  and shutdown services key by `ShardId`; the maps keyed by `String` in them
+  are blob file names, not index names.
+- SLM, transform, ML, watcher, security, monitoring, enrich and the
+  remaining listeners keep no per-index state, or manage indices they own by
+  name (see below).
+
+One gap found: `InternalClusterInfoService` keys shard sizes by a string built
+from `ShardId#toString`, which includes the index name, and it refreshes on
+the `cluster.info.update.interval` timer (30 seconds by default) or when a
+data node joins, not on metadata changes. After a rename, allocation deciders
+and the desired balance see no size for the renamed index's shards until the
+next refresh. The window is bounded and the effect is a less informed
+decision, not a wrong one. The fix is either to key the map by UUID or to
+refresh when `indicesRenamed()` is non-empty; it is not done in the prototype.
+
+Two classes of consumer remain the user's problem, as they are with a delete
+or a reindex: features that record index names in their own state and act on
+them later (ILM's shrink and searchable snapshot actions store the name of the
+index they are building; downsample persistent tasks, ML datafeeds, transform
+and enrich configurations and watcher actions name their indices), and
+features that own hidden, non-system indices by naming convention (`.ml-*`,
+`.transform-*`, `.enrich-*`, profiling). Renaming such an index while the
+feature is using it breaks the feature the way deleting it would. D4 should
+decide whether some of these are refused like system indices.
+
+The rules for a new listener, so that it needs no rename handling: key
+per-index state by `Index` or `ShardId`, never by name; react to
+`indicesDeleted()`, never to "this name is gone"; look indices up with
+`index(Index)`, except in authorization code (T13).
 
 ### D3. Data node mutation versus advisory names
 

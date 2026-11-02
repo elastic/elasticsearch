@@ -13,6 +13,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.contextengine.memory.SessionMemory;
 import org.elasticsearch.xpack.contextengine.memory.SessionMemoryTestUtils;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -40,12 +43,49 @@ public class RememberActionRequestTests extends AbstractWireSerializingTestCase<
     }
 
     public void testValidateMissingRequiredFields() {
-        SessionMemory memory = new SessionMemory(null, null, null, null, "", null, "agent", null, "", null);
+        SessionMemory memory = new SessionMemory(null, null, null, null, "", null, "agent", null, "", null, null);
         ActionRequestValidationException e = new RememberAction.Request(memory).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));
         assertThat(e.getMessage(), containsString("[user_id] cannot be null or empty"));
-        assertThat(e.getMessage(), containsString("[content] cannot be null or empty"));
+        assertThat(e.getMessage(), containsString("one of [content] or [media] must be provided"));
+    }
+
+    public void testValidateMediaOnly() {
+        SessionMemory memory = new SessionMemory(
+            null,
+            null,
+            null,
+            null,
+            "s",
+            "u",
+            "a",
+            null,
+            null,
+            SessionMemoryTestUtils.randomMedia(),
+            null
+        );
+        assertThat(new RememberAction.Request(memory).validate(), nullValue());
+    }
+
+    public void testValidateMediaItems() {
+        SessionMemory memory = new SessionMemory(
+            null,
+            null,
+            null,
+            null,
+            "s",
+            "u",
+            "a",
+            null,
+            null,
+            List.of(Map.of("value", "data:image/png;base64,abc"), Map.of("type", "image")),
+            null
+        );
+        ActionRequestValidationException e = new RememberAction.Request(memory).validate();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), containsString("[media] items must have a non-empty [type]"));
+        assertThat(e.getMessage(), containsString("[media] items must have a non-empty [value]"));
     }
 
     public void testValidateRejectsTimestamp() {

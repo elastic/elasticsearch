@@ -48,10 +48,15 @@
         "content": {
           "type": "text",
           "fields": {
-            "semantic_text": {
-              "type": "semantic_text"
+            "semantic": {
+              "type": "semantic",
+              "inference_id": "${xpack.contextengine.session_memory.inference_id}"
             }
           }
+        },
+        "media": {
+          "type": "semantic",
+          "inference_id": "${xpack.contextengine.session_memory.inference_id}"
         },
         "attributes": {
           "type": "flattened"

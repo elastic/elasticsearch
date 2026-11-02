@@ -42,6 +42,7 @@ public class SessionMemoryTests extends AbstractXContentSerializingTestCase<Sess
             instance.agentId(),
             instance.type(),
             instance.content(),
+            instance.media(),
             instance.attributes()
         );
     }

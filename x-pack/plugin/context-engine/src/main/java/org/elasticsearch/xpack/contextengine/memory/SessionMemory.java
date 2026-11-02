@@ -39,6 +39,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
     public static final ParseField AGENT_ID_FIELD = new ParseField("agent_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField CONTENT_FIELD = new ParseField("content");
+    public static final ParseField MEDIA_FIELD = new ParseField("media");
     public static final ParseField ATTRIBUTES_FIELD = new ParseField("attributes");
 
     @SuppressWarnings("unchecked")
@@ -54,7 +55,8 @@ public class SessionMemory implements Writeable, ToXContentObject {
             (String) args[6],
             (String) args[7],
             (String) args[8],
-            (Map<String, Object>) args[9]
+            (List<Map<String, Object>>) args[9],
+            (Map<String, Object>) args[10]
         )
     );
 
@@ -68,6 +70,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), AGENT_ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), TYPE_FIELD);
         PARSER.declareString(optionalConstructorArg(), CONTENT_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.map(), MEDIA_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ATTRIBUTES_FIELD);
     }
 
@@ -87,7 +90,9 @@ public class SessionMemory implements Writeable, ToXContentObject {
     private final String agentId;
     @Nullable
     private final String type;
+    @Nullable
     private final String content;
+    private final List<Map<String, Object>> media;
     @Nullable
     private final Map<String, Object> attributes;
 
@@ -100,7 +105,8 @@ public class SessionMemory implements Writeable, ToXContentObject {
         String userId,
         String agentId,
         @Nullable String type,
-        String content,
+        @Nullable String content,
+        @Nullable List<Map<String, Object>> media,
         @Nullable Map<String, Object> attributes
     ) {
         this.timestamp = timestamp;
@@ -112,6 +118,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
         this.agentId = agentId;
         this.type = type;
         this.content = content;
+        this.media = media == null ? List.of() : List.copyOf(media);
         this.attributes = attributes;
     }
 
@@ -125,6 +132,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
         this.agentId = in.readOptionalString();
         this.type = in.readOptionalString();
         this.content = in.readOptionalString();
+        this.media = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
         this.attributes = in.readBoolean() ? in.readGenericMap() : null;
     }
 
@@ -139,6 +147,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
         out.writeOptionalString(agentId);
         out.writeOptionalString(type);
         out.writeOptionalString(content);
+        out.writeCollection(media, StreamOutput::writeGenericMap);
         out.writeBoolean(attributes != null);
         if (attributes != null) {
             out.writeGenericMap(attributes);
@@ -166,7 +175,12 @@ public class SessionMemory implements Writeable, ToXContentObject {
         if (type != null) {
             builder.field(TYPE_FIELD.getPreferredName(), type);
         }
-        builder.field(CONTENT_FIELD.getPreferredName(), content);
+        if (content != null) {
+            builder.field(CONTENT_FIELD.getPreferredName(), content);
+        }
+        if (media.isEmpty() == false) {
+            builder.field(MEDIA_FIELD.getPreferredName(), media);
+        }
         if (attributes != null) {
             builder.field(ATTRIBUTES_FIELD.getPreferredName(), attributes);
         }
@@ -178,7 +192,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
      * Returns a copy with the given id and write time, used when the document is first stored.
      */
     public SessionMemory withIdAndTimestamp(String id, Instant timestamp) {
-        return new SessionMemory(timestamp, id, space, aiIndexIds, sessionId, userId, agentId, type, content, attributes);
+        return new SessionMemory(timestamp, id, space, aiIndexIds, sessionId, userId, agentId, type, content, media, attributes);
     }
 
     @Nullable
@@ -217,8 +231,16 @@ public class SessionMemory implements Writeable, ToXContentObject {
         return type;
     }
 
+    @Nullable
     public String content() {
         return content;
+    }
+
+    /**
+     * Non-text inputs for the {@code media} field, each an object with a {@code type} and a data URL {@code value}.
+     */
+    public List<Map<String, Object>> media() {
+        return media;
     }
 
     @Nullable
@@ -240,11 +262,12 @@ public class SessionMemory implements Writeable, ToXContentObject {
             && Objects.equals(agentId, that.agentId)
             && Objects.equals(type, that.type)
             && Objects.equals(content, that.content)
+            && Objects.equals(media, that.media)
             && Objects.equals(attributes, that.attributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, id, space, aiIndexIds, sessionId, userId, agentId, type, content, attributes);
+        return Objects.hash(timestamp, id, space, aiIndexIds, sessionId, userId, agentId, type, content, media, attributes);
     }
 }

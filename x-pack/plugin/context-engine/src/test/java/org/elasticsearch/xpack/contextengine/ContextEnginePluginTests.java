@@ -21,18 +21,22 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ContextEnginePluginTests extends ESTestCase {
 
     public void testSystemDataStreamsRegistered() {
         assertThat(
-            new ContextEnginePlugin().getSystemDataStreamDescriptors().stream().map(SystemDataStreamDescriptor::getDataStreamName).toList(),
+            new ContextEnginePlugin(Settings.EMPTY).getSystemDataStreamDescriptors()
+                .stream()
+                .map(SystemDataStreamDescriptor::getDataStreamName)
+                .toList(),
             contains(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME, ContextEnginePlugin.SESSION_EVENTS_DATA_STREAM_NAME)
         );
     }
 
     public void testSystemDataStreamDescriptors() {
-        for (SystemDataStreamDescriptor descriptor : new ContextEnginePlugin().getSystemDataStreamDescriptors()) {
+        for (SystemDataStreamDescriptor descriptor : new ContextEnginePlugin(Settings.EMPTY).getSystemDataStreamDescriptors()) {
             assertThat(descriptor.isExternal(), is(false));
             assertThat(descriptor.getOrigin(), equalTo(CONTEXT_ENGINE_ORIGIN));
 
@@ -46,8 +50,24 @@ public class ContextEnginePluginTests extends ESTestCase {
         }
     }
 
+    public void testSessionMemoryInferenceId() {
+        String inferenceId = randomAlphaOfLength(10);
+        Settings settings = Settings.builder().put(ContextEnginePlugin.SESSION_MEMORY_INFERENCE_ID.getKey(), inferenceId).build();
+        String mappings = new ContextEnginePlugin(settings).getSystemDataStreamDescriptors()
+            .stream()
+            .filter(d -> d.getDataStreamName().equals(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME))
+            .findFirst()
+            .orElseThrow()
+            .getComposableIndexTemplate()
+            .template()
+            .mappings()
+            .string();
+        assertThat(mappings, containsString("\"inference_id\":\"" + inferenceId + "\""));
+        assertThat(mappings, not(containsString("${")));
+    }
+
     public void testFeatureRegistersWithoutOverlap() {
-        ContextEnginePlugin plugin = new ContextEnginePlugin();
+        ContextEnginePlugin plugin = new ContextEnginePlugin(Settings.EMPTY);
         SystemIndices systemIndices = new SystemIndices(List.of(SystemIndices.Feature.fromSystemIndexPlugin(plugin, Settings.EMPTY)));
         assertThat(systemIndices.getFeatureNames().contains(ContextEnginePlugin.FEATURE_NAME), is(true));
         assertThat(systemIndices.isSystemDataStream(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME), is(true));

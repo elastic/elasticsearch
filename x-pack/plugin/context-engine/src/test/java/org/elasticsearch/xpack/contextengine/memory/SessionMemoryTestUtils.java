@@ -29,7 +29,21 @@ public final class SessionMemoryTestUtils {
             ESTestCase.randomAlphaOfLength(8),
             randomBoolean() ? null : ESTestCase.randomFrom("statement", "summary"),
             ESTestCase.randomAlphaOfLengthBetween(1, 50),
+            randomBoolean() ? null : randomMedia(),
             randomBoolean() ? null : randomAttributes()
+        );
+    }
+
+    public static List<Map<String, Object>> randomMedia() {
+        return ESTestCase.randomList(
+            1,
+            3,
+            () -> Map.of(
+                "type",
+                ESTestCase.randomFrom("image", "pdf"),
+                "value",
+                "data:image/png;base64," + ESTestCase.randomAlphaOfLength(16)
+            )
         );
     }
 

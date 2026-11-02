@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.contextengine.memory.SessionMemory;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -75,13 +76,25 @@ public class RememberAction {
             if (Strings.isNullOrEmpty(memory.agentId())) {
                 validationException = addValidationError("[agent_id] cannot be null or empty", validationException);
             }
-            if (Strings.isNullOrEmpty(memory.content())) {
-                validationException = addValidationError("[content] cannot be null or empty", validationException);
+            if (Strings.isNullOrEmpty(memory.content()) && memory.media().isEmpty()) {
+                validationException = addValidationError("one of [content] or [media] must be provided", validationException);
+            }
+            for (Map<String, Object> item : memory.media()) {
+                if (isNonEmptyString(item.get("type")) == false) {
+                    validationException = addValidationError("[media] items must have a non-empty [type]", validationException);
+                }
+                if (isNonEmptyString(item.get("value")) == false) {
+                    validationException = addValidationError("[media] items must have a non-empty [value]", validationException);
+                }
             }
             if (memory.timestamp() != null) {
                 validationException = addValidationError("[@timestamp] is set at write time and cannot be provided", validationException);
             }
             return validationException;
+        }
+
+        private static boolean isNonEmptyString(Object value) {
+            return value instanceof String string && string.isEmpty() == false;
         }
 
         @Override

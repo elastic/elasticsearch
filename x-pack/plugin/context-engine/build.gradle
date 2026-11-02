@@ -27,10 +27,12 @@ dependencies {
   testImplementation project(":test:framework")
 
   clusterModules project(':modules:data-streams')
+  clusterModules project(xpackModule('inference'))
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'context_engine', 'features', 'nodes'
+    include '_common', 'cluster', 'context_engine', 'features', 'inference', 'nodes'
   }
 }

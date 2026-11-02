@@ -1,0 +1,107 @@
+setup:
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: test-embedding
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+---
+teardown:
+  - do:
+      features.reset_features: {}
+
+  - do:
+      inference.delete:
+        inference_id: test-embedding
+        ignore: 404
+
+---
+"Remember stores text and image memories and get returns them newest first":
+  - do:
+      context_engine.remember:
+        body:
+          session_id: "session-1"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          space: "default"
+          ai_index_id: ["ai-index-1"]
+          type: "statement"
+          content: "The user prefers dark mode."
+          attributes: { source: "test" }
+
+  - set: { id: text_id }
+  - is_true: id
+  - is_true: "@timestamp"
+  - match: { content: "The user prefers dark mode." }
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "memory-image"
+          session_id: "session-1"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          type: "statement"
+          content: "A whiteboard photo from the planning session."
+          media:
+            - type: "image"
+              value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+  - match: { id: "memory-image" }
+  - match: { media.0.type: "image" }
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "memory-media-only"
+          session_id: "session-1"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          media:
+            - type: "image"
+              value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+  - match: { id: "memory-media-only" }
+
+  - do:
+      context_engine.get_session_memory:
+        session_id: "session-1"
+
+  - match: { count: 3 }
+  - match: { results.0.id: "memory-media-only" }
+  - match: { results.1.id: "memory-image" }
+  - match: { results.1.media.0.type: "image" }
+  - match: { results.2.id: $text_id }
+  - match: { results.2.content: "The user prefers dark mode." }
+  - match: { results.2.attributes.source: "test" }
+
+  - do:
+      context_engine.get_session_memory:
+        session_id: "session-1"
+        ai_index_id: "ai-index-1"
+
+  - match: { count: 1 }
+  - match: { results.0.id: $text_id }
+
+---
+"Remember rejects a memory with neither content nor media":
+  - do:
+      catch: bad_request
+      context_engine.remember:
+        body:
+          session_id: "session-1"
+          user_id: "user-1"
+          agent_id: "agent-1"
+
+  - match: { error.reason: "/.*one\\sof\\s\\[content\\]\\sor\\s\\[media\\].*/" }

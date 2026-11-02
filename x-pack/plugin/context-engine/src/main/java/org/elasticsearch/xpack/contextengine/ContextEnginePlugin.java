@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -64,8 +65,30 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
 
     private static final String MAPPING_VERSION_VARIABLE = "xpack.contextengine.version";
     private static final String MAPPING_MANAGED_VERSION_VARIABLE = "xpack.contextengine.managed.index.version";
+    private static final String INFERENCE_ID_VARIABLE = "xpack.contextengine.session_memory.inference_id";
     static final int SESSION_MEMORY_MAPPINGS_VERSION = 1;
     static final int SESSION_EVENTS_MAPPINGS_VERSION = 1;
+
+    /**
+     * The embedding endpoint used by the session memory {@code content.semantic} and {@code media} fields. It must support the
+     * {@code embedding} task type; the default is the preconfigured multimodal Jina endpoint.
+     */
+    public static final Setting<String> SESSION_MEMORY_INFERENCE_ID = Setting.simpleString(
+        "xpack.context_engine.session_memory.inference_id",
+        ".jina-embeddings-v5-omni-small",
+        Setting.Property.NodeScope
+    );
+
+    private final String sessionMemoryInferenceId;
+
+    public ContextEnginePlugin(Settings settings) {
+        this.sessionMemoryInferenceId = SESSION_MEMORY_INFERENCE_ID.get(settings);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(SESSION_MEMORY_INFERENCE_ID);
+    }
 
     @Override
     public List<ActionHandler> getActions() {
@@ -101,12 +124,17 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
         return List.of(sessionMemoryDataStreamDescriptor(), sessionEventsDataStreamDescriptor());
     }
 
-    private static SystemDataStreamDescriptor sessionMemoryDataStreamDescriptor() {
+    private SystemDataStreamDescriptor sessionMemoryDataStreamDescriptor() {
         return systemDataStreamDescriptor(
             SESSION_MEMORY_DATA_STREAM_NAME,
             "Session memories the agent chose to keep",
             "/context-engine-session-memory.json",
-            SESSION_MEMORY_MAPPINGS_VERSION
+            Map.of(
+                MAPPING_MANAGED_VERSION_VARIABLE,
+                Integer.toString(SESSION_MEMORY_MAPPINGS_VERSION),
+                INFERENCE_ID_VARIABLE,
+                sessionMemoryInferenceId
+            )
         );
     }
 
@@ -115,7 +143,7 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
             SESSION_EVENTS_DATA_STREAM_NAME,
             "Raw transcripts of agent session rounds",
             "/context-engine-session-events.json",
-            SESSION_EVENTS_MAPPINGS_VERSION
+            Map.of(MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(SESSION_EVENTS_MAPPINGS_VERSION))
         );
     }
 
@@ -123,14 +151,14 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
         String dataStreamName,
         String description,
         String templateResource,
-        int mappingsVersion
+        Map<String, String> templateVariables
     ) {
         try {
             ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
                 templateResource,
                 Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
-                Map.of(MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(mappingsVersion)),
+                templateVariables,
                 false,
                 ComposableIndexTemplate::parse
             );

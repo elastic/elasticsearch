@@ -812,6 +812,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testIndexMode() throws Exception {
+        // Pinned to 1 shard and 0 replicas: this test creates up to 20 indices, and with random shard counts it can go over
+        // the 2048 open files limit of the test file system, which causes a master failover and a flaky failure.
+        final Settings baseSettings = indexSettings(1, 0).build();
         Map<String, IndexMode> indexModes = new HashMap<>();
         // metrics
         {
@@ -825,12 +828,16 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                      }
                  }
                 """;
-            Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("hostname")).build();
+            Settings settings = Settings.builder()
+                .put(baseSettings)
+                .put("mode", "time_series")
+                .putList("routing_path", List.of("hostname"))
+                .build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
                 assertAcked(
                     indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping),
-                    indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping)
+                    indicesAdmin().prepareCreate("test_old_metrics_" + i).setSettings(baseSettings).setMapping(metricsMapping)
                 );
                 indexModes.put("test_metrics_" + i, IndexMode.TIME_SERIES);
                 indexModes.put("test_old_metrics_" + i, IndexMode.STANDARD);
@@ -848,12 +855,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                      }
                  }
                 """;
-            Settings settings = Settings.builder().put("mode", "logsdb").build();
+            Settings settings = Settings.builder().put(baseSettings).put("mode", "logsdb").build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
                 assertAcked(
                     indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping),
-                    indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping)
+                    indicesAdmin().prepareCreate("test_old_logs_" + i).setSettings(baseSettings).setMapping(logsMapping)
                 );
                 indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
                 indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);

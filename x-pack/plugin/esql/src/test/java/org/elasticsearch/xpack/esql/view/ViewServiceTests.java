@@ -34,6 +34,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
@@ -287,6 +288,29 @@ public class ViewServiceTests extends ESTestCase {
 
     private void validatePutView(String name, String query) {
         viewService.validatePutView(clusterService.state().metadata().getProject(ProjectId.DEFAULT), new View(name, query, null, false));
+    }
+
+    /**
+     * A PUT request carries no pragmas, so the cluster setting is the only source of the command limit when a view is validated.
+     */
+    public void testPutViewValidatesAgainstConfiguredCommandLimit() {
+        int defaultLimit = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+        // Each pipeline stays below the per-pipeline depth limit, only their sum exceeds the command limit.
+        String pipes = " | WHERE a > 0".repeat(defaultLimit / 2 + 1);
+        View view = new View("big-view", "FROM some-index, (FROM foo" + pipes + "), (FROM bar" + pipes + ")", null);
+        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+
+        expectThrows(
+            ParsingException.class,
+            containsString(
+                "ES|QL statement exceeded the maximum of [" + defaultLimit + "] commands allowed, including the commands in its subqueries"
+            ),
+            () -> viewService.validatePutView(project, view)
+        );
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), defaultLimit + 100).build());
+        viewService.validatePutView(project, view);
     }
 
     /**

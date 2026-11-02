@@ -10,6 +10,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 public class TaskTransportChannel implements TransportChannel {
@@ -31,8 +33,13 @@ public class TaskTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) {
+        sendResponse(response, null);
+    }
+
+    @Override
+    public void sendResponse(TransportResponse response, @Nullable CircuitBreaker circuitBreaker) {
         try {
-            channel.sendResponse(response);
+            channel.sendResponse(response, circuitBreaker);
         } finally {
             onTaskFinished.close();
         }

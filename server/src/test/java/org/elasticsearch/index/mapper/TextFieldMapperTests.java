@@ -17,6 +17,11 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ColumnBatch;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -37,6 +42,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -51,13 +57,19 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -70,10 +82,11 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
@@ -86,9 +99,11 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -110,6 +125,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends MapperTestCase {
@@ -188,6 +204,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
         checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -197,7 +216,6 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
-        // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "text");
             b.field("norms", false);
@@ -205,13 +223,13 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck("norms", b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "text");
             b.field("norms", true);
-        }, b -> {
+        }), fieldMapping(b -> {
             b.field("type", "text");
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }));
 
     }
 
@@ -259,6 +277,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "text");
+    }
+
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
     }
 
     public void testDefaults() throws IOException {
@@ -741,7 +763,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertNotNull(fieldData);
 
             LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
-            SortedBinaryDocValues values = leafData.getBytesValues();
+            SortableBinaryDocValues values = leafData.getBytesValues();
             assertTrue(values.advanceExact(0));
             assertEquals(new BytesRef("test value"), values.nextValue());
         });
@@ -782,6 +804,132 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(1, docValuesCount);
     }
 
+    public void testColumnarSingleValueFormatViaColumnBatch() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
+
+        withColumnBatch(mapperService, "{\"field\":\"hello\"}", batch -> {
+            // Collect all columns emitted for "field" and "field.counts".
+            BinaryColumn dvColumn = null;
+            BinaryColumn termsColumn = null;
+            boolean countsColumnFound = false;
+            for (Column column : batch.columns()) {
+                if (("field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(column.name())) {
+                    countsColumnFound = true;
+                } else if ("field".equals(column.name())) {
+                    if (column.fieldType().docValuesType() == DocValuesType.BINARY
+                        && column.fieldType().indexOptions() == IndexOptions.NONE) {
+                        dvColumn = (BinaryColumn) column;
+                    } else if (column.fieldType().indexOptions() != IndexOptions.NONE) {
+                        termsColumn = (BinaryColumn) column;
+                    }
+                }
+            }
+
+            assertFalse("multi_value=false columnar text must not write a .counts field", countsColumnFound);
+
+            // Doc-values column assertions.
+            assertNotNull("multi_value=false columnar text must write a binary DV column", dvColumn);
+            assertThat(dvColumn.fieldType(), sameInstance(ColumnarBinaryDocValuesField.TYPE));
+            assertFalse("DV column must not be stored", dvColumn.fieldType().stored());
+            ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
+            assertEquals(0, dvCursor.nextDoc());
+            assertEquals("columnar text must encode the value in a columnar payload", new BytesRef("\u0001\u0006hello"), dvCursor.value());
+
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
+
+            // Terms (indexed) column assertions.
+            assertNotNull("multi_value=false columnar text must write an indexed terms column", termsColumn);
+            assertTrue("terms column must be tokenized", termsColumn.fieldType().tokenized());
+            assertEquals("terms column must use DOCS in strictly columnar mode", IndexOptions.DOCS, termsColumn.fieldType().indexOptions());
+            assertEquals("terms column must have no doc values", DocValuesType.NONE, termsColumn.fieldType().docValuesType());
+            assertFalse("terms column must not be stored", termsColumn.fieldType().stored());
+            ObjectTupleCursor<BytesRef> termsCursor = termsColumn.tuples();
+            assertEquals(0, termsCursor.nextDoc());
+            assertEquals(new BytesRef("hello"), termsCursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, termsCursor.nextDoc());
+        });
+    }
+
+    public void testColumnarMultiValueFormatViaColumnBatch() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
+
+        withColumnBatch(mapperService, "{\"field\":[\"a\",\"b\"]}", batch -> {
+            // Collect all three columns emitted for "field" and "field.counts".
+            BinaryColumn dvColumn = null;
+            BinaryColumn termsColumn = null;
+            LongColumn countsColumn = null;
+            for (Column column : batch.columns()) {
+                if (("field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(column.name())) {
+                    countsColumn = (LongColumn) column;
+                } else if ("field".equals(column.name())) {
+                    if (column.fieldType().docValuesType() == DocValuesType.BINARY
+                        && column.fieldType().indexOptions() == IndexOptions.NONE) {
+                        dvColumn = (BinaryColumn) column;
+                    } else if (column.fieldType().indexOptions() != IndexOptions.NONE) {
+                        termsColumn = (BinaryColumn) column;
+                    }
+                }
+            }
+
+            // Doc-values column: ArrayOrderInlineNull blob for ["a", "b"].
+            assertNotNull("multi_value=true columnar text must write a binary DV column", dvColumn);
+            assertThat(
+                "multi-value DV field type must match CustomDocValuesField.TYPE",
+                dvColumn.fieldType(),
+                sameInstance(CustomDocValuesField.TYPE)
+            );
+            ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
+            assertEquals(0, dvCursor.nextDoc());
+            assertEquals(
+                "columnar text array must encode the correct columnar payload",
+                new BytesRef("\u0002\u0002a\u0002b"),
+                dvCursor.value()
+            );
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
+
+            // No .counts column: the payload carries its own slot count.
+            assertNull("columnar payload must not write a .counts column", countsColumn);
+
+            // Terms column: one entry per value in array order.
+            assertNotNull("multi_value=true columnar text must write an indexed terms column", termsColumn);
+            assertTrue("terms column must be tokenized", termsColumn.fieldType().tokenized());
+            ObjectTupleCursor<BytesRef> termsCursor = termsColumn.tuples();
+            assertEquals(0, termsCursor.nextDoc());
+            assertEquals(new BytesRef("a"), termsCursor.value());
+            assertEquals(0, termsCursor.nextDoc());
+            assertEquals(new BytesRef("b"), termsCursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, termsCursor.nextDoc());
+        });
+    }
+
+    /**
+     * Drives {@code field}'s leaf {@link FieldMapper#mapColumnBatch} over a single-document ESCF
+     * batch encoded from {@code source}, then hands the emitted {@link ColumnBatch} to
+     * {@code assertions}. Unlike {@code mapper.parse(...)}, this exercises the columnar
+     * batch-indexing path rather than the row / document-based path.
+     */
+    private void withColumnBatch(MapperService mapperService, String source, CheckedConsumer<ColumnBatch, Exception> assertions)
+        throws Exception {
+        BytesReference sourceBytes = new BytesArray(source);
+        IndexRequest[] requests = { new IndexRequest("index").id("doc1").source(sourceBytes, XContentType.JSON) };
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(List.of(sourceBytes), XContentType.JSON)
+        ) {
+            FieldMapper fieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+            fieldMapper.mapColumnBatch(ctx, escfBatch.column(0));
+            // columns() freezes the context; must be called after mapColumnBatch and before close.
+            assertions.accept(ctx.columns().toColumnBatch());
+        }
+    }
+
     public void testDocValuesHighCardinalityMultiValue() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
@@ -805,7 +953,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertNotNull(fieldData);
 
             LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
-            SortedBinaryDocValues values = leafData.getBytesValues();
+            SortableBinaryDocValues values = leafData.getBytesValues();
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
             assertEquals(new BytesRef("value1"), values.nextValue());
@@ -1343,7 +1491,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
             PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, phrasePostings.nextDoc());
-            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 1, phrasePostings.nextPosition());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 2, phrasePostings.nextPosition());
 
             TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
             assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
@@ -1388,7 +1536,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
             PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, phrasePostings.nextDoc());
-            assertEquals(11, phrasePostings.nextPosition());
+            assertEquals(12, phrasePostings.nextPosition());
 
             TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
             assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
@@ -2243,7 +2391,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
-            SortedBinaryDocValues dv = scriptDV.getInput();
+            SortableBinaryDocValues dv = scriptDV.getInput();
             assertFalse(dv.advanceExact(0));
             assertTrue(dv.advanceExact(1));
             assertTrue(dv.advanceExact(2));
@@ -2512,12 +2660,34 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.omitNorms(), is(true));
     }
 
+    public void testNormsEnabledWhenIndexModeIsVectordbColumnar() throws IOException {
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
+        XContentBuilder mapping = mapping(b -> b.startObject("potato").field("type", "text").endObject());
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("potato", "a potato flew around my room")));
+
+        assertTrue(
+            doc.rootDoc()
+                .getFields("potato")
+                .stream()
+                .anyMatch(
+                    field -> field.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS
+                        && field.fieldType().omitNorms() == false
+                )
+        );
+        assertTrue(doc.rootDoc().getFields("potato").stream().anyMatch(field -> field.fieldType().docValuesType() != DocValuesType.NONE));
+    }
+
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsVectordbColumnar() throws IOException {
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.VECTORDB_COLUMNAR);
     }
 
     private void assertDocValuesEnabledByDefaultInColumnarMode(IndexMode indexMode) throws IOException {
@@ -2545,6 +2715,97 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
         }
         assertTrue("Should have a doc_values field in columnar mode by default", hasDocValuesField);
+    }
+
+    public void testDefaultIndexOptionsIsDocsWhenIndexModeIsColumnar() throws IOException {
+        assertDefaultIndexOptionsIsDocsInColumnarMode(IndexMode.COLUMNAR);
+    }
+
+    public void testDefaultIndexOptionsIsDocsWhenIndexModeIsColumnarLogsdb() throws IOException {
+        assertDefaultIndexOptionsIsDocsInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    public void testDefaultIndexOptionsIsPositionsWhenIndexModeIsVectordbColumnar() throws IOException {
+        // vectordb_columnar is search-optimized, so it keeps the "positions" default rather than dropping to "docs".
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> b.startObject("field").field("type", "text").endObject()))
+            .documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(doc, "field"));
+    }
+
+    private void assertDefaultIndexOptionsIsDocsInColumnarMode(IndexMode indexMode) throws IOException {
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), indexMode.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        // Strictly columnar indices read values from doc values and default norms off, so an omitted index_options defaults to
+        // "docs" rather than "positions".
+        DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> b.startObject("field").field("type", "text").endObject()))
+            .documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS, indexedFieldIndexOptions(doc, "field"));
+
+        // An explicit index_options still overrides the columnar default.
+        DocumentMapper explicitMapper = createMapperService(
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "text").field("index_options", "positions").endObject())
+        ).documentMapper();
+        ParsedDocument explicitDoc = explicitMapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(explicitDoc, "field"));
+
+        // index_phrases needs positions; when it is set without an explicit index_options the columnar default stays "positions".
+        DocumentMapper phrasesMapper = createMapperService(
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "text").field("index_phrases", true).endObject())
+        ).documentMapper();
+        ParsedDocument phrasesDoc = phrasesMapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(phrasesDoc, "field"));
+    }
+
+    public void testDefaultIndexOptionsBeforeVersionKeepsPositionsInColumnarMode() throws IOException {
+        // Indices created before TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR keep the historical "positions" default so their
+        // existing segments (which may already carry positions) stay consistent on upgrade.
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR);
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            oldVersion,
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "text").endObject())
+        ).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(doc, "field"));
+    }
+
+    public void testDefaultIndexOptionsIsPositionsInStandardMode() throws IOException {
+        // Standard (non-columnar) indices keep the historical "positions" default when index_options is omitted.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "a quick brown fox")));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(doc, "field"));
+    }
+
+    private static IndexOptions indexedFieldIndexOptions(ParsedDocument doc, String field) {
+        for (IndexableField indexableField : doc.rootDoc().getFields(field)) {
+            if (indexableField.fieldType().indexOptions() != IndexOptions.NONE) {
+                return indexableField.fieldType().indexOptions();
+            }
+        }
+        throw new AssertionError("no indexed field found for [" + field + "]");
     }
 
     public void testTextKeepsOwnDocValuesInColumnarMode() throws IOException {
@@ -2802,9 +3063,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSingleFallbackValueIsAcceptedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         mapper.parse(source(b -> b.field("field", longValue)));
     }
@@ -2816,9 +3075,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * While these are technically two separate fields, single values are enforced on a document-level, so the second value is rejected.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String shortValue = randomAlphanumericOfLength(5);
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         DocumentParsingException e = expectThrows(
@@ -2835,9 +3092,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * Mirror of {@link #testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField} with the order reversed.
      */
     public void testSecondValueInRegularFieldIsRejectedWhenMultiValueFalseAndFirstValueInFallbackField() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         String shortValue = randomAlphanumericOfLength(5);
         DocumentParsingException e = expectThrows(
@@ -2854,9 +3109,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * We have two values for a field, both of which exceed MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         String longValue2 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         DocumentParsingException e = expectThrows(

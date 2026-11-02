@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -122,6 +123,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
+    private final AtomicLong logicalSize = new AtomicLong();
+    // Size fields technically don't need to be atomic since they are written under a lock.
+    // But having them volatile produces a warning in the IDE, and there is pretty much no logical difference between the two anyway.
+    private final AtomicLong headersSizeBytes = new AtomicLong();
+    private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
+    private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
@@ -146,6 +153,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // This is used to avoid adding replicated content for files that are already included in the first region.
     private final int estimatedMaxHeaderSizeInBytes;
 
+    private final UploadStreamHook uploadStreamHook;
+
     public VirtualBatchedCompoundCommit(
         ShardId shardId,
         String nodeEphemeralId,
@@ -156,12 +165,36 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         int cacheRegionSize,
         int estimatedMaxHeaderSizeInBytes
     ) {
+        this(
+            shardId,
+            nodeEphemeralId,
+            primaryTerm,
+            generation,
+            uploadedBlobLocationsSupplier,
+            timeInMillisSupplier,
+            cacheRegionSize,
+            estimatedMaxHeaderSizeInBytes,
+            UploadStreamHook.NOOP
+        );
+    }
+
+    public VirtualBatchedCompoundCommit(
+        ShardId shardId,
+        String nodeEphemeralId,
+        long primaryTerm,
+        long generation,
+        Function<String, BlobLocation> uploadedBlobLocationsSupplier,
+        LongSupplier timeInMillisSupplier,
+        int cacheRegionSize,
+        int estimatedMaxHeaderSizeInBytes,
+        UploadStreamHook uploadStreamHook
+    ) {
         this.shardId = shardId;
         this.nodeEphemeralId = nodeEphemeralId;
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
@@ -171,6 +204,28 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
         }
         this.estimatedMaxHeaderSizeInBytes = estimatedMaxHeaderSizeInBytes;
+        this.uploadStreamHook = uploadStreamHook;
+    }
+
+    /**
+     * Intercepts the input stream returned by {@link #getFrozenInputStreamForUpload(long, long)} while it is consumed, so that tests can
+     * inject delays at specific points of the upload.
+     */
+    public interface UploadStreamHook {
+        UploadStreamHook NOOP = new UploadStreamHook() {};
+
+        /**
+         * Invoked when the upload stream opens an internal file as its next slice. Implementations may delay the call to {@code opener}
+         * or wrap the stream it returns.
+         */
+        default InputStream openInternalFile(String filename, CheckedSupplier<InputStream, IOException> opener) throws IOException {
+            return opener.get();
+        }
+
+        /**
+         * Invoked once the upload stream has been reset to its mark.
+         */
+        default void onReset() {}
     }
 
     public void addNotifiedSearchNodeIds(Collection<String> nodeIds) {
@@ -262,6 +317,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         final var ccTermAndGen = new PrimaryTermAndGeneration(reference.getPrimaryTerm(), reference.getGeneration());
         final boolean isFirstCommit = ccTermAndGen.equals(primaryTermAndGeneration);
 
+        long initialOffset = currentOffset.get();
+
         // Ordered set of compound commit (CC) internal files
         var internalFiles = new TreeSet<InternalFile>();
 
@@ -269,13 +326,20 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var referencedFiles = new HashMap<String, BlobLocation>();
 
         var internalFilesSize = 0L;
+        var copiedGenerationalFilesSize = 0L;
         for (String commitFile : reference.getCommitFiles()) {
             boolean isAdditionalFile = reference.getAdditionalFiles().contains(commitFile);
-            if (isAdditionalFile || (isFirstCommit && isGenerationalFile(commitFile))) {
+            boolean shouldCopyGenerationalFile = isFirstCommit && isGenerationalFile(commitFile);
+            if (isAdditionalFile || shouldCopyGenerationalFile) {
                 assert internalLocations.containsKey(commitFile) == false : commitFile;
                 var fileLength = reference.getDirectory().fileLength(commitFile);
                 internalFiles.add(new InternalFile(commitFile, fileLength));
                 internalFilesSize += fileLength;
+
+                if (isAdditionalFile == false && shouldCopyGenerationalFile) {
+                    // We are only interested in copies of generational files.
+                    copiedGenerationalFilesSize += fileLength;
+                }
             } else {
                 var blobLocation = internalLocations.get(commitFile);
                 assert blobLocation != null || isGenerationalFile(commitFile) == false : commitFile;
@@ -287,11 +351,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles.put(commitFile, blobLocation);
             }
         }
+        copiedGenerationalFilesSizeBytes.addAndGet(copiedGenerationalFilesSize);
 
         var replicatedContent = useInternalFilesReplicatedContent
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
             : ReplicatedContent.EMPTY;
         var replicatedContentHeader = replicatedContent.header();
+        replicatedContentSizeBytes.addAndGet(replicatedContentHeader.dataSizeInBytes());
 
         // We replicate referenced .si files into hollow commits as extra content appended after the internal files in the compound commit.
         final List<InternalFile> extraContentFiles = reference.isHollow() ? new ArrayList<>() : List.of();
@@ -315,6 +381,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             timestampFieldValueRange
         );
         final int headerLength = Math.toIntExact(headerReader.headerSize());
+        headersSizeBytes.addAndGet(headerLength);
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
@@ -407,6 +474,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             fileOffset += fileLength;
         }
         currentOffset.set(fileOffset);
+        logicalSize.addAndGet(currentOffset.get() - initialOffset - copiedGenerationalFilesSize);
 
         var pendingCompoundCommit = new PendingCompoundCommit(
             headerLength,
@@ -674,7 +742,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             protected InputStream openSlice(int slice) throws IOException {
                 final var offset = offsets.get(slice);
                 final var reader = internalDataReadersByOffset.get(offset);
+                if (reader instanceof InternalFileReader fileReader) {
+                    return uploadStreamHook.openInternalFile(fileReader.filename(), reader::getInputStream);
+                }
                 return reader.getInputStream();
+            }
+
+            @Override
+            protected void onReset() {
+                uploadStreamHook.onReset();
             }
 
             @Override
@@ -715,6 +791,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             @Override
             protected InputStream openSlice(int n) throws IOException {
                 var slice = slices.get(n);
+                if (slice.getValue() instanceof InternalFileReader fileReader) {
+                    return uploadStreamHook.openInternalFile(fileReader.filename(), () -> openSliceStream(slice, n));
+                }
+                return openSliceStream(slice, n);
+            }
+
+            private InputStream openSliceStream(Map.Entry<Long, InternalDataReader> slice, int n) throws IOException {
                 long skipBytes = Math.max(0L, offset - slice.getKey());
                 assert skipBytes == 0 || n == 0 : "can be non-zero only for the first entry, but got: " + skipBytes + " for slice " + n;
                 if (skipBytes > 0) {
@@ -737,6 +820,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     assert stream.markSupported();
                     return stream;
                 }
+            }
+
+            @Override
+            protected void onReset() {
+                uploadStreamHook.onReset();
             }
 
             @Override
@@ -771,6 +859,30 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     public long getTotalSizeInBytes() {
         return currentOffset.get();
+    }
+
+    /// Returns the size of this VBCC excluding generational files copied from the previous VBCC.
+    /// This is used to determine if this VBCC matches the size threshold for upload.
+    /// We exclude copied generational files because in some cases they dominate the size of the VBCC
+    /// and would trigger frequent uploads resulting in write amplification.
+    public long sizeInBytesExcludingCopiedGenerationalFiles() {
+        return logicalSize.get();
+    }
+
+    /// Returns the total size (the sum) of headers of all compound commits in this batched commit.
+    public long headersSizeInBytes() {
+        return headersSizeBytes.get();
+    }
+
+    /// Returns the size of copied generational files in this batched commit.
+    /// Such files are copied into the first commit of a BCC only.
+    public long copiedGenerationalFilesSizeInBytes() {
+        return copiedGenerationalFilesSizeBytes.get();
+    }
+
+    /// Returns the total size (the sum) of replicated content of all compound commits in this batched commit.
+    public long replicatedContentSizeInBytes() {
+        return replicatedContentSizeBytes.get();
     }
 
     public Map<String, BlobLocation> getInternalLocations() {

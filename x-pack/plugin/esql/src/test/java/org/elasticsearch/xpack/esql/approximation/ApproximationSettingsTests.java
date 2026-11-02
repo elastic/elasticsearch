@@ -170,4 +170,22 @@ public class ApproximationSettingsTests extends ESTestCase {
             throw new IllegalArgumentException("Unsupported literal type: " + value.getClass());
         }
     }
+
+    public void testIsOnTreatsUnsetAndExplicitlyDisabledAlike() {
+        assertThat(ApproximationSettings.isOn(null), equalTo(false));
+        assertThat(ApproximationSettings.isOn(ApproximationSettings.EXPLICIT_NULL), equalTo(false));
+        assertThat(ApproximationSettings.isOn(ApproximationSettings.DEFAULT), equalTo(true));
+    }
+
+    public void testIsOnUsesIdentityNotEqualityForTheDisabledSentinel() {
+        // {"rows": null, "confidence_level": null} parses to a value that is record-equal to the disabled sentinel but
+        // means the opposite: approximation on, engine-chosen rows, no confidence intervals. Only reference identity
+        // tells the two apart, which is why isOn cannot be written with equals.
+        ApproximationSettings onWithNulls = new ApproximationSettings.Builder(true).rows(null).confidenceLevel(null).build();
+
+        assertThat(onWithNulls, equalTo(ApproximationSettings.EXPLICIT_NULL));
+        assertThat(ApproximationSettings.isOn(onWithNulls), equalTo(true));
+        assertThat(ApproximationSettings.isOn(ApproximationSettings.EXPLICIT_NULL), equalTo(false));
+    }
+
 }

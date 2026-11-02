@@ -41,7 +41,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(Property.class)));
     }
 
-    public void testProcessor_noField() throws Exception {
+    public void testProcessor_noField() {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, Settings.EMPTY);
         Map<String, Object> config = new HashMap<>();
         ElasticsearchParseException e = expectThrows(
@@ -63,7 +63,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getProperties(), equalTo(EnumSet.of(Property.USERNAME, Property.ROLES)));
     }
 
-    public void testProcessor_invalidProperties() throws Exception {
+    public void testProcessor_invalidProperties() {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, Settings.EMPTY);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

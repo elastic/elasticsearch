@@ -27,7 +27,10 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -41,6 +44,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -82,7 +87,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -158,6 +163,11 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock file storage provider for testing.
      */
     private static class MockFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("file");
@@ -299,6 +309,11 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class PayloadFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final Map<String, byte[]> payloadByPath;
 
         PayloadFileStorageProvider(Map<String, byte[]> payloadByPath) {
@@ -334,6 +349,19 @@ public class DataSourceModuleTests extends ESTestCase {
                 throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
             }
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() {
                     return new ByteArrayInputStream(payload);
@@ -841,7 +869,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
      * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
-     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+    * a message that names the supported set, while gzip and zstd still resolve.
      */
     public void testTextCodecsRejectedOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
@@ -883,7 +911,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     /**
      * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
-     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+    * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats.
      */
     public void testTextCodecsAllowedOnSnapshotBuilds() {
         assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
@@ -1082,7 +1110,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
      * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
-     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+    * not silently accepted while misreading the compressed bytes.
      */
     public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
@@ -1103,8 +1131,68 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Test that DataSourceModule correctly reports table catalog availability.
+     * {@link DataSourceModule.LazyTableCatalogWrapper#canHandle(String, Map)} must decline when the config carries an
+     * explicit registered file format. Without this, the Iceberg wrapper wins the factory race for extensionless S3
+     * paths even when an authoritative {@code format} setting is present — causing IcebergTableCatalog.validateConfig to
+     * reject the setting as unknown on the synchronous anchor-footer read that strict mappings trigger.
      */
+    public void testLazyTableCatalogWrapperDeclinesExplicitRegisteredFormat() {
+        // A plugin that registers "test-parquet" as a file format and "test-catalog" as a table catalog.
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("test-scheme");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                // Register both "test-parquet" (for the format= key cases) and "parquet" so the
+                // reader=java alias (READER_ALIAS_TO_FORMAT maps "java" → "parquet") is also covered.
+                return Set.of(FormatSpec.of("test-parquet", ".test-parquet"), FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Set<String> supportedCatalogs() {
+                return Set.of("test-catalog");
+            }
+        };
+
+        try (DataSourceModule module = createModule(List.of(plugin), Settings.EMPTY, blockFactory)) {
+            ExternalSourceFactory catalogFactory = module.sourceFactories().get("test-catalog");
+            assertNotNull("test-catalog factory must be registered", catalogFactory);
+
+            String extensionlessS3 = "s3://bucket/no-ext-object";
+
+            // Declines when config names the registered format.
+            assertFalse(catalogFactory.canHandle(extensionlessS3, Map.of("format", "test-parquet")));
+
+            // Still claims when format is auto (sentinel meaning "infer from extension").
+            assertTrue(catalogFactory.canHandle(extensionlessS3, Map.of("format", "auto")));
+
+            // Still claims when config is absent or empty — Iceberg heuristic remains operative.
+            assertTrue(catalogFactory.canHandle(extensionlessS3, null));
+            assertTrue(catalogFactory.canHandle(extensionlessS3, Map.of()));
+
+            // Still claims when the format name is not a registered file format.
+            assertTrue(catalogFactory.canHandle(extensionlessS3, Map.of("format", "not-a-registered-format")));
+
+            // reader=java is an alias for "parquet" (via FormatNameResolver.READER_ALIAS_TO_FORMAT) — declines because
+            // "parquet" is a registered format.
+            assertFalse(catalogFactory.canHandle(extensionlessS3, Map.of("reader", "java")));
+
+            // Regression pin: extensionful S3 path is never claimed regardless of config.
+            assertFalse(catalogFactory.canHandle("s3://bucket/obj.csv", Map.of()));
+            assertFalse(catalogFactory.canHandle("s3://bucket/obj.csv", Map.of("format", "test-parquet")));
+
+            // Regression pin: non-S3 scheme is never claimed.
+            assertFalse(catalogFactory.canHandle("file:///tmp/no-ext", Map.of()));
+            assertFalse(catalogFactory.canHandle("file:///tmp/no-ext", Map.of("format", "test-parquet")));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Test that DataSourceModule correctly reports table catalog availability. */
     public void testTableCatalogAvailability() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
@@ -1190,6 +1278,11 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock storage provider for testing custom plugin registration.
      */
     private static class MockStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("custom");

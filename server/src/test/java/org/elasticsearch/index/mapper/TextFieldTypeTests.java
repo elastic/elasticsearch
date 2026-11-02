@@ -49,9 +49,9 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
@@ -560,6 +560,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -603,6 +605,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -645,6 +649,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -677,6 +683,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -707,6 +715,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             null,
+            false,
+            false,
             false
         );
 
@@ -743,6 +753,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
     }
@@ -764,6 +776,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             null,
+            false,
+            false,
             false
         );
     }
@@ -822,12 +836,12 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         q = ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
         assertThat(q, instanceOf(StringScriptFieldWildcardQuery.class));
 
-        // Binary DV → ScanningBinaryDocValuesWildcardQuery (both cases)
+        // Binary DV → ScanningBinaryDocValuesAutomatonQuery (both cases)
         TextFieldType binaryFt = binaryDocValuesOnly();
         q = binaryFt.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+        assertThat(q, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
         q = binaryFt.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+        assertThat(q, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
 
         // Neither indexed nor doc values → error
         TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());

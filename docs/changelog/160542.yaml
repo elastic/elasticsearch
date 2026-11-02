@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160542
+summary: Keep partition hints on glob retry
+type: enhancement

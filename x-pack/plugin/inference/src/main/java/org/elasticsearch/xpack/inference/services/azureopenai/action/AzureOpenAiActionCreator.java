@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -82,12 +82,8 @@ public class AzureOpenAiActionCreator implements AzureOpenAiActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             COMPLETION_HANDLER,
-            (chatCompletionInput) -> new AzureOpenAiCompletionRequest(
-                chatCompletionInput.getInputs(),
-                overriddenModel,
-                chatCompletionInput.stream()
-            ),
-            ChatCompletionInput.class
+            (completionInput) -> new AzureOpenAiCompletionRequest(completionInput.getInputs(), overriddenModel, completionInput.stream()),
+            CompletionInput.class
         );
         return new SingleInputSenderExecutableAction(
             sender,

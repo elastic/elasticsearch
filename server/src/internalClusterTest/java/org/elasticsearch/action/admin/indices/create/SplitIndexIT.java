@@ -445,8 +445,7 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateSplitWithIndexSort() throws Exception {
-        SortField expectedSortField = new SortedSetSortField("id", true, SortedSetSelector.Type.MAX);
-        expectedSortField.setMissingValue(SortedSetSortField.STRING_FIRST);
+        SortField expectedSortField = new SortedSetSortField("id", true, SortedSetSelector.Type.MAX, SortedSetSortField.STRING_FIRST);
         Sort expectedIndexSort = new Sort(expectedSortField);
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(

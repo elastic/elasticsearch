@@ -15,18 +15,22 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 public class Segment implements Writeable {
+
+    static final TransportVersion SEGMENT_AUTO_CALIBRATION = TransportVersion.fromName("segment_auto_calibration");
 
     private String name;
     private long generation;
@@ -40,6 +44,9 @@ public class Segment implements Writeable {
     public String mergeId;
     public Sort segmentSort;
     public Map<String, String> attributes;
+    public Map<String, SegmentCalibrationParameters> autoCalibrationParams;
+    public Map<String, Long> autoCalibrationVectorCounts;
+    public Map<String, Long> autoCalibrationSizeBytes;
 
     public Segment(StreamInput in) throws IOException {
         name = in.readString();
@@ -60,6 +67,17 @@ public class Segment implements Writeable {
             attributes = in.readMap(StreamInput::readString);
         } else {
             attributes = null;
+        }
+        if (in.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            if (in.readBoolean()) {
+                autoCalibrationParams = in.readMap(StreamInput::readString, SegmentCalibrationParameters::readFrom);
+            }
+            if (in.readBoolean()) {
+                autoCalibrationVectorCounts = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            }
+            if (in.readBoolean()) {
+                autoCalibrationSizeBytes = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            }
         }
     }
 
@@ -163,6 +181,26 @@ public class Segment implements Writeable {
         if (hasAttributes) {
             out.writeMap(attributes, StreamOutput::writeString);
         }
+        if (out.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            if (autoCalibrationParams != null) {
+                out.writeBoolean(true);
+                out.writeMap(autoCalibrationParams, StreamOutput::writeString, (o, p) -> p.writeTo(o));
+            } else {
+                out.writeBoolean(false);
+            }
+            if (autoCalibrationVectorCounts != null) {
+                out.writeBoolean(true);
+                out.writeMap(autoCalibrationVectorCounts, StreamOutput::writeString, StreamOutput::writeVLong);
+            } else {
+                out.writeBoolean(false);
+            }
+            if (autoCalibrationSizeBytes != null) {
+                out.writeBoolean(true);
+                out.writeMap(autoCalibrationSizeBytes, StreamOutput::writeString, StreamOutput::writeVLong);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     private static final byte SORT_STRING_SET = 0;
@@ -185,17 +223,22 @@ public class Segment implements Writeable {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortedSetSortField(field, reverse, max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
-                if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
-                }
+                Object missingValue = missingFirst == null ? null
+                    : missingFirst ? SortedSetSortField.STRING_FIRST
+                    : SortedSetSortField.STRING_LAST;
+                fields[i] = new SortedSetSortField(
+                    field,
+                    reverse,
+                    max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN,
+                    missingValue
+                );
             } else if (type == SORT_STRING_SINGLE) {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortField(field, SortField.Type.STRING, reverse);
-                if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
-                }
+                Object missingValue = missingFirst == null ? null
+                    : missingFirst ? SortedSetSortField.STRING_FIRST
+                    : SortedSetSortField.STRING_LAST;
+                fields[i] = new SortField(field, SortField.Type.STRING, reverse, missingValue);
             } else {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
@@ -211,11 +254,9 @@ public class Segment implements Writeable {
                     field,
                     numericType,
                     reverse,
-                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN,
+                    missing
                 );
-                if (missing != null) {
-                    fields[i].setMissingValue(missing);
-                }
             }
         }
         return new Sort(fields);

@@ -15,7 +15,6 @@ import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -354,16 +353,20 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         this.childReleasables.add(releasable);
     }
 
+    @SuppressWarnings("deprecation")
+    private static org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory buildClassicSslSocketFactory(SslProfile sslProfile) {
+        // SSLConnectionSocketFactory is deprecated in HC5 in favour of TlsStrategy (async only).
+        // OpenSAML's AbstractReloadingMetadataResolver requires a blocking HTTP client, so the
+        // async path is not available here.
+        return new org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory(sslProfile.sslContext(), sslProfile.hostnameVerifier());
+    }
+
     private static SamlMetadataResolver.MetadataParseResult parseHttpMetadata(String metadataUrl, RealmConfig config, SSLService sslService)
         throws ResolverException, ComponentInitializationException {
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SslProfile sslProfile = sslService.profile(sslKey);
-        final SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-            sslProfile.sslContext(),
-            sslProfile.hostnameVerifier()
-        );
         final var connManager = PoolingHttpClientConnectionManagerBuilder.create()
-            .setSSLSocketFactory(sslSocketFactory)
+            .setSSLSocketFactory(buildClassicSslSocketFactory(sslProfile))
             .setConnectionTimeToLive(org.apache.hc.core5.util.TimeValue.ofSeconds(DEFAULT_CONNECTION_TTL.toDuration().toSeconds()))
             .build();
 
@@ -410,6 +413,18 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
         ThreadCheckingHTTPMetadataResolver(final HttpClient client, final String metadataURL) throws ResolverException {
             super(client, metadataURL);
+        }
+
+        @Override
+        public synchronized void refresh() throws ResolverException {
+            // OpenSAML 5's AbstractReloadingMetadataResolver#refresh asserts nextRefresh != null in its finally block. That invariant
+            // no longer holds once destroy() has run (doDestroy() nulls nextRefresh), and refresh()'s own isDestroyed() early-return
+            // sits inside the try, so the finally still executes and the assert fires. Since destroy() and refresh() synchronize on
+            // this instance, checking under the monitor here means destroy() cannot interleave between this check and super.refresh().
+            if (isDestroyed()) {
+                return;
+            }
+            super.refresh();
         }
 
         @Override
@@ -479,6 +494,16 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
         SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
             super(metadata);
+        }
+
+        @Override
+        public synchronized void refresh() throws ResolverException {
+            // See ThreadCheckingHTTPMetadataResolver#refresh: skip the base refresh() after destroy() to avoid its
+            // finally-block assert on the nulled nextRefresh; the shared instance monitor makes this check race-free.
+            if (isDestroyed()) {
+                return;
+            }
+            super.refresh();
         }
 
         @Override

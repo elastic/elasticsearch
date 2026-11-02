@@ -227,7 +227,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
-                firstPassAggs.add(agg);
+                secondPassAggs.add(agg);
             }
         }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
@@ -402,7 +402,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         AggregateFunction bucketInputAggregation = null;
         for (NamedExpression candidate : firstPassAggs) {
             if (candidate instanceof Alias alias
-                && Alias.unwrap(alias) instanceof AggregateFunction aggregation
+                && Alias.unwrap(alias) instanceof TimeSeriesAggregateFunction aggregation
                 && aggregation.field().semanticEquals(bucket.field())) {
                 if (bucketInputAggregation != null && bucketInputAggregation.semanticEquals(aggregation) == false) {
                     throw new EsqlIllegalArgumentException(
@@ -475,19 +475,17 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         if (attribute.isDimension()) {
             packDimensions.add(valuesAgg.toAttribute());
             unpackDimensions.add(
-                new ReferenceAttribute(
-                    group.source(),
-                    null,
-                    group.name(),
-                    attribute.dataType().noText(),
-                    Nullability.TRUE,
-                    group.id(),
-                    false
-                )
+                new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
             );
             packPositions[position] = true;
         } else {
-            secondPassGroupings.add(new Alias(group.source(), group.name(), valuesAgg.toAttribute(), group.id()));
+            // VALUES turns TEXT into KEYWORD. Keep the original type on the grouping so that the output type does not drift
+            // from what parent plans (e.g. a Project created by DROP/KEEP) resolved against before this translation.
+            Attribute values = valuesAgg.toAttribute();
+            if (values.dataType() != attribute.dataType() && values.dataType() == attribute.dataType().noText()) {
+                values = values.withDataType(attribute.dataType());
+            }
+            secondPassGroupings.add(new Alias(group.source(), group.name(), values, group.id()));
         }
     }
 

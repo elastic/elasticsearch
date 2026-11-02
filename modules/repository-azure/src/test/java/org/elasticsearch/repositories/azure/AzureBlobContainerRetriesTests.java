@@ -50,12 +50,15 @@ import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -83,6 +86,7 @@ import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.r
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -343,12 +347,27 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             }
         });
 
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
+        if (randomBoolean()) {
+            blobContainer.writeBlobAtomic(
+                randomPurpose(),
+                "write_blob_max_retries",
+                bytes.length,
+                (offset, length) -> new ByteArrayInputStream(bytes, Math.toIntExact(offset), Math.toIntExact(length)),
+                false,
+                Runnable::run
+            );
+        } else {
+            try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
+                blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
+            }
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.repositories.azure:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/152914"
+    )
     public void testWriteLargeBlob() throws Exception {
         final int maxRetries = randomIntBetween(4, 8);
         logger.info("--> max retries: {}", maxRetries);
@@ -411,9 +430,32 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     Streams.readFully(exchange.getRequestBody());
                     AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                 } else {
-                    logger.info("--> failing no response");
                     long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
-                    readFromInputStream(exchange.getRequestBody(), randomLongBetween(0, contentLength));
+                    final long bytesToRead = randomLongBetween(0, contentLength);
+                    logger.info(
+                        "--> failing no response: [{}] [{}] content-length [{}], will read [{}] bytes",
+                        exchange.getRequestMethod(),
+                        exchange.getRequestURI(),
+                        contentLength,
+                        bytesToRead
+                    );
+                    // Count the bytes actually received so that, if the client stalls mid-body (see #152914), the log shows how far it got.
+                    final AtomicLong bytesReceived = new AtomicLong();
+                    final InputStream countingBody = new FilterInputStream(exchange.getRequestBody()) {
+                        @Override
+                        public int read() throws IOException {
+                            final int b = super.read();
+                            if (b != -1) {
+                                bytesReceived.incrementAndGet();
+                            }
+                            return b;
+                        }
+                    };
+                    try {
+                        readFromInputStream(countingBody, bytesToRead);
+                    } finally {
+                        logger.info("--> failing no response: received [{}] of [{}] bytes", bytesReceived.get(), bytesToRead);
+                    }
                 }
                 exchange.close();
             } catch (Throwable t) {
@@ -422,8 +464,19 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             }
         });
 
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-            blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
+        if (randomBoolean()) {
+            blobContainer.writeBlobAtomic(
+                randomPurpose(),
+                "write_large_blob",
+                data.length,
+                (offset, length) -> new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length)),
+                false,
+                Runnable::run
+            );
+        } else {
+            try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
+                blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
+            }
         }
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
@@ -778,11 +831,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
                 );
             }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
         };
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
@@ -793,6 +841,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 

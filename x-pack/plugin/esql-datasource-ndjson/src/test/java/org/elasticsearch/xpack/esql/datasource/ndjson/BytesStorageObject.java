@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -18,7 +18,7 @@ import java.time.Instant;
 /**
  * Byte-array backed storage object for testing
  */
-public class BytesStorageObject implements StorageObject {
+public class BytesStorageObject extends AbstractTestStorageObject {
     private final StoragePath path;
     private final byte[] bytes;
 

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160266
+summary: Add configurable default and max TTL for async search results
+type: enhancement

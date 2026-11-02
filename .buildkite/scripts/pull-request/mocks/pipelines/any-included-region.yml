@@ -1,0 +1,6 @@
+config:
+  any-included-regions:
+    - ^x-pack/plugin/esql/.*
+steps:
+  - label: any-included-region
+    command: echo 1

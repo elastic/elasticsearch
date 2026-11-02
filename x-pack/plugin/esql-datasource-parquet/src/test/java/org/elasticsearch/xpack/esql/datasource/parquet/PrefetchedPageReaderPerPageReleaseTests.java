@@ -74,18 +74,19 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             (long) PAGE_PAYLOAD_BYTES * PAGES
         );
         try {
+            assertEquals(compressedDictBytes.length, breaker.getUsed());
             assertNotNull(reader.readDictionaryPage());
-            assertEquals(dictPayload.length, breaker.getUsed());
+            assertEquals(compressedDictBytes.length + dictPayload.length, breaker.getUsed());
             for (int p = 0; p < PAGES; p++) {
                 assertNotNull(reader.readPage());
                 assertEquals(
-                    "live charge must be dictionary plus dest capacity (one page) after readPage() #" + (p + 1),
-                    dictPayload.length + PAGE_PAYLOAD_BYTES,
+                    "live charge must be compressed dictionary copy, decompressed dictionary, and one page after readPage() #" + (p + 1),
+                    compressedDictBytes.length + dictPayload.length + PAGE_PAYLOAD_BYTES,
                     breaker.getUsed()
                 );
             }
             assertNull(reader.readPage());
-            assertEquals(dictPayload.length + PAGE_PAYLOAD_BYTES, breaker.getUsed());
+            assertEquals(compressedDictBytes.length + dictPayload.length + PAGE_PAYLOAD_BYTES, breaker.getUsed());
         } finally {
             reader.close();
             fixture.codecFactory.release();

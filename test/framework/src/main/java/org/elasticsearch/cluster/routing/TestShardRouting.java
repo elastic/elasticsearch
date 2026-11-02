@@ -34,10 +34,10 @@ import static org.elasticsearch.test.ESTestCase.safeSleep;
 import static org.junit.Assert.assertNotEquals;
 
 /**
- * A helper that allows to create shard routing instances within tests, while not requiring to expose
+ * A helper that allows tests to create shard routing instances, while not requiring to expose
  * different simplified constructors on the ShardRouting itself.
  *
- * Please do not add more `newShardRouting`, consider using a aSharRouting builder instead
+ * Please do not add more {@code newShardRouting} overloads, consider using {@link #shardRoutingBuilder} instead.
  */
 public class TestShardRouting {
 
@@ -268,7 +268,9 @@ public class TestShardRouting {
         return randomFrom(
             ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
             ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+            ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
+            ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
         );
     }
 

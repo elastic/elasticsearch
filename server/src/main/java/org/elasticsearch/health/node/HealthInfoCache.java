@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -36,6 +37,12 @@ public class HealthInfoCache implements ClusterStateListener {
     private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
     private volatile FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
     @Nullable
+    private volatile DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo = null;
+    private volatile ConcurrentHashMap<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode =
+        new ConcurrentHashMap<>();
+    @Nullable
+    private volatile DataRecoveryHealthInfo dataRecoveryHealthInfo = null;
+    @Nullable
     private volatile String masterNodeId = null;
 
     private HealthInfoCache() {}
@@ -53,6 +60,39 @@ public class HealthInfoCache implements ClusterStateListener {
         @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
         @Nullable FileSettingsHealthInfo fileSettingsHealthInfo
     ) {
+        updateNodeHealth(nodeId, diskHealthInfo, latestDslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo, null);
+    }
+
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo
+    ) {
+        updateNodeHealth(
+            nodeId,
+            diskHealthInfo,
+            latestDslHealthInfo,
+            repositoriesHealthInfo,
+            fileSettingsHealthInfo,
+            latestDlmFrozenTransitionsHealthInfo,
+            null,
+            null
+        );
+    }
+
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo,
+        @Nullable DataRecoveryHealthInfo latestDataRecoveryHealthInfo,
+        @Nullable LocalRecoveryRetriesHealthInfo localRecoveryRetriesHealthInfo
+    ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
         }
@@ -68,6 +108,15 @@ public class HealthInfoCache implements ClusterStateListener {
             if (fileSettingsHealthInfo != null) {
                 this.fileSettingsHealthInfo = fileSettingsHealthInfo;
             }
+            if (latestDlmFrozenTransitionsHealthInfo != null) {
+                this.dlmFrozenTransitionsHealthInfo = latestDlmFrozenTransitionsHealthInfo;
+            }
+            if (latestDataRecoveryHealthInfo != null) {
+                this.dataRecoveryHealthInfo = latestDataRecoveryHealthInfo;
+            }
+        }
+        if (localRecoveryRetriesHealthInfo != null) {
+            this.localRecoveryRetriesHealthInfoByNode.put(nodeId, localRecoveryRetriesHealthInfo);
         }
     }
 
@@ -84,24 +133,35 @@ public class HealthInfoCache implements ClusterStateListener {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());
                     repositoriesInfoByNode.remove(removedNode.getId());
+                    localRecoveryRetriesHealthInfoByNode.remove(removedNode.getId());
                 }
             }
             // Resetting the cache is not synchronized for efficiency and simplicity.
             // Processing a delayed update after the cache has been emptied because
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
-        } else if (diskInfoByNode.isEmpty() == false
+        } else if (hasAnyHealthInfo()) {
+            logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
+            diskInfoByNode = new ConcurrentHashMap<>();
+            dslHealthInfo = null;
+            repositoriesInfoByNode = new ConcurrentHashMap<>();
+            fileSettingsHealthInfo = INDETERMINATE;
+            masterNodeId = null;
+            dlmFrozenTransitionsHealthInfo = null;
+            dataRecoveryHealthInfo = null;
+            localRecoveryRetriesHealthInfoByNode = new ConcurrentHashMap<>();
+        }
+    }
+
+    private boolean hasAnyHealthInfo() {
+        return diskInfoByNode.isEmpty() == false
             || dslHealthInfo != null
             || repositoriesInfoByNode.isEmpty() == false
             || fileSettingsHealthInfo != INDETERMINATE
-            || masterNodeId != null) {
-                logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
-                diskInfoByNode = new ConcurrentHashMap<>();
-                dslHealthInfo = null;
-                repositoriesInfoByNode = new ConcurrentHashMap<>();
-                fileSettingsHealthInfo = INDETERMINATE;
-                masterNodeId = null;
-            }
+            || masterNodeId != null
+            || dlmFrozenTransitionsHealthInfo != null
+            || dataRecoveryHealthInfo != null
+            || localRecoveryRetriesHealthInfoByNode.isEmpty() == false;
     }
 
     /**
@@ -110,6 +170,14 @@ public class HealthInfoCache implements ClusterStateListener {
      */
     public HealthInfo getHealthInfo() {
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode), fileSettingsHealthInfo);
+        return new HealthInfo(
+            Map.copyOf(diskInfoByNode),
+            dslHealthInfo,
+            Map.copyOf(repositoriesInfoByNode),
+            fileSettingsHealthInfo,
+            dlmFrozenTransitionsHealthInfo,
+            dataRecoveryHealthInfo,
+            Map.copyOf(localRecoveryRetriesHealthInfoByNode)
+        );
     }
 }

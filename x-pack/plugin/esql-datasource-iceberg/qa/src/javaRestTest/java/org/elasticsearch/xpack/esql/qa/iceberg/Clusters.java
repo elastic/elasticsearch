@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.qa.iceberg;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
 
@@ -45,6 +47,7 @@ public class Clusters {
             .setting("xpack.ml.enabled", "false")
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             // S3 credentials must be stored in keystore, not as regular settings
             .keystore("s3.client.default.access_key", ACCESS_KEY)
             .keystore("s3.client.default.secret_key", SECRET_KEY)
@@ -62,6 +65,7 @@ public class Clusters {
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")
             // Apply any additional configuration
             .apply(() -> configProvider)
+            .feature(FeatureFlag.ESQL_EXTERNAL_ICEBERG)
             .build();
     }
 

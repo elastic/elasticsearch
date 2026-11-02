@@ -36,7 +36,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
@@ -122,9 +122,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPostIndex() throws Exception {
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
-        SourceToParse.Source source = mock(SourceToParse.Source.class);
-        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
-        when(operation.source()).thenReturn(source);
+        when(operation.source()).thenReturn(BytesSource.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
         types.remove(Engine.Result.Type.FAILURE);
@@ -154,9 +152,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
-        SourceToParse.Source source = mock(SourceToParse.Source.class);
-        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
-        when(operation.source()).thenReturn(source);
+        when(operation.source()).thenReturn(BytesSource.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
         types.remove(Engine.Result.Type.FAILURE);
@@ -181,9 +177,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch(id, watchActive, isNewWatch);
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-        SourceToParse.Source source = mock(SourceToParse.Source.class);
-        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
-        when(operation.source()).thenReturn(source);
+        when(operation.source()).thenReturn(BytesSource.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
@@ -226,9 +220,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     public void testPostIndexCheckParsingException() throws Exception {
         String id = randomAlphaOfLength(10);
         when(operation.id()).thenReturn(id);
-        SourceToParse.Source source = mock(SourceToParse.Source.class);
-        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
-        when(operation.source()).thenReturn(source);
+        when(operation.source()).thenReturn(BytesSource.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenThrow(new IOException("self thrown"));
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);

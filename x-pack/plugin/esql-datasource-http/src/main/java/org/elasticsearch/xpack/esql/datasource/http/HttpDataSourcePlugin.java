@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.local.LocalStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -82,6 +83,14 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Map<String, String> testConnectionSchemes() {
+        if (localEnabled() == false) {
+            return Map.of();
+        }
+        return Map.of("local", "file");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         if (httpEnabled() == false && localEnabled() == false) {
             return Map.of();
@@ -117,11 +126,13 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         Map<String, DataSourceValidator> validators = new HashMap<>();
         if (httpEnabled()) {
-            DataSourceValidator http = new FileDataSourceValidator("http", NoAuthDataSourceConfiguration::fromMap, Set.of("http", "https"));
+            DataSourceValidator http = new FileDataSourceValidator("http", NoAuthDataSourceConfiguration::fromMap, Set.of("http", "https"))
+                .withFixedAuthMode(FileDataSourceConfiguration.AuthMode.ANONYMOUS);
             validators.put(http.type(), http);
         }
         if (localEnabled()) {
-            DataSourceValidator local = new FileDataSourceValidator("local", NoAuthDataSourceConfiguration::fromMap, Set.of("file"));
+            DataSourceValidator local = new FileDataSourceValidator("local", NoAuthDataSourceConfiguration::fromMap, Set.of("file"))
+                .withFixedAuthMode(FileDataSourceConfiguration.AuthMode.ANONYMOUS);
             validators.put(local.type(), local);
         }
         return validators;

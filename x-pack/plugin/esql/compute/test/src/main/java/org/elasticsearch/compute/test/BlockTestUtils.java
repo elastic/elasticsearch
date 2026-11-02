@@ -524,7 +524,7 @@ public class BlockTestUtils {
     public static TDigestHolder randomTDigest() {
         // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
         int size = between(1, 100);
-        NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("test-breaker");
+        NoopCircuitBreaker noopBreaker = NoopCircuitBreaker.INSTANCE;
         TDigest digest = TDigest.createMergingDigest(new MemoryTrackingTDigestArrays(noopBreaker), 100);
         for (int i = 0; i < size; i++) {
             double sample = randomGaussianDouble();

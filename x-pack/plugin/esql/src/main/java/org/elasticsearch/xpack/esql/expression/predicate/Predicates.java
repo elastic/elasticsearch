@@ -48,6 +48,10 @@ public abstract class Predicates {
         return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
+    public static Expression combineOrWithSource(Collection<? extends Expression> exps, Source source) {
+        return combine(exps, (l, r) -> new Or(source, l, r));
+    }
+
     public static Expression combineAnd(Collection<? extends Expression> exps) {
         return combine(exps, (l, r) -> new And(l.source(), l, r));
     }

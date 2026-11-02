@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -50,7 +51,7 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .build();
 
-    public InferenceWithSecurityRestIT(final ClientYamlTestCandidate testCandidate) {
+    public InferenceWithSecurityRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

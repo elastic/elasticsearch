@@ -21,14 +21,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.util.Objects;
 
 public class ZstdCompressionMode extends CompressionMode {
     private final int level;
@@ -62,8 +60,7 @@ public class ZstdCompressionMode extends CompressionMode {
 
         @Override
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
-            final NativeAccess nativeAccess = NativeAccess.instance();
-            final Zstd zstd = nativeAccess.getZstd();
+            final Zstd zstd = Zstd.instance();
 
             final int srcLen = Math.toIntExact(buffersInput.length());
             if (srcLen == 0) {
@@ -94,7 +91,7 @@ public class ZstdCompressionMode extends CompressionMode {
     static final class ZstdDecompressor extends Decompressor {
 
         // we can safely store and share a single Zstd instance, since we only use thread-safe decompress
-        static final Zstd ZSTD = Objects.requireNonNull(NativeAccess.instance().getZstd());
+        static final Zstd ZSTD = Zstd.instance();
 
         private ZstdDecompressor() {}
 
@@ -143,7 +140,12 @@ public class ZstdCompressionMode extends CompressionMode {
         static int decompressInput(DataInput in, int compressedLength, MemorySegment dst) throws IOException {
             if (in instanceof IndexInput indexIn && IndexInputUtils.canUseSegmentSlices(indexIn)) {
                 try {
-                    return IndexInputUtils.withSlice(indexIn, compressedLength, byte[]::new, src -> ZSTD.decompress(dst, src));
+                    return IndexInputUtils.withSlice(
+                        indexIn,
+                        compressedLength,
+                        len -> Arena.ofAuto().allocate(len, ValueLayout.JAVA_LONG.byteAlignment()),
+                        src -> ZSTD.decompress(dst, src)
+                    );
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
                     // Region evicted mid-read — fall through to copy path
                 }

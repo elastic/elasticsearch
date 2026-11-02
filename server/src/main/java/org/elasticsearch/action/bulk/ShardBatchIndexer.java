@@ -14,8 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -47,13 +49,19 @@ public final class ShardBatchIndexer {
         this.recycler = recycler;
     }
 
+    public static boolean isBatchIndexingSupported(BatchIndexingEnabled batchIndexingEnabled, ClusterService clusterService) {
+        return batchIndexingEnabled.isEnabled()
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_ESCF_BATCH);
+    }
+
     /**
      * Checks whether the batch indexing path can be used for this request.
      * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
-     * and all operations are index/create (no deletes, no updates).
+     * the shard's index opted in via {@code index.batch_indexing}, and all operations are index/create
+     * (no deletes, no updates).
      */
-    public boolean canUseBatchIndexing(BulkShardRequest request) {
-        if (batchIndexingEnabled.isEnabled() == false) {
+    public boolean canUseBatchIndexing(BulkShardRequest request, IndexSettings indexSettings) {
+        if (batchIndexingEnabled.isEnabled() == false || indexSettings.isBatchIndexingEnabled() == false) {
             return false;
         }
         if (request.getBulkShardBatch() == null) {
@@ -103,7 +111,7 @@ public final class ShardBatchIndexer {
         // batch-indexing support matrix this returns null, and we fall back to the sequential
         // path (same contract as a later parseMappings returning null).
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            batch.schema(),
+            batch,
             primary.mapperService().mappingLookup(),
             primary.indexSettings()
         );
@@ -113,30 +121,32 @@ public final class ShardBatchIndexer {
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-            final EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
-                items,
-                batch,
-                primary,
-                chunkStart,
-                chunkEnd,
-                resolution,
-                Engine.Operation.Origin.PRIMARY,
-                recycler
-            );
-            if (engineBatch == null) {
-                return;
+            try (
+                EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                    items,
+                    batch,
+                    primary,
+                    chunkStart,
+                    chunkEnd,
+                    resolution,
+                    Engine.Operation.Origin.PRIMARY,
+                    recycler
+                )
+            ) {
+                if (engineBatch == null) {
+                    return;
+                }
+
+                final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(engineBatch);
+                logger.trace("batch indexed [{}] operations on primary shard [{}]", results.size(), primary.shardId());
+
+                for (Engine.IndexResult result : results) {
+                    assert context.hasMoreOperationsToExecute();
+                    context.setRequestToExecute(context.getCurrent());
+                    context.markBatchOperationAsExecuted(result);
+                    context.markAsCompleted(context.getExecutionResult());
+                }
             }
-
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(engineBatch);
-            logger.trace("batch indexed [{}] operations on primary shard [{}]", results.size(), primary.shardId());
-
-            for (Engine.IndexResult result : results) {
-                assert context.hasMoreOperationsToExecute();
-                context.setRequestToExecute(context.getCurrent());
-                context.markBatchOperationAsExecuted(result);
-                context.markAsCompleted(context.getExecutionResult());
-            }
-
         }
     }
 
@@ -148,7 +158,7 @@ public final class ShardBatchIndexer {
      */
     ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            batch.schema(),
+            batch,
             replica.mapperService().mappingLookup(),
             replica.indexSettings()
         );
@@ -181,26 +191,29 @@ public final class ShardBatchIndexer {
             }
 
             if (validEnd > chunkStart) {
-                final EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
-                    items,
-                    batch,
-                    replica,
-                    chunkStart,
-                    validEnd,
-                    resolution,
-                    Engine.Operation.Origin.REPLICA,
-                    recycler
-                );
-                if (engineBatch == null) {
-                    processedItems = chunkStart;
-                    break;
-                }
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);
-                for (Engine.IndexResult result : results) {
-                    if (result.getFailure() != null) {
-                        throw result.getFailure();
+                try (
+                    EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                        items,
+                        batch,
+                        replica,
+                        chunkStart,
+                        validEnd,
+                        resolution,
+                        Engine.Operation.Origin.REPLICA,
+                        recycler
+                    )
+                ) {
+                    if (engineBatch == null) {
+                        processedItems = chunkStart;
+                        break;
                     }
-                    location = TransportWriteAction.locationToSync(location, result.getTranslogLocation(), true);
+                    final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);
+                    for (Engine.IndexResult result : results) {
+                        if (result.getFailure() != null) {
+                            throw result.getFailure();
+                        }
+                        location = TransportWriteAction.locationToSync(location, result.getTranslogLocation(), true);
+                    }
                 }
             }
 

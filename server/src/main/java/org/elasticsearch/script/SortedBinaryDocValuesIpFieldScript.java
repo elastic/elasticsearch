@@ -11,8 +11,8 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -20,13 +20,13 @@ import java.io.IOException;
 import java.util.Map;
 
 public class SortedBinaryDocValuesIpFieldScript extends IpFieldScript {
-    private final SortedBinaryDocValues sortedBinaryDocValues;
+    private final SortableBinaryDocValues sortedBinaryDocValues;
     boolean hasValue = false;
 
     public SortedBinaryDocValuesIpFieldScript(String fieldName, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
-            sortedBinaryDocValues = MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName);
+            sortedBinaryDocValues = MultiValuedSortableBinaryDocValues.from(ctx.reader(), fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

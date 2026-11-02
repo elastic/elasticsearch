@@ -72,12 +72,6 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public Zstd getZstd() {
-        logger.warn("cannot compress with zstd because native access is not available");
-        return null;
-    }
-
-    @Override
     public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
         logger.warn("cannot map because native access is not available");
         return null;

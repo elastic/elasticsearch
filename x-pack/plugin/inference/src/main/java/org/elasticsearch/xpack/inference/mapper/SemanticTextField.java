@@ -446,11 +446,18 @@ public record SemanticTextField(
     }
 
     /**
-     * Converts the provided {@link EmbeddingResults.Embedding} into a {@link Chunk}.
+     * Converts the provided {@link EmbeddingResults.Embedding} values into a list of {@link Chunk}.
      */
-    public static Chunk toSemanticFieldChunk(int inputIndex, EmbeddingResults.Embedding<?> inferenceResults, XContentType contentType)
-        throws IOException {
-        return new Chunk(inputIndex, inferenceResults.toBytesRef(contentType.xContent()));
+    public static List<Chunk> toSemanticFieldChunks(
+        int inputIndex,
+        List<? extends EmbeddingResults.Embedding<?>> inferenceResults,
+        XContentType contentType
+    ) throws IOException {
+        List<Chunk> chunks = new ArrayList<>(inferenceResults.size());
+        for (var inferenceResult : inferenceResults) {
+            chunks.add(new Chunk(inputIndex, inferenceResult.toBytesRef(contentType.xContent())));
+        }
+        return chunks;
     }
 
     /**

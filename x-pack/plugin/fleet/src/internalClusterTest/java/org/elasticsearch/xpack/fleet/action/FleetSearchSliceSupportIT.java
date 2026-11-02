@@ -46,16 +46,14 @@ public class FleetSearchSliceSupportIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request index1 = new Request("POST", "/fleet-slice-support-it/_doc/1");
-        index1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request index1 = new Request("POST", "/fleet-slice-support-it/s1/_doc/1");
         index1.setJsonEntity("""
             {
               "field": "a"
             }""");
         getRestClient().performRequest(index1);
 
-        Request index2 = new Request("POST", "/fleet-slice-support-it/_doc/2");
-        index2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request index2 = new Request("POST", "/fleet-slice-support-it/s2/_doc/2");
         index2.setJsonEntity("""
             {
               "field": "b"
@@ -64,8 +62,7 @@ public class FleetSearchSliceSupportIT extends ESIntegTestCase {
 
         getRestClient().performRequest(new Request("POST", "/fleet-slice-support-it/_refresh"));
 
-        Request search = new Request("GET", "/fleet-slice-support-it/_fleet/_fleet_search");
-        search.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request search = new Request("GET", "/fleet-slice-support-it/s1/_fleet/_fleet_search");
         search.setJsonEntity("""
             {
               "query": {

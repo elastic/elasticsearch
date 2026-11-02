@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -73,12 +72,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
           result.appendNull();
           continue position;
         }
-        try {
-          StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds, this.shapeTiler);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds, this.shapeTiler);
       }
       return result.build();
     }
@@ -108,11 +102,11 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
 
     private final Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds;
 
-    private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+    private final Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler;
 
     public Factory(Source source, ExpressionEvaluator.Factory in,
         Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds,
-        SpatialGridFunction.GeoShapeCellsComputer shapeTiler) {
+        Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
@@ -121,7 +115,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
 
     @Override
     public StGeohexFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler, context);
+      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler.apply(context), context);
     }
 
     @Override

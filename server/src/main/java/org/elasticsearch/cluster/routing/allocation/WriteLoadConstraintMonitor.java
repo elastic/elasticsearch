@@ -27,14 +27,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -87,18 +84,18 @@ public class WriteLoadConstraintMonitor {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
 
-        meterRegistry.registerLongsAsyncGauge(
+        meterRegistry.registerLongAsyncGauge(
             HOTSPOT_NODES_COUNT_METRIC_NAME,
             "Total number of nodes hotspotting with write loads",
             "unit",
-            this::getHotspotNodesCount
+            this::recordHotspotNodesCount
         );
         hotspotDurationHistogram = meterRegistry.registerDoubleHistogram(HOTSPOT_DURATION_METRIC_NAME, "hotspot duration", "s");
-        hotspotNodeFlagGauge = meterRegistry.registerLongsAsyncGauge(
+        hotspotNodeFlagGauge = meterRegistry.registerLongAsyncGauge(
             HOTSPOT_NODES_FLAG_METRIC_NAME,
             "hotspot node flag",
             "flag",
-            this::getHotspottingNodeFlags
+            this::recordHotspottingNodeFlags
         );
     }
 
@@ -252,23 +249,19 @@ public class WriteLoadConstraintMonitor {
         return lastHotspotNodes;
     }
 
-    private List<LongWithAttributes> getHotspotNodesCount() {
+    private void recordHotspotNodesCount(LongAsyncMeasurement measurement) {
         long hotspotCount = hotspotNodesCount.getAndSet(-1L);
         if (hotspotCount >= 0) {
-            return List.of(new LongWithAttributes(hotspotCount));
-        } else {
-            return List.of();
+            measurement.record(hotspotCount);
         }
     }
 
-    private Collection<LongWithAttributes> getHotspottingNodeFlags() {
+    private void recordHotspottingNodeFlags(LongAsyncMeasurement measurement) {
         final ClusterState state = clusterStateSupplier.get();
         if (state == null) {
-            return List.of();
+            return;
         }
         final Map<NodeIdName, Long> hotspotNodeStartTimesView = hotspotNodeStartTimes;
-
-        List<LongWithAttributes> nodeHotspotStatus = new ArrayList<>(state.nodes().size());
 
         for (var node : state.nodes()) {
             final var nodeRoles = node.getRoles();
@@ -277,11 +270,8 @@ public class WriteLoadConstraintMonitor {
             }
             NodeIdName nodeIdName = NodeIdName.nodeIdName(node);
             long flagValue = hotspotNodeStartTimesView.containsKey(nodeIdName) ? 1L : 0L;
-            nodeHotspotStatus.add(
-                new LongWithAttributes(flagValue, Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName()))
-            );
+            measurement.record(flagValue, Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName()));
         }
-        return nodeHotspotStatus;
     }
 
     public record NodeIdName(String nodeId, String nodeName) {

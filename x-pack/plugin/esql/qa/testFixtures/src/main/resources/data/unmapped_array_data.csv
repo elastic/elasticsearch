@@ -1,4 +1,4 @@
-id:keyword,tags:keyword
-1,[web,api]
-2,[web]
-3,web
+id:keyword,tags:keyword,samples
+1,[web,api],[{"nested":"x"},{"nested":"y"}]
+2,[web],[{"nested":"z"}]
+3,web,

@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 163169
+summary: Fix ES|QL queries on external data failing while a node joins the cluster
+  or applies a dataset change
+type: enhancement

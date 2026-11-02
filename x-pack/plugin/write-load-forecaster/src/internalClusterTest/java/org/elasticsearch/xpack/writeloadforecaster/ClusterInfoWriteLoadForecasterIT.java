@@ -240,6 +240,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 1,
                 1,
                 1,
+                1,
                 false,
                 1,
                 234,
@@ -284,7 +285,8 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                                         utilizationThreshold,
                                         hotspot
                                     )
-                                )
+                                ),
+                                Map.of()
                             )
                         );
                     })),

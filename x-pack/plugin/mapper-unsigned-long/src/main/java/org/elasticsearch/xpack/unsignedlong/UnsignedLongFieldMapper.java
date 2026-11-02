@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -52,7 +54,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -121,7 +122,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -197,7 +198,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { indexed, docValuesParameters, stored, ignoreMalformed, nullValue, meta, dimension, metric };
+            return new Parameter<?>[] {
+                indexed,
+                docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
+                stored,
+                ignoreMalformed,
+                nullValue,
+                meta,
+                dimension,
+                metric };
         }
 
         Number parsedNullValue() {
@@ -272,6 +284,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
+    // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value(
+        DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) v)
+    );
+
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
         private final Number nullValueFormatted;
@@ -337,17 +354,26 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValuesFallback(context);
             Long longValue = parseTerm(value);
             if (longValue == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
-            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
+            long sortableValue = unsignedToSortableSignedLong(longValue);
+            if (indexType.hasPoints() == false) {
+                return SortedNumericDocValuesField.newSlowRangeQuery(name(), sortableValue, sortableValue);
+            }
+            return LongPoint.newExactQuery(name(), sortableValue);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (indexType.hasPoints() == false) {
+                // Without a point index the set has to be matched as a disjunction of per-value
+                // doc-values queries, which termQuery already builds.
+                return super.termsQuery(values, context);
+            }
             long[] lvalues = new long[values.size()];
             int upTo = 0;
             for (Object value : values) {
@@ -373,7 +399,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValuesFallback(context);
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
@@ -388,13 +414,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             if (l > u) return Queries.NO_DOCS_INSTANCE;
 
-            Query query = LongPoint.newRangeQuery(name(), l, u);
-            if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
-                query = new IndexOrDocValuesQuery(query, dvQuery);
-                if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+            Query query;
+            if (indexType.hasPoints()) {
+                query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
+            } else {
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
+            if (hasDocValues() && context.canUseIndexSortRangeQuery(name())) {
+                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;
         }
@@ -822,7 +853,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                        FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                     }
                     return;
                 } else {
@@ -863,9 +894,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (numericValue != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }
@@ -963,12 +994,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     (b, value) -> b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value))
                 )
             );
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -978,12 +1004,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     (b, value) -> b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value))
                 )
             );
-            if (ignoreMalformed()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

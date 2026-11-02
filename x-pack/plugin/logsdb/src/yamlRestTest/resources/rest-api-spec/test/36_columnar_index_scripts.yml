@@ -1,0 +1,152 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for logsdb_columnar index mode required"
+
+  - do:
+      indices.put_index_template:
+        name: logs-cl-index-scripts-template
+        body:
+          index_patterns: [ "logs-cl-index-scripts-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            settings:
+              index.mode: logsdb_columnar
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                kubernetes.namespace:
+                  type: keyword
+                labels.project_id:
+                  type: keyword
+                host.name:
+                  type: keyword
+                log.level:
+                  type: keyword
+                message:
+                  type: text
+                serverless:
+                  properties:
+                    project:
+                      properties:
+                        id:
+                          type: keyword
+                          script:
+                            lang: painless
+                            source: |
+                              String labelProjectIdKey = 'labels.project_id';
+                              String namespaceKey = 'kubernetes.namespace';
+                              if (doc.containsKey(labelProjectIdKey) && doc[labelProjectIdKey].size() > 0) {
+                                  emit(doc[labelProjectIdKey].value);
+                              } else if (doc.containsKey(namespaceKey) && doc[namespaceKey].size() > 0 && doc[namespaceKey].value.indexOf('project-') == 0) {
+                                  emit(doc[namespaceKey].value.substring('project-'.length()));
+                              }
+      allowed_warnings:
+        - "index template [logs-cl-index-scripts-template] has index patterns [logs-cl-index-scripts-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-cl-index-scripts-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-cl-index-scripts-test
+
+  - do:
+      bulk:
+        index: logs-cl-index-scripts-test
+        refresh: true
+        body:
+          - { "create": {} }
+          - { "@timestamp": "2026-09-08T18:00:26.938Z", "kubernetes.namespace": "project-a56d843deb4e4545b7140f0af0011327", "host.name": "gke-node-1", "log.level": "info", "message": "GC(3064)   Merge Heap Roots: 0.13ms" }
+          - { "create": {} }
+          - { "@timestamp": "2026-09-08T18:00:27.000Z", "kubernetes.namespace": "project-b89c954fea5f4656c8251f1af0022438", "host.name": "gke-node-2", "log.level": "info", "message": "GC(3065)   Pause Young (Normal) (G1 Evacuation Pause): 12.34ms" }
+          - { "create": {} }
+          - { "@timestamp": "2026-09-08T18:00:28.000Z", "kubernetes.namespace": "project-c12d065feb6f5767d9362f2bf0033549", "labels.project_id": "explicit-project-id", "host.name": "gke-node-1", "log.level": "warn", "message": "GC(3066)   Full GC" }
+          - { "create": {} }
+          - { "@timestamp": "2026-09-08T18:00:29.000Z", "kubernetes.namespace": "kube-system", "host.name": "gke-node-3", "log.level": "debug", "message": "GC(3067)   Minor GC" }
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: logs-cl-index-scripts-*
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-cl-index-scripts-template
+        ignore: 404
+
+---
+"index-time script extracts project id from kubernetes.namespace":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM logs-cl-index-scripts-test
+            | WHERE `serverless.project.id` == "a56d843deb4e4545b7140f0af0011327"
+            | KEEP `serverless.project.id`, `kubernetes.namespace`, `host.name`
+            | LIMIT 10
+
+  - match: { columns.0.name: "serverless.project.id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "kubernetes.namespace" }
+  - match: { columns.2.name: "host.name" }
+  - length: { values: 1 }
+  - match: { values.0.0: "a56d843deb4e4545b7140f0af0011327" }
+  - match: { values.0.1: "project-a56d843deb4e4545b7140f0af0011327" }
+  - match: { values.0.2: "gke-node-1" }
+
+---
+"index-time script prefers labels.project_id over kubernetes.namespace":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM logs-cl-index-scripts-test
+            | WHERE `serverless.project.id` == "explicit-project-id"
+            | KEEP `serverless.project.id`, `kubernetes.namespace`
+            | LIMIT 10
+
+  - length: { values: 1 }
+  - match: { values.0.0: "explicit-project-id" }
+  - match: { values.0.1: "project-c12d065feb6f5767d9362f2bf0033549" }
+
+---
+"index-time script emits no value when namespace does not start with project-":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM logs-cl-index-scripts-test
+            | WHERE `kubernetes.namespace` == "kube-system"
+            | KEEP `serverless.project.id`, `kubernetes.namespace`
+            | LIMIT 10
+
+  - length: { values: 1 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: "kube-system" }
+
+---
+"index-time script: count by project id":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM logs-cl-index-scripts-test
+            | STATS count = COUNT(*) BY `serverless.project.id`
+            | SORT `serverless.project.id` ASC NULLS LAST
+            | LIMIT 10
+
+  - length: { values: 4 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "a56d843deb4e4545b7140f0af0011327" }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: "b89c954fea5f4656c8251f1af0022438" }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: "explicit-project-id" }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: null }

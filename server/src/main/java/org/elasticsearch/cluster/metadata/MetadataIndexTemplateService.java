@@ -139,7 +139,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final InstantSource instantSource;
 
     /**
@@ -196,7 +196,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         this(
             clusterService,
@@ -206,7 +206,7 @@ public class MetadataIndexTemplateService {
             xContentRegistry,
             systemIndices,
             indexSettingProviders,
-            globalRetentionSettings,
+            dataStreamLifecycleSettings,
             Instant::now
         );
     }
@@ -220,7 +220,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         InstantSource instantSource
     ) {
         this.clusterService = clusterService;
@@ -231,7 +231,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.instantSource = instantSource;
     }
 
@@ -403,7 +403,7 @@ public class MetadataIndexTemplateService {
             finalComponentTemplate.template()
                 .lifecycle()
                 .toDataStreamLifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
+                .addWarningHeaderIfDataRetentionNotEffective(dataStreamLifecycleSettings.getGlobalRetention(false), false);
         }
 
         logger.info("{} component template [{}]", existingTemplate == null ? "adding" : "updating", name);
@@ -834,8 +834,8 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate, additionalSettings);
         maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
-        validateLifecycle(componentTemplates, name, templateToValidate, globalRetentionSettings.get(false));
-        validateDataStreamOptions(componentTemplates, name, templateToValidate, globalRetentionSettings.get(true));
+        validateLifecycle(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(false));
+        validateDataStreamOptions(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(true));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, componentTemplates);

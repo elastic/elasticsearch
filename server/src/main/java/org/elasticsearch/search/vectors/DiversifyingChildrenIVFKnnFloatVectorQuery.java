@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.LongAccumulator;
 
 public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVectorQuery {
 
-    private final BitSetProducer parentsFilter;
+    final BitSetProducer parentsFilter;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -41,7 +41,21 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, queryConfigResolver, false);
+    }
+
+    DiversifyingChildrenIVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.parentsFilter = parentsFilter;
     }
 

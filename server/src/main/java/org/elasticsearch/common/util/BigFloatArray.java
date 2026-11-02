@@ -55,6 +55,9 @@ final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
+        if (fromIndex == toIndex) {
+            return; // empty range
+        }
         final int fromPage = pageIdx(fromIndex);
         final int toPage = pageIdx(toIndex - 1);
         if (fromPage == toPage) {

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -251,8 +250,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return filterExec;
         }
 
-        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FormatReader formatReader = resolveFormatReader(formatName, ctx);
+        FormatReader formatReader = resolveFormatReader(externalExec.sourceType(), ctx);
         FilterPushdownSupport pushdownSupport = formatReader != null ? formatReader.filterPushdownSupport() : null;
         if (pushdownSupport == null) {
             return filterExec;
@@ -351,15 +349,14 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 
-    static String resolveFormatName(Map<String, Object> config, String sourcePath) {
-        return FormatNameResolver.resolve(config, sourcePath);
-    }
-
     /**
      * Resolves the configured reader for the given format, or {@code null} when the rule has no way to look one up
      * (no external context, no registry, format unregistered). Callers read both
      * {@link FormatReader#filterPushdownSupport()} and {@link FormatReader#dropsRowsUnderPushedFilter()} off it, so
      * it returns the reader rather than the support object alone.
+     * Keys on {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec#sourceType()}, the same
+     * origin as {@code InsertExternalFieldExtraction} / {@code PushStatsToExternalSource} — not a last-dot of
+     * {@code sourcePath()}, which would mis-read a compressed text file as {@code gz}.
      */
     static FormatReader resolveFormatReader(String formatName, LocalPhysicalOptimizerContext ctx) {
         FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();

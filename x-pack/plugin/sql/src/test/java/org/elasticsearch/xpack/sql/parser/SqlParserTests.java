@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +35,7 @@ import java.util.StringJoiner;
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -325,6 +328,26 @@ public class SqlParserTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testTooBigQuery() {
+        var maxLength = frequently() ? 1024 : SqlPlugin.DEFAULT_MAX_QUERY_LENGTH;
+        StringBuilder query = new StringBuilder("SELECT bar FROM foo");
+        while (query.length() < SqlPlugin.DEFAULT_MAX_QUERY_LENGTH) {
+            query.append(", bar");
+        }
+        final String sql = query.toString();
+        expectThrows(
+            ParsingException.class,
+            equalTo(
+                "line -1:0: SQL statement is too large ["
+                    + sql.length()
+                    + " characters > "
+                    + maxLength
+                    + "], adjust [xpack.sql.max_query_length] to increase the limit"
+            ),
+            () -> new SqlParser().createStatement(sql, List.of(), ZoneOffset.UTC, maxLength)
         );
     }
 

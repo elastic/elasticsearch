@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -18,10 +20,12 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterTestCase {
 
@@ -314,6 +318,13 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.isPartial(), equalTo(true));
+                if (Constants.WINDOWS == false) { // thread CPU time advances in ~15.6 ms ticks on Windows
+                    assertThat(
+                        "the empty result skips execution but still reports planning CPU",
+                        executionInfo.queryProfile().planningCpuNanos(),
+                        greaterThan(0L)
+                    );
+                }
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
 
@@ -350,6 +361,13 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.isPartial(), equalTo(true));
+                if (Constants.WINDOWS == false) { // thread CPU time advances in ~15.6 ms ticks on Windows
+                    assertThat(
+                        "the empty result skips execution but still reports planning CPU",
+                        executionInfo.queryProfile().planningCpuNanos(),
+                        greaterThan(0L)
+                    );
+                }
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 
@@ -362,6 +380,41 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 // ensure that the _clusters metadata is present only if requested
                 assertClusterMetadataInResponse(resp, responseExpectMeta, 2);
             }
+
+        } finally {
+            clearSkipUnavailable(numClusters);
+        }
+    }
+
+    public void testStreamingRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue() throws Exception {
+        int numClusters = 3;
+        setupClusters(numClusters);
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+
+        try {
+            cluster(REMOTE_CLUSTER_1).close();
+
+            EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest(
+                "FROM " + REMOTE_CLUSTER_1 + ":logs-* | " + randomStats() + " sum(v)"
+            );
+            StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+            EsqlStreamQueryAction.ResultStream resultStream = StreamQueryTestUtils.executeStreamRequest(
+                client(LOCAL_CLUSTER),
+                source,
+                subscriber
+            );
+
+            assertThat(resultStream.columns(), hasSize(1));
+            assertThat(resultStream.columns().get(0).name(), equalTo("<no-fields>"));
+            assertThat(resultStream.columns().get(0).type(), equalTo(DataType.NULL));
+
+            assertThat("no rows expected for empty-result CCS stream", subscriber.rowCount.get(), equalTo(0));
+
+            PageStreamPublisher.StreamFooter footer = resultStream.publisher().footer();
+            assertNotNull("publisher footer must be set after the stream completes", footer);
+            assertThat(footer.status(), equalTo(200));
+            assertThat("is_partial must be true because the remote was skipped", footer.isPartial(), is(true));
+            assertThat("clusters payload must be non-null for a partial CCS stream", footer.clusters(), notNullValue());
 
         } finally {
             clearSkipUnavailable(numClusters);

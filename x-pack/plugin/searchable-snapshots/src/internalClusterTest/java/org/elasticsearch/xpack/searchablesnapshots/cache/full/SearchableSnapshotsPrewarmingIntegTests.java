@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -314,10 +315,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .get();
             assertThat(
-                recoveryResponse.shardRecoveryStates()
+                recoveryResponse.shardRecoveryInfos()
                     .values()
                     .stream()
                     .flatMap(Collection::stream)
+                    .map(ShardRecoveryInfo::recoveryState)
                     .allMatch(recoveryState -> recoveryState.getStage().equals(RecoveryState.Stage.DONE)),
                 is(true)
             );

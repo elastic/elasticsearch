@@ -18,25 +18,14 @@ import java.io.IOException;
 
 public class ComputeSearchContextTests extends MapperServiceTestCase {
 
-    public void testDetachedShardContextDoesNotReleaseSearchContext() throws IOException {
+    /**
+     * The shard context holds the last reference to the search context, so releasing it closes the search context.
+     */
+    public void testReleasingTheShardContextClosesTheSearchContext() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> b.startObject("k").field("type", "keyword").endObject()));
-
-        SearchContext normalSearchContext = newSearchContext(mapperService);
-        ShardContext normalShardContext = new ComputeSearchContext(0, normalSearchContext).shardContext(QueryWarnings.EMIT);
-        normalShardContext.decRef();
-        assertTrue(normalSearchContext.isClosed());
-
-        SearchContext retainedSearchContext = newSearchContext(mapperService);
-        ComputeSearchContext retainedContext = new ComputeSearchContext(0, retainedSearchContext);
-        ShardContext detachedShardContext = retainedContext.newDetachedShardContext();
-        detachedShardContext.decRef();
-        assertFalse(retainedSearchContext.isClosed());
-
-        retainedContext.close();
-        assertTrue(retainedSearchContext.isClosed());
-    }
-
-    private SearchContext newSearchContext(MapperService mapperService) {
-        return new TestSearchContext(createSearchExecutionContext(mapperService, null));
+        SearchContext searchContext = new TestSearchContext(createSearchExecutionContext(mapperService, null));
+        ShardContext shardContext = new ComputeSearchContext(0, searchContext).shardContext(QueryWarnings.EMIT);
+        shardContext.decRef();
+        assertTrue(searchContext.isClosed());
     }
 }

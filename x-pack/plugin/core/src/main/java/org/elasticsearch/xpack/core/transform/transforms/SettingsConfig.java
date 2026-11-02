@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -37,6 +39,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<SettingsConfig, Void> LENIENT_PARSER = createParser(true);
 
     public static final int MAX_NUM_FAILURE_RETRIES = 100;
+    public static final TimeValue MAX_INDEXER_REQUEST_TIMEOUT = TimeValue.timeValueHours(12);
+
+    static final TransportVersion TRANSFORM_INDEXER_REQUEST_TIMEOUT = TransportVersion.fromName("transform_indexer_request_timeout");
 
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
@@ -46,6 +51,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
     private static final int DEFAULT_NUM_FAILURE_RETRIES = -2;
     private static final int DEFAULT_UNATTENDED = -1;
+    private static final TimeValue DEFAULT_INDEXER_REQUEST_TIMEOUT = TimeValue.MINUS_ONE;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
@@ -59,7 +65,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 (Integer) args[4],
                 (Integer) args[5],
                 (Integer) args[6],
-                (Integer) args[7]
+                (Integer) args[7],
+                (TimeValue) args[8]
             )
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
@@ -100,6 +107,14 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             TransformField.UNATTENDED,
             ValueType.BOOLEAN_OR_NULL
         );
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL
+                ? DEFAULT_INDEXER_REQUEST_TIMEOUT
+                : TimeValue.parseTimeValue(p.text(), TransformField.INDEXER_REQUEST_TIMEOUT.getPreferredName()),
+            TransformField.INDEXER_REQUEST_TIMEOUT,
+            ValueType.VALUE
+        );
         return parser;
     }
 
@@ -111,6 +126,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Integer deduceMappings;
     private final Integer numFailureRetries;
     private final Integer unattended;
+    private final TimeValue indexerRequestTimeout;
 
     public SettingsConfig(
         Integer maxPageSearchSize,
@@ -125,12 +141,37 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this(
             maxPageSearchSize,
             docsPerSecond,
+            datesAsEpochMillis,
+            alignCheckpoints,
+            usePit,
+            deduceMappings,
+            numFailureRetries,
+            unattended,
+            null
+        );
+    }
+
+    public SettingsConfig(
+        Integer maxPageSearchSize,
+        Float docsPerSecond,
+        Boolean datesAsEpochMillis,
+        Boolean alignCheckpoints,
+        Boolean usePit,
+        Boolean deduceMappings,
+        Integer numFailureRetries,
+        Boolean unattended,
+        TimeValue indexerRequestTimeout
+    ) {
+        this(
+            maxPageSearchSize,
+            docsPerSecond,
             datesAsEpochMillis == null ? null : datesAsEpochMillis ? 1 : 0,
             alignCheckpoints == null ? null : alignCheckpoints ? 1 : 0,
             usePit == null ? null : usePit ? 1 : 0,
             deduceMappings == null ? null : deduceMappings ? 1 : 0,
             numFailureRetries,
-            unattended == null ? null : unattended ? 1 : 0
+            unattended == null ? null : unattended ? 1 : 0,
+            indexerRequestTimeout
         );
     }
 
@@ -144,6 +185,30 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Integer numFailureRetries,
         Integer unattended
     ) {
+        this(
+            maxPageSearchSize,
+            docsPerSecond,
+            datesAsEpochMillis,
+            alignCheckpoints,
+            usePit,
+            deduceMappings,
+            numFailureRetries,
+            unattended,
+            null
+        );
+    }
+
+    private SettingsConfig(
+        Integer maxPageSearchSize,
+        Float docsPerSecond,
+        Integer datesAsEpochMillis,
+        Integer alignCheckpoints,
+        Integer usePit,
+        Integer deduceMappings,
+        Integer numFailureRetries,
+        Integer unattended,
+        TimeValue indexerRequestTimeout
+    ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
         this.datesAsEpochMillis = datesAsEpochMillis;
@@ -152,6 +217,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.deduceMappings = deduceMappings;
         this.numFailureRetries = numFailureRetries;
         this.unattended = unattended;
+        this.indexerRequestTimeout = indexerRequestTimeout;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
@@ -164,6 +230,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         deduceMappings = in.readOptionalInt();
         numFailureRetries = in.readOptionalInt();
         unattended = in.readOptionalInt();
+        indexerRequestTimeout = in.getTransportVersion().supports(TRANSFORM_INDEXER_REQUEST_TIMEOUT) ? in.readOptionalTimeValue() : null;
     }
 
     public Integer getMaxPageSearchSize() {
@@ -222,6 +289,19 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return unattended;
     }
 
+    /**
+     * Starting GetCheckpoint timeout. {@code null} means the 30s default.
+     */
+    public TimeValue getIndexerRequestTimeout() {
+        return indexerRequestTimeout != null && indexerRequestTimeout.equals(DEFAULT_INDEXER_REQUEST_TIMEOUT) == false
+            ? indexerRequestTimeout
+            : null;
+    }
+
+    TimeValue getIndexerRequestTimeoutForUpdate() {
+        return indexerRequestTimeout;
+    }
+
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
@@ -252,6 +332,18 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             );
         }
 
+        if (indexerRequestTimeout != null
+            && indexerRequestTimeout.equals(DEFAULT_INDEXER_REQUEST_TIMEOUT) == false
+            && (indexerRequestTimeout.millis() <= 0 || indexerRequestTimeout.millis() > MAX_INDEXER_REQUEST_TIMEOUT.millis())) {
+            validationException = addValidationError(
+                "settings.indexer_request_timeout ["
+                    + indexerRequestTimeout.getStringRep()
+                    + "] is out of range. The minimum value is 1ms and the maximum is "
+                    + MAX_INDEXER_REQUEST_TIMEOUT.getStringRep(),
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -268,6 +360,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         out.writeOptionalInt(deduceMappings);
         out.writeOptionalInt(numFailureRetries);
         out.writeOptionalInt(unattended);
+        if (out.getTransportVersion().supports(TRANSFORM_INDEXER_REQUEST_TIMEOUT)) {
+            out.writeOptionalTimeValue(indexerRequestTimeout);
+        }
     }
 
     @Override
@@ -298,6 +393,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (unattended != null && (unattended.equals(DEFAULT_UNATTENDED) == false)) {
             builder.field(TransformField.UNATTENDED.getPreferredName(), unattended > 0 ? true : false);
         }
+        if (indexerRequestTimeout != null && (indexerRequestTimeout.equals(DEFAULT_INDEXER_REQUEST_TIMEOUT) == false)) {
+            builder.field(TransformField.INDEXER_REQUEST_TIMEOUT.getPreferredName(), indexerRequestTimeout.getStringRep());
+        }
         builder.endObject();
         return builder;
     }
@@ -319,7 +417,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             && Objects.equals(usePit, that.usePit)
             && Objects.equals(deduceMappings, that.deduceMappings)
             && Objects.equals(numFailureRetries, that.numFailureRetries)
-            && Objects.equals(unattended, that.unattended);
+            && Objects.equals(unattended, that.unattended)
+            && Objects.equals(indexerRequestTimeout, that.indexerRequestTimeout);
     }
 
     @Override
@@ -332,7 +431,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             usePit,
             deduceMappings,
             numFailureRetries,
-            unattended
+            unattended,
+            indexerRequestTimeout
         );
     }
 
@@ -354,6 +454,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Integer deduceMappings;
         private Integer numFailureRetries;
         private Integer unattended;
+        private TimeValue indexerRequestTimeout;
 
         /**
          * Default builder
@@ -374,6 +475,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.deduceMappings = base.deduceMappings;
             this.numFailureRetries = base.numFailureRetries;
             this.unattended = base.unattended;
+            this.indexerRequestTimeout = base.indexerRequestTimeout;
         }
 
         /**
@@ -483,6 +585,15 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
+         * Starting GetCheckpoint timeout. Backs off from this value up to 12h.
+         * An explicit {@code null} resets to the 30s default.
+         */
+        public Builder setIndexerRequestTimeout(TimeValue indexerRequestTimeout) {
+            this.indexerRequestTimeout = indexerRequestTimeout == null ? DEFAULT_INDEXER_REQUEST_TIMEOUT : indexerRequestTimeout;
+            return this;
+        }
+
+        /**
          * Update settings according to given settings config.
          *
          * @param update update settings
@@ -525,6 +636,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             if (update.getUnattendedForUpdate() != null) {
                 this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
             }
+            if (update.getIndexerRequestTimeoutForUpdate() != null) {
+                this.indexerRequestTimeout = update.getIndexerRequestTimeoutForUpdate().equals(DEFAULT_INDEXER_REQUEST_TIMEOUT)
+                    ? null
+                    : update.getIndexerRequestTimeoutForUpdate();
+            }
             return this;
         }
 
@@ -537,7 +653,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 usePit,
                 deduceMappings,
                 numFailureRetries,
-                unattended
+                unattended,
+                indexerRequestTimeout
             );
         }
     }

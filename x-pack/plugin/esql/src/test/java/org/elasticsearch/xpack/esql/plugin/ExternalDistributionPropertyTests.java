@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 /**
  * Randomized property tests for external source distribution strategies.
@@ -217,6 +219,20 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
         assertFalse("CoordinatorOnly must never distribute", plan.distributed());
     }
 
+    public void testDefaultStrategiesNeverAssignIndexRoleNodes() {
+        DiscoveryNodes mixed = mixedRoleNodes();
+        List<ExternalSplit> splits = createSplits(between(4, 40));
+        ExternalDistributionContext context = new ExternalDistributionContext(createAggPlan(splits), splits, mixed, QueryPragmas.EMPTY);
+
+        for (ExternalDistributionStrategy strategy : List.of(new AdaptiveStrategy(), new RoundRobinStrategy())) {
+            ExternalDistributionPlan plan = strategy.planDistribution(context);
+            assertTrue(plan.distributed());
+            for (String nodeId : plan.nodeAssignments().keySet()) {
+                assertFalse("strategy assigned work to an index node: " + nodeId, nodeId.startsWith("index-"));
+            }
+        }
+    }
+
     public void testStrategyResolutionFromPragma() {
         assertTrue(resolveStrategy("adaptive") instanceof AdaptiveStrategy);
         assertTrue(resolveStrategy("coordinator_only") instanceof CoordinatorOnlyStrategy);
@@ -275,6 +291,20 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
             nodes.add(DiscoveryNodeUtils.builder("node-" + i).roles(Set.of(DATA_HOT_NODE_ROLE)).build());
         }
         return nodes;
+    }
+
+    private static DiscoveryNodes mixedRoleNodes() {
+        int indexCount = between(1, 3);
+        int searchCount = between(1, 4);
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (int i = 0; i < indexCount; i++) {
+            builder.add(DiscoveryNodeUtils.builder("index-" + i).roles(Set.of(INDEX_ROLE)).build());
+        }
+        for (int i = 0; i < searchCount; i++) {
+            builder.add(DiscoveryNodeUtils.builder("search-" + i).roles(Set.of(SEARCH_ROLE)).build());
+        }
+        builder.add(DiscoveryNodeUtils.builder("data-0").roles(Set.of(DATA_HOT_NODE_ROLE)).build());
+        return builder.build();
     }
 
     private static DiscoveryNodes createNodes(int count) {

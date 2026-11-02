@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160141
+summary: Accept dotted and empty Hive values
+type: enhancement

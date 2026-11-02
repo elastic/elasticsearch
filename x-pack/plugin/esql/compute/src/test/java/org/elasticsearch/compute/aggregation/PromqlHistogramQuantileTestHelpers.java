@@ -135,6 +135,12 @@ final class PromqlHistogramQuantileTestHelpers {
         return PromqlHistogramStates.Quantile.bucketQuantile(quantile, coalesceBuckets(sortedBuckets));
     }
 
+    static double expectedFraction(double lower, double upper, List<Bucket> buckets) {
+        List<Bucket> sortedBuckets = new ArrayList<>(buckets);
+        sortedBuckets.sort(Comparator.comparingDouble(Bucket::upperBound));
+        return PromqlHistogramStates.Fraction.bucketFraction(lower, upper, coalesceBuckets(sortedBuckets));
+    }
+
     /**
      * Merges buckets that share the same upper bound by summing their cumulative counts before calling
      * {@link PromqlHistogramStates.Quantile#bucketQuantile}. The production state does the same merge as raw and

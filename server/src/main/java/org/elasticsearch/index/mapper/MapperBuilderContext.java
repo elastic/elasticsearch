@@ -28,14 +28,15 @@ public class MapperBuilderContext {
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return root(isSourceSynthetic, isDataStream, mergeReason, false);
+        return root(isSourceSynthetic, isDataStream, mergeReason, false, false);
     }
 
     public static MapperBuilderContext root(
         boolean isSourceSynthetic,
         boolean isDataStream,
         MergeReason mergeReason,
-        boolean isStrictColumnar
+        boolean isStrictColumnar,
+        boolean isSourceColumnarStored
     ) {
         return new MapperBuilderContext(
             null,
@@ -45,7 +46,8 @@ public class MapperBuilderContext {
             ObjectMapper.Defaults.DYNAMIC,
             mergeReason,
             false,
-            isStrictColumnar
+            isStrictColumnar,
+            isSourceColumnarStored
         );
     }
 
@@ -57,6 +59,7 @@ public class MapperBuilderContext {
     private final MergeReason mergeReason;
     private final boolean inNestedContext;
     private final boolean isStrictColumnar;
+    private final boolean isSourceColumnarStored;
 
     MapperBuilderContext(
         String path,
@@ -67,7 +70,7 @@ public class MapperBuilderContext {
         MergeReason mergeReason,
         boolean inNestedContext
     ) {
-        this(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, inNestedContext, false);
+        this(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, inNestedContext, false, false);
     }
 
     MapperBuilderContext(
@@ -78,7 +81,8 @@ public class MapperBuilderContext {
         ObjectMapper.Dynamic dynamic,
         MergeReason mergeReason,
         boolean inNestedContext,
-        boolean isStrictColumnar
+        boolean isStrictColumnar,
+        boolean isSourceColumnarStored
     ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
@@ -89,6 +93,7 @@ public class MapperBuilderContext {
         this.mergeReason = mergeReason;
         this.inNestedContext = inNestedContext;
         this.isStrictColumnar = isStrictColumnar;
+        this.isSourceColumnarStored = isSourceColumnarStored;
     }
 
     /**
@@ -123,7 +128,8 @@ public class MapperBuilderContext {
             getDynamic(dynamic),
             this.mergeReason,
             isInNestedContext(),
-            this.isStrictColumnar
+            this.isStrictColumnar,
+            this.isSourceColumnarStored
         );
     }
 
@@ -143,7 +149,8 @@ public class MapperBuilderContext {
             dynamic,
             mergeReason,
             inNestedContext,
-            isStrictColumnar
+            isStrictColumnar,
+            isSourceColumnarStored
         );
     }
 
@@ -162,6 +169,16 @@ public class MapperBuilderContext {
      */
     public boolean isSourceSynthetic() {
         return isSourceSynthetic;
+    }
+
+    /** Is {@code _source} the single blob {@code columnar_stored} materializes at index time? */
+    public boolean isSourceColumnarStored() {
+        return isSourceColumnarStored;
+    }
+
+    /** Is {@code _source} stored in the index rather than rebuilt from the fields at read time? */
+    public boolean isSourceStored() {
+        return isSourceSynthetic == false;
     }
 
     /**

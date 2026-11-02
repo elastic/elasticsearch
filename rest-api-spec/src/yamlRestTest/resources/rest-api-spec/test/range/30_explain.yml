@@ -1,0 +1,42 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_field_dv_query_description_has_field ]
+      test_runner_features: capabilities
+      reason: "BinaryDocValuesRangeQuery descriptions name the queried range field."
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              date_field:
+                type: date_range
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body: { "date_field": { "gte": "2023-09-01", "lte": "2023-09-07" } }
+
+---
+"Explanation of a range query on a range field names the field and relation":
+  - do:
+      search:
+        index: test
+        body:
+          explain: true
+          query:
+            range:
+              date_field:
+                gte: "2023-09-01"
+                lte: "2023-09-07"
+                relation: within
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._explanation.description: "/.*BinaryDocValuesRangeQuery\\(fieldName=date_field,queryType=WITHIN,.*/" }

@@ -17,14 +17,15 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -69,7 +70,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
             PartitionedDocValues.PrefixPartitions partition = null;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {
@@ -103,7 +104,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertFalse(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
         }
     }
@@ -178,13 +179,14 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
             return es93104codec.getDocValuesFormatForField(field);
-        } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyCodec) {
-                return legacyCodec.getDocValuesFormatForField(field);
-            } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
-                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
-                return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
-            }
+        } else if (codec instanceof Elasticsearch96Codec defaultCodec) {
+            // Now a DeduplicateFieldInfosCodec in its own right, so CodecService no longer wraps it in one.
+            return defaultCodec.getDocValuesFormatForField(field);
+        }
+        Codec unwrapped = codec;
+        if (unwrapped instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
+            assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+            return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
         }
         fail("Unexpected codec type: " + codec.getClass().getName());
         return null;
@@ -201,7 +203,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
         indicesAdmin().flush(new FlushRequest(indexName).force(true)).actionGet();
         indicesAdmin().prepareRefresh(indexName).get();
 
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             final List<LeafReaderContext> leaves = searcher.getDirectoryReader().leaves();
             assertThat(leaves.size(), greaterThan(0));
 

@@ -25,10 +25,13 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
     private final char separator;
     private final int maxOutputSize;
 
+    private final Object sharingKey;
+
     FingerprintTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.separator = FingerprintAnalyzerProvider.parseSeparator(settings);
         this.maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);
+        this.sharingKey = new Key(separator, maxOutputSize);
     }
 
     @Override
@@ -43,4 +46,10 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(char separator, int maxOutputSize) {}
 }

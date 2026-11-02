@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.IntArrayDeque;
 import com.carrotsearch.hppc.IntDeque;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
@@ -119,6 +120,22 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     public AsyncDirectIOIndexInput(Path path, int blockSize, int bufferSize, int maxPrefetches) throws IOException {
         super("DirectIOIndexInput(path=\"" + path + "\")");
         this.channel = FileChannel.open(path, StandardOpenOption.READ, getDirectOpenOption());
+        this.blockSize = blockSize;
+        this.prefetcher = new DirectIOPrefetcher(blockSize, this.channel, bufferSize, maxPrefetches);
+        this.buffer = allocateBuffer(bufferSize, blockSize);
+        this.isOpen = true;
+        this.isClosable = true;
+        this.length = channel.size();
+        this.offset = 0L;
+        this.filePos = -bufferSize;
+        this.buffer.limit(0);
+    }
+
+    // pkg private for testing — accepts a pre-opened FileChannel so tests can inject a wrapper (e.g. one that blocks reads
+    // on a latch to create deterministic races between close() and in-flight prefetches)
+    AsyncDirectIOIndexInput(FileChannel channel, int blockSize, int bufferSize, int maxPrefetches) throws IOException {
+        super("DirectIOIndexInput(channel=" + channel + ")");
+        this.channel = channel;
         this.blockSize = blockSize;
         this.prefetcher = new DirectIOPrefetcher(blockSize, this.channel, bufferSize, maxPrefetches);
         this.buffer = allocateBuffer(bufferSize, blockSize);
@@ -487,6 +504,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
          * @param delta an offset into the slice buffer to start writing at
          * @return true if the requested bytes were read from a prefetched buffer, false otherwise
          * @throws IOException if an I/O error occurs
+         * @throws ThreadInterruptedException if the current thread is interrupted while waiting for the prefetch
          */
         boolean readBytes(long pos, ByteBuffer slice, int delta) throws IOException {
             final var entry = this.posToSlot.floorEntry(pos + delta);
@@ -499,25 +517,26 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             if (pos + delta >= prefetchedPos + prefetchBytesSize) {
                 return false;
             }
-            final Future<ByteBuffer> thread = prefetchThreads.get(slot);
-            ByteBuffer prefetchBuffer = null;
+            final Future<ByteBuffer> future = prefetchThreads.get(slot);
+            assert future != null : "slot [" + slot + "] mapped in posToSlot has no prefetch future";
+            final ByteBuffer prefetchBuffer;
             try {
-                prefetchBuffer = thread == null ? null : thread.get();
+                prefetchBuffer = future.get();
             } catch (ExecutionException e) {
+                // the prefetch task has completed (with a failure), so its buffer is no longer in use and the slot can be reused
+                clearSlot(slot);
                 IOException ioException = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
                 if (ioException != null) {
                     throw ioException;
                 }
                 throw new IOException(e.getCause());
             } catch (InterruptedException e) {
+                // The prefetch task is still running and still owns its buffer, so the slot must NOT be cleared; a later read at
+                // this position will wait on the same future. Do not fall back to a synchronous read either: FileChannel.read on
+                // an interrupted thread throws ClosedByInterruptException and closes the shared channel. Surface as an unchecked
+                // ThreadInterruptedException, restoring the interrupt flag first.
                 Thread.currentThread().interrupt();
-            } finally {
-                if (prefetchBuffer == null) {
-                    clearSlot(slot);
-                }
-            }
-            if (prefetchBuffer == null) {
-                return false;
+                throw new ThreadInterruptedException(e);
             }
 
             // our buffer sizes are uniform, and match the required buffer size, however, the position here
@@ -568,8 +587,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
 
         @Override
-        public void close() throws IOException {
-            executor.shutdownNow();
+        public void close() {
+            // Use shutdown instead of shutdownNow to prevent interrupting in-flight reads, which would close the channel.
+            executor.shutdown();
         }
     }
 }

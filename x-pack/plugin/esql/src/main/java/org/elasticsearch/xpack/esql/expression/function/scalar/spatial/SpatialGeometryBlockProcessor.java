@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.locationtech.jts.geom.Coordinate;
@@ -50,7 +51,7 @@ class SpatialGeometryBlockProcessor {
     }
 
     BytesRef processSingleGeometry(Geometry jtsGeometry, double parameter) {
-        Geometry result = operation.apply(jtsGeometry, parameter);
+        Geometry result = applyOperation(jtsGeometry, parameter);
         return UNSPECIFIED.jtsGeometryToWkb(result);
     }
 
@@ -59,7 +60,7 @@ class SpatialGeometryBlockProcessor {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsMultiPoint(left, p, spatialCoordinateType::longAsPoint);
-            Geometry result = operation.apply(jtsGeometry, parameter);
+            Geometry result = applyOperation(jtsGeometry, parameter);
             builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
         }
     }
@@ -69,8 +70,31 @@ class SpatialGeometryBlockProcessor {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsGeometry(left, p);
-            Geometry result = operation.apply(jtsGeometry, parameter);
+            Geometry result = applyOperation(jtsGeometry, parameter);
             builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
+        }
+    }
+
+    @SuppressForbidden(reason = "TODO: port JTS TaggedLineStringSimplifier to iterative form; recursion depth cannot be tracked from here")
+    private Geometry applyOperation(Geometry jtsGeometry, double parameter) {
+        try {
+            return operation.apply(jtsGeometry, parameter);
+        } catch (StackOverflowError e) {
+            // TODO: port JTS's TaggedLineStringSimplifier to an iterative form and remove this catch.
+            // This catch exists only for ST_SIMPLIFYPRESERVETOPOLOGY, whose JTS implementation
+            // (TopologyPreservingSimplifier -> TaggedLineStringSimplifier) uses call-stack recursion
+            // proportional to vertex count. ST_SIMPLIFY already avoids this via the heap-allocated
+            // IterativeDouglasPeuckerSimplifier, but doing the same for the topology-preserving variant
+            // means reimplementing ~500 lines of topology-aware JTS internals, so it has been deferred.
+            // Until then, this is the safety net: after the stack unwinds we cannot be certain all JTS
+            // invariants still hold, but the partially-built result is discarded and nothing else shares
+            // state with the operation, so converting to a user-facing error is safe here.
+            throw new IllegalArgumentException(
+                "geometry processing failed due to excessive recursion depth; the geometry has "
+                    + jtsGeometry.getNumPoints()
+                    + " vertices which may be too complex for the given parameter value. "
+                    + "Consider reducing the number of vertices or using a larger tolerance."
+            );
         }
     }
 

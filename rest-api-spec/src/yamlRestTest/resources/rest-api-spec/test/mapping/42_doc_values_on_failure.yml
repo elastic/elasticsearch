@@ -5,8 +5,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -20,9 +20,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Multiple values: first goes to primary column, rest to ._on_failure; _source reconstructs full array in encounter order.
   - do:
@@ -94,8 +93,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -109,9 +108,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Multiple values: first goes to primary column, rest to ._on_failure; _source reconstructs full array in encounter order.
   - do:
@@ -181,8 +179,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
   - do:
@@ -196,9 +194,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       index:
@@ -268,8 +265,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
   - do:
@@ -283,9 +280,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       index:
@@ -353,8 +349,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -368,9 +364,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Trailing null with no null_value: the null is discarded without consuming the single-value
   # slot, so "val1" is the only indexed value and _source returns a scalar.
@@ -400,8 +395,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -415,9 +410,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Trailing null with no null_value: the null is discarded without consuming the single-value
   # slot, so "val1" is the only indexed value and _source returns a scalar.
@@ -446,8 +440,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -461,9 +455,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Leading null, no null_value: the null is discarded without consuming the single-value slot,
   # so "val1" is the first real value and is indexed normally — no violation.
@@ -518,8 +511,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -533,9 +526,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Leading null, no null_value: the null is discarded without consuming the single-value slot,
   # so "val1" is the first real value and is indexed normally — no violation.
@@ -588,8 +580,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -604,9 +596,8 @@
               kw:
                 type: keyword
                 null_value: "NULL"
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Leading null with null_value="NULL": the null claims the slot and is substituted by "NULL"
   # in parseCreateField, so "NULL" goes to the primary column (searchable). "val1" then violates
@@ -690,8 +681,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -706,9 +697,8 @@
               kw:
                 type: keyword
                 null_value: "NULL"
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   # Leading null with null_value="NULL": the null claims the slot and is substituted by "NULL"
   # in parseCreateField, so "NULL" goes to the primary column (searchable). "val1" then violates
@@ -790,9 +780,9 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
-      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value and on_failure emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -804,16 +794,15 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       indices.get_mapping:
         index: test_on_failure_mapping_roundtrip
 
-  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.doc_values.multi_value: false }
-  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }
+  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.multi_value: false }
+  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.on_failure: "ignore" }
 
 ---
 "on_failure=ignore mapping serialization roundtrip (columnar)":
@@ -822,9 +811,9 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
-      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value and on_failure emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -836,16 +825,15 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       indices.get_mapping:
         index: test_on_failure_mapping_roundtrip_columnar
 
-  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.doc_values.multi_value: false }
-  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.doc_values.on_failure: "ignore" }
+  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.multi_value: false }
+  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.on_failure: "ignore" }
 
 ---
 "nullability=false with on_failure=ignore accepts a missing field (logsdb_columnar)":
@@ -854,8 +842,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -869,9 +857,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  nullability: false
-                  on_failure: ignore
+                nullability: false
+                on_failure: ignore
 
   # A document that omits the field is accepted instead of rejected: the field is marked ignored.
   - do:
@@ -931,8 +918,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -946,9 +933,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  nullability: false
-                  on_failure: ignore
+                nullability: false
+                on_failure: ignore
 
   # A document that omits the field is accepted instead of rejected: the field is marked ignored.
   - do:
@@ -1006,8 +992,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -1021,9 +1007,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  nullability: false
-                  on_failure: ignore
+                nullability: false
+                on_failure: ignore
 
   # An explicit null is treated as absent: the field is marked ignored.
   - do:
@@ -1052,8 +1037,8 @@
           "@timestamp": "2024-01-01T00:00:00Z"
           kw: [null, null]
 
-  # A mixed array with at least one real value satisfies the requirement — the null is discarded
-  # by nullIsAbsent, so the field is not marked ignored.
+  # A mixed array with at least one real value satisfies the requirement — "val" satisfies nullability:false,
+  # so the field is not marked ignored.
   - do:
       index:
         index: test_on_failure_nullability_null
@@ -1088,8 +1073,7 @@
   - match: { _ignored: [ "kw" ] }
 
   # The mixed-array document must not have triggered the nullability violation.
-  # Note: synthetic source preserves the original array including the leading null, so
-  # _source.kw is [null, "val"] — we assert the field is present and the violation was not triggered.
+  # Synthetic source preserves the original array including the leading null, so _source.kw is [null, "val"].
   - do:
       get:
         index: test_on_failure_nullability_null
@@ -1101,7 +1085,7 @@
       get:
         index: test_on_failure_nullability_null
         id: "4"
-  - is_true: _source.kw
+  - match: { _source.kw: [null, "val"] }
 
 ---
 "nullability=false with on_failure=ignore accepts null and empty arrays (columnar)":
@@ -1110,8 +1094,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -1125,9 +1109,8 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  nullability: false
-                  on_failure: ignore
+                nullability: false
+                on_failure: ignore
 
   # An explicit null is treated as absent: the field is marked ignored.
   - do:
@@ -1153,8 +1136,8 @@
         body:
           kw: [null, null]
 
-  # A mixed array with at least one real value satisfies the requirement — the null is discarded
-  # by nullIsAbsent, so the field is not marked ignored.
+  # A mixed array with at least one real value satisfies the requirement — "val" satisfies nullability:false,
+  # so the field is not marked ignored.
   - do:
       index:
         index: test_on_failure_nullability_null_columnar
@@ -1188,8 +1171,7 @@
   - match: { _ignored: [ "kw" ] }
 
   # The mixed-array document must not have triggered the nullability violation.
-  # Note: synthetic source preserves the original array including the leading null, so
-  # _source.kw is [null, "val"] — we assert the field is present and the violation was not triggered.
+  # Synthetic source preserves the original array including the leading null, so _source.kw is [null, "val"].
   - do:
       get:
         index: test_on_failure_nullability_null_columnar
@@ -1201,7 +1183,7 @@
       get:
         index: test_on_failure_nullability_null_columnar
         id: "4"
-  - is_true: _source.kw
+  - match: { _source.kw: [null, "val"] }
 
 ---
 # on_failure is resolved per required field: a field configured with on_failure=ignore is silently
@@ -1214,8 +1196,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -1228,13 +1210,11 @@
             properties:
               kw_ignore:
                 type: keyword
-                doc_values:
-                  nullability: false
-                  on_failure: ignore
+                nullability: false
+                on_failure: ignore
               kw_fail:
                 type: keyword
-                doc_values:
-                  nullability: false
+                nullability: false
 
   # Both fields missing: the fail field aborts the document; kw_ignore is excluded from the error.
   - do:
@@ -1277,8 +1257,8 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -1295,8 +1275,7 @@
                 type: keyword
               kw_override:
                 type: keyword
-                doc_values:
-                  on_failure: fail
+                on_failure: fail
 
   # Only kw missing: accepted (index-level on_failure=ignore); kw is marked ignored.
   - do:
@@ -1335,9 +1314,9 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure"]
-      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "nullability and on_failure emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -1349,13 +1328,198 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  nullability: false
-                  on_failure: ignore
+                nullability: false
+                on_failure: ignore
 
   - do:
       indices.get_mapping:
         index: test_on_failure_nullability_roundtrip
 
-  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.nullability: false }
-  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }
+  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.nullability: false }
+  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.on_failure: "ignore" }
+
+---
+"on_failure=ignore multi-field receives all values; parent only keeps first (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_multifield
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              parent:
+                type: keyword
+                multi_value: false
+                on_failure: ignore
+                fields:
+                  child:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_on_failure_multifield
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: ["a", "b"]
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_multifield
+
+  # The parent keeps only the first value.
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent: "a"
+
+  - match: { hits.total.value: 1 }
+
+  # The second value is NOT searchable on the parent.
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent: "b"
+
+  - match: { hits.total.value: 0 }
+
+  # The multi-field child indexes all values — both are searchable.
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent.child: "a"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent.child: "b"
+
+  - match: { hits.total.value: 1 }
+
+  # _ignored contains the parent but not the child (child applied no constraint).
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              _ignored: "parent"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              _ignored: "parent.child"
+
+  - match: { hits.total.value: 0 }
+
+---
+"on_failure=fail (default) on multi-field rejects document even when parent ignores (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_child_fail
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              parent:
+                type: keyword
+                multi_value: false
+                on_failure: ignore
+                fields:
+                  child:
+                    type: keyword
+                    multi_value: false
+                    # on_failure defaults to "fail"
+
+  # Indexing a multi-valued array is rejected because the child field's on_failure is "fail".
+  - do:
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
+      index:
+        index: test_on_failure_child_fail
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: ["a", "b"]
+
+---
+"legacy doc_values.on_failure nested form is still accepted":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "nested doc_values object form must still be accepted for BWC; top_level_attributes to verify output is at top level"
+
+  - do:
+      allowed_warnings:
+        - "Specifying [multi_value], [nullability] or [on_failure] inside [doc_values] for field [kw] is deprecated, set them at the top level of the field mapping instead"
+      indices.create:
+        index: test_legacy_on_failure
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  # Enforcement still works: a multi-valued doc is accepted with on_failure=ignore (value redirected).
+  - do:
+      index:
+        index: test_legacy_on_failure
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["a", "b"]
+
+  - do:
+      indices.get_mapping:
+        index: test_legacy_on_failure
+
+  # GET _mapping returns multi_value and on_failure at top level, not inside doc_values:{}.
+  - match: { test_legacy_on_failure.mappings.properties.kw.multi_value: false }
+  - match: { test_legacy_on_failure.mappings.properties.kw.on_failure: "ignore" }

@@ -46,7 +46,8 @@ public class DocumentMapper {
                 false,
                 false,
                 MapperService.MergeReason.MAPPING_UPDATE,
-                mapperService.getIndexMode().isStrictColumnar()
+                mapperService.getIndexMode().isStrictColumnar(),
+                false
             )
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()

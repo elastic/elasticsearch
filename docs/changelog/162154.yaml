@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162154
+summary: Read unmapped fields in one walk of `_source`
+type: enhancement

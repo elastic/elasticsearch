@@ -33,7 +33,6 @@ public class TestPolicyManagerTests extends ESTestCase {
         AtomicInteger scopeCounter = new AtomicInteger(0);
         policyManager = new TestPolicyManager(
             new Policy("empty", List.of()),
-            List.of(),
             Map.of(),
             c -> new PolicyScope(PLUGIN, "example-plugin" + scopeCounter.incrementAndGet(), "org.example.module"),
             new PathLookup() {

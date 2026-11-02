@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
@@ -29,10 +32,15 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedHashMap;
@@ -42,11 +50,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mappingAnalyzerFallbackWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -71,6 +81,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -82,7 +93,11 @@ import static org.hamcrest.Matchers.startsWith;
  * Use this class if you want to test post analysis verification
  * and especially if you expect to get a VerificationException
  */
-public class VerifierTests extends ESTestCase {
+public class VerifierTests extends AnalyzerTestCase {
+
+    public VerifierTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
@@ -340,6 +355,31 @@ public class VerifierTests extends ESTestCase {
             )
         );
 
+        if (EsqlCapabilities.Cap.FILLNULL.isEnabled()) {
+            analyzer.error(
+                "from test* | fillnull DEFAULT ON unsupported",
+                equalTo("1:34: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            analyzer.error(
+                "from test* | fillnull DEFAULT ON multi_typed",
+                equalTo(
+                    "1:34: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                        + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+                )
+            );
+            analyzer.error(
+                "from test* | fillnull 0 ON unsupported",
+                equalTo("1:28: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            analyzer.error(
+                "from test* | fillnull 0 ON multi_typed",
+                equalTo(
+                    "1:28: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                        + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+                )
+            );
+        }
+
         // Verify that UnsupportedAttribute can pass through KEEP (Project) unchanged without error.
         // This is valid because the field is just being projected, not used in operations.
         analyzer.query("from test* | keep unsupported");
@@ -455,7 +495,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testForkWithSourceInOneBranch() {
         // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
-        // Analyzer.resolveFork with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
+        // Analyzer.resolveMergePlan with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
         // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
         // literal or it wrongly fails the query with "EVAL does not support type [_source]".
         defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
@@ -1962,17 +2002,17 @@ public class VerifierTests extends ESTestCase {
     public void testFieldBasedFullTextFunctions() throws Exception {
         // MATCH and : support runtime search; after mv_expand on the same field, the expanded attribute is no
         // longer a direct FieldAttribute so isRuntimeSearch()=true and command restrictions are bypassed.
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
 
-        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
 
         // MATCH_PHRASE supports runtime search on text and keyword expressions
         fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
         fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
         fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")");
 
-        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
+        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
     public void testFullTextFunctionsRuntimeAnalyzerOption() throws Exception {
@@ -2056,17 +2096,111 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | eval x = concat(title, body) | eval t = to_text(x, {\"analyzer\": \"whitespace\"})");
     }
 
-    public void testToTextAnalyzerThroughForkOutputUnreachable() throws Exception {
-        // Full-text functions cannot be used after FORK at all, so a values analyzer declared in or below fork
-        // branches can never be consumed through the fork's merged output. If that restriction is ever relaxed,
-        // Fork's output minting must propagate valuesAnalyzer for agreeing branches and reject conflicting
-        // declarations across branches, like it rejects conflicting data types.
-        fullText().error("""
+    /**
+     * The documented way out of the mapping analyzer being dropped: once the column is an expression, its values
+     * analyzer can be declared again on {@code TO_TEXT}, which is rejected while the field is still index-mapped.
+     */
+    public void testValuesAnalyzerCanBeRedeclaredAfterMvExpand() throws Exception {
+        fullText().query("from test | mv_expand title | eval t = to_text(title, {\"analyzer\": \"whitespace\"}) | where match(t, \"cat\")");
+    }
+
+    /**
+     * A values analyzer declared below FORK reaches the search through the fork's merged output, so every branch
+     * has to agree on it. Fork's output minting keeps only one declaration per column name, which would otherwise
+     * analyze the other branches' rows with an analyzer they never declared.
+     */
+    public void testToTextAnalyzerThroughForkOutput() throws Exception {
+        // declared once, below the fork: every branch carries the same declaration
+        fullText().query("""
             from test
             | eval t = to_text(concat(title, body), {"analyzer": "whitespace"})
             | fork (where true) (where true)
             | where match(t, "cat")
-            """, containsString("[MATCH] function cannot be used after FORK"));
+            """);
+        // declared per branch, but in agreement
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """);
+        // conflicting declarations across branches
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(concat(title, body), {"analyzer": "english"}))
+            | where match(t, "cat")
+            """, containsString("Column [t] has conflicting values analyzers in FORK branches: [english] and [whitespace]"));
+        // declaring nothing is declaring the standard analyzer, so it conflicts too, whichever order the branches
+        // come in - otherwise the analyzer applied would depend on which branch supplied the column first
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(concat(title, body)))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body)))
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // a branch that does not produce the column at all is exempt: alignment fills it with nulls, and a column of
+        // nothing but nulls has no values for a sibling's declaration to disagree with
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (where true)
+            | where match(t, "cat")
+            """);
+        // an explicit null column is the same shape, and equally empty
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = null)
+            | where match(t, "cat")
+            """);
+        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
+        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+        fullText().error("""
+            from test
+            | fork (eval t = null)
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("Column [t] has conflicting data types in FORK branches: [TEXT] and [NULL]"));
+        // a null assignment the branch then shadows is not what the branch outputs, so the exemption must not apply
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = null | eval t = to_text(concat(title, body), {"analyzer": "english"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+    }
+
+    public void testToTextAnalyzerOptionOnFieldAcrossSubqueries() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        Map<String, EsField> mapping = Map.of(
+            "message",
+            new TextEsField("message", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE),
+            "level",
+            new KeywordEsField("level", Map.of(), true, Integer.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("logs", mapping))
+            .addIndex(EsIndexGenerator.esIndex("old_logs", mapping))
+            .stripErrorPrefix(true);
+        // the merged column is the index-mapped field, so the error names that field rather than the FROM clause
+        analyzer.error(
+            """
+                FROM logs, (FROM old_logs | WHERE level == "error")
+                | EVAL m = TO_TEXT(message, {"analyzer": "whitespace"})
+                """,
+            allOf(
+                containsString(
+                    "[analyzer] option is not supported for [TO_TEXT] on index-mapped field [message]" + TO_TEXT_ANALYZER_REJECTION_REASON
+                ),
+                not(containsString("field [FROM logs"))
+            )
+        );
     }
 
     public void testToTextAnalyzerOptionOnUnionTypedField() throws Exception {
@@ -2089,10 +2223,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsRuntimeAnalyzerOptionOnNonTextExpression() throws Exception {
-        // options (including analyzer) are still rejected on non-TEXT runtime expressions; concat returns keyword
+        // MATCH only allows lenient on non-TEXT runtime expressions; MATCH_PHRASE still rejects all options. concat returns keyword.
         fullText().error(
             "from test | eval k = concat(title, body) | where match(k, \"cat\", {\"analyzer\": \"whitespace\"})",
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [k]")
+            containsString("[analyzer] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [k]")
         );
         fullText().error(
             "from test | eval k = concat(title, body) | where match_phrase(k, \"cat\", {\"analyzer\": \"whitespace\"})",
@@ -2100,12 +2234,31 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(
-        String functionName,
-        String functionType,
-        String functionInvocation,
-        boolean supportsRuntimeSearch
-    ) {
+    public void testFullTextFunctionsRuntimeOptionValueThatCannotBuildQuery() throws Exception {
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match(t, \"cat\", {\"max_expansions\": 0})",
+            containsString("[MATCH] function failed to build query for non-index-mapped field [t]")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match_phrase(t, \"cat\", {\"slop\": -1})",
+            containsString("[MATCH_PHRASE] function failed to build query for non-index-mapped field [t]")
+        );
+    }
+
+    public void testMatchRuntimeQueryValueTypeMismatch() throws Exception {
+        // lenient is the default, so a query value that cannot be converted to the field's type passes verification
+        // (but matches nothing)
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\")");
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": true})");
+
+        // 'lenient: false' results in an error about the mismatched types
+        fullText().error(
+            "from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": false})",
+            containsString("does not match the type ([integer]) of non-index-mapped field [k]")
+        );
+    }
+
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -2127,20 +2280,9 @@ public class VerifierTests extends ESTestCase {
             "from test | sort id | limit 1 by id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        if (supportsRuntimeSearch) {
-            // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
-            // so runtime search takes over and command restrictions are bypassed.
-            fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
-        } else {
-            fullText().stripErrorPrefix(false)
-                .error(
-                    "from test | mv_expand " + fieldName + " | where " + functionInvocation,
-                    allOf(
-                        containsString("Found 1 problem"),
-                        containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
-                    )
-                );
-        }
+        // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
+        // so runtime search takes over and command restrictions are bypassed.
+        fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
         if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
             fullText().error(
                 "from test | dedup | where " + functionInvocation,
@@ -2150,18 +2292,105 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query("from test | highlight \"data\" on title | where " + functionInvocation);
     }
 
+    public void testFullTextFunctionsAfterInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        // unlike STATS, INLINE STATS keeps every input row, so the function can still be pushed down to Lucene
+        fullText().query("from test | inline stats m = max(id) by category | where match(title, \"Meditation\")");
+        fullText().query("from test | inline stats m = max(id) by category | where match_phrase(title, \"Meditation\")");
+        fullText().query("from test | inline stats m = max(id) by category | where title : \"Meditation\"");
+        fullText().query("from test | inline stats m = max(id) | where match(title, \"Meditation\")");
+        // only the INLINE STATS aggregate is exempt; a preceding STATS still collapses the rows
+        fullText().error(
+            "from test | stats c = count(id) by title | inline stats m = max(c) by title | where match(title, \"Meditation\")",
+            containsString("[MATCH] function cannot be used after STATS")
+        );
+        // KQL/QSTR are unaffected: their own stricter allow-list rejects INLINE STATS regardless
+        fullText().error(
+            "from test | inline stats m = max(id) by category | where kql(\"title: Meditation\")",
+            containsString("[KQL] function cannot be used after INLINE")
+        );
+        fullText().error(
+            "from test | inline stats m = max(id) by category | where qstr(\"title: Meditation\")",
+            containsString("[QSTR] function cannot be used after INLINE")
+        );
+        // SCORE is checked by checkScoreFunction, which keeps its own unconditional Aggregate restriction, so
+        // wrapping an otherwise allowed MATCH in SCORE is still rejected after INLINE STATS
+        fullText().error(
+            "from test | inline stats m = max(id) by category | eval s = score(match(title, \"Meditation\"))",
+            containsString("[SCORE] function cannot be used after INLINE")
+        );
+    }
+
+    public void testRuntimeFullTextFunctionsAllowedAfterCommands() {
+        checkRuntimeFullTextFunctionAllowedAfterCommands("match(t, \"Meditation\")");
+        checkRuntimeFullTextFunctionAllowedAfterCommands("t : \"Meditation\"");
+        checkRuntimeFullTextFunctionAllowedAfterCommands("match_phrase(t, \"Meditation\")");
+    }
+
+    /**
+     * A runtime search scans the column's values row by row instead of querying the index, so it needs neither a
+     * shard context nor push-down to Lucene and can sit anywhere in the pipeline. The commands checked here are the
+     * ones {@code FullTextFunction#checkCommandsBeforeExpression} rejects for index-backed searches.
+     */
+    private void checkRuntimeFullTextFunctionAllowedAfterCommands(String functionInvocation) {
+        String prefix = "from test | eval t = to_text(concat(title, body)) ";
+        fullText().query(prefix + "| limit 10 | where " + functionInvocation);
+        fullText().query(prefix + "| stats c = count(id) by t | where " + functionInvocation);
+        fullText().query(prefix + "| limit 1 by id | where " + functionInvocation);
+        fullText().query(prefix + "| sort id | limit 1 by id | where " + functionInvocation);
+        // already allowed before this restriction was lifted, through the MV_EXPAND-only carve-out
+        fullText().query(prefix + "| mv_expand id | where " + functionInvocation);
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
+            fullText().query(prefix + "| dedup | where " + functionInvocation);
+        }
+    }
+
+    /**
+     * The exemption is per full-text function, not per condition: an index-backed search sharing a WHERE with a
+     * runtime one still cannot be pushed to Lucene from above a pipeline breaker, so it must keep failing.
+     * <p>
+     * {@code Failure} equality is keyed on the node, so only one failure is reported for the condition - whichever
+     * function it is walked into first. With the same function on both sides the two messages are identical, so that
+     * case shows the query is rejected but not by which leg; the cases pairing different function types name the
+     * index-backed one, and hold only once the runtime one stops failing.
+     */
+    public void testMixedRuntimeAndIndexedFullTextRejectedAfterLimit() {
+        // the plainest form of the mixed condition: the same function on a runtime column and on an indexed field
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match(title, \"dog\")",
+            containsString("[MATCH] function cannot be used after LIMIT")
+        );
+        // the same with differing function types, which pins *which* of the two is rejected
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match_phrase(title, \"dog\")",
+            containsString("[MATCH_PHRASE] function cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match_phrase(t, \"cat\") or title : \"dog\"",
+            containsString("[:] operator cannot be used after LIMIT")
+        );
+    }
+
+    public void testPositionalErrorOnlyNamesIndexedFieldsWhenThereIsAnAlternative() {
+        fullText().error(
+            "from test | limit 10 | where match(title, \"cat\")",
+            containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field")
+        );
+        fullText().error(
+            "from test | limit 10 | where qstr(\"title: cat\")",
+            allOf(containsString("[QSTR] function cannot be used after LIMIT"), not(containsString("indexed field")))
+        );
+    }
+
     public void testFullTextFunctionsAfterFork() {
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",
-            containsString("[:] operator cannot be used after FORK")
+        // Everything FORK outputs is a ReferenceAttribute, so searching one of its columns is a runtime search and
+        // carries no positional restriction. Only the functions without runtime search support still fail.
+        fullText().query("from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"");
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")"
         );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
-            containsString("[MATCH] function cannot be used after FORK")
-        );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
-            containsString("[MatchPhrase] function cannot be used after FORK")
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")"
         );
         // No KEEP here: unlike the general per-command check above, KQL/QSTR's own stricter allow-list also
         // rejects Project (i.e. RENAME/KEEP), and since Failure equality is keyed on the failing node - not the
@@ -2174,26 +2403,20 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
             containsString("[QSTR] function cannot be used after FORK")
         );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
-            containsString("[KNN] function cannot be used after FORK")
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])"
         );
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
-                allOf(containsString("Found 1 problem"), containsString("[MATCH] function cannot be used after FORK"))
-            );
     }
 
     public void testFullTextFunctionsAfterForkWithEvalInBranch() {
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test metadata _id, _index, _score "
-                    + "| fork (where true) (where true | EVAL title = to_text(\"abc\")) "
-                    + "| keep title "
-                    + "| where title : \"data\"",
-                allOf(containsString("Found 1 problem"), containsString("[:] operator cannot be used after FORK"))
-            );
+        // One branch supplies the mapped field and the other an EVAL column. Neither declares a values analyzer, so
+        // the branches agree and the merged column is searchable.
+        fullText().query(
+            "from test metadata _id, _index, _score "
+                + "| fork (where true) (where true | EVAL title = to_text(\"abc\")) "
+                + "| keep title "
+                + "| where title : \"data\""
+        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
@@ -2283,7 +2506,7 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
-        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH_PHRASE", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
     }
 
@@ -2373,7 +2596,7 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
-        checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH_PHRASE", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
     }
 
@@ -2487,23 +2710,6 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
         // match_phrase supports runtime search on text EVAL columns
         fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
-    }
-
-    /**
-     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
-     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
-     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
-     */
-    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
-        // Uses KNN because it is the only field-based full-text function left without runtime search support; if
-        // that lands too, this guard needs another way to trigger the "not a field from an index mapping" failure.
-        fullText().error(
-            "from test | eval v = vector | where knn(v, [1, 2, 3])",
-            allOf(
-                containsString("[KNN] function cannot operate on [v], which is not a field from an index mapping"),
-                not(containsString("federated"))
-            )
-        );
     }
 
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
@@ -3503,20 +3709,65 @@ public class VerifierTests extends ESTestCase {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
         checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
-        checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
+        // similarity_function is left out: it only accepts the names of the similarity metrics, and only when knn
+        // runs on a runtime expression, so a random keyword on an indexed field is an error rather than a success.
+        // testKnnVectorSimilarityOption covers it instead.
+        checkOptionDataTypes(
+            Knn.ALLOWED_OPTIONS,
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})",
+            Set.of(Knn.SIMILARITY_FUNCTION_OPTION)
+        );
         if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
             checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");
         }
     }
 
     /**
-     * Check all data types for available options. When conversion is not possible, checks that it's an error
+     * The {@code similarity_function} option specifies the metric knn compares vectors with, but only on the runtime
+     * search path - an indexed field is compared with the similarity from its mapping, so accepting the option
+     * there would silently ignore it. The accepted values are the {@link VectorSimilarityMetric} names; the runtime
+     * path itself is covered by knn-runtime-function.csv-spec, which can turn the pragma gating it on.
      */
+    public void testKnnVectorSimilarityOption() {
+        for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
+            fullText().error(
+                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"similarity_function\": \""
+                    + metric.name().toLowerCase(Locale.ROOT)
+                    + "\"})",
+                containsString(
+                    "[KNN] option [similarity_function] is only supported when [vector] is a non-index-mapped field or expression"
+                )
+            );
+        }
+
+        // An unknown metric fails on the option value itself, before the plan is ever verified
+        fullText().error(
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"similarity_function\": \"v_cosine\"})",
+            allOf(
+                containsString("Invalid option [similarity_function]"),
+                containsString("expected one of [cosine, dot_product, l2_norm, max_inner_product]")
+            )
+        );
+    }
+
     private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate) {
+        checkOptionDataTypes(allowedOptionsMap, queryTemplate, Set.of());
+    }
+
+    /**
+     * Check all data types for available options. When conversion is not possible, checks that it's an error.
+     *
+     * @param skippedOptions options that constrain their value beyond its data type, so that a value of the right
+     *                       type is not necessarily accepted; those need their own test
+     */
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate, Set<String> skippedOptions) {
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
         for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
+            if (skippedOptions.contains(optionName)) {
+                continue;
+            }
 
             // Check every possible type for the option - we'll try to convert it to the expected type
             for (DataType currentType : optionTypes) {
@@ -3600,6 +3851,286 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
         fullText().query("from test | where " + functionInvocation);
+    }
+
+    /**
+     * FILLNULL never fails over a column it cannot fill, however the column was selected - it leaves the column alone
+     * and warns. These all used to be verification errors. The warning text itself is asserted in fillnull.csv-spec,
+     * which is the layer that can observe response-header warnings.
+     */
+    public void testFillNullUnfillableColumnIsNotAnError() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // incompatible type, by name and by pattern
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON first_name");
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON first_nam*");
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON emp_no, first_name, gender");
+        // value out of range for the column
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON emp_no");
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON avg_worked_seconds, emp_no");
+        // a fractional value would have to be rounded to fit an integral column
+        defaultAnalyzer().query("FROM test | FILLNULL 2.7 ON emp_no");
+        // unsigned_long is only ever compatible with unsigned_long
+        defaultAnalyzer().query("ROW ul = null | EVAL ul = ul::unsigned_long | FILLNULL 7 ON ul");
+        // a string that cannot be parsed into the column type
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL \"not-an-ip\" ON a");
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL \"not-a-date\" ON d");
+        // a string into a type strings are not implicitly cast to
+        defaultAnalyzer().query("ROW i = 1 | FILLNULL \"x\" ON i");
+        // a null-typed column can never be filled
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL \"x\" ON a");
+    }
+
+    public void testFillNullAllFieldsModeSkipsIncompatible() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON *");
+    }
+
+    public void testFillNullAllFieldsModeSkipsOutOfRangeValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON *");
+    }
+
+    public void testFillNullDuplicateFieldIsDeduped() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL DEFAULT ON emp_no, emp_no");
+    }
+
+    public void testFillNullOverlappingFieldsAreDeduped() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL DEFAULT ON emp_no, salary, emp_no, salary");
+    }
+
+    public void testFillNullFieldLimit() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON *";
+        int filled = filledColumns(defaultAnalyzer().query(query));
+        assertThat(filled, greaterThan(1));
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled - 1))
+            .error(
+                query,
+                equalTo(
+                    "1:13: "
+                        + fillNullLimitError(filled, filled - 1)
+                        + " Name only the columns that need filling instead of matching them with [*] or a pattern, or narrow the input"
+                        + " with KEEP or DROP before the FILLNULL."
+                )
+            );
+    }
+
+    public void testFillNullFieldLimitCountsOnlyFilledColumns() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no, first_name, salary";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:13: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitIgnoresCommandsThatFillNothing() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).query("FROM test | FILLNULL NULL ON *");
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).query("FROM test | FILLNULL 0 ON first_name, last_name, gender");
+    }
+
+    public void testFillNullFieldLimitCountsEveryPatternMatch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON languages*";
+        int filled = filledColumns(defaultAnalyzer().query(query));
+        assertThat(filled, greaterThan(1));
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled - 1))
+            .error(query, containsString(fillNullLimitError(filled, filled - 1)));
+    }
+
+    public void testFillNullFieldLimitCountsColumnsBeforeTheyArePruned() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query("FROM test | KEEP emp_no, salary | FILLNULL 0 ON *");
+        String keepAfter = "FROM test | FILLNULL 0 ON * | KEEP emp_no";
+        int filled = filledColumns(defaultAnalyzer().query(keepAfter));
+        assertThat(filled, greaterThan(2));
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(keepAfter, containsString(fillNullLimitError(filled, 2)));
+    }
+
+    public void testFillNullFieldLimitIsQueryWide() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no, salary | FILLNULL 1 ON languages";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString("1:44: " + fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCountsEachFillOfTheSameColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no | FILLNULL 1 ON emp_no";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:36: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitCountsCommandBeforeForkInEveryBranch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no, salary | FORK (WHERE emp_no > 1) (WHERE emp_no < 1)";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(4)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).error(query, containsString(fillNullLimitError(4, 3)));
+    }
+
+    public void testFillNullFieldLimitCountsCommandAfterForkOnce() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 1) | FILLNULL 0 ON emp_no, salary";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:58: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitAddsUpForkBranches() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FORK (FILLNULL 0 ON emp_no, salary) (FILLNULL 0 ON languages)";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString(fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCapsInSubqueryOnItsOwn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        String query = "FROM test | WHERE emp_no IN (FROM test | FILLNULL 0 ON emp_no, salary | KEEP emp_no) | FILLNULL 0 ON languages";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:42: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitCapsNestedInSubqueriesOnTheirOwn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        String query = "FROM test | WHERE emp_no IN (FROM test | WHERE salary IN (FROM test | FILLNULL 0 ON emp_no, salary, languages"
+            + " | KEEP salary) | FILLNULL 0 ON emp_no, salary | KEEP emp_no) | FILLNULL 0 ON languages";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString(fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCountsView() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM v | FILLNULL 0 ON languages";
+        TestAnalyzer analyzer = defaultAnalyzer().addView("v", "FROM test | FILLNULL 0 ON emp_no, salary");
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString(fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCountsEveryViewReference() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = "FROM (FROM v | WHERE emp_no > 1), (FROM v | WHERE emp_no < 1)";
+        TestAnalyzer analyzer = defaultAnalyzer().addView("v", "FROM test | FILLNULL 0 ON emp_no, salary");
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(4)).query(query);
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(3)).error(query, containsString(fillNullLimitError(4, 3)));
+    }
+
+    private static int filledColumns(LogicalPlan plan) {
+        return plan.collect(FillNull.class).stream().mapToInt(fillNull -> fillNull.fillAliases().size()).sum();
+    }
+
+    private static String fillNullLimitError(int filled, int limit) {
+        return "FILLNULL would fill "
+            + filled
+            + " columns in this query, counting each FORK branch and view reference that runs one, exceeding the limit of "
+            + limit
+            + " set by the [esql.query.max_fillnull_fields] cluster setting.";
+    }
+
+    public void testFillNullOnNullTypedColumnPassesVerification() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL \"x\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToDatePasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL \"2025-04-11T00:00:00.000Z\" ON d");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToIpPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL \"1.2.3.4\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToVersionPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::version | FILLNULL \"1.2.3\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToBooleanPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::boolean | FILLNULL \"true\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToDateNanosPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::date_nanos | FILLNULL \"2025-04-11T00:00:00.000Z\" ON d");
+    }
+
+    public void testFillNullStarMixedWithNameIsAllFieldsMode() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `first_name` is a keyword an integer value cannot fill. It is skipped and warned about either way; co-listing
+        // `*` only changes which columns are in scope, never whether the query succeeds.
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON *, first_name");
+    }
+
+    public void testFillNullStarMixedWithUnknownNameReportsUnknownColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A co-listed name is still resolved, so a typo is reported like in any other command - but the lenient
+        // all-fields contract means no [FILLNULL] fillability error is added on top.
+        for (String query : List.of("FROM test | FILLNULL 0 ON *, does_not_exist", "FROM test | FILLNULL 0 ON does_not_exist, *")) {
+            defaultAnalyzer().error(query, allOf(containsString("Unknown column [does_not_exist]"), not(containsString("[FILLNULL]"))));
+        }
+    }
+
+    public void testFillNullStarMixedWithPatternMatchingNothingIsError() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL 0 ON no_such_prefix_*, *",
+            allOf(containsString("No matches found for pattern [no_such_prefix_*]"), not(containsString("[FILLNULL]")))
+        );
+    }
+
+    public void testFillNullPatternMatchingNothingIsError() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().error("FROM test | FILLNULL 0 ON no_such_prefix_*", containsString("No matches found for pattern"));
+    }
+
+    public void testFillNullThenFullTextOnFilledFieldIsRuntimeSearch() throws Exception {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | FILLNULL \"\" ON title | where match(title, \"data\")");
+        fullText().query("from test | FILLNULL \"\" ON title | where title : \"data\"");
+    }
+
+    public void testFillNullThenToTextAnalyzerOnAFilledColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | FILLNULL \"x\" ON title | eval t = to_text(title, {\"analyzer\": \"whitespace\"})");
+        fullText().query("from test | rename title as m | FILLNULL \"x\" ON m | eval t = to_text(m, {\"analyzer\": \"whitespace\"})");
+    }
+
+    public void testFillNullThenFullTextAfterLimitIsRuntimeSearch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | limit 10 | FILLNULL \"\" ON title | where match(title, \"data\")");
+        fullText().query("from test | mv_expand title | FILLNULL \"\" ON title | where title : \"data\"");
+    }
+
+    public void testFillNullThenFullTextOnAFilledLookupFieldIsRuntimeSearch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().addLanguagesLookup().query("""
+            from test
+            | eval language_code = 1
+            | lookup join languages_lookup on language_code
+            | FILLNULL "" ON language_name
+            | where match(language_name, "English")""");
+        fullText().addLanguagesLookup().query("""
+            from test
+            | eval language_code = 1
+            | lookup join languages_lookup on language_code
+            | rename language_name as ln
+            | FILLNULL "" ON ln
+            | where match(ln, "English")""");
+    }
+
+    public void testFillNullThenTimeSeriesGroupingByAFilledMetric() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        tsdb().query(
+            "TS test | FILLNULL 0 ON network.connections | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), "
+                + "network.connections"
+        );
     }
 
     public void testFullTextFunctionsInStats() {
@@ -3686,6 +4217,10 @@ public class VerifierTests extends ESTestCase {
 
         fullText().error(
             "from test metadata _score | stats c = max(_score) where " + functionInvocation,
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
+        fullText().error(
+            "from test metadata _score | stats c = weighted_avg(id, _score) where " + functionInvocation,
             containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
         );
     }
@@ -4013,6 +4548,39 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/160364">#160364</a>.
+     * <p>
+     * The {@code bucket} argument of {@code COUNT(histogram, bucket)} is evaluated <em>after</em> the aggregation (the surrogate
+     * turns it into {@code HISTOGRAM_FRACTION(HISTOGRAM_MERGE(histogram), bucket)} in an {@code EVAL} on top of the {@code STATS}),
+     * so it must either be a constant or reference a grouping key; a {@code BUCKET(...)} passed inline is rejected, even if the
+     * same {@code BUCKET(...)} is also a grouping key. Without this check the query used to slip through analysis and the
+     * optimizer failed with {@code IllegalStateException: ... optimized incorrectly due to missing references [responseTime]}.
+     */
+    public void testHistogramBucketInCountMustBeGroupingKey() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20))",
+                equalTo("1:63: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20))",
+                equalTo("1:65: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20)) BY BUCKET(responseTime, 20)",
+                equalTo("1:63: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        // referencing the grouping key is the supported way
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .query("TS exp_histo_sample | STATS occurrences = COUNT(responseTime, b) BY b = BUCKET(responseTime, 20)");
+    }
+
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(
             "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",
@@ -4071,6 +4639,21 @@ public class VerifierTests extends ESTestCase {
         assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
     }
 
+    public void testTextEmbeddingFunctionNonFoldableArguments() {
+        defaultAnalyzer().addInferenceResolution(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .error(
+                "from test | EVAL embedding = TEXT_EMBEDDING(first_name, ?)",
+                equalTo("1:30: first argument of [TEXT_EMBEDDING(first_name, ?)] must be a constant, received [first_name]"),
+                TEXT_EMBEDDING_INFERENCE_ID
+            );
+
+        defaultAnalyzer().error(
+            "from test | EVAL embedding = TEXT_EMBEDDING(?, first_name)",
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, first_name)] must be a constant, received [first_name]"),
+            "query text"
+        );
+    }
+
     public void testEmbeddingFunctionInvalidQuery() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
@@ -4083,7 +4666,7 @@ public class VerifierTests extends ESTestCase {
         assertInvalidEmbeddingSecondArgument("EMBEDDING");
     }
 
-    private static void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
+    private void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
         defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
             .error(
                 "from test | EVAL embedding = " + functionName + "(null, ?)",
@@ -4098,7 +4681,7 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
-    private static void assertInvalidEmbeddingSecondArgument(String functionName) {
+    private void assertInvalidEmbeddingSecondArgument(String functionName) {
         defaultAnalyzer().error(
             "from test | EVAL embedding = " + functionName + "(?, null)",
             equalTo("1:30: second argument of [" + functionName + "(?, null)] cannot be null, received [null]"),
@@ -4120,9 +4703,18 @@ public class VerifierTests extends ESTestCase {
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
             equalTo(
-                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image, audio, video, pdf]"
+                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], "
+                    + "must be one of [text, image, audio, video, pdf, html]"
             ),
             "query text",
+            EMBEDDING_INFERENCE_ID
+        );
+
+        // html is a valid data type, but only for document extraction
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"html\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unsupported type [html], must be one of [text, image, audio, video, pdf]"),
+            "https://example.com/page.html",
             EMBEDDING_INFERENCE_ID
         );
 
@@ -4384,19 +4976,6 @@ public class VerifierTests extends ESTestCase {
                     containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]")
                 )
             );
-    }
-
-    // Fork inside subquery is tested in LogicalPlanOptimizerTests
-    public void testSubqueryInFromWithForkInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        defaultAnalyzer().addDefaultIncompatible().error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
-            | KEEP emp_no
-            """, containsString("1:6: FORK after subquery is not supported"));
     }
 
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
@@ -4722,10 +5301,10 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10"
         );
-        defaultAnalyzer().query("""
+        defaultAnalyzer().addAnalysisTestsInferenceResolution().query(Strings.format("""
             row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
-            | mmr TEXT_EMBEDDING("some text", "some model") on dense_embedding limit 10
-            """);
+            | mmr TEXT_EMBEDDING("some text", "%s") on dense_embedding limit 10
+            """, TEXT_EMBEDDING_INFERENCE_ID));
 
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
@@ -4733,6 +5312,13 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10",
             equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
+    }
+
+    public void testMMRUnresolvedQueryVector() {
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr _score on dense_embedding limit 10",
+            containsString("Unknown column [_score]")
         );
     }
 
@@ -4791,6 +5377,127 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    public void testBareHighlightRequiresQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(defaultAnalyzer()).error(
+            "FROM test | HIGHLIGHT",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+    }
+
+    public void testHighlightOnStarRequiresHighlightableFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(defaultAnalyzer()).error(
+            "ROW i = 1 | HIGHLIGHT \"x\" ON *",
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"),
+                not(containsString("Invalid query"))
+            )
+        );
+    }
+
+    public void testBarePureNegativeHighlightRequiresExplicitOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT NOT MATCH(title, \"x\")",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
+    public void testDerivedOnRejectsNonHighlightableQueryField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(id, 1)",
+            allOf(
+                containsString("id"),
+                containsString("text or keyword"),
+                not(containsString("found no text or keyword fields to highlight"))
+            )
+        );
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\") AND MATCH(id, 1) | HIGHLIGHT");
+    }
+
+    public void testNotUnsupportedQueryReportsStructuralErrorNotEmptyOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT NOT (LENGTH(title) > 3)",
+            allOf(
+                containsString("HIGHLIGHT query must be a full-text function"),
+                not(containsString("found no text or keyword fields to highlight"))
+            )
+        );
+    }
+
+    public void testQstrQualifierWithDefaultFieldAcceptedWithoutOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT QSTR(\"body:fox\", {\"default_field\": \"title\"})");
+    }
+
+    public void testNotKqlFallsBackWithoutExplicitOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT NOT KQL(\"foo\")");
+    }
+
+    public void testMatchAndNotQstrAcceptedWithoutOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND NOT QSTR(\"body:bar\")");
+    }
+
+    public void testHighlightImplicitQueryMustTargetOnField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body",
+            allOf(containsString("derived its query from a preceding WHERE"), containsString("title"), containsString("body"))
+        );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
+        );
+    }
+
+    /** Query analyzer and values analyzer may differ, exactly like {@code WHERE MATCH}. WITH sets only the values side. */
+    public void testHighlightQueryAndValuesAnalyzersMayDiffer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT");
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT WITH { \"analyzer\": \"whitespace\" }"
+        );
+    }
+
+    /** A mapping analyzer no longer has to match the borrowed query analyzer, and different ON fields may use different analyzers. */
+    public void testHighlightMappingAnalyzerAllowsAnyQueryAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer booksEnglish = supportsHighlightImplicit(
+            analyzer().addIndex("books_english", "mapping-books_english.json").stripErrorPrefix(true)
+        );
+        booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title");
+        booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title");
+        booksEnglish.query("FROM books_english | HIGHLIGHT \"ring\" ON title, publisher");
+        assertWarnings(englishFallbackWarning("title"));
+    }
+
+    public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE KQL(\"title: (fox\") | HIGHLIGHT ON title",
+            allOf(containsString("Invalid query derived from WHERE for HIGHLIGHT:"), not(containsString("Invalid query [")))
+        );
+    }
+
+    public void testHighlightImplicitRejectedOnOlderTransportVersion() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | HIGHLIGHT \"search\"",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
+        fullText().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | WHERE MATCH(title, \"fox\") | HIGHLIGHT ON title",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT \"fox\" ON title");
+    }
+
     public void testHighlightRejectsInvalidOptionEnums() {
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
@@ -4803,6 +5510,11 @@ public class VerifierTests extends ESTestCase {
         assertInvalidHighlightOptionValue("analyzer", "123", containsString("Option [analyzer] must be a string"));
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
+        assertInvalidHighlightOptionValue(
+            "pre_tags",
+            "\"" + "x".repeat(257) + "\"",
+            containsString("Option [pre_tags] must be at most [256] characters, found [257]")
+        );
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "123",
@@ -4852,8 +5564,6 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
         supportsHighlight(defaultAnalyzer()).query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
-        // A full-text function's analyzer option resolves when it names the highlight analyzer, which the runtime
-        // context registers under its own name.
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"whitespace\" }"
         );
@@ -4861,10 +5571,63 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\", {\"analyzer\": \"whitespace\"}) ON title"
                 + " WITH { \"analyzer\": \"whitespace\" }"
         );
-        // The default analyzer is registered as "standard", so nested full-text functions can select it by name.
+        supportsHighlight(fullText()).query(
+            "FROM test | EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT MATCH(t, \"fox\", {\"analyzer\": \"whitespace\"}) ON t"
+        );
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title");
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
+        );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"simple\"}) OR"
+                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body"
+        );
+        // Full-text functions inside a HIGHLIGHT query are used to define highlighting terms, not as Lucene filter predicates.
+        // They must be allowed on non-STANDARD (e.g. time-series) indices.
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT event_log : \"fox\" ON event_log");
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT (event_log : \"fox\") OR (event_log : \"dog\") ON event_log");
+        supportsHighlight(k8s()).query(
+            "TS k8s | LIMIT 100 | HIGHLIGHT MATCH(event_log, \"fox\") OR MATCH(event_log, \"dog\") ON event_log"
+        );
+    }
+
+    public void testHighlightOnTimeSeriesWithWhereClause() {
+        supportsHighlight(k8s()).query("TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
+    }
+
+    /**
+     * Kibana turns a filter pill on a TS data view into {@code field : value}, so the match operator must accept
+     * fields of a TS source, dimensions included.
+     */
+    public void testMatchOperatorAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE cluster : \"prod\"");
+        k8s().query("TS k8s | WHERE event_log : \"fox\"");
+        k8s().query("TS k8s | WHERE events_received : 5");
+    }
+
+    public void testMatchFunctionAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE MATCH(cluster, \"prod\")");
+        k8s().query("TS k8s | WHERE MATCH(event_log, \"fox dog\", {\"operator\": \"AND\"})");
+    }
+
+    public void testMatchPhraseAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE MATCH_PHRASE(event_log, \"quick fox\")");
+    }
+
+    public void testKnnAcceptedOnTimeSeriesField() {
+        fullTextTimeSeries().query("TS test | WHERE KNN(vector, [0, 1, 2])");
+    }
+
+    public void testFullTextFunctionRejectedOnLookupField() {
+        analyzerWithLanguagesLookup().error(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
+                + " | WHERE language_name : \"English\"",
+            containsString(
+                "[:] operator cannot operate on [language_name], supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
         );
     }
 
@@ -4877,18 +5640,98 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
             containsString("Invalid query [fox AND] in HIGHLIGHT:")
         );
-        // Do not report a query error when its analyzer is unknown.
+        // Unknown analyzer: skip the query error. Non-string analyzer: keep both.
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
         );
-        // A non-string analyzer value is reported by option validation, and the query is still validated against the
-        // default analyzer so its error surfaces alongside it. Contrast with the unknown-but-valid-string analyzer case
-        // above, which returns early and suppresses the query error.
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
             allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
         );
+    }
+
+    /** A declared analyzer failure must preserve source locations and other verification errors. */
+    public void testHighlightUnknownDeclaredAnalyzer() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .error(
+                """
+                    ROW t = TO_TEXT("fox", {"analyzer": "not_a_real_analyzer"})
+                    | HIGHLIGHT "fox" ON t WITH {"number_of_fragments": -1}
+                    | LIMIT 10
+                    """,
+                allOf(
+                    containsString("line 1:9: [not_a_real_analyzer] is not a registered analyzer"),
+                    containsString("Option [number_of_fragments] must be >= 0")
+                )
+            );
+    }
+
+    public void testHighlightWithAnalyzerDivergesFromBorrowedLeaf() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }"
+        );
+    }
+
+    /** A resolvable WITH does not clear an unresolvable analyzer on the borrowed query. */
+    public void testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) | HIGHLIGHT ON title",
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) AND MATCH(body, \"bar\") | HIGHLIGHT ON body",
+            "FROM test | WHERE QSTR(\"title:\\\"return\\\"\", {\"analyzer\": \"standard\", \"quote_analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title",
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
+        )) {
+            supportsHighlightImplicit(fullText()).error(
+                query,
+                allOf(
+                    containsString("HIGHLIGHT derived its query from a preceding WHERE"),
+                    containsString("refers to analyzer [my_custom_analyzer]"),
+                    containsString("Write the query on HIGHLIGHT without that analyzer option"),
+                    not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+                )
+            );
+        }
+    }
+
+    /** An unresolvable WITH analyzer reports the registry failure, even when the borrowed query names it too. */
+    public void testHighlightWithAnalyzerFailureReportsRawRegistryError() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String borrowed : List.of("whitespace", "my_custom_analyzer")) {
+            supportsHighlightImplicit(fullText()).error(
+                "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \""
+                    + borrowed
+                    + "\"})"
+                    + " | HIGHLIGHT ON title WITH { \"analyzer\": \"my_custom_analyzer\" }",
+                containsString("[my_custom_analyzer] is not a registered analyzer")
+            );
+        }
+    }
+
+    public void testHighlightReportsUnregisteredLeafAnalyzerEvenWhenWithOverridesIt() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"not_a_real_analyzer\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"title:\\\"fox\\\"\", {\"quote_analyzer\": \"not_a_real_analyzer\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+    }
+
+    /** A mapping name this node cannot build falls back. Index-local names never reach this path. */
+    public void testHighlightMappingAnalyzerUnknownOnNodeFallsBack() {
+        supportsHighlight(analyzer().addIndex("test", "mapping-text-custom-analyzer.json").stripErrorPrefix(true)).query(
+            "FROM test | HIGHLIGHT \"fox\" ON title"
+        );
+        assertWarnings(mappingAnalyzerFallbackWarning("title", "my_index_analyzer"));
     }
 
     public void testHighlightRejectsInvalidQueries() {
@@ -4916,14 +5759,14 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // A nested full-text function must use the same analyzer as HIGHLIGHT.
+        // KNN is a full-text function with no lexical form to highlight, alone or inside a boolean.
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
+            "FROM test | HIGHLIGHT KNN(vector, [1, 2, 3]) ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL)")
         );
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") OR KNN(vector, [1, 2, 3]) ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL)")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
@@ -4937,7 +5780,6 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
-        // Reject field references outside ON while translating the query.
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"title:fox\" ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
@@ -4950,7 +5792,6 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
         );
-        // Report the first field outside ON.
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
@@ -4959,7 +5800,6 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
-        // KQL syntax is checked while building the query.
         supportsHighlight(fullText()).error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
         supportsHighlight(fullText()).error(
             "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",
@@ -4972,6 +5812,15 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM test | HIGHLIGHT \"search\" ON first_name",
                 containsString("HIGHLIGHT is not supported on every participating node")
+            );
+    }
+
+    public void testDenseVectorRejectedOnOlderTransportVersion() {
+        defaultAnalyzer().addAnalysisTestsInferenceResolution()
+            .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .error(
+                Strings.format("FROM test | DENSE_VECTOR first_name WITH { \"inference_id\": \"%s\" }", TEXT_EMBEDDING_INFERENCE_ID),
+                containsString("DENSE_VECTOR is not supported on every participating node")
             );
     }
 
@@ -5004,41 +5853,45 @@ public class VerifierTests extends ESTestCase {
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
-    private static TestAnalyzer defaultAnalyzer() {
+    private TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer analyzerWithLanguagesLookup() {
+    private TestAnalyzer analyzerWithLanguagesLookup() {
         return defaultAnalyzer().addLanguagesLookup();
     }
 
-    private static TestAnalyzer fullText() {
+    private TestAnalyzer fullText() {
         return analyzer().addIndex("test", "mapping-full_text_search.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer sampleData() {
+    private TestAnalyzer fullTextTimeSeries() {
+        return analyzer().addIndex("test", "mapping-full_text_search.json", IndexMode.TIME_SERIES).stripErrorPrefix(true);
+    }
+
+    private TestAnalyzer sampleData() {
         return analyzer().addIndex("test", "mapping-sample_data.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer oddSampleData() {
+    private TestAnalyzer oddSampleData() {
         return analyzer().addIndex("test", "mapping-odd-timestamp.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer tsdb() {
+    private TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
-    private static TestAnalyzer k8s() {
+    private TestAnalyzer k8s() {
         return analyzer().addK8s().stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer k8sDownsampled() {
+    private TestAnalyzer k8sDownsampled() {
         return analyzer().addK8sDownsampled().stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer lookupJoinFullText() {
+    private TestAnalyzer lookupJoinFullText() {
         return analyzer().addDefaultIndex()
             .addLanguagesLookup()
             .minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
@@ -5051,6 +5904,14 @@ public class VerifierTests extends ESTestCase {
      */
     private static TestAnalyzer supportsHighlight(TestAnalyzer analyzer) {
         return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT);
+    }
+
+    /**
+     * Derived HIGHLIGHT query/fields are rejected below
+     * {@link Highlight#ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, so implicit-form tests must pin that version.
+     */
+    private static TestAnalyzer supportsHighlightImplicit(TestAnalyzer analyzer) {
+        return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
     }
 
     @Override

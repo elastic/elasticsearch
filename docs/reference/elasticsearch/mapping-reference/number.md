@@ -197,7 +197,7 @@ All queries that work on a regular numeric field keep working, over the full sig
 
 * [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) and [`terms`](/reference/query-languages/query-dsl/query-dsl-terms-query.md) queries look the values up in the terms dictionary.
 * [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries scan the terms dictionary rather than the BKD tree. Because the terms are encoded so that their byte order matches their numeric order, ranges still resolve correctly, but wide ranges are typically slower than they would be on a BKD tree.
-* Sorting, aggregations, and scripts read [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) and are unaffected.
+* Sorting, aggregations, and scripts read [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) rather than the index, so `index_terms` does not affect them. The one exception is the [`roaring_bitmap`](/reference/aggregations/search-aggregations-metrics-roaring-bitmap-aggregation.md) aggregation: on an `index_terms` field it collects the distinct values from the terms dictionary instead of scanning doc values, which makes it substantially faster.
 
 The following restrictions apply:
 

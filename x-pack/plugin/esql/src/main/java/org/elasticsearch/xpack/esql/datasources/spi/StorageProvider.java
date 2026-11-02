@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 
 import java.io.Closeable;
@@ -31,6 +33,16 @@ public interface StorageProvider extends Closeable {
     StorageObject newObject(StoragePath path, long length, Instant lastModified);
 
     /**
+     * Creates a StorageObject whose version is already known from a listing or a probe, so that its first read is
+     * conditional on that version and its footer is cached under it. A provider that cannot condition on a version
+     * ignores it, and the object is then not footer-cached. Decorators must forward this overload, or the version
+     * is lost before it reaches the footer key.
+     */
+    default StorageObject newObject(StoragePath path, long length, @Nullable Instant lastModified, @Nullable String version) {
+        return newObject(path, length, lastModified);
+    }
+
+    /**
      * Lists objects under a prefix. For blob storage, lists all objects with the given prefix.
      * Returns an iterator to support lazy loading of large directories.
      *
@@ -39,8 +51,54 @@ public interface StorageProvider extends Closeable {
      */
     StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
 
+    /**
+     * As {@link #listObjects(StoragePath, boolean)}, but may return only objects whose name under {@code directory}
+     * begins with {@code namePrefix}.
+     * <p>
+     * A separate method rather than a wider contract on the two-argument form, because that form is also handed real
+     * directories by the partition walk and the prefix fan-out, and every shipped provider treats its argument as
+     * one: the blob stores append a separator when it lacks one, and the local provider refuses a path that is not a
+     * directory. So a caller cannot narrow a listing by lengthening the path it passes — hence this.
+     * <p>
+     * The default is correct and merely wide: it lists the directory and leaves the caller's own matcher to drop what
+     * the name prefix would have. A provider over a flat namespace should override it, because there the narrowing is
+     * free — the prefix is what the store indexes on — and the caller filters either way, so an override changes how
+     * many keys cross the wire and never which files a query sees.
+     */
+    default StorageIterator listObjects(StoragePath directory, String namePrefix, boolean recursive) throws IOException {
+        return listObjects(directory, recursive);
+    }
+
+    /**
+     * Lists the immediate children of a directory-like prefix, distinguishing subdirectories from
+     * objects — for blob storage, a delimiter listing whose common prefixes are the subdirectories.
+     * This lets a partition-aware caller skip whole subtrees; see {@link StorageChildren}.
+     *
+     * <p>Returning {@code null} means "fall back to {@link #listObjects}", legitimate when the
+     * provider cannot enumerate directories (e.g. plain HTTP) or the directory holds more than
+     * {@code limit} children — the result is fully materialized, so implementations must stop rather
+     * than buffer without bound. Deliberately not a default method: forgetting to implement (or
+     * delegate) it would silently disable partition-pruned listing, so each implementation states
+     * its choice.
+     */
+    StorageChildren listChildren(StoragePath prefix, int limit) throws IOException;
+
     /** Checks if an object exists at the given path. */
     boolean exists(StoragePath path) throws IOException;
+
+    /**
+     * The object's length and modification time, for a caller that wants those two values and will not read the
+     * object. The default asks for a handle and reads both values from it.
+     * <p>
+     * A provider whose store answers metadata without transferring the object overrides it; S3 does.
+     * <p>
+     * A decorator forwards this to its delegate. The default resolves through {@code this.newObject}, so a
+     * decorator that inherits it takes the delegate's handle path rather than the delegate's override.
+     */
+    default StorageEntry objectMetadata(StoragePath path) throws IOException {
+        StorageObject object = newObject(path);
+        return new StorageEntry(path, object.length(), object.lastModified(), object.probedVersion());
+    }
 
     /** Returns the URI schemes this provider handles (e.g., ["http", "https"]). */
     List<String> supportedSchemes();
@@ -53,5 +111,17 @@ public interface StorageProvider extends Closeable {
      */
     default boolean supportsStableMetadata() {
         return true;
+    }
+
+    /**
+     * Whether this provider's {@link #listObjects} and {@link #listChildren} results arrive in
+     * lexicographic key order. When {@code true}, concatenating the per-child listings produced by
+     * a prefix fan-out — each prefix's entries in their own lexicographic span — reproduces the
+     * order of a single flat listing, so the fan-out result is deterministic and matches the serial
+     * path entry for entry. Returns {@code false} by default; providers whose listing order is
+     * unspecified or filesystem-dependent must not override this.
+     */
+    default boolean listsInKeyOrder() {
+        return false;
     }
 }

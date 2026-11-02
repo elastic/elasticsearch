@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160823
+pr: 161190
+summary: Ensure Lucene operator status is immutable
+type: bug

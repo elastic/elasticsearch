@@ -201,30 +201,30 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
+                final Expression inlineFilter;
+                if (function instanceof AggregateFunction af && af.hasFilter()) {
+                    inlineFilter = af.filter();
+                    function = af.withFilter(Literal.TRUE);
+                } else {
+                    inlineFilter = null;
+                }
                 // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
-                Expression outerAgg = function.transformDown(expression -> {
-                    if (expression instanceof TimeSeriesAggregateFunction tsAgg) {
-                        if (tsAgg.requiredTimeSeriesSource()) {
-                            requiredTimeSeriesSource.set(Boolean.TRUE);
+                Expression outerAgg = function.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
+                    if (inlineFilter != null) {
+                        if (tsAgg.hasFilter() == false) {
+                            throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
                         }
-                        AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
-                        Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
-                            Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
-                            firstPassAggs.add(firstStageAlias);
-                            return firstStageAlias;
-                        });
-                        return newAgg.toAttribute();
                     }
-                    if (expression instanceof AggregateFunction af && af.hasFilter()) {
-                        // Source filters belong to the first phase, including when a scalar expression wraps the outer aggregate.
-                        af.forEachDown(TimeSeriesAggregateFunction.class, tsAgg -> {
-                            if (tsAgg.hasFilter() == false) {
-                                throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
-                            }
-                        });
-                        return af.withFilter(Literal.TRUE);
+                    if (tsAgg.requiredTimeSeriesSource()) {
+                        requiredTimeSeriesSource.set(Boolean.TRUE);
                     }
-                    return expression;
+                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
+                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
+                        firstPassAggs.add(firstStageAlias);
+                        return firstStageAlias;
+                    });
+                    return newAgg.toAttribute();
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {

@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
@@ -29,6 +31,11 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
  */
 @ServerlessScope(Scope.INTERNAL)
 public class RestRestoreSnapshotAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, "wait_for_completion");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("repository", "snapshot"))
+    );
 
     @Override
     public List<Route> routes() {
@@ -38,6 +45,16 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "restore_snapshot_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.ServerlessScope;
@@ -20,6 +21,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -28,6 +30,16 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 
 @ServerlessScope(INTERNAL)
 public class RestCancelTasksAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        "nodes",
+        "actions",
+        "parent_task_id",
+        "group_by",
+        "wait_for_completion"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("task_id")));
+
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
     public RestCancelTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -37,6 +49,16 @@ public class RestCancelTasksAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "cancel_tasks_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

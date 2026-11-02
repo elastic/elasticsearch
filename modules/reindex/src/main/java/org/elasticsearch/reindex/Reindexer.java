@@ -767,8 +767,14 @@ public class Reindexer {
                 // to when we're shutting down. But outside of those, the available node(s) to relocate to that made reindex stop to
                 // relocate could've died or gotten a shutdown request. Do best-effort relocation to a shutting-down node which might
                 // wait for reindex to complete or relocate again.
-                logger.warn("no node available to relocate reindex task [{}] to, trying nodes marked for shutdown", task.getId());
-                return relocationNodePicker.pickNode(clusterState.nodes(), NodesShutdownMetadata.EMPTY);
+                return relocationNodePicker.pickNode(clusterState.nodes(), NodesShutdownMetadata.EMPTY).map(id -> {
+                    logger.warn(
+                        "no node available to relocate reindex task [{}] to, relocating to node [{}] marked for shutdown",
+                        task.getId(),
+                        id
+                    );
+                    return id;
+                });
             }).map(clusterState.nodes()::get).orElse(null);
             if (nodeToRelocateToNode == null) {
                 final var noNodeToRelocateTo = new IllegalStateException(

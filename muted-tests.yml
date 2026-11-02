@@ -496,11 +496,6 @@ tests:
   - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
   issue: https://github.com/elastic/elasticsearch/issues/164095
-- class: org.elasticsearch.xpack.security.support.CleanupRoleMappingDuplicatesMigrationIT
-  tasks:
-  - :x-pack:plugin:security:internalClusterTest
-  method: testMigrationFallbackNamePreCondition
-  issue: https://github.com/elastic/elasticsearch/issues/164170
 - class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
   tasks:
   - :test:test-clusters:test
@@ -551,18 +546,3 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShardFilesNotDeletedOnStateNotRecoveredDedicatedMaster
   issue: https://github.com/elastic/elasticsearch/issues/164248
-- class: org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettingsTests
-  tasks:
-  - :x-pack:plugin:inference:test
-  method: testFromMap_ExplicitNullRateLimit_ThrowsException
-  issue: https://github.com/elastic/elasticsearch/issues/164266
-- class: org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettingsTests
-  tasks:
-  - :x-pack:plugin:inference:test
-  method: testFromMap_ExplicitNullRateLimit_ThrowsException
-  issue: https://github.com/elastic/elasticsearch/issues/164269
-- class: org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettingsTests
-  tasks:
-  - :x-pack:plugin:inference:test
-  method: testFromMap_ExplicitNullRateLimit_ThrowsException
-  issue: https://github.com/elastic/elasticsearch/issues/164271

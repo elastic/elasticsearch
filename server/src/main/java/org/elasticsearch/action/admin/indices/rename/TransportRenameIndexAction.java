@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
@@ -232,9 +233,20 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
             clusterBlocks = blocksBuilder.build();
         }
 
+        // index.provided_name records the name the index was created with and is read back by tooling as "the index name", so it
+        // follows the rename; that is a settings change and bumps the settings version like any other
+        final Settings renamedSettings = Settings.builder()
+            .put(currentMetadata.getSettings())
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, destinationName)
+            .build();
         final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(currentProject)
             // Add the metadata under the new name
-            .put(IndexMetadata.builder(currentMetadata).index(destinationName))
+            .put(
+                IndexMetadata.builder(currentMetadata)
+                    .index(destinationName)
+                    .settings(renamedSettings)
+                    .settingsVersion(currentMetadata.getSettingsVersion() + 1)
+            )
             // Remove the existing one
             .remove(originalName);
 

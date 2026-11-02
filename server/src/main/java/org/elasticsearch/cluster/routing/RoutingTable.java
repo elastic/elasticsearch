@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
@@ -52,6 +53,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     // index to IndexRoutingTable map
     private final ImmutableOpenMap<String, IndexRoutingTable> indicesRouting;
+    /** Lazily built view of {@link #indicesRouting} keyed by index UUID, for lookups with a stale {@link Index}. */
+    private volatile Map<String, IndexRoutingTable> indicesRoutingByUuid;
 
     private RoutingTable(ImmutableOpenMap<String, IndexRoutingTable> indicesRouting) {
         this.indicesRouting = indicesRouting;
@@ -83,17 +86,40 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public boolean hasIndex(Index index) {
-        IndexRoutingTable indexRouting = index(index);
-        return indexRouting != null;
+        return index(index) != null;
     }
 
     public IndexRoutingTable index(String index) {
         return indicesRouting.get(index);
     }
 
+    /**
+     * Resolves by name first and falls back to the UUID, so that a caller holding an {@link Index} captured before a rename still
+     * finds the routing table of that index under its new name. See {@code ProjectMetadata#hasIndex(Index)}.
+     */
     public IndexRoutingTable index(Index index) {
         IndexRoutingTable indexRouting = index(index.getName());
-        return indexRouting != null && indexRouting.getIndex().equals(index) ? indexRouting : null;
+        if (indexRouting != null && indexRouting.getIndex().equals(index)) {
+            return indexRouting;
+        }
+        Map<String, IndexRoutingTable> byUuid = indicesRoutingByUuid;
+        if (byUuid == null) {
+            byUuid = buildIndicesRoutingByUuid();
+        }
+        return byUuid.get(index.getUUID());
+    }
+
+    private synchronized Map<String, IndexRoutingTable> buildIndicesRoutingByUuid() {
+        Map<String, IndexRoutingTable> byUuid = indicesRoutingByUuid;
+        if (byUuid != null) {
+            return byUuid;
+        }
+        final Map<String, IndexRoutingTable> built = Maps.newHashMapWithExpectedSize(indicesRouting.size());
+        for (IndexRoutingTable indexRoutingTable : indicesRouting.values()) {
+            built.put(indexRoutingTable.getIndex().getUUID(), indexRoutingTable);
+        }
+        indicesRoutingByUuid = built;
+        return built;
     }
 
     public Map<String, IndexRoutingTable> indicesRouting() {

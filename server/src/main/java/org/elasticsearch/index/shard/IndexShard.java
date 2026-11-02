@@ -5394,6 +5394,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             super.renameTo(newIndex);
             getService.renameTo(newIndex);
             this.shardRouting = this.shardRouting.updateIndex(newIndex);
+            final RecoveryState currentRecoveryState = this.recoveryState;
+            if (currentRecoveryState != null) {
+                currentRecoveryState.updateIndex(newIndex);
+            }
         }
     }
 }

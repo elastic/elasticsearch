@@ -254,6 +254,16 @@ test by two extra cluster state updates and a health check, and it makes
 unrelated test failures look rename-related. Production should make it a
 randomized or opt-in behavior, like other `ESIntegTestCase` randomizations.
 
+### T12. Stateless: writes to a renamed index hang (under investigation)
+
+In a stateless cluster (one index node, one search node) the first bulk after a
+rename never completes. The master applies the dynamic mapping update for the
+renamed index, the index node's bulk then waits for its local cluster state to
+show the new mapping version, and that wait never ends; no node thread is busy
+and nothing is logged. `StatelessRenameIndexIT` reproduces it with timeouts
+and debug logging; its outcome on the current branch is recorded here once
+known.
+
 ## Decisions that need to be made
 
 ### D1. Where the API lives
@@ -355,10 +365,46 @@ Tests that already opted out of the rename in Niels's commit, for similar
 reasons: `ClusterHealthIT`, `ZenDiscoveryIT`, `UpdateShardAllocationSettingsIT`,
 `IndexRecoveryIT`, `NodeShutdownShardsIT`, `WriteActionsTests`.
 
-Not yet run with the trick: `modules/*` and `x-pack/*` internal cluster tests,
-REST tests, and the unit test suites that construct `Index` objects by hand.
-Niels's last CI run of the trick extended to `assertAcked` failed on security
-tests; that extension is not part of this prototype.
+### Modules, plugins and x-pack
+
+Every `internalClusterTest` task under `modules/`, `plugins/` and `x-pack/`
+(76 projects) was run with the trick enabled, against the commit before the
+UUID-diff and batching changes (ea3d4b01), on the same machine, 1.5 hours.
+
+| Area | Tests | Failed | Skipped |
+|---|---|---|---|
+| modules (29 projects) | 723 | 0 | 2 |
+| plugins | 43 | 0 | 10 |
+| x-pack except stateless | 27741 | 5 | 685 |
+| x-pack stateless | 758 | 29 | 717 |
+
+The x-pack failures outside stateless:
+
+- `SnapshotBasedIndexRecoveryIT#testRecoveryConcurrentlyWithIndexing` and
+  `NodeShutdownShardsIT#testReallocationForReplicaDuringNodeReplaceAfterShutdownOfReplica`.
+  Both read `GET _recovery` for the index and find nothing under its name. A
+  real stale-name bug, not a test artifact: `RecoveryState` copies the
+  `ShardId` when a recovery starts and `TransportRecoveryAction` groups the
+  response by that shard id's index name, so after a rename the recovery API
+  lists the index under its old name. Fixed by renaming the shard's
+  `RecoveryState` in `IndexShard#renameTo` (its shard id is now volatile).
+- `CsvIT` `lookup-join.multipleBatchesWithAggregate3` timed out waiting for a
+  task. Not re-examined; likely load, since the stateless suites were timing out
+  in parallel.
+- `SuppressWaitForActiveShardsActionFilterIT` (stateless companion plugin) hung
+  for the same reason as the stateless suites below.
+
+Stateless is the one area where the trick found a hard problem rather than
+artifacts: 15 suites hit the 20 minute suite timeout, every one blocked in the
+first write to a renamed index. The other stateless failures are
+`findIndexShard` lookups in the test base class that resolve the index through
+`index.provided_name`, which still held the temporary creation name; the
+prototype now updates that setting on rename. See T12 for the write hang.
+
+Not yet run with the trick: REST tests, and the unit test suites that
+construct `Index` objects by hand. Niels's last CI run of the trick extended to
+`assertAcked` failed on security tests; that extension is not part of this
+prototype.
 
 ## Suggested sequence of production PRs
 

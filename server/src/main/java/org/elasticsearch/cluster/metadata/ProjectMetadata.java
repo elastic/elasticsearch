@@ -511,9 +511,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * @param index An {@link Index} object that may or may not exist in the cluster.
      * @return {@code true} if an index exists with the same name and UUID as the given index object, {@code false} otherwise.
      */
+    /**
+     * Index lookups by {@link Index} resolve by name first and fall back to the UUID. The fallback is what keeps every component
+     * that captured an {@link Index} before a rename (shards, translog and commit services, recovery state, listeners) working
+     * after it: the name they hold is stale, the UUID is not. The fallback only runs when the name lookup misses, so the common
+     * path costs nothing extra.
+     */
     public boolean hasIndex(Index index) {
-        IndexMetadata metadata = index(index.getName());
-        return metadata != null && metadata.getIndexUUID().equals(index.getUUID());
+        return index(index) != null;
     }
 
     /** Returns true iff existing index has the same {@link IndexMetadata} instance */
@@ -539,7 +544,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (metadata != null && metadata.getIndexUUID().equals(index.getUUID())) {
             return metadata;
         }
-        return null;
+        // the name is stale or taken by another index: the index may still exist under a different name, see hasIndex(Index)
+        return indexByUuid(index.getUUID());
     }
 
     /**
@@ -555,6 +561,13 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      */
     public IndexMetadata getIndexSafe(Index index) {
         IndexMetadata metadata = index(index.getName());
+        if (metadata != null && metadata.getIndexUUID().equals(index.getUUID()) == false) {
+            // the name now belongs to another index; the one asked for may still exist under a different name
+            final IndexMetadata byUuid = indexByUuid(index.getUUID());
+            if (byUuid != null) {
+                return byUuid;
+            }
+        }
         if (metadata != null) {
             if (metadata.getIndexUUID().equals(index.getUUID())) {
                 return metadata;
@@ -565,6 +578,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                     "index uuid doesn't match expected: [" + index.getUUID() + "] but got: [" + metadata.getIndexUUID() + "]"
                 )
             );
+        }
+        final IndexMetadata byUuid = indexByUuid(index.getUUID());
+        if (byUuid != null) {
+            return byUuid;
         }
         throw new IndexNotFoundException(index, id);
     }

@@ -117,7 +117,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     private final RecoverySource recoverySource;
     private final ShardRouting.RecoveryPriority recoveryPriority;
-    private final ShardId shardId;
+    // volatile rather than final so that an index rename can update the name reported by the recovery API, see updateIndex
+    private volatile ShardId shardId;
     @Nullable
     private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
@@ -232,6 +233,15 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         translog.writeTo(out);
         verifyIndex.writeTo(out);
         out.writeBoolean(primary);
+    }
+
+    /**
+     * Points this recovery state at the renamed index so that the recovery API groups it under the index's current name. Only
+     * the name changes; {@code index} must have the same UUID as the current shard id's index.
+     */
+    public void updateIndex(org.elasticsearch.index.Index index) {
+        assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
+        this.shardId = new ShardId(index, shardId.id());
     }
 
     public ShardId getShardId() {

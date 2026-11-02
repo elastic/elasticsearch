@@ -24,7 +24,6 @@ import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +40,6 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
     private final ClusterService clusterService;
     private final ActionType<BulkByPaginatedSearchResponse> delegateAction;
     private final NodeClient nodeClient;
-    private final ShutdownPrepareService shutdownPrepareService;
 
     protected AbstractResumeBulkByPaginatedSearchAction(
         String actionName,
@@ -51,14 +49,12 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
         Executor executor,
         ClusterService clusterService,
         ActionType<BulkByPaginatedSearchResponse> delegateAction,
-        NodeClient nodeClient,
-        ShutdownPrepareService shutdownPrepareService
+        NodeClient nodeClient
     ) {
         super(actionName, transportService, actionFilters, requestReader, executor);
         this.clusterService = clusterService;
         this.delegateAction = delegateAction;
         this.nodeClient = nodeClient;
-        this.shutdownPrepareService = shutdownPrepareService;
     }
 
     @Override
@@ -70,7 +66,9 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
         // ResumeBulkByPaginatedSearchRequest.validate() rejects requests with no ResumeInfo
         assert request.getDelegate().getResumeInfo().isPresent();
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
-        logIfShuttingDown(resumeInfo);
+        if (clusterService.state().metadata().nodeShutdowns().contains(clusterService.localNode().getId())) {
+            logger.info("received relocated reindex task [{}] when I'm marked for shutdown in cluster state", resumeInfo.relocationOrigin().originalTaskId();
+        }
 
         var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
         Task delegateTask = nodeClient.executeAndReturnTask(delegateAction, request.getDelegate(), responseListener);
@@ -84,15 +82,5 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
         );
 
         listener.onResponse(new ResumeBulkByPaginatedSearchResponse(taskId));
-    }
-
-    private void logIfShuttingDown(ResumeInfo resumeInfo) {
-        final TaskId originalTaskId = resumeInfo.relocationOrigin().originalTaskId();
-        if (shutdownPrepareService.isShuttingDown()) {
-            logger.info("received relocated reindex task [{}] when I've already started shutting down", originalTaskId);
-        }
-        if (clusterService.state().metadata().nodeShutdowns().contains(clusterService.localNode().getId())) {
-            logger.info("received relocated reindex task [{}] when I'm marked for shutdown in cluster state", originalTaskId);
-        }
     }
 }

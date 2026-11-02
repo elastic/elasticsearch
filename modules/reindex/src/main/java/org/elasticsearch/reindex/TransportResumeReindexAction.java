@@ -20,7 +20,6 @@ import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,8 +33,7 @@ public class TransportResumeReindexAction extends AbstractResumeBulkByPaginatedS
         ActionFilters actionFilters,
         ClusterService clusterService,
         NodeClient nodeClient,
-        ReindexMetrics reindexMetrics,
-        ShutdownPrepareService shutdownPrepareService
+        ReindexMetrics reindexMetrics
     ) {
         super(
             ResumeReindexAction.NAME,
@@ -45,8 +43,7 @@ public class TransportResumeReindexAction extends AbstractResumeBulkByPaginatedS
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             clusterService,
             ReindexAction.INSTANCE,
-            nodeClient,
-            shutdownPrepareService
+            nodeClient
         );
         this.reindexMetrics = reindexMetrics;
     }

@@ -17,14 +17,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.contextengine.ContextEnginePlugin;
+import org.elasticsearch.xpack.contextengine.memory.action.SearchSessionMemoryAction;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -96,6 +101,93 @@ public class SessionMemoryIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Embeds the query once with {@code inferenceId} and runs a kNN search over both {@code content.semantic} and {@code media},
+     * applying the request's filters inside each kNN clause so they narrow the candidates rather than the results.
+     */
+    public void search(
+        SearchSessionMemoryAction.Request request,
+        String inferenceId,
+        ActionListener<List<SearchSessionMemoryAction.Hit>> listener
+    ) {
+        try {
+            List<QueryBuilder> filters = new ArrayList<>();
+            addTermFilter(filters, SessionMemory.SESSION_ID_FIELD, request.sessionId());
+            addTermFilter(filters, SessionMemory.USER_ID_FIELD, request.userId());
+            addTermFilter(filters, SessionMemory.AGENT_ID_FIELD, request.agentId());
+            addTermFilter(filters, SessionMemory.SPACE_FIELD, request.space());
+            addTermFilter(filters, SessionMemory.AI_INDEX_ID_FIELD, request.aiIndexId());
+
+            BoolQueryBuilder query = QueryBuilders.boolQuery().minimumShouldMatch(1);
+            for (String field : List.of(CONTENT_SEMANTIC_FIELD, SessionMemory.MEDIA_FIELD.getPreferredName())) {
+                query.should(knnQuery(field, request.query(), inferenceId, request.size(), filters));
+            }
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query).size(request.size());
+            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
+            clientWithOrigin.search(searchRequest, ActionListener.wrap(searchResponse -> {
+                List<SearchSessionMemoryAction.Hit> hits = new ArrayList<>();
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    hits.add(new SearchSessionMemoryAction.Hit(parseHit(hit), hit.getScore()));
+                }
+                listener.onResponse(hits);
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onResponse(List.of());
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static final String CONTENT_SEMANTIC_FIELD = SessionMemory.CONTENT_FIELD.getPreferredName() + ".semantic";
+
+    private static void addTermFilter(List<QueryBuilder> filters, ParseField field, String value) {
+        if (value != null) {
+            filters.add(QueryBuilders.termQuery(field.getPreferredName(), value));
+        }
+    }
+
+    /**
+     * The {@code embedding} query vector builder lives in the inference plugin, which does not export it, so the kNN clause is
+     * built as JSON and parsed on the coordinating node through a wrapper query.
+     */
+    private static QueryBuilder knnQuery(String field, Object input, String inferenceId, int size, List<QueryBuilder> filters)
+        throws IOException {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("knn");
+            {
+                builder.field("field", field);
+                builder.field("k", size);
+                builder.field("num_candidates", Math.max(100, size * 10));
+                builder.startObject("query_vector_builder");
+                {
+                    builder.startObject("embedding");
+                    {
+                        builder.field("inference_id", inferenceId);
+                        builder.field("input", input);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                if (filters.isEmpty() == false) {
+                    builder.startArray("filter");
+                    for (QueryBuilder filter : filters) {
+                        filter.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    }
+                    builder.endArray();
+                }
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return QueryBuilders.wrapperQuery(Strings.toString(builder));
     }
 
     private static SessionMemory parseHit(SearchHit hit) throws IOException {

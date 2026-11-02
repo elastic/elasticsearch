@@ -124,3 +124,87 @@ teardown:
           agent_id: "agent-1"
 
   - match: { error.reason: "/.*one\\sof\\s\\[content\\]\\sor\\s\\[media\\].*/" }
+
+---
+"Search finds memories by text and by image and honors filters":
+  - do:
+      context_engine.remember:
+        body:
+          id: "search-text"
+          session_id: "session-2"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          space: "default"
+          ai_index_id: ["ai-index-1"]
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "search-image"
+          session_id: "session-2"
+          user_id: "user-2"
+          agent_id: "agent-1"
+          space: "default"
+          media:
+            - type: "image"
+              value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+
+  - match: { count: 2 }
+  - is_true: results.0._score
+  - is_true: results.0.memory.id
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query:
+            type: "image"
+            value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+          session_id: "session-2"
+
+  - match: { count: 2 }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+          user_id: "user-2"
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "search-image" }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+          ai_index_id: "ai-index-1"
+          size: 1
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "search-text" }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "anything"
+          session_id: "no-such-session"
+
+  - match: { count: 0 }
+
+---
+"Search rejects an empty query":
+  - do:
+      catch: bad_request
+      context_engine.search_session_memory:
+        body:
+          query: ""
+
+  - match: { error.reason: "/.*\\[query\\]\\scannot\\sbe\\sempty.*/" }

@@ -28,6 +28,15 @@ public class MetricsTests extends ESTestCase {
         assertThat(queries, hasKey("_all"));
     }
 
+    public void testEveryEntryPointIsEmittedAtZero() {
+        Counters stats = newMetrics().stats();
+        assertThat(nested(stats, "entry_points"), aMapWithSize(QueryEntryPoint.values().length));
+        for (QueryEntryPoint entryPoint : QueryEntryPoint.values()) {
+            assertThat(stats.get("entry_points." + entryPoint + ".total"), equalTo(0L));
+            assertThat(stats.get("entry_points." + entryPoint + ".failed"), equalTo(0L));
+        }
+    }
+
     public void testAllIsTheSumOfClients() {
         Metrics metrics = newMetrics();
         metrics.total(QueryMetric.KIBANA);
@@ -45,6 +54,21 @@ public class MetricsTests extends ESTestCase {
         assertThat(stats.get("queries.rest.failed"), equalTo(1L));
         assertThat(stats.get("queries._all.total"), equalTo(4L));
         assertThat(stats.get("queries._all.failed"), equalTo(2L));
+    }
+
+    public void testEntryPointIncrementsOnlyItsOwnCounter() {
+        Metrics metrics = newMetrics();
+        QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
+        metrics.total(entryPoint);
+        metrics.total(entryPoint);
+        metrics.failed(entryPoint);
+        Counters stats = metrics.stats();
+        for (QueryEntryPoint other : QueryEntryPoint.values()) {
+            long expectedTotal = other == entryPoint ? 2L : 0L;
+            long expectedFailed = other == entryPoint ? 1L : 0L;
+            assertThat(stats.get("entry_points." + other + ".total"), equalTo(expectedTotal));
+            assertThat(stats.get("entry_points." + other + ".failed"), equalTo(expectedFailed));
+        }
     }
 
     private static Metrics newMetrics() {

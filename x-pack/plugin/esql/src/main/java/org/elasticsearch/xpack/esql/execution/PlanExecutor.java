@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryCaller;
 import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -316,6 +317,7 @@ public class PlanExecutor {
 
         if (request.analyzeOnly() == false) {
             metrics.total(caller.client());
+            metrics.total(request.entryPoint());
             var begin = System.nanoTime();
             AtomicBoolean finishCounted = new AtomicBoolean();
             executeListener = wrap(
@@ -388,7 +390,7 @@ public class PlanExecutor {
         long begin,
         String client
     ) {
-        countFinishedQuery(finishCounted, caller, true);
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), true);
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
@@ -424,7 +426,8 @@ public class PlanExecutor {
         ExternalSourceResolver externalSourceResolver
     ) {
         metrics.failed(caller.client());
-        countFinishedQuery(finishCounted, caller, false);
+        metrics.failed(request.entryPoint());
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), false);
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -448,9 +451,9 @@ public class PlanExecutor {
      * Counts a finished query on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success
      * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count.
      */
-    private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, boolean success) {
+    private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, QueryEntryPoint entryPoint, boolean success) {
         if (finishCounted.compareAndSet(false, true)) {
-            planTelemetryManager.publishQuery(caller, success);
+            planTelemetryManager.publishQuery(caller, entryPoint, success);
         }
     }
 

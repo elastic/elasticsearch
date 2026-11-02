@@ -429,6 +429,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         Map<String, Object> expectedQueryAttributes = Map.of(
             PlanTelemetryManager.CLIENT,
             expectedClient,
+            PlanTelemetryManager.ENTRY_POINT,
+            "internal",
             PlanTelemetryManager.QUERY_SUCCESS,
             success
         );
@@ -501,6 +503,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         long expectedFailed = success ? 0 : successIterations;
         assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".total", successIterations);
         assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".failed", expectedFailed);
+        assertCounterDelta(statsBefore, statsAfter, "entry_points.internal.total", successIterations);
+        assertCounterDelta(statsBefore, statsAfter, "entry_points.internal.failed", expectedFailed);
     }
 
     private static Counters esqlStats() {

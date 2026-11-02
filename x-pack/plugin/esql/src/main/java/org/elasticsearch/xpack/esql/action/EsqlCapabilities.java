@@ -4679,6 +4679,11 @@ public class EsqlCapabilities {
          */
         USAGE_QUERIES_OTHER_CLIENT,
 
+        /**
+         * Does the usage information for ESQL count queries by the API they came in on ({@code entry_points.<entry_point>})?
+         */
+        USAGE_ENTRY_POINTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

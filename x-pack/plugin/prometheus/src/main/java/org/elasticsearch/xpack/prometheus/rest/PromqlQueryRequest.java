@@ -13,19 +13,27 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
-public class PromqlQueryRequest extends PreparedEsqlQueryRequest {
+public final class PromqlQueryRequest extends PreparedEsqlQueryRequest {
     private final String index;
     public static final String PROMQL_TYPE = "promql";
     private final QueryParams params;
 
-    public PromqlQueryRequest(String index, EsqlStatement statement, String queryDescription, Object... params) {
+    public PromqlQueryRequest(
+        QueryEntryPoint entryPoint,
+        String index,
+        EsqlStatement statement,
+        String queryDescription,
+        Object... params
+    ) {
         super(false, statement, queryDescription, false);
+        entryPoint(entryPoint);
         this.index = index;
         if (params != null && params.length > 0) {
             this.params = new QueryParams(getParams(params));

@@ -15,6 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.util.List;
@@ -103,6 +104,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             PrometheusQueryResponseListener.QueryMode.RANGE
         );
         var esqlRequest = new PromqlQueryRequest(
+            QueryEntryPoint.PROMETHEUS_QUERY_RANGE,
             index,
             result.esqlStatement(),
             query,

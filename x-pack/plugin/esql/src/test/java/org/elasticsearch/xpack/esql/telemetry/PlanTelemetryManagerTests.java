@@ -25,16 +25,26 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         QueryMetric client = randomFrom(QueryMetric.values());
+        QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
         boolean success = randomBoolean();
 
-        manager.publishQuery(new QueryCaller(client), success);
+        manager.publishQuery(new QueryCaller(client), entryPoint, success);
 
         List<Measurement> measurements = queryMeasurements(registry);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.getFirst().getLong(), equalTo(1L));
         assertThat(
             measurements.getFirst().attributes(),
-            equalTo(Map.of(PlanTelemetryManager.CLIENT, client.toString(), PlanTelemetryManager.QUERY_SUCCESS, success))
+            equalTo(
+                Map.of(
+                    PlanTelemetryManager.CLIENT,
+                    client.toString(),
+                    PlanTelemetryManager.ENTRY_POINT,
+                    entryPoint.toString(),
+                    PlanTelemetryManager.QUERY_SUCCESS,
+                    success
+                )
+            )
         );
     }
 
@@ -43,7 +53,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         int queries = between(2, 10);
         for (int i = 0; i < queries; i++) {
-            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), true);
+            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), QueryEntryPoint.QUERY, true);
         }
         assertThat(Measurement.combine(queryMeasurements(registry)).getFirst().getLong(), equalTo((long) queries));
     }
@@ -54,7 +64,11 @@ public class PlanTelemetryManagerTests extends ESTestCase {
      */
     public void testQueryAttributeNamesFollowTheApmNamingRule() {
         Pattern apmAttributeName = Pattern.compile("es(_[a-z][a-z0-9]{0,29}){2,8}");
-        for (String attribute : List.of(PlanTelemetryManager.CLIENT, PlanTelemetryManager.QUERY_SUCCESS)) {
+        for (String attribute : List.of(
+            PlanTelemetryManager.CLIENT,
+            PlanTelemetryManager.ENTRY_POINT,
+            PlanTelemetryManager.QUERY_SUCCESS
+        )) {
             assertTrue(attribute, apmAttributeName.matcher(attribute).matches());
         }
     }

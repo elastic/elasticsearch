@@ -704,13 +704,32 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
-    public void testFailureCountsClient() throws Exception {
+    public void testSuccessCountsEntryPoint() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | KEEP foo").entryPoint(entryPoint),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("entry_points." + entryPoint + ".total"), equalTo(1L));
+            assertThat(stats.get("entry_points." + entryPoint + ".failed"), equalTo(0L));
+        }
+    }
+
+    public void testFailureCountsClientAndEntryPoint() throws Exception {
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
             executeEsql(
                 planExecutor,
                 createTransportActionServices(threadContextWithOrigin("kibana")),
-                queryRequest("FROM test | STATS m = MAX(xyz)"),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY_ASYNC),
                 createEsqlExecutionInfo(true),
                 (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
                 ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
@@ -719,7 +738,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("queries.kibana.total"), equalTo(1L));
             assertThat(stats.get("queries.kibana.failed"), equalTo(1L));
             assertThat(stats.get("queries.rest.total"), equalTo(0L));
-            assertThat(stats.get("queries.rest.failed"), equalTo(0L));
+            assertThat(stats.get("entry_points.query_async.total"), equalTo(1L));
+            assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
         }
     }
 
@@ -736,7 +756,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             executeEsql(
                 planExecutor,
                 createTransportActionServices(threadContextWithOrigin("kibana")),
-                queryRequest("FROM test | KEEP foo"),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
                 successInfo,
                 planRunnerFor(successInfo),
                 ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
@@ -744,7 +764,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             executeEsql(
                 planExecutor,
                 createTransportActionServices(threadContextWithOrigin(null)),
-                queryRequest("FROM test | WHERE"),
+                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY_ASYNC),
                 createEsqlExecutionInfo(true),
                 (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
                 ActionListener.wrap(r -> fail("this shouldn't happen"), e -> {})
@@ -755,15 +775,29 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(
                 measurements.stream().map(Measurement::attributes).toList(),
                 containsInAnyOrder(
-                    Map.of(PlanTelemetryManager.CLIENT, "kibana", PlanTelemetryManager.QUERY_SUCCESS, true),
-                    Map.of(PlanTelemetryManager.CLIENT, "rest", PlanTelemetryManager.QUERY_SUCCESS, false)
+                    Map.of(
+                        PlanTelemetryManager.CLIENT,
+                        "kibana",
+                        PlanTelemetryManager.ENTRY_POINT,
+                        "query",
+                        PlanTelemetryManager.QUERY_SUCCESS,
+                        true
+                    ),
+                    Map.of(
+                        PlanTelemetryManager.CLIENT,
+                        "rest",
+                        PlanTelemetryManager.ENTRY_POINT,
+                        "query_async",
+                        PlanTelemetryManager.QUERY_SUCCESS,
+                        false
+                    )
                 )
             );
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("queries.kibana.total"), equalTo(1L));
-            assertThat(stats.get("queries.kibana.failed"), equalTo(0L));
-            assertThat(stats.get("queries.rest.total"), equalTo(1L));
             assertThat(stats.get("queries.rest.failed"), equalTo(1L));
+            assertThat(stats.get("entry_points.query.total"), equalTo(1L));
+            assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
         }
     }
 
@@ -788,13 +822,15 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             executeEsql(
                 planExecutor,
                 createTransportActionServices(usageService, CrossProjectModeDecider.NOOP),
-                queryRequest("FROM test | KEEP foo"),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
                 executionInfo,
                 planRunnerFor(executionInfo),
                 ActionListener.wrap(r -> fail("this shouldn't happen"), failure::set)
             );
             assertThat(failure.get(), instanceOf(IllegalStateException.class));
             Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("entry_points.query.total"), equalTo(1L));
+            assertThat(stats.get("entry_points.query.failed"), equalTo(1L));
             assertThat(stats.get("queries.rest.total"), equalTo(1L));
             assertThat(stats.get("queries.rest.failed"), equalTo(1L));
             assertThat(
@@ -814,6 +850,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 meterRegistry
             );
             var request = PreparedEsqlQueryRequest.analyzeOnly(TEST_PARSER.createStatement("FROM test | KEEP foo"), "analyze only");
+            request.entryPoint(QueryEntryPoint.QUERY);
             request.allowPartialResults(false);
             var executionInfo = createEsqlExecutionInfo(true);
             executeEsql(
@@ -826,6 +863,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             );
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("queries._all.total"), equalTo(0L));
+            assertThat(stats.get("entry_points.query.total"), equalTo(0L));
             assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
                 is(empty())

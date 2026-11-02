@@ -753,22 +753,18 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         final var oldNodeTransportService = MockTransportService.getInstance(oldIndexNode);
         oldNodeTransportService.addRequestHandlingBehavior(
             TransportRegisterCommitForRecoveryAction.NAME,
-            (handler, request, channel, task) -> handler.messageReceived(
-                request,
-                new TestTransportChannel(ActionListener.wrap(response -> {
+            (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.wrap(response -> {
+                firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
+                firstRegistrationOutcomeOnOldNode.onResponse((RegisterCommitResponse) response);
+                channel.sendResponse(response);
+            }, e -> {
+                // A routing-table miss is retryable
+                if (e instanceof ShardNotFoundException == false) {
                     firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
-                    firstRegistrationOutcomeOnOldNode.onResponse((RegisterCommitResponse) response);
-                    channel.sendResponse(response);
-                }, e -> {
-                    // A routing-table miss is retryable
-                    if (e instanceof ShardNotFoundException == false) {
-                        firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
-                        firstRegistrationOutcomeOnOldNode.onFailure(e);
-                    }
-                    channel.sendResponse(e);
-                })),
-                task
-            )
+                    firstRegistrationOutcomeOnOldNode.onFailure(e);
+                }
+                channel.sendResponse(e);
+            })), task)
         );
 
         final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);

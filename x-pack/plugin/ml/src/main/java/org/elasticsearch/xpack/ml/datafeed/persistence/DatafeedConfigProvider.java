@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions;
+import org.elasticsearch.xpack.ml.utils.UpdateDriftCheck;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,6 +95,7 @@ public class DatafeedConfigProvider {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final ClusterService clusterService;
+    private final UpdateDriftCheck updateDriftCheck = UpdateDriftCheck.forDatafeeds();
 
     public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
@@ -382,7 +384,9 @@ public class DatafeedConfigProvider {
 
                     final DatafeedConfig configAfterApply;
                     try {
-                        configAfterApply = update.apply(configBuilder.build(), headers, clusterService.state());
+                        DatafeedConfig configBeforeApply = configBuilder.build();
+                        configAfterApply = update.apply(configBeforeApply, headers, clusterService.state());
+                        updateDriftCheck.check(logger, datafeedId, configBeforeApply, configAfterApply, update);
                     } catch (Exception e) {
                         delegate.onFailure(e);
                         return;

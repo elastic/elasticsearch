@@ -21,7 +21,11 @@ public final class MlInvariantLogger {
     /** One entry per invariant; the token appears nowhere else. */
     public enum Kind {
         /** A job update that changes groups was dropped from the full process-update queue (calendar API changes bypass that queue). */
-        CALENDAR_UPDATE_DROPPED("calendar_update_dropped");
+        CALENDAR_UPDATE_DROPPED("calendar_update_dropped"),
+        /** A job or datafeed update changed a config field that the update request does not name. */
+        UPDATE_CHANGED_UNREQUESTED_FIELD("update_changed_unrequested_field"),
+        /** A started datafeed has had no live task for longer than the watchdog threshold while its job is open. */
+        STARTED_DATAFEED_WITHOUT_TASK("started_datafeed_without_task");
 
         private final String token;
 

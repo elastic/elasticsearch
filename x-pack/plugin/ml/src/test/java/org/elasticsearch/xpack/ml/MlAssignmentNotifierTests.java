@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -54,6 +56,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
     private DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor;
     private ClusterService clusterService;
     private ThreadPool threadPool;
+    private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void setupMocks() {
@@ -75,7 +78,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            resolver
         );
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
@@ -125,7 +129,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            resolver
         );
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -188,6 +193,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             dataFrameAnalyticsAuditor,
             threadPool,
             clusterService,
+            resolver,
             clock
         );
 
@@ -240,7 +246,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            resolver
         );
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -279,7 +286,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            resolver
         );
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -313,7 +321,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            resolver
         );
 
         Instant now = Instant.now();
@@ -390,7 +399,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            resolver
         );
         var now = Instant.now();
         var sevenHoursAgo = now.minus(Duration.ofHours(7));

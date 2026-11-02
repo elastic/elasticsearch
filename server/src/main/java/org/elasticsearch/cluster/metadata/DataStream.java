@@ -2210,13 +2210,36 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             DataStreamIndices that = (DataStreamIndices) o;
             return rolloverOnWrite == that.rolloverOnWrite
                 && Objects.equals(namePrefix, that.namePrefix)
-                && Objects.equals(indices, that.indices)
+                && sameIndices(indices, that.indices)
                 && Objects.equals(autoShardingEvent, that.autoShardingEvent);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(namePrefix, indices, rolloverOnWrite, autoShardingEvent);
+            int result = Objects.hash(namePrefix, rolloverOnWrite, autoShardingEvent);
+            for (Index index : indices) {
+                result = 31 * result + index.hashCode();
+                result = 31 * result + index.getName().hashCode();
+            }
+            return result;
+        }
+
+        /**
+         * {@link Index#equals} compares UUIDs only, so that an index keeps its identity across a rename. For a data stream the names
+         * of its indices are part of its state, and cluster state diffs rely on {@code equals} to decide whether a data stream
+         * changed, so a renamed index must make the data stream unequal to its previous version. Otherwise the diff would carry
+         * nothing and every other node would keep pointing the data stream at the old name.
+         */
+        private static boolean sameIndices(List<Index> a, List<Index> b) {
+            if (a.size() != b.size()) {
+                return false;
+            }
+            for (int i = 0; i < a.size(); i++) {
+                if (a.get(i).equals(b.get(i)) == false || a.get(i).getName().equals(b.get(i).getName()) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public static class Builder {

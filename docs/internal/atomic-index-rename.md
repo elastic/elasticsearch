@@ -106,6 +106,24 @@ with the same UUID and different names and expect them to differ now break;
 Mary's elastic/elasticsearch#132443 cleans up the tests that relied on `_na_`
 collisions and should land first.
 
+A second, less obvious cost: cluster state diffs decide whether a component
+changed with `equals`. Any `Diffable` component that holds `Index` objects and
+compares them with `Index#equals` now looks unchanged after a rename, so the
+diff carries nothing and every other node keeps the old name. The prototype hit
+this with `DataStream`: renaming a backing index without bumping the generation
+produced a data stream equal to its predecessor, the data nodes and the other
+master-eligible nodes kept the old backing index name, and wildcard resolution
+on those nodes threw a `NullPointerException` for the missing index.
+`DataStream.DataStreamIndices#equals` and `hashCode` now compare index names as
+well as UUIDs, with a diff round-trip test. Components audited for the same
+problem: `IndexMetadata` and the routing table are diffed as maps keyed by
+index name, so a rename is a remove plus an add and is safe; `IndexGraveyard`
+is append-only; `SnapshotsInProgress` and `RestoreInProgress` keep the
+start-time name by design (see T6). Every future cluster state component that
+stores an `Index` needs the same care, which argues for an `equalsIncludingName`
+style helper on `Index` and a test that renames an index and round-trips the
+whole cluster state through a diff.
+
 Alternative considered: keep name-and-UUID equality and swap every `Index`
 instance on rename. That means finding every map keyed on `Index`/`ShardId`
 across server, modules and x-pack and is why previous attempts stalled.

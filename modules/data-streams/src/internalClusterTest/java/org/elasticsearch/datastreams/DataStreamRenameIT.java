@@ -109,7 +109,7 @@ public class DataStreamRenameIT extends ESIntegTestCase {
         var response = client().execute(
             GetDataStreamAction.INSTANCE,
             new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { name })
-        ).actionGet();
+        ).actionGet(SAFE_AWAIT_TIMEOUT);
         assertThat(response.getDataStreams().size(), equalTo(1));
         return response.getDataStreams().get(0).getDataStream();
     }

@@ -14,9 +14,11 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1149,6 +1151,33 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         if (position == original.getIndices().size() - 1) {
             assertThat(updated.getWriteIndex().getName(), equalTo(renamed.getName()));
         }
+    }
+
+    /**
+     * A rename keeps the index UUID and {@link Index#equals} ignores the name, so the data stream must compare unequal on its own,
+     * or the cluster state diff would not carry the rename to other nodes.
+     */
+    public void testRenameIndexChangesEqualityAndDiff() throws IOException {
+        DataStream original = createRandomDataStream();
+        int position = randomIntBetween(0, original.getIndices().size() - 1);
+        Index existing = original.getIndices().get(position);
+        Index renamed = new Index(existing.getName() + "-renamed", existing.getUUID());
+        DataStream updated = original.renameIndex(existing, renamed);
+
+        assertNotEquals(original, updated);
+        assertNotEquals(original.hashCode(), updated.hashCode());
+
+        Diff<DataStream> diff = updated.diff(original);
+        DataStream applied = diff.apply(original);
+        assertThat(applied.getIndices().get(position).getName(), equalTo(renamed.getName()));
+        assertThat(applied.getIndices().get(position).getUUID(), equalTo(existing.getUUID()));
+        assertEquals(updated, applied);
+
+        // and through the wire
+        BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        Diff<DataStream> readDiff = DataStream.readDiffFrom(out.bytes().streamInput());
+        assertThat(readDiff.apply(original).getIndices().get(position).getName(), equalTo(renamed.getName()));
     }
 
     public void testRenameFailureIndex() {

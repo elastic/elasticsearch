@@ -1605,7 +1605,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (aliases.equals(that.aliases) == false) {
             return false;
         }
-        if (index.equals(that.index) == false) {
+        // Index#equals compares UUIDs only; two metadata objects for the same index under different names are not equal
+        if (index.equals(that.index) == false || index.getName().equals(that.index.getName()) == false) {
             return false;
         }
         if (Objects.equals(mapping, that.mapping) == false) {

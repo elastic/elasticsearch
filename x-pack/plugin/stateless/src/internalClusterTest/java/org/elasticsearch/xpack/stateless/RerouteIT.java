@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -108,7 +108,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             RecoveryState.Stage.DONE,
             null,
             nodeA,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this is the creation of the original primary
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this is the creation of the original primary
         );
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
@@ -119,7 +119,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             true,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO // this is the expected priority for a MoveAllocationCommand
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO // this is the expected priority for a MoveAllocationCommand
         );
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
@@ -159,7 +159,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             RecoveryState.Stage.DONE,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
         assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeA));
@@ -223,7 +223,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             RecoveryState.Stage.DONE,
             null,
             nodeA,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this is the creation of the original primary
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this is the creation of the original primary
         );
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
@@ -235,7 +235,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             RecoveryState.Stage.DONE,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // this is the creation of the original replica
+            RecoveryPriority.UNASSIGNED_EXPECTED // this is the creation of the original replica
         );
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
@@ -246,7 +246,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             false,
             nodeA,
             nodeC,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
 
@@ -272,7 +272,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
                 false,
                 nodeA,
                 nodeC,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
             validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
         }
@@ -299,7 +299,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
             RecoveryState.Stage.DONE,
             nodeA,
             nodeC,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
@@ -312,7 +312,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         RecoveryState.Stage stage,
         String sourceNode,
         String targetNode,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode, recoveryPriority);
         assertThat(state.getStage(), equalTo(stage));
@@ -325,7 +325,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         boolean primary,
         String sourceNode,
         String targetNode,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode, recoveryPriority);
         assertThat(state.getStage(), not(equalTo(RecoveryState.Stage.DONE)));
@@ -338,7 +338,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         boolean primary,
         String sourceNode,
         String targetNode,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         assertThat(state.getShardId().getId(), equalTo(shardId));
         assertThat(state.getRecoverySource(), equalTo(recoverySource));

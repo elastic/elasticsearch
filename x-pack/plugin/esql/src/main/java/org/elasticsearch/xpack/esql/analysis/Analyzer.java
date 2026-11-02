@@ -2243,14 +2243,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     || (subPlanColumns.equals(mergeColumns) == false
                         && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
                     changed = true;
-                    List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : mergeColumns) {
-                        for (Attribute subAttr : logicalPlan.output()) {
-                            if (attrName.equals(subAttr.name())) {
-                                newOutput.add(subAttr);
-                            }
-                        }
-                    }
+                    List<Attribute> newOutput = alignToMergeColumns(mergeColumns, logicalPlan.output());
                     if (mergeColumns.isEmpty()) {
                         // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
@@ -2291,6 +2284,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     )
                     : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
             );
+        }
+
+        /**
+         * Picks the attributes of a merge branch's output in {@code mergeColumns} order, keeping every branch attribute that carries
+         * a given name. The branch output is indexed by name once so the cost is linear in the schema width: a merge over thousands
+         * of columns would otherwise rescan the branch output for every merge column, saturating the analysis thread pool (#163560).
+         */
+        static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+            Map<String, List<Attribute>> branchAttributesByName = new HashMap<>();
+            for (Attribute attr : branchOutput) {
+                branchAttributesByName.computeIfAbsent(attr.name(), k -> new ArrayList<>(1)).add(attr);
+            }
+            List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+            for (String name : mergeColumns) {
+                List<Attribute> matches = branchAttributesByName.get(name);
+                if (matches != null) {
+                    aligned.addAll(matches);
+                }
+            }
+            return aligned;
         }
 
         /*

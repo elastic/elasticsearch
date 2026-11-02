@@ -146,6 +146,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.Period;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -3803,6 +3804,79 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         esRelation = as(filter.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
+    }
+
+    /**
+     * Aligning a merge branch to the merge columns must read the branch output once, not once per merge column. The branch output
+     * here counts element reads: indexing it by name up-front reads each attribute exactly once, while scanning it for every merge
+     * column (#163560) would read it {@code width * width} times.
+     */
+    public void testAlignToMergeColumnsReadsBranchOutputOnce() {
+        int width = 10_000;
+        List<Attribute> attributes = IntStream.range(0, width).mapToObj(i -> (Attribute) referenceAttribute("f" + i, KEYWORD)).toList();
+        int[] reads = new int[1];
+        List<Attribute> branchOutput = new AbstractList<>() {
+            @Override
+            public Attribute get(int index) {
+                reads[0]++;
+                return attributes.get(index);
+            }
+
+            @Override
+            public int size() {
+                return attributes.size();
+            }
+        };
+        // reverse the branch order and add a column the branch does not have
+        List<String> mergeColumns = new ArrayList<>(attributes.reversed().stream().map(Attribute::name).toList());
+        mergeColumns.add("missing");
+
+        List<Attribute> aligned = Analyzer.ResolveRefs.alignToMergeColumns(mergeColumns, branchOutput);
+
+        assertThat(reads[0], equalTo(width));
+        assertThat(aligned, equalTo(attributes.reversed()));
+    }
+
+    /**
+     * Every branch attribute carrying a merge column's name is kept, in merge column order.
+     */
+    public void testAlignToMergeColumnsKeepsDuplicateNames() {
+        Attribute a1 = referenceAttribute("a", KEYWORD);
+        Attribute b = referenceAttribute("b", INTEGER);
+        Attribute a2 = referenceAttribute("a", LONG);
+        Attribute c = referenceAttribute("c", KEYWORD);
+
+        List<Attribute> aligned = Analyzer.ResolveRefs.alignToMergeColumns(List.of("b", "a", "missing"), List.of(a1, b, a2, c));
+
+        assertThat(aligned, equalTo(List.of(b, a1, a2)));
+    }
+
+    /**
+     * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
+     * columns (#163560); this checks the wide case still resolves to correctly aligned branches.
+     */
+    public void testForkAlignmentOverWideIndex() {
+        int width = 10_000;
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < width; i++) {
+            String name = String.format(Locale.ROOT, "f%05d", i);
+            mapping.put(name, new EsField(name, KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("wide", mapping));
+
+        LogicalPlan plan = analyzer.query("""
+            FROM wide
+            | FORK ( EVAL a = 1 )
+                   ( EVAL b = 2 )
+            """);
+
+        Fork fork = as(as(plan, Limit.class).child(), Fork.class);
+        List<String> expected = new ArrayList<>(mapping.keySet());
+        expected.addAll(List.of("a", "_fork", "b"));
+        assertThat(Expressions.names(fork.output()), equalTo(expected));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(Expressions.names(as(branch, Project.class).projections()), equalTo(expected));
+        }
     }
 
     public void testForkError() {

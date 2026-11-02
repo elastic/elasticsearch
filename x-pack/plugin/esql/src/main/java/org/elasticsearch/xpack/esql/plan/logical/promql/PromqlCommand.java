@@ -739,7 +739,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         failures.add(
                             fail(
                                 histogram,
-                                "{} over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time " + "[{}]",
+                                "{} over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
+                                    + "unless the input is first aggregated with BY [{}]",
                                 histogram.functionName(),
                                 histogram.sourceText()
                             )
@@ -805,7 +806,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
                         }
                     }
-                    if (binaryOperator instanceof VectorBinaryComparison && root.get() == false) {
+                    if (binaryOperator instanceof VectorBinaryComparison comparison
+                        && comparison.match() == VectorMatch.NONE
+                        && root.get() == false) {
                         failures.add(
                             fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                         );
@@ -1001,8 +1004,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             )
         );
     }
-
-
 
     /**
      * Rejects a label that would surface as an output column under the same name as one of the command's built-in output
@@ -1347,15 +1348,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     private static boolean scalarOfVector(LogicalPlan plan) {
-        return plan instanceof ScalarConversionFunction && hasSourceBackedExpression(plan);
+        return PromqlPlan.returnsScalar(plan)
+            && plan.anyMatch(p -> p instanceof ScalarConversionFunction scalar && hasSourceBackedExpression(scalar.child()));
     }
 
+    /** Whether a vector's series carry labels: named label columns or time-series metadata. */
     private static boolean hasLabels(LogicalPlan plan) {
-        return namedLabels(plan).isEmpty() == false;
+        return PromqlPlan.returnsScalar(plan) == false && plan.output().isEmpty() == false;
     }
 
     private static boolean usesNestedAggregation(LogicalPlan plan, Predicate<LogicalPlan> isAggregation) {
-        return plan.children().stream().anyMatch(child -> child.anyMatch(isAggregation));
+        return plan.anyMatch(p -> isAggregation.test(p) && p instanceof UnaryPlan unary && unary.child().anyMatch(isAggregation));
     }
 
     private static boolean aggregatesAcrossSeries(LogicalPlan plan) {
@@ -1363,7 +1366,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     private static boolean isAcrossSeries(LogicalPlan plan) {
-        return plan instanceof AcrossSeriesAggregate || plan instanceof AcrossSeriesReduction;
+        return plan instanceof AcrossSeriesAggregate || plan instanceof AcrossSeriesReduction || plan instanceof ScalarConversionFunction;
     }
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {

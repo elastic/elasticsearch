@@ -711,6 +711,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             "attributes." + TSDataGenerationHelper.TEMPORALITY_ATTRIBUTE_NAME
         );
         settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        randomBatchIndexing(settingsBuilder);
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             RandomizedTimeSeriesIT.DATASTREAM_NAME

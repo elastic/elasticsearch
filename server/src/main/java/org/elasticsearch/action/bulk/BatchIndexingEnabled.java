@@ -32,6 +32,13 @@ public final class BatchIndexingEnabled {
 
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("batch_indexing");
 
+    /**
+     * Makes {@code index.batch_indexing} default to {@code true} for time series indices. Separate from {@link #FEATURE_FLAG} so that
+     * batch indexing can be made available in general (and by default for columnar indices) independently of turning it on by default
+     * for TSDB. Has no effect unless {@link #FEATURE_FLAG} is enabled as well.
+     */
+    public static final FeatureFlag TSDB_FEATURE_FLAG = new FeatureFlag("tsdb_batch_indexing");
+
     public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", FEATURE_FLAG.isEnabled(), value -> {
         if (value && FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException(

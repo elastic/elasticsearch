@@ -116,14 +116,15 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     }
 
     private Settings timeSeriesSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim_a,dim_b")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), TS_START)
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), TS_END)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-            .put("index.queries.cache.enabled", false)
-            .build();
+        return randomBatchIndexing(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim_a,dim_b")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), TS_START)
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), TS_END)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                .put("index.queries.cache.enabled", false)
+        ).build();
     }
 
     /**

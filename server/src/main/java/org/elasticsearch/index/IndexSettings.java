@@ -1151,7 +1151,8 @@ public final class IndexSettings {
 
     /**
      * Per-index switch for batch indexing. Defaults to the value of the deprecated
-     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar.
+     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar, or
+     * time series when the {@code tsdb_batch_indexing} feature flag is enabled ({@link BatchIndexingEnabled#TSDB_FEATURE_FLAG}).
      * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
@@ -1163,7 +1164,10 @@ public final class IndexSettings {
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
             return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
         }
-        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+        IndexMode mode = IndexSettings.MODE.get(settings);
+        return Boolean.toString(
+            mode.isStrictColumnar() || (mode == IndexMode.TIME_SERIES && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled())
+        );
     }, value -> {
         if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException(

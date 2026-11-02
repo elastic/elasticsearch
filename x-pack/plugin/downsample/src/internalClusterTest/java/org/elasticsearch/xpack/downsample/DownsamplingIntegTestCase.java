@@ -168,7 +168,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
         @Nullable DataStreamLifecycle.Template lifecycle,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder();
+        Settings.Builder settingsBuilder = randomBatchIndexing(Settings.builder());
         if (settings != null) {
             settingsBuilder.put(settings);
         }

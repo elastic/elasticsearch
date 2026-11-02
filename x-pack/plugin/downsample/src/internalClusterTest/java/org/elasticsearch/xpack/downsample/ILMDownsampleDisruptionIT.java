@@ -95,6 +95,7 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
             )
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2022-01-08T23:40:53.384Z");
+        randomBatchIndexing(settings);
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());

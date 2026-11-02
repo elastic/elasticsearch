@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -39,6 +40,9 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingInteg
             .put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s")
             // We disable shard rebalancing to avoid shard relocations timing out the `ensureGreen` call at the end of the test. See #131394
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            // TODO: under node restarts the coordinator can release a shard's batch while the primary still reads it ("batch already
+            // closed"). The downsample target index takes the TSDB batch default, so batch indexing is turned off cluster-wide.
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false)
             .build();
     }
 

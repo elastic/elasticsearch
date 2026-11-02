@@ -1723,17 +1723,19 @@ public class IndexSettingsTests extends ESTestCase {
         );
     }
 
-    public void testBatchIndexingDefaultsToStrictColumnarMode() {
+    public void testBatchIndexingDefaultsToStrictColumnarAndTimeSeriesMode() {
         for (IndexMode mode : IndexMode.values()) {
             Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
             if (mode == IndexMode.TIME_SERIES) {
                 builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
             }
             Settings settings = builder.build();
+            boolean expectedForMode = mode.isStrictColumnar()
+                || (mode == IndexMode.TIME_SERIES && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled());
             assertThat(
                 "mode " + mode,
                 IndexSettings.BATCH_INDEXING.get(settings),
-                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && mode.isStrictColumnar())
+                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && expectedForMode)
             );
         }
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.EMPTY));
@@ -1775,6 +1777,14 @@ public class IndexSettingsTests extends ESTestCase {
 
         // defaults resolve to false rather than tripping the validator
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR).build()));
+        assertFalse(
+            IndexSettings.BATCH_INDEXING.get(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .build()
+            )
+        );
         assertFalse(
             IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build())
         );

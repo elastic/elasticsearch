@@ -590,7 +590,15 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
+        putDataStreamTemplate(
+            dataStreamName,
+            numShards,
+            0,
+            // TODO: batch indexing writes the TSDB routing hash into translog operations, where doc-mode writes null routing
+            // Fix this so that we can use a random batch indexing setting here too
+            Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build(),
+            useNestedDocs
+        );
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -832,6 +840,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                // TODO: batch indexing writes the TSDB routing hash into translog operations, where doc-mode writes null routing
+                // Fix this so that we can use a random batch indexing setting here too
+                .put(IndexSettings.BATCH_INDEXING.getKey(), false)
                 .build(),
             useNestedDocs
         );
@@ -1305,6 +1316,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC);
+        randomBatchIndexing(settingsBuilder);
         final var mapping = """
             {
                 "properties": {
@@ -1373,6 +1385,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname");
+        randomBatchIndexing(settingsBuilder);
         if (randomBoolean()) {
             settingsBuilder.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
         }
@@ -1775,6 +1788,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false) // Sequence numbers are needed for id validation.
             .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(settings);
 
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());

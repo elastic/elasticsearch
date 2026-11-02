@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.logging.LogManager;
@@ -18,13 +17,13 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchSparseRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.response.AlibabaCloudSearchSparseResponseEntity;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class AlibabaCloudSearchSparseRequestManager extends AlibabaCloudSearchRequestManager {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchSparseRequestManager.class);
@@ -68,14 +67,13 @@ public class AlibabaCloudSearchSparseRequestManager extends AlibabaCloudSearchRe
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
         List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         AlibabaCloudSearchSparseRequest request = new AlibabaCloudSearchSparseRequest(account, docsInput, inputType, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, timedListener));
     }
 }

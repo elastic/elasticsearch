@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -150,7 +149,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var service = createRequestExecutorService(null, requestSender);
 
@@ -248,7 +247,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalArgumentException("failed");
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -311,12 +310,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var exchangeStarted = new CountDownLatch(1);
         var exchangeAborted = new CountDownLatch(1);
         doAnswer(invocation -> {
-            Consumer<Runnable> abortHandlerRegistry = invocation.getArgument(4);
-            abortHandlerRegistry.accept(exchangeAborted::countDown);
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(3);
+            timedListener.addAbortHandler(exchangeAborted::countDown);
             exchangeStarted.countDown();
             // never complete the listener, the exchange is stuck
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         // never elapses on its own, the test fires the timeout manually once the exchange started instead of relying on the clock
         var timeout = TimeValue.MAX_VALUE;
@@ -331,7 +330,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         threadPool.generic().execute(service::start);
 
         // randomly exercise the fast path and the rate limited path
-        var requestManager = RequestManagerTests.createMockSendingThroughExecutorRequestSender(
+        var requestManager = RequestManagerTests.createMock(
+            requestSender,
             INFERENCE_ID,
             new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
         );
@@ -356,17 +356,17 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
         var exchangeAborted = new AtomicBoolean();
         doAnswer(invocation -> {
-            Consumer<Runnable> abortHandlerRegistry = invocation.getArgument(4);
-            abortHandlerRegistry.accept(() -> exchangeAborted.set(true));
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(5);
-            listener.onResponse(null);
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(3);
+            timedListener.addAbortHandler(() -> exchangeAborted.set(true));
+            timedListener.getListener().onResponse(null);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var service = createRequestExecutorService(null, requestSender);
         threadPool.generic().execute(service::start);
 
-        var requestManager = RequestManagerTests.createMockSendingThroughExecutorRequestSender(
+        var requestManager = RequestManagerTests.createMock(
+            requestSender,
             INFERENCE_ID,
             new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
         );
@@ -404,14 +404,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
             // ensure that the spawned thread didn't pick up the header that was set initially on a separate thread
             assertNull(serviceThreadContext.getHeader(headerKey));
 
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(4, ActionListener.class);
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(3);
+            var listener = timedListener.getListener();
             listener.onResponse(null);
 
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var finishedOnResponse = new CountDownLatch(1);
         ActionListener<InferenceServiceResults> listener = new ActionListener<>() {
@@ -512,7 +512,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             taskProcessedLatch.countDown();
             throw new ElasticsearchException("failed");
-        }).when(requestManager).execute(any(), any(), any(), any());
+        }).when(requestManager).execute(any(), any(), any());
 
         var service = new RequestExecutorService(
             threadPool,
@@ -574,7 +574,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -636,7 +636,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -703,7 +703,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -776,7 +776,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -815,16 +815,16 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         doAnswer(invocation -> {
             service.shutdown();
-            ActionListener<InferenceServiceResults> passedListener = invocation.getArgument(4);
-            passedListener.onResponse(null);
+            TimedListener<InferenceServiceResults> passedListener = invocation.getArgument(3);
+            passedListener.getListener().onResponse(null);
 
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         service.start();
 
         listener.actionGet(TIMEOUT);
-        verify(requestSender, times(1)).send(any(), any(), any(), any(), any());
+        verify(requestSender, times(1)).send(any(), any(), any(), any());
     }
 
     public void testRemovesRateLimitGroup_AfterStaleDuration() {
@@ -1264,7 +1264,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalStateException("failed to create request");
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(

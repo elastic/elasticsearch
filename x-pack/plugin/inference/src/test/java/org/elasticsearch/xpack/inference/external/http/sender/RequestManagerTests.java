@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -52,51 +50,15 @@ public class RequestManagerTests {
         var mockManager = mock(RequestManager.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
-            requestSender.send(
-                mock(Logger.class),
-                RequestTests.mockRequest(inferenceEntityId),
-                () -> false,
-                mock(ResponseHandler.class),
-                listener
-            );
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(2);
+            requestSender.send(mock(Logger.class), RequestTests.mockRequest(inferenceEntityId), mock(ResponseHandler.class), timedListener);
 
             return Void.TYPE;
-        }).when(mockManager).execute(any(), any(), any(), any());
+        }).when(mockManager).execute(any(), any(), any());
 
         // just return something consistent so the hashing works
         when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);
 
-        when(mockManager.rateLimitSettings()).thenReturn(settings);
-        when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
-
-        return mockManager;
-    }
-
-    /**
-     * Unlike {@link #createMock(RequestSender, String, RateLimitSettings)}, the returned manager sends through the
-     * {@link RequestSender} and request-completed function the executor hands to {@link RequestManager#execute}, like real managers do.
-     */
-    public static RequestManager createMockSendingThroughExecutorRequestSender(String inferenceEntityId, RateLimitSettings settings) {
-        var mockManager = mock(RequestManager.class);
-
-        doAnswer(invocation -> {
-            RequestSender requestSender = invocation.getArgument(1);
-            Supplier<Boolean> hasRequestCompletedFunction = invocation.getArgument(2);
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
-            requestSender.send(
-                mock(Logger.class),
-                RequestTests.mockRequest(inferenceEntityId),
-                hasRequestCompletedFunction,
-                mock(ResponseHandler.class),
-                listener
-            );
-
-            return Void.TYPE;
-        }).when(mockManager).execute(any(), any(), any(), any());
-
-        when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);
         when(mockManager.rateLimitSettings()).thenReturn(settings);
         when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
 

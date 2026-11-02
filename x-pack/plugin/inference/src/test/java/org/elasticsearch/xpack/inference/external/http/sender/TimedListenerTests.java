@@ -220,6 +220,14 @@ public class TimedListenerTests extends ESTestCase {
         assertThat(abortCount.get(), is(1));
     }
 
+    /**
+     * Creates a {@link TimedListener} without a timeout, for tests that only pass it through a request manager or sender.
+     * Without a timeout the thread pool is never used, so a mock is sufficient.
+     */
+    public static <T> TimedListener<T> createTimedListener(ActionListener<T> listener) {
+        return new TimedListener<>(null, listener, mock(ThreadPool.class), INFERENCE_ID);
+    }
+
     public static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable, ThreadPool threadPool) {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.executor(any())).thenReturn(mock(ExecutorService.class));

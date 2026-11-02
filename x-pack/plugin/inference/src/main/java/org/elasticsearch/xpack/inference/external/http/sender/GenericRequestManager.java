@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * This is a temporary class to use while we refactor all the request managers. After all the request managers extend
@@ -49,11 +47,10 @@ public class GenericRequestManager<T extends InferenceInputs> extends BaseReques
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var request = requestCreator.apply(inferenceInputs.castTo(inputType));
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, timedListener));
     }
 }

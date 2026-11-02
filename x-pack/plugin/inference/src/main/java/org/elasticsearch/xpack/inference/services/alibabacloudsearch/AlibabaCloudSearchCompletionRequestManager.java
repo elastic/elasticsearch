@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,13 +18,13 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.completion.AlibabaCloudSearchCompletionRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.response.AlibabaCloudSearchCompletionResponseEntity;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class AlibabaCloudSearchCompletionRequestManager extends AlibabaCloudSearchRequestManager {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchCompletionRequestManager.class);
@@ -69,21 +68,21 @@ public class AlibabaCloudSearchCompletionRequestManager extends AlibabaCloudSear
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         List<String> input = inferenceInputs.castTo(CompletionInput.class).getInputs();
         if (input.size() % 2 == 0) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Alibaba Completion's inputs must be an odd number. The last input is the current query, "
-                        + "all preceding inputs are the completion history as pairs of user input and the assistant's response.",
-                    RestStatus.BAD_REQUEST
-                )
-            );
+            timedListener.getListener()
+                .onFailure(
+                    new ElasticsearchStatusException(
+                        "Alibaba Completion's inputs must be an odd number. The last input is the current query, "
+                            + "all preceding inputs are the completion history as pairs of user input and the assistant's response.",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
             return;
         }
         AlibabaCloudSearchCompletionRequest request = new AlibabaCloudSearchCompletionRequest(account, input, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, timedListener));
     }
 }

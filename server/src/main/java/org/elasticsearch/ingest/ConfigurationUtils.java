@@ -571,8 +571,8 @@ public final class ConfigurationUtils {
      * is being done with the result of calling the script, and the code can then avoid doing that thing per-document.
      */
     public static class ConstantTemplateScriptFactory implements TemplateScript.Factory {
-        final TemplateScript script;
         private final String value;
+        private final TemplateScript script;
 
         private ConstantTemplateScriptFactory(String value) {
             this.value = value;

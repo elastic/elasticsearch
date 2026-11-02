@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * JSON plan dumps on {@code org.elasticsearch.xpack.esql.plan.json}.
@@ -36,5 +38,39 @@ public final class PlanJsonLog {
         } catch (Exception e) {
             logger.debug("JSON plan [{}] failed to render", stage, e);
         }
+    }
+
+    /**
+     * Logs a plan for one execution phase of a multi-phase query, labelled {@code stage:phase}
+     * (for example {@code physical:subplan-2}), matching the {@code parsed:<view>} convention.
+     * A {@code null} phase means the query runs in a single phase, and the label is just {@code stage}.
+     * Without the phase, the repeated per-phase stages could only be told apart by their order in the log.
+     */
+    public static void debug(String stage, String phase, QueryPlan<?> plan) {
+        debug(phase == null ? stage : stage + ":" + phase, plan);
+    }
+
+    /**
+     * Logs one line introducing an execution phase, before that phase's plans are logged.
+     * It records what the phase executes and where the subquery was written, so a reader can map
+     * the phase back to the query text, including subqueries defined inside a view.
+     *
+     * @param phase  the phase label used in the following {@link #debug(String, String, QueryPlan)} calls
+     * @param kind   what kind of subplan this is, for example {@code semi_join} for an {@code IN} subquery
+     * @param source where the subplan was written, such as the whole {@code IN} expression; its view name is {@code null}
+     *               when that is the top-level query, and it is {@code null} for the main phase
+     */
+    public static void phase(String phase, String kind, @Nullable Source source) {
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+        logger.debug(
+            "JSON plan phase [{}]: kind [{}], view [{}], location [{}], source [{}]",
+            phase,
+            kind,
+            source == null || source.viewName() == null ? "" : source.viewName(),
+            source == null ? "" : source.source().getLineNumber() + ":" + source.source().getColumnNumber(),
+            source == null ? "" : source.text()
+        );
     }
 }

@@ -86,6 +86,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_ilm",
                 // For connectors telemetry
                 "monitor_connector",
+                // For Context Engine session memory APIs
+                "manage_context_engine",
                 // For the endpoint package that ships a transform
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,

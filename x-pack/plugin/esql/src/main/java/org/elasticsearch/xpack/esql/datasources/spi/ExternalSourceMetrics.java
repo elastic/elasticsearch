@@ -15,6 +15,8 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -224,7 +226,7 @@ public final class ExternalSourceMetrics {
 
     /**
      * Client dimension on the query instruments, a closed low-cardinality set derived from the
-     * {@code X-elastic-product-origin} request header (see {@link #clientFromOrigin(String)}). The raw header value is
+     * {@code X-elastic-product-origin} request header (see {@link #client(QueryMetric)}). The raw header value is
      * never a label: an unbounded origin string would explode the series count.
      */
     public static final String CLIENT_ATTRIBUTE = "es_datasource_client";
@@ -647,7 +649,7 @@ public final class ExternalSourceMetrics {
      * The {@code labels} are the query's client, storage type and format. The client is clamped to {@link #CLIENT_NAMES}, so
      * an unknown value is published as {@link #CLIENT_OTHER}. The storage type and format are published on
      * {@link #QUERIES_BY_SOURCE_TOTAL} and {@link #QUERY_BY_SOURCE_DURATION} only, and are omitted when null. Use
-     * {@link #clientFromOrigin(String)} to derive the client from a request.
+     * {@link #client(QueryMetric)} to derive the client from the caller {@link QueryCallerClassifier} finds.
      */
     public void recordQuery(
         QueryLabels labels,
@@ -1026,18 +1028,16 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Folds the value of the {@code X-elastic-product-origin} request header into the closed {@link #CLIENT_NAMES} set:
-     * absent or blank is {@link #CLIENT_NONE}; {@code kibana} and any {@code kibana-*} origin (compared
-     * case-insensitively, e.g. a Kibana feature that sets its own suffix) is {@link #CLIENT_KIBANA}; and any other value is
-     * {@link #CLIENT_OTHER}. The header value itself is never returned.
+     * The {@link #CLIENT_NAMES} label of a general ES|QL query client, as {@link QueryCallerClassifier} derives it from the
+     * {@code X-elastic-product-origin} header. The split is the same; only a request without the header is named
+     * {@link #CLIENT_NONE} here and {@code rest} in the general counters.
      */
-    public static String clientFromOrigin(@Nullable String origin) {
-        if (origin == null || origin.isBlank()) {
-            return CLIENT_NONE;
-        }
-        String normalized = origin.strip().toLowerCase(Locale.ROOT);
-        boolean kibana = normalized.equals(CLIENT_KIBANA) || normalized.startsWith(CLIENT_KIBANA + "-");
-        return kibana ? CLIENT_KIBANA : CLIENT_OTHER;
+    public static String client(QueryMetric client) {
+        return switch (client) {
+            case KIBANA -> CLIENT_KIBANA;
+            case OTHER -> CLIENT_OTHER;
+            case REST -> CLIENT_NONE;
+        };
     }
 
     /**

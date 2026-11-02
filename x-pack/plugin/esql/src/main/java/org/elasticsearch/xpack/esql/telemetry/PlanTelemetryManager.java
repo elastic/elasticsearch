@@ -31,6 +31,7 @@ public class PlanTelemetryManager {
     private final LongCounter viewSettingsCounterAll;
     private final LongCounter viewResolvedSettingsCounter;
     private final LongCounter linkedProjectsHistogram;
+    private final LongCounter queriesCounter;
 
     /**
      * Number of times a command is used.
@@ -98,6 +99,22 @@ public class PlanTelemetryManager {
      */
     public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
 
+    /**
+     * Queries, counted once each when they finish, with the {@link #CLIENT} and {@link #QUERY_SUCCESS} attributes.
+     */
+    public static final String QUERY_METRICS = "es.esql.queries.total";
+
+    /**
+     * Attribute of the query counter: who sent the query, one of {@link QueryMetric}
+     */
+    public static final String CLIENT = "es_esql_client";
+
+    /**
+     * Attribute of the query counter: whether the query succeeded. The older counters' {@link #SUCCESS} name predates the
+     * {@code es_*} attribute naming rule, so new counters cannot use it.
+     */
+    public static final String QUERY_SUCCESS = "es_esql_success";
+
     public static final String FEATURE_NAME = "feature_name";
 
     /**
@@ -149,6 +166,7 @@ public class PlanTelemetryManager {
             "ESQL view settings, total number of queries in which a view body resolved a setting to a value",
             "unit"
         );
+        queriesCounter = meterRegistry.registerLongCounter(QUERY_METRICS, "ESQL queries, total number of queries", "unit");
         linkedProjectsHistogram = meterRegistry.registerLongCounter(
             LINKED_PROJECTS_HISTOGRAM,
             "Histogram of linked projects per esql query",
@@ -170,6 +188,13 @@ public class PlanTelemetryManager {
         if (metrics.linkedProjectsCount() != null) {
             linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
         }
+    }
+
+    /**
+     * Counts one finished query under its caller
+     */
+    public void publishQuery(QueryCaller caller, boolean success) {
+        queriesCounter.incrementBy(1, Map.ofEntries(Map.entry(CLIENT, caller.client().toString()), Map.entry(QUERY_SUCCESS, success)));
     }
 
     private void incCommand(String name, int count, boolean success) {

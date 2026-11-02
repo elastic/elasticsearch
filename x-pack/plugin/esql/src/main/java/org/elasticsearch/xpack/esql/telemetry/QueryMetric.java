@@ -9,17 +9,15 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import java.util.Locale;
 
+/**
+ * Who sent an ES|QL query, a closed set derived by {@link QueryCallerClassifier} from the {@code X-elastic-product-origin} header:
+ * {@link #KIBANA} for Kibana, {@link #OTHER} for any other origin (the header is meant for Elastic products), and {@link #REST} for
+ * a request without the header.
+ */
 public enum QueryMetric {
     KIBANA,
-    REST;
-
-    public static QueryMetric fromString(String metric) {
-        try {
-            return QueryMetric.valueOf(metric.toUpperCase(Locale.ROOT));
-        } catch (Exception e) {
-            return REST;
-        }
-    }
+    REST,
+    OTHER;
 
     @Override
     public String toString() {

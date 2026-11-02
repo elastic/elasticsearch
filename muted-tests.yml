@@ -114,9 +114,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
-  method: testExplainFailuresLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/151602
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
@@ -346,9 +343,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/160368
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testErrorRecordingOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/160410
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
@@ -487,9 +481,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testCsvReadNanosIsolatedBetweenQueries
   issue: https://github.com/elastic/elasticsearch/issues/162715
-- class: org.elasticsearch.search.basic.TransportSearchFailuresIT
-  method: testFailedSearchWithWrongQuery
-  issue: https://github.com/elastic/elasticsearch/issues/162738
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -513,26 +504,11 @@ tests:
   - :modules:repository-azure:test
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/163262
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  tasks:
-  - :x-pack:qa:rolling-upgrade-multi-cluster:v9.5.6#bwcTest
-  method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
-  issue: https://github.com/elastic/elasticsearch/issues/163266
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/163111
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<random tdigest> with random bucket count and integer/double bounds}
-  issue: https://github.com/elastic/elasticsearch/issues/163273
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  tasks:
-  - :modules:data-streams:yamlRestCompatTest
-  method: test {yaml=data_stream/120_data_streams_stats/Multiple data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/163288
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   tasks:
   - :x-pack:plugin:downsample:test
@@ -547,11 +523,6 @@ tests:
   tasks:
   - :server:test
   issue: https://github.com/elastic/elasticsearch/issues/163327
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionHealthIT
-  tasks:
-  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
-  method: testEligibleUnmarkedIndexTurnsIndicatorYellowThenGreenAfterTransition
-  issue: https://github.com/elastic/elasticsearch/issues/163332
 - class: org.elasticsearch.xpack.esql.CsvColumnarIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -575,16 +546,6 @@ tests:
   - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
   method: test {agg-ordering.testMultipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_1}
   issue: https://github.com/elastic/elasticsearch/issues/163662
-- class: org.elasticsearch.index.codec.columnar.ColumnarKeywordCodecTests
-  tasks:
-  - :server:test
-  method: testIndexSortedByKeywordWithOneValuePerDocument
-  issue: https://github.com/elastic/elasticsearch/issues/163664
-- class: org.elasticsearch.index.mapper.DocValuesParameterTests
-  tasks:
-  - :server:test
-  method: testOnFailureIgnoreParsesSuccessfullyForOlderCreatedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/163673
 - class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -609,3 +570,32 @@ tests:
   - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
   method: testUsingRCS1GeneratesDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/163658
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  tasks:
+  - :x-pack:plugin:encryption:internalClusterTest
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/164186
+- class: org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListenerIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testLastSearcherAcquiredTimeIsSetWhenAddingReplica
+  issue: https://github.com/elastic/elasticsearch/issues/164193
+- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
+  issue: https://github.com/elastic/elasticsearch/issues/164195
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/162945
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  tasks:
+  - :server:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/164211
+- class: org.elasticsearch.cluster.SimpleClusterStateIT
+  tasks:
+  - :server:internalClusterTest
+  method: testMetadataVersion
+  issue: https://github.com/elastic/elasticsearch/issues/164246

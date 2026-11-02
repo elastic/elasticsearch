@@ -209,7 +209,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     public void testRotationCycleWithNoHandlers() throws Exception {
         String originalKeyId = metadataOnMaster().getActiveKeyId();
         // With no handlers registered, ticks rotate the active key on each rotation_interval and retire any non-active key
-        // older than the grace window (10 * check_interval). The original install key eventually ages past grace and is dropped.
+        // older than the grace window (10 * check_interval), except the most recently deactivated one. The original install key is
+        // eventually dropped.
         assertBusy(() -> {
             ProjectEncryptionKeyMetadata m = metadataOnMaster();
             assertThat(m, notNullValue());

@@ -147,7 +147,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             hostToClusters.put("p" + i, randomFrom("qa", "prod"));
         }
         long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
-        int numDocs = between(20, 100);
+        int numDocs = between(50, 200);
         docs.clear();
         Map<String, Integer> requestCounts = new HashMap<>();
         List<String> allProjects = List.of("project-1", "project-2", "project-3");
@@ -1224,7 +1224,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             )
         );
         try (var result = run(request)) {
-            assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(4L));
+            assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(dataDriverCount(result.profile())));
         }
         // high keys threshold disables periodic emit completely (one finish emit per data driver)
         request.pragmas(

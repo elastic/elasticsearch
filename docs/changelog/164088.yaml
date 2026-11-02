@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 164088
+summary: Fix a byte buffer leak on proxy nodes handling batched query responses
+type: bug

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -312,6 +314,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     public NameId stepId() {
         return stepId;
+    }
+
+    /**
+     * The type of the {@code _timeseries} column the command exposes: typed metadata wherever the type is enabled, whatever
+     * the participating nodes read - a keyword read on an older node is cast to it. Keyword where the type is disabled.
+     */
+    public static DataType timeseriesType() {
+        return EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled() ? DataType.TIMESERIES_DATA_TYPE : DataType.KEYWORD;
+    }
+
+    /**
+     * Whether {@code _timeseries} is typed metadata for this query: the feature is on and every participating node reads
+     * it. Otherwise it is the keyword column, and labels left out of it come only from the source.
+     */
+    public static boolean usesTimeSeriesMetadata(AnalyzerContext analyzer) {
+        return EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled()
+            && TimeSeriesMetadataAttribute.supportTimeSeriesMetadataType(analyzer.minimumVersion());
     }
 
     public ReferenceAttribute valueAttribute() {

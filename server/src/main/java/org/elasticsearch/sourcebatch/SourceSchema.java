@@ -236,8 +236,12 @@ public final class SourceSchema {
 
         int append(String name, int parentIdx, int predictedIdx) {
             assert predictedIdx >= 0;
-            if (predictedIdx < names.size() && parents[predictedIdx] == parentIdx && names.get(predictedIdx).equals(name)) {
-                return predictedIdx;
+            if (predictedIdx < names.size() && parents[predictedIdx] == parentIdx) {
+                String predicted = names.get(predictedIdx);
+                // Field names usually come from the same cached instance, so check identity before comparing contents.
+                if (predicted == name || predicted.equals(name)) {
+                    return predictedIdx;
+                }
             }
             return append(name, parentIdx);
         }

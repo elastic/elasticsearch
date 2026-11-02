@@ -222,9 +222,8 @@ public final class SimdJsonDirectWalker {
                         int strOff = valIdx + 1;
                         int len = stringParser.scanUnescapedLength(buffer, valIdx);
                         if (len < 0) {
-                            int rawLen = scalarStringLength(buffer, valIdx + 1);
-                            strBuf = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                            len = stringParser.parseString(buffer, valIdx, strBuf);
+                            strBuf = unescapeString(buffer, valIdx);
+                            len = unescapedLength;
                             strOff = 0;
                         }
                         handler.stringField(fieldName, strBuf, strOff, len);
@@ -360,9 +359,8 @@ public final class SimdJsonDirectWalker {
                     int strOff = valIdx + 1;
                     int len = stringParser.scanUnescapedLength(buffer, valIdx);
                     if (len < 0) {
-                        int rawLen = scalarStringLength(buffer, valIdx + 1);
-                        strBuf = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        len = stringParser.parseString(buffer, valIdx, strBuf);
+                        strBuf = unescapeString(buffer, valIdx);
+                        len = unescapedLength;
                         strOff = 0;
                     }
                     handler.stringField(fieldName, strBuf, strOff, len);
@@ -1081,6 +1079,16 @@ public final class SimdJsonDirectWalker {
     // ------------------------------------------------------------------
     // String helpers
     // ------------------------------------------------------------------
+
+    private int unescapedLength;
+
+    /** Unescapes a string value into a new buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop. */
+    private byte[] unescapeString(byte[] buffer, int valIdx) {
+        int rawLen = scalarStringLength(buffer, valIdx + 1);
+        byte[] out = new byte[rawLen + StringParser.DESTINATION_PADDING];
+        unescapedLength = stringParser.parseString(buffer, valIdx, out);
+        return out;
+    }
 
     private static int scalarStringLength(byte[] buffer, int start) {
         int i = start;

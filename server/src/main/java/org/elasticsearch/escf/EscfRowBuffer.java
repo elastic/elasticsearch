@@ -187,15 +187,23 @@ public final class EscfRowBuffer {
         predictedLeaf = colIdx + 1;
         ensureScratchCapacity(colIdx + 1);
         if (columnsSet.getAndSet(colIdx)) {
-            throw new IllegalArgumentException("Duplicate field [" + name + "]");
+            throw duplicateField(name);
         }
         return colIdx;
+    }
+
+    private static IllegalArgumentException duplicateField(String name) {
+        return new IllegalArgumentException("Duplicate field [" + name + "]");
     }
 
     private void ensureScratchCapacity(int size) {
         if (size <= scratchType.length) {
             return;
         }
+        growScratch(size);
+    }
+
+    private void growScratch(int size) {
         int cap = ArrayUtil.oversize(size, Byte.BYTES);
         scratchType = Arrays.copyOf(scratchType, cap);
         scratchNumeric = Arrays.copyOf(scratchNumeric, cap);

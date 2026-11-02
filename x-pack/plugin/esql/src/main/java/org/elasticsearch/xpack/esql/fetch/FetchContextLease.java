@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -40,9 +39,10 @@ import java.util.function.Supplier;
  * nodes that finished first. Once nobody refreshes a context, because the query ended or its coordinator left, the context
  * expires after its keep-alive like any other.
  * <p>
- * The lease sends its requests as the user who ran the query, also when an administrator cancels it. It is thread-safe:
- * the responses of the data nodes, the fetch operator, the refresh and the task of the query call it from their own
- * threads, and it guards its executions with its own lock.
+ * The lease holds the contexts of each {@link FetchNode}, and reaches their nodes through a {@link FetchContextTransport},
+ * so it doesn't depend on the cluster a node is in. It sends its requests as the user who ran the query, also when an
+ * administrator cancels it. It is thread-safe: the responses of the data nodes, the fetch operator, the refresh and the
+ * task of the query call it from their own threads, and it guards its executions with its own lock.
  */
 public final class FetchContextLease implements Releasable {
     /**
@@ -51,6 +51,7 @@ public final class FetchContextLease implements Releasable {
     private static final int REFRESHES_PER_KEEP_ALIVE = 3;
 
     private final FetchContextService service;
+    private final FetchContextTransport transport;
     private final CancellableTask rootTask;
     private final Supplier<ThreadContext.StoredContext> ownerContext;
     private final TimeValue keepAlive;
@@ -63,11 +64,14 @@ public final class FetchContextLease implements Releasable {
     private boolean closed;
 
     /**
+     * @param service      schedules the refresh, and forgets the lease once it closed
+     * @param transport    reaches the nodes that hold the contexts
      * @param ownerContext restores the thread context of the user who runs the query
      * @param keepAlive    how long a context of the query stays open after its last use
      */
     FetchContextLease(
         FetchContextService service,
+        FetchContextTransport transport,
         CancellableTask rootTask,
         Supplier<ThreadContext.StoredContext> ownerContext,
         TimeValue keepAlive
@@ -77,6 +81,7 @@ public final class FetchContextLease implements Releasable {
             throw new IllegalArgumentException("the keep-alive must be at least a millisecond but was [" + keepAlive + "]");
         }
         this.service = service;
+        this.transport = transport;
         this.rootTask = rootTask;
         this.ownerContext = ownerContext;
         this.keepAlive = keepAlive;
@@ -103,12 +108,12 @@ public final class FetchContextLease implements Releasable {
     }
 
     /**
-     * Frees every context, one request each, and stops refreshing them. Sends the requests and doesn't wait for them.
-     * Closing twice does nothing.
+     * Frees every context and stops refreshing them. Sends the requests and doesn't wait for them. Closing twice does
+     * nothing.
      */
     @Override
     public void close() {
-        Map<DiscoveryNode, List<ShardSearchContextId>> toFree = new HashMap<>();
+        List<Contexts> toFree = new ArrayList<>();
         synchronized (this) {
             if (closed) {
                 return;
@@ -116,13 +121,12 @@ public final class FetchContextLease implements Releasable {
             closed = true;
             stopRefreshing();
             for (Execution execution : executions) {
-                execution.held.forEach((node, ids) -> toFree.computeIfAbsent(node, n -> new ArrayList<>()).addAll(ids));
-                execution.held.clear();
+                toFree.addAll(execution.takeHeld());
             }
             executions.clear();
         }
         service.removeLease(rootTask.getId(), this);
-        toFree.forEach(this::free);
+        free(toFree);
     }
 
     /**
@@ -130,7 +134,7 @@ public final class FetchContextLease implements Releasable {
      * requests and doesn't wait for them. Stops refreshing once the lease holds no context.
      */
     void refresh() {
-        List<Refresh> refreshes = new ArrayList<>();
+        List<Contexts> toRefresh = new ArrayList<>();
         synchronized (this) {
             if (closed) {
                 return;
@@ -138,24 +142,29 @@ public final class FetchContextLease implements Releasable {
             for (Execution execution : executions) {
                 execution.held.forEach((node, ids) -> {
                     if (ids.isEmpty() == false) {
-                        refreshes.add(new Refresh(node, new FetchContextKeepAliveRequest(execution.indices, ids, keepAlive)));
+                        toRefresh.add(new Contexts(execution.indices, node, List.copyOf(ids)));
                     }
                 });
             }
-            if (refreshes.isEmpty()) {
+            if (toRefresh.isEmpty()) {
                 // the next context the lease holds starts it again
                 stopRefreshing();
                 return;
             }
         }
         try (ThreadContext.StoredContext ignored = ownerContext.get()) {
-            for (Refresh refresh : refreshes) {
-                service.sendKeepAlive(refresh.node(), refresh.request(), rootTask);
+            for (Contexts contexts : toRefresh) {
+                transport.keepAlive(contexts.node(), contexts.indices(), contexts.ids(), keepAlive, rootTask);
             }
         }
     }
 
-    private record Refresh(DiscoveryNode node, FetchContextKeepAliveRequest request) {}
+    /**
+     * Contexts of one execution on one node.
+     *
+     * @param indices the index expressions of the execution, which authorize the requests for its contexts
+     */
+    private record Contexts(OriginalIndices indices, FetchNode node, List<ShardSearchContextId> ids) {}
 
     /**
      * Called with the lock held, when the lease starts holding a context.
@@ -177,13 +186,16 @@ public final class FetchContextLease implements Releasable {
         }
     }
 
-    private void free(DiscoveryNode node, List<ShardSearchContextId> ids) {
-        if (ids.isEmpty()) {
+    /**
+     * Frees {@code toFree} as the user who ran the query. Called without the lock.
+     */
+    private void free(List<Contexts> toFree) {
+        if (toFree.isEmpty()) {
             return;
         }
         try (ThreadContext.StoredContext ignored = ownerContext.get()) {
-            for (ShardSearchContextId id : ids) {
-                service.sendFree(node, id);
+            for (Contexts contexts : toFree) {
+                transport.free(contexts.node(), contexts.indices(), contexts.ids());
             }
         }
     }
@@ -193,7 +205,7 @@ public final class FetchContextLease implements Releasable {
      */
     public final class Execution {
         private final OriginalIndices indices;
-        private final Map<DiscoveryNode, List<ShardSearchContextId>> held = new HashMap<>();
+        private final Map<FetchNode, List<ShardSearchContextId>> held = new HashMap<>();
         /**
          * The contexts the rows of the cut read, once the cut ended.
          */
@@ -216,7 +228,7 @@ public final class FetchContextLease implements Releasable {
         /**
          * Takes over the contexts that the response of {@code node} lists, and frees the ones the execution no longer reads.
          */
-        public void add(DiscoveryNode node, List<ShardSearchContextId> ids) {
+        public void add(FetchNode node, List<ShardSearchContextId> ids) {
             if (ids.isEmpty()) {
                 return;
             }
@@ -238,14 +250,16 @@ public final class FetchContextLease implements Releasable {
                     }
                 }
             }
-            free(node, unread);
+            if (unread.isEmpty() == false) {
+                free(List.of(new Contexts(indices, node, unread)));
+            }
         }
 
         /**
          * {@code node} freed the contexts {@code ids} itself, once it answered the fetch request that read them for the last
          * time. The execution stops holding them, so it neither refreshes nor frees them.
          */
-        public void freedByTheirNode(DiscoveryNode node, Collection<ShardSearchContextId> ids) {
+        public void freedByTheirNode(FetchNode node, Collection<ShardSearchContextId> ids) {
             if (ids.isEmpty()) {
                 return;
             }
@@ -262,27 +276,27 @@ public final class FetchContextLease implements Releasable {
          * documents of the rows.
          */
         public void cutEnded(Set<ShardSearchContextId> read) {
-            Map<DiscoveryNode, List<ShardSearchContextId>> unread;
+            List<Contexts> unread;
             synchronized (FetchContextLease.this) {
                 // a second cut would free the contexts that the rows of the first one read
                 assert this.read == null && fetchEnded == false : "an execution has one cut, and it ends before the fetch";
                 this.read = Set.copyOf(read);
                 unread = takeUnread();
             }
-            unread.forEach(FetchContextLease.this::free);
+            free(unread);
         }
 
         /**
          * The fetch ended, so the execution reads none of its contexts anymore. Frees them, and leaves the lease.
          */
         public void fetchEnded() {
-            Map<DiscoveryNode, List<ShardSearchContextId>> unread;
+            List<Contexts> unread;
             synchronized (FetchContextLease.this) {
                 fetchEnded = true;
                 unread = takeUnread();
                 executions.remove(this);
             }
-            unread.forEach(FetchContextLease.this::free);
+            free(unread);
         }
 
         private boolean reads(ShardSearchContextId id) {
@@ -292,19 +306,37 @@ public final class FetchContextLease implements Releasable {
         /**
          * Stops holding the contexts the execution no longer reads, and returns them.
          */
-        private Map<DiscoveryNode, List<ShardSearchContextId>> takeUnread() {
-            Map<DiscoveryNode, List<ShardSearchContextId>> unread = new HashMap<>();
-            for (Map.Entry<DiscoveryNode, List<ShardSearchContextId>> node : held.entrySet()) {
+        private List<Contexts> takeUnread() {
+            List<Contexts> unread = new ArrayList<>();
+            for (Map.Entry<FetchNode, List<ShardSearchContextId>> node : held.entrySet()) {
+                List<ShardSearchContextId> unreadOfNode = new ArrayList<>();
                 Iterator<ShardSearchContextId> ids = node.getValue().iterator();
                 while (ids.hasNext()) {
                     ShardSearchContextId id = ids.next();
                     if (reads(id) == false) {
-                        unread.computeIfAbsent(node.getKey(), n -> new ArrayList<>()).add(id);
+                        unreadOfNode.add(id);
                         ids.remove();
                     }
                 }
+                if (unreadOfNode.isEmpty() == false) {
+                    unread.add(new Contexts(indices, node.getKey(), unreadOfNode));
+                }
             }
             return unread;
+        }
+
+        /**
+         * Stops holding every context, and returns them.
+         */
+        private List<Contexts> takeHeld() {
+            List<Contexts> taken = new ArrayList<>();
+            held.forEach((node, ids) -> {
+                if (ids.isEmpty() == false) {
+                    taken.add(new Contexts(indices, node, List.copyOf(ids)));
+                }
+            });
+            held.clear();
+            return taken;
         }
     }
 }

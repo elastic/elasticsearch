@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
+import org.elasticsearch.xpack.esql.fetch.FetchNode;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -294,7 +295,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     if (fetchContexts != null) {
-                                        fetchContexts.add(connection.getNode(), r.openContexts());
+                                        fetchContexts.add(new FetchNode(clusterAlias, connection.getNode().getId()), r.openContexts());
                                     }
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();

@@ -114,7 +114,7 @@ final class FetchBatchPlanner {
         for (Page page : pages) {
             rows += page.getPositionCount();
         }
-        Map<NodeKey, NodeAccumulator> nodes = new LinkedHashMap<>();
+        Map<FetchNode, NodeAccumulator> nodes = new LinkedHashMap<>();
         ShardAccumulator[] shardOfRow = new ShardAccumulator[rows];
         long[] docOfRow = new long[rows];
         int row = 0;
@@ -137,7 +137,10 @@ final class FetchBatchPlanner {
                 ShardAccumulator shard = shardOfOrigin[ordinal];
                 if (shard == null) {
                     DocOrigin origin = origins.get(ordinal);
-                    NodeAccumulator node = nodes.computeIfAbsent(new NodeKey(origin.clusterAlias(), origin.nodeId()), NodeAccumulator::new);
+                    NodeAccumulator node = nodes.computeIfAbsent(
+                        new FetchNode(origin.clusterAlias(), origin.nodeId()),
+                        NodeAccumulator::new
+                    );
                     shard = node.shards.computeIfAbsent(origin.contextId(), id -> new ShardAccumulator(origin));
                     shardOfOrigin[ordinal] = shard;
                 }
@@ -180,14 +183,12 @@ final class FetchBatchPlanner {
         return ((long) segment << 32) | (doc & 0xFFFFFFFFL);
     }
 
-    private record NodeKey(String clusterAlias, String nodeId) {}
-
     private static final class NodeAccumulator {
-        private final NodeKey key;
+        private final FetchNode key;
         /** By context id, which names exactly one shard on one searcher. */
         private final Map<ShardSearchContextId, ShardAccumulator> shards = new LinkedHashMap<>();
 
-        NodeAccumulator(NodeKey key) {
+        NodeAccumulator(FetchNode key) {
             this.key = key;
         }
     }

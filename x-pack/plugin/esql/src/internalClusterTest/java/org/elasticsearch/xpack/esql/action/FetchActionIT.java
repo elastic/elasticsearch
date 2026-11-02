@@ -214,7 +214,8 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
         SearchService searchService = internalCluster().getInstance(SearchService.class, node);
         FetchContextService contextService = new FetchContextService(
             searchService,
-            internalCluster().getInstance(SearchTransportService.class, node)
+            internalCluster().getInstance(SearchTransportService.class, node),
+            () -> clusterService(node).state().nodes()
         );
         NodeFetchContexts contexts = contextService.newNodeContexts(
             null,

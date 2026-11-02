@@ -72,7 +72,11 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void createService() {
-        service = new FetchContextService(searchService(), getInstanceFromNode(SearchTransportService.class));
+        service = new FetchContextService(
+            searchService(),
+            getInstanceFromNode(SearchTransportService.class),
+            () -> getInstanceFromNode(ClusterService.class).state().nodes()
+        );
     }
 
     @After
@@ -149,6 +153,13 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
 
     protected DiscoveryNode localNode() {
         return getInstanceFromNode(ClusterService.class).localNode();
+    }
+
+    /**
+     * This node, as a lease names the node of its contexts.
+     */
+    protected FetchNode localFetchNode() {
+        return FetchNode.local(localNode().getId());
     }
 
     /**

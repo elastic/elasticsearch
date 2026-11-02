@@ -42,11 +42,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -56,6 +52,10 @@ import static org.mockito.Mockito.when;
  */
 public class QueryFetchClientTests extends ComputeTestCase {
     private static final DiscoveryNode NODE = DiscoveryNodeUtils.create("n1");
+    /**
+     * {@link #NODE}, as the lease names the node of its contexts.
+     */
+    private static final FetchNode FETCH_NODE = FetchNode.local("n1");
     private static final FetchRequest.ShardDocs SHARD = new FetchRequest.ShardDocs(
         new ShardId("logs", "uuid", 0),
         new ShardSearchContextId("session", 7),
@@ -221,14 +221,13 @@ public class QueryFetchClientTests extends ComputeTestCase {
             );
             ShardSearchContextId read = new ShardSearchContextId("session", 1);
             ShardSearchContextId unread = new ShardSearchContextId("session", 2);
-            recorded.execution().add(NODE, List.of(read, unread));
+            recorded.execution().add(FETCH_NODE, List.of(read, unread));
 
             client.cutEnded(Set.of(read));
-            verify(recorded.frees()).sendFreeContext(any(), eq(unread), any());
-            verify(recorded.frees(), never()).sendFreeContext(any(), eq(read), any());
+            assertThat(recorded.transport().freed(), equalTo(Set.of(unread)));
 
             client.fetchEnded();
-            verify(recorded.frees()).sendFreeContext(any(), eq(read), any());
+            assertThat(recorded.transport().freed(), equalTo(Set.of(unread, read)));
             recorded.lease().close();
         } finally {
             terminate(threadPool);
@@ -254,13 +253,12 @@ public class QueryFetchClientTests extends ComputeTestCase {
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
             ShardSearchContextId readAgain = new ShardSearchContextId("session", 8);
-            recorded.execution().add(NODE, List.of(lastRead.contextId(), readAgain));
+            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId(), readAgain));
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
 
-            verify(recorded.frees(), never()).sendFreeContext(any(), eq(lastRead.contextId()), any());
-            verify(recorded.frees()).sendFreeContext(any(), eq(readAgain), any());
+            assertThat(recorded.transport().freed(), equalTo(Set.of(readAgain)));
             recorded.lease().close();
         } finally {
             response.decRef();
@@ -288,12 +286,12 @@ public class QueryFetchClientTests extends ComputeTestCase {
                 List.of("logs-*")
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
-            recorded.execution().add(NODE, List.of(lastRead.contextId()));
+            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()));
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
 
-            verify(recorded.frees()).sendFreeContext(any(), eq(lastRead.contextId()), any());
+            assertThat(recorded.transport().freed(), equalTo(Set.of(lastRead.contextId())));
             recorded.lease().close();
         } finally {
             response.decRef();
@@ -317,12 +315,12 @@ public class QueryFetchClientTests extends ComputeTestCase {
                 List.of("logs-*")
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
-            recorded.execution().add(NODE, List.of(lastRead.contextId()));
+            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()));
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
 
-            verify(recorded.frees()).sendFreeContext(any(), eq(lastRead.contextId()), any());
+            assertThat(recorded.transport().freed(), equalTo(Set.of(lastRead.contextId())));
             recorded.lease().close();
         } finally {
             terminate(threadPool);
@@ -330,19 +328,25 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     /**
-     * A lease and its execution, and the free action of {@code _search} that records what the lease frees.
+     * A lease and its execution, and the transport that records what the lease frees.
      */
-    private record RecordedLease(FetchContextLease lease, FetchContextLease.Execution execution, SearchTransportService frees) {}
+    private record RecordedLease(
+        FetchContextLease lease,
+        FetchContextLease.Execution execution,
+        RecordingFetchContextTransport transport
+    ) {}
 
     private RecordedLease leaseThatRecordsFrees(ThreadPool threadPool) {
-        // there is no node to free a context on, so the free action of _search only records what the lease frees. The thread
-        // pool runs the refresh of the held contexts, which never comes within the keep-alive of a test.
+        // the service only schedules the refresh of the held contexts on this thread pool, which never comes within the
+        // keep-alive of a test. A real one would need a node.
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         SearchTransportService searchTransport = mock(SearchTransportService.class);
         when(searchTransport.transportService()).thenReturn(transportService);
+        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = new FetchContextLease(
-            new FetchContextService(null, searchTransport),
+            new FetchContextService(null, searchTransport, () -> DiscoveryNodes.EMPTY_NODES),
+            transport,
             rootTask,
             threadContext.newRestorableContext(false),
             TimeValue.timeValueMinutes(5)
@@ -350,7 +354,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         FetchContextLease.Execution execution = lease.newExecution(
             new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
         );
-        return new RecordedLease(lease, execution, searchTransport);
+        return new RecordedLease(lease, execution, transport);
     }
 
     private static FetchRequest.ShardDocs withAfterFetch(FetchRequest.ShardDocs shard, FetchRequest.ContextAfterFetch afterFetch) {
@@ -376,7 +380,8 @@ public class QueryFetchClientTests extends ComputeTestCase {
         // the client holds no context in these tests, so the lease never sends a request
         return scope(
             new FetchContextLease(
-                new FetchContextService(null, null),
+                new FetchContextService(null, null, () -> DiscoveryNodes.EMPTY_NODES),
+                new RecordingFetchContextTransport(),
                 rootTask,
                 threadContext.newRestorableContext(false),
                 TimeValue.timeValueMinutes(5)

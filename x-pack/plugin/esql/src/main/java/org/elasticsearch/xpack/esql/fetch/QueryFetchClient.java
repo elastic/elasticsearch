@@ -100,7 +100,7 @@ final class QueryFetchClient implements FetchOperator.Client {
             @Override
             public void onResponse(FetchResponse response) {
                 try {
-                    scope.fetchContexts().freedByTheirNode(node, freedByTheNode(shards, response));
+                    scope.fetchContexts().freedByTheirNode(new FetchNode(clusterAlias, node.getId()), freedByTheNode(shards, response));
                     listener.onResponse(response);
                 } finally {
                     drivers.onResponse(response.completionInfo());

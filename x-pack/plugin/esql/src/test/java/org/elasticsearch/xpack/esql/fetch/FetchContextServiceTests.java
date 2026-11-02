@@ -59,7 +59,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
             FetchContextKeepAliveRequest request = new FetchContextKeepAliveRequest(QUERY_INDICES, open, keepAlive);
             long until = System.nanoTime() + 4 * keepAlive.nanos();
             while (System.nanoTime() < until) {
-                service.keepAlive(request);
+                service.serveKeepAlive(request);
                 safeSleep(keepAlive.millis() / 5);
             }
             assertThat("refreshed contexts stay open", searchService().getActiveContexts(), equalTo(SHARDS));
@@ -78,7 +78,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
         List<ShardSearchContextId> open = respond(INDEX);
         TimeValue longer = TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis() + between(1, 3600) * 1000L);
 
-        service.keepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, longer));
+        service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, longer));
 
         for (ShardSearchContextId id : open) {
             assertThat(keepAliveOf(id), equalTo(longer.millis()));
@@ -91,7 +91,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
         List<ShardSearchContextId> open = respond(INDEX);
         long nodeDefault = searchService().getDefaultKeepAliveInMillis();
 
-        service.keepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, TimeValue.timeValueMillis(between(1, 1000))));
+        service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, TimeValue.timeValueMillis(between(1, 1000))));
 
         for (ShardSearchContextId id : open) {
             assertThat(keepAliveOf(id), equalTo(nodeDefault));
@@ -109,7 +109,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
         searchService().freeReaderContext(gone);
         TimeValue longer = TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis() + 60_000);
 
-        service.keepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, longer));
+        service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, longer));
 
         List<ShardSearchContextId> left = new ArrayList<>(open);
         left.remove(gone);
@@ -130,7 +130,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
         ShardSearchContextId otherSearcher = new ShardSearchContextId(id.getSessionId(), id.getId(), "another-searcher");
         long nodeDefault = searchService().getDefaultKeepAliveInMillis();
 
-        service.keepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, List.of(otherSearcher), TimeValue.timeValueHours(1)));
+        service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, List.of(otherSearcher), TimeValue.timeValueHours(1)));
 
         assertThat(keepAliveOf(id), equalTo(nodeDefault));
         free(open);
@@ -147,7 +147,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
         searchService().openReaderContext(shardId, pointInTimeKeepAlive, SplitShardCountSummary.IRRELEVANT, opened);
         ShardSearchContextId pointInTime = opened.actionGet(TimeValue.timeValueSeconds(10));
         try {
-            service.keepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, List.of(pointInTime), TimeValue.timeValueHours(1)));
+            service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, List.of(pointInTime), TimeValue.timeValueHours(1)));
 
             assertThat(keepAliveOf(pointInTime), equalTo(pointInTimeKeepAlive.millis()));
         } finally {
@@ -177,7 +177,7 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
                 Map.of(INDEX, IndicesAccessControl.IndexAccessControl.ALLOW_ALL)
             );
             AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(threadContext, onlyIndex);
-            service.keepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, randomFrom(both, both.reversed()), longer));
+            service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, randomFrom(both, both.reversed()), longer));
         }
 
         for (ShardSearchContextId id : readable) {

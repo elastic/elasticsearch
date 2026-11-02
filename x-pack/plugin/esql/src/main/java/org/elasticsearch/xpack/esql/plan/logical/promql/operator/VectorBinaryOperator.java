@@ -64,6 +64,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMa
 public abstract sealed class VectorBinaryOperator extends BinaryPlan implements PromqlPlan permits VectorBinarySet, VectorBinaryComparison,
     VectorBinaryArithmetic {
 
+    public static final String EMPTY_SIGNATURE_KEY = "$empty_prom_sig";
+
     private final VectorMatch match;
     private final boolean dropMetricName;
     private final BinaryOp binaryOp;

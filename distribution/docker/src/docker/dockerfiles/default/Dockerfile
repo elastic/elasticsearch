@@ -70,7 +70,15 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # changes, unlike the rest of the distribution, so the layer can be reused by the Docker build cache
 # and does not have to be pushed or pulled again.
     mkdir /jdk-layer && \\
-    mv jdk /jdk-layer/
+    mv jdk /jdk-layer/ && \\
+# Do the same for the libraries of the native machine learning code, which only change when the native
+# code is updated. The distribution only contains the libraries of the architecture being built, so find
+# them by wildcard and keep their path, so that they are copied back to the same place.
+    mkdir /ml-layer && \\
+    for lib in modules/x-pack-ml/platform/*/lib; do \\
+        [ -d "\$lib" ] || continue; \\
+        mkdir -p "/ml-layer/\$(dirname "\$lib")" && mv "\$lib" "/ml-layer/\$lib" || exit 1; \\
+    done
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -103,6 +111,8 @@ COPY --from=builder /bin/tini /bin/tini
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /jdk-layer/jdk jdk
+
+COPY --from=builder --chown=0:0 /ml-layer .
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 

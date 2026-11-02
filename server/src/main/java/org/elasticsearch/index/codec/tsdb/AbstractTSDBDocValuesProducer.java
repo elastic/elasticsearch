@@ -1511,6 +1511,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return entry.ordsEntry.sortedOrdinals != null;
         }
 
+        /**
+         * The reader the field's ordinal codec returned for this field, which tells which layout the codec chose
+         * when it wrote the field.
+         */
+        public SortedOrdinalReader ordinalsReaderForTesting() {
+            return entry.ordinalsReader;
+        }
+
         BaseSortedDocValues(SortedEntry entry) throws IOException {
             this.entry = entry;
             this.termsEnum = termsEnum();

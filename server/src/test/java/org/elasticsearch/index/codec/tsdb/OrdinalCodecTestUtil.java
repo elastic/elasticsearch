@@ -43,23 +43,23 @@ import static org.hamcrest.Matchers.equalTo;
  * segment outputs, write and read contexts that select the blocked layout, array-backed doc values sources,
  * and a block codec that records the contexts it receives.
  */
-final class OrdinalCodecTestUtil {
+public final class OrdinalCodecTestUtil {
 
     private static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     /** Sentinel the producer/consumer use when the segment has no primary sort field. */
     private static final int NO_PRIMARY_SORT_FIELD = -1;
     /** Marks a document without a value in a single-valued test ordinal array. */
-    static final long MISSING = -1L;
+    public static final long MISSING = -1L;
 
     private OrdinalCodecTestUtil() {}
 
     /** Output of one field write: the metadata bytes, the data bytes and the returned statistics. */
-    record Written(byte[] meta, byte[] data, DocValueFieldCountStats stats) {}
+    public record Written(byte[] meta, byte[] data, DocValueFieldCountStats stats) {}
 
     /**
      * Runs {@code fieldWriter} against fresh in-memory meta/data outputs and captures what it wrote.
      */
-    static Written write(
+    public static Written write(
         final int blockSize,
         final int maxDoc,
         final CheckedFunction<NumericWriteContext, DocValueFieldCountStats, IOException> fieldWriter
@@ -77,6 +77,29 @@ final class OrdinalCodecTestUtil {
         final int maxDoc,
         final CheckedFunction<NumericWriteContext, DocValueFieldCountStats, IOException> fieldWriter
     ) throws IOException {
+        return write(dir, blockSize, maxDoc, NO_PRIMARY_SORT_FIELD, fieldWriter);
+    }
+
+    /**
+     * As {@link #write(int, int, CheckedFunction)}, with the given field number as the segment's primary
+     * sort field.
+     */
+    public static Written write(
+        final int blockSize,
+        final int maxDoc,
+        final int primarySortFieldNumber,
+        final CheckedFunction<NumericWriteContext, DocValueFieldCountStats, IOException> fieldWriter
+    ) throws IOException {
+        return write(null, blockSize, maxDoc, primarySortFieldNumber, fieldWriter);
+    }
+
+    private static Written write(
+        @Nullable final Directory dir,
+        final int blockSize,
+        final int maxDoc,
+        final int primarySortFieldNumber,
+        final CheckedFunction<NumericWriteContext, DocValueFieldCountStats, IOException> fieldWriter
+    ) throws IOException {
         final ByteBuffersDataOutput metaOut = new ByteBuffersDataOutput();
         final ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         final DocValueFieldCountStats stats;
@@ -84,7 +107,10 @@ final class OrdinalCodecTestUtil {
             IndexOutput meta = new ByteBuffersIndexOutput(metaOut, "test-meta", "test-meta");
             IndexOutput data = new ByteBuffersIndexOutput(dataOut, "test-data", "test-data")
         ) {
-            stats = fieldWriter.apply(writeContext(meta, data, dir, maxDoc, blockSize));
+            final IOContext ioContext = dir == null ? null : IOContext.DEFAULT;
+            stats = fieldWriter.apply(
+                new NumericWriteContext(meta, data, dir, ioContext, maxDoc, blockSize, primarySortFieldNumber, formatConfig(blockSize))
+            );
         }
         return new Written(metaOut.toArrayCopy(), dataOut.toArrayCopy(), stats);
     }
@@ -113,7 +139,7 @@ final class OrdinalCodecTestUtil {
     }
 
     /** A read context for the current format version and the given block size. */
-    static NumericReadContext readContext(final int blockSize) {
+    public static NumericReadContext readContext(final int blockSize) {
         return new NumericReadContext(blockSize, null, TSDBDocValuesFormatConfig.VERSION_CURRENT);
     }
 
@@ -135,9 +161,14 @@ final class OrdinalCodecTestUtil {
     }
 
     /** A doc values field of the given type; nothing else about the field matters to the ordinal codecs. */
-    static FieldInfo fieldInfo(final DocValuesType docValuesType) {
+    public static FieldInfo fieldInfo(final DocValuesType docValuesType) {
+        return fieldInfo("test_field", docValuesType);
+    }
+
+    /** As {@link #fieldInfo(DocValuesType)}, with the given name and field number 0. */
+    public static FieldInfo fieldInfo(final String name, final DocValuesType docValuesType) {
         return new FieldInfo(
-            "test_field",
+            name,
             0,
             false,
             false,
@@ -158,7 +189,7 @@ final class OrdinalCodecTestUtil {
         );
     }
 
-    static int randomBlockSize() {
+    public static int randomBlockSize() {
         return 1 << ESTestCase.randomIntBetween(7, 9);
     }
 
@@ -167,7 +198,7 @@ final class OrdinalCodecTestUtil {
      * without a value. The writer iterates the field several times (counting, encoding, DISI), so a fresh
      * iterator is returned on every call.
      */
-    static TsdbDocValuesProducer sortedValuesSource(final long[] ordinals) {
+    public static TsdbDocValuesProducer sortedValuesSource(final long[] ordinals) {
         return new TsdbDocValuesProducer(new DocValuesConsumerUtil.MergeStats(false, 0, 0, 0, 0)) {
             @Override
             public SortedNumericDocValues getSortedNumeric(final FieldInfo field) {
@@ -182,7 +213,7 @@ final class OrdinalCodecTestUtil {
      * a merge knows up front, which switches the writer to its single-pass path. The writer iterates the field
      * several times (counting, encoding, DISI, addresses), so a fresh iterator is returned on every call.
      */
-    static TsdbDocValuesProducer sortedSetValuesSource(final long[][] ordinals, final boolean mergeStats) {
+    public static TsdbDocValuesProducer sortedSetValuesSource(final long[][] ordinals, final boolean mergeStats) {
         final long numValues = Arrays.stream(ordinals).mapToLong(docOrdinals -> docOrdinals.length).sum();
         final int numDocsWithField = (int) Arrays.stream(ordinals).filter(docOrdinals -> docOrdinals.length > 0).count();
         return new TsdbDocValuesProducer(new DocValuesConsumerUtil.MergeStats(mergeStats, numValues, numDocsWithField, 0, 0)) {

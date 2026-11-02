@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  *   <li><b>A multi-split dataset.</b> A lone one-split read stays on the coordinator (see
  *       {@code ManyDatasetsDistributeAcrossNodesIT}), so the dataset branch would never serialize a page.
  *       The reporter's dataset was a {@code *.parquet} glob over ~500k rows; this one is a glob over
- *       {@link #FILE_COUNT} files, and {@link #assertScanDistributed} proves the read left the coordinator.</li>
+ *       {@link #FILE_COUNT} files, and {@link #assertScanRan} proves the read was not folded away.</li>
  *   <li><b>A dataset much wider than the index.</b> The reporter's profile shows {@code EvalOperator x13} on
  *       the index branch, i.e. ~13 union columns the index must null-fill. The fixture carries boolean columns
  *       the index has no counterpart for, and the reported failure always lands inside a {@code BooleanBlock}
@@ -197,16 +197,18 @@ public class MixedDatasetIndexStatsIT extends AbstractExternalDataSourceIT {
                     driver.operators().stream().map(op -> op.operator().split("\\[")[0]).toList()
                 );
             }
-            assertScanDistributed(response);
+            assertScanRan(response);
             return ((Number) getValuesList(response).get(0).get(0)).longValue();
         }
     }
 
     /**
-     * The external scan must appear on at least one node. Without this the fixture can collapse to a
-     * coordinator-local read, no page is ever serialized, and the test cannot observe the reported failure.
+     * The external scan must have run rather than been folded away from file statistics. This does NOT prove the
+     * read left the coordinator: the coordinator is a node, so a coordinator-local read satisfies it too. Proving
+     * the page crossed the wire needs the scan to appear on a node other than the coordinating one, which this
+     * assertion deliberately does not claim.
      */
-    private static void assertScanDistributed(EsqlQueryResponse response) {
+    private static void assertScanRan(EsqlQueryResponse response) {
         assertThat("external scan did not run on any node", externalScanNodeNames(response).size(), greaterThanOrEqualTo(1));
     }
 

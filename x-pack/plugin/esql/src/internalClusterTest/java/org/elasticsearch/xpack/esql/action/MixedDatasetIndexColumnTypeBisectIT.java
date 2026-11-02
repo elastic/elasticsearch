@@ -80,7 +80,11 @@ public class MixedDatasetIndexColumnTypeBisectIT extends AbstractExternalDataSou
         refresh(INDEX);
     }
 
-    /** Counts {@code FROM ds, idx | STATS COUNT(*)} with the dataset splits forced off the coordinator. */
+    /**
+     * Counts {@code FROM ds, idx | STATS COUNT(*)}. The {@code round_robin} pragma is belt-and-braces: for this
+     * shape the default {@code adaptive} strategy already distributes, because the query reduces, the split count
+     * exceeds the node count, and a mixed {@code FROM} has source siblings.
+     */
     private long mixedCount(String dataset) {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + ", " + INDEX + " | STATS c = COUNT(*)");
         request.pragmas(

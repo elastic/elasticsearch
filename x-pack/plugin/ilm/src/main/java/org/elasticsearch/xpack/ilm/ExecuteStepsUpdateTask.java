@@ -98,6 +98,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             // This index doesn't exist any more, there's nothing to execute currently
             return currentState.cluster();
         }
+        // Hand the steps the index as it is now rather than the one captured when this task was queued: an index rename keeps the
+        // UUID, which is how the metadata above was found, but steps that resolve the index by name need its current name.
+        final Index currentIndex = indexMetadata.getIndex();
         Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetadata);
         if (currentStep.equals(registeredCurrentStep) == false) {
             // either we are no longer the master or the step is now
@@ -112,9 +115,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         while (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             try {
                 if (currentStep instanceof ClusterStateActionStep) {
-                    state = executeActionStep(state, currentStep);
+                    state = executeActionStep(state, currentStep, currentIndex);
                 } else {
-                    state = executeWaitStep(state, currentStep);
+                    state = executeWaitStep(state, currentStep, currentIndex);
                 }
             } catch (Exception exception) {
                 return moveToErrorStep(state, currentStep.getKey(), exception);
@@ -122,7 +125,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             if (nextStepKey == null) {
                 return state.cluster();
             } else {
-                state = moveToNextStep(state);
+                state = moveToNextStep(state, currentIndex);
             }
             // There are actions we need to take in the event a phase
             // transition happens, so even if we would continue in the while
@@ -136,20 +139,20 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         return state.cluster();
     }
 
-    private ProjectState executeActionStep(ProjectState state, Step currentStep) {
+    private ProjectState executeActionStep(ProjectState state, Step currentStep, Index currentIndex) {
         // cluster state action step so do the action and
         // move the cluster state to the next step
         logger.trace(
             "[{}] performing cluster state action ({}) [{}]",
-            index.getName(),
+            currentIndex.getName(),
             currentStep.getClass().getSimpleName(),
             currentStep.getKey()
         );
         ClusterStateActionStep actionStep = (ClusterStateActionStep) currentStep;
-        state = actionStep.performAction(index, state);
+        state = actionStep.performAction(currentIndex, state);
         // If this step (usually a CopyExecutionStateStep step) has brought the
-        // index to where it needs to have async actions invoked, then add that
-        // index to the list so that when the new cluster state has been
+        // currentIndex to where it needs to have async actions invoked, then add that
+        // currentIndex to the list so that when the new cluster state has been
         // processed, the new indices will have their async actions invoked.
         Optional.ofNullable(actionStep.indexForAsyncInvocation())
             .ifPresent(tuple -> indexToStepKeysForAsyncActions.put(tuple.v1(), tuple.v2()));
@@ -159,7 +162,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         return state;
     }
 
-    private ProjectState executeWaitStep(ProjectState state, Step currentStep) {
+    private ProjectState executeWaitStep(ProjectState state, Step currentStep, Index currentIndex) {
         // cluster state wait step so evaluate the
         // condition, if the condition is met move to the
         // next step, if its not met return the current
@@ -168,11 +171,11 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         // condition again
         logger.trace(
             "[{}] waiting for cluster state step condition ({}) [{}]",
-            index.getName(),
+            currentIndex.getName(),
             currentStep.getClass().getSimpleName(),
             currentStep.getKey()
         );
-        ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
+        ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(currentIndex, state);
         // some steps can decide to change the next step to execute after waiting for some time for the condition
         // to be met (eg. {@link LifecycleSettings#LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING}, so it's important we
         // re-evaluate what the next step is after we evaluate the condition
@@ -180,7 +183,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         if (result.complete()) {
             logger.trace(
                 "[{}] cluster state step condition met successfully ({}) [{}]",
-                index.getName(),
+                currentIndex.getName(),
                 currentStep.getClass().getSimpleName(),
                 currentStep.getKey()
             );
@@ -190,7 +193,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "[{}] condition not met ({}) [{}], returning existing state (info: {})",
-                    index.getName(),
+                    currentIndex.getName(),
                     currentStep.getClass().getSimpleName(),
                     currentStep.getKey(),
                     stepInfo == null ? "null" : Strings.toString(stepInfo)
@@ -204,17 +207,17 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             if (stepInfo == null) {
                 return state;
             }
-            return state.updateProject(IndexLifecycleTransition.addStepInfoToProject(index, state.metadata(), stepInfo));
+            return state.updateProject(IndexLifecycleTransition.addStepInfoToProject(currentIndex, state.metadata(), stepInfo));
         }
     }
 
-    private ProjectState moveToNextStep(ProjectState state) {
+    private ProjectState moveToNextStep(ProjectState state, Index currentIndex) {
         if (nextStepKey == null) {
             return state;
         }
-        logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
+        logger.trace("[{}] moving cluster state to next step [{}]", currentIndex.getName(), nextStepKey);
         return state.updateProject(
-            IndexLifecycleTransition.moveIndexToStep(index, state.metadata(), nextStepKey, nowSupplier, policyStepsRegistry, false)
+            IndexLifecycleTransition.moveIndexToStep(currentIndex, state.metadata(), nextStepKey, nowSupplier, policyStepsRegistry, false)
         );
     }
 

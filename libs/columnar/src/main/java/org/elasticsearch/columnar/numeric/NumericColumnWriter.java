@@ -83,21 +83,39 @@ public final class NumericColumnWriter {
         long valueAddress = 0;
         SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
         NumericColumnValues values = cursors.get();
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            if (tableAddresses) {
-                valueAddresses.add(valueAddress);
-            }
-            int count = values.valueCount();
-            if (skip != null) {
-                skip.startDoc(doc, count);
-            }
-            for (int i = 0; i < count; i++) {
-                long value = values.nextValue();
+        final long[] consecutive = new long[pipeline.blockSize()];
+        int read = values.nextValuesOfConsecutiveDocuments(consecutive);
+        if (read >= 0) {
+            // A value a document: each document's first value address is its rank, so there is nothing to table.
+            assert tableAddresses == false : "a column of a value a document tables no value addresses";
+            for (; read > 0; read = values.nextValuesOfConsecutiveDocuments(consecutive)) {
                 if (skip != null) {
-                    skip.add(value);
+                    final int first = values.docID() - read + 1;
+                    for (int i = 0; i < read; i++) {
+                        skip.startDoc(first + i, 1);
+                        skip.add(consecutive[i]);
+                    }
                 }
-                blocks.add(value);
-                valueAddress++;
+                blocks.add(consecutive, read);
+                valueAddress += read;
+            }
+        } else {
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                if (tableAddresses) {
+                    valueAddresses.add(valueAddress);
+                }
+                int count = values.valueCount();
+                if (skip != null) {
+                    skip.startDoc(doc, count);
+                }
+                for (int i = 0; i < count; i++) {
+                    long value = values.nextValue();
+                    if (skip != null) {
+                        skip.add(value);
+                    }
+                    blocks.add(value);
+                    valueAddress++;
+                }
             }
         }
         if (tableAddresses) {

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
@@ -87,6 +88,29 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             assertEquals("one ordinal per distinct term", terms.length, dictionaryOf(metadata).dictionarySize());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /**
+     * Terms enough that their ordinals take more than a byte to stage, over documents enough that the staged ordinals
+     * are read back in several pieces, some ordinal split across two of them: every value still reads back as itself.
+     */
+    public void testOrdinalsStagedInSeveralBytesReadBack() throws IOException {
+        // Past 1 << 14, so ordinals take one, two and three bytes.
+        final int numTerms = between(16_400, 17_000);
+        final List<BytesRef> docs = new ArrayList<>();
+        for (int t = 0; t < numTerms; t++) {
+            final BytesRef term = new BytesRef(String.format(Locale.ROOT, "term-%05d", t));
+            for (int i = between(6, 8); i > 0; i--) {
+                docs.add(term);
+            }
+        }
+        Collections.shuffle(docs, random());
+        final BytesRef[] docValues = docs.toArray(new BytesRef[0]);
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("one ordinal per distinct term", numTerms, dictionaryOf(metadata).dictionarySize());
             assertEveryValueReadsBack(docValues, reader);
         });
     }

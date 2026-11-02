@@ -138,4 +138,36 @@ public abstract class StringColumnValues extends DocIdSetIterator {
     public int ordinal() throws IOException {
         return -1;
     }
+
+    /**
+     * The slots from the current document on that a plain column holds in this order with nothing in between,
+     * when this cursor knows them, or null. Asked only on a document's first slot, before {@link #nextValue()}.
+     *
+     * <p>A merge knows them: which documents of a segment land next to one another is settled by the merge, and
+     * a run of them read from one of our own plain columns can have its chunks copied as they are stored. A
+     * caller that takes the run does not call {@link #nextValue()} on the documents it covers; it still steps
+     * through them, so their slot counts are recorded.
+     */
+    public PlainRun plainRun() throws IOException {
+        return null;
+    }
+
+    /**
+     * As {@link #plainRun()}, for slots a dictionary column holds whose ordinals the merge maps onto the column being
+     * written, or null. A caller that takes the run reads their ordinals from it a block at a time rather than asking
+     * {@link #ordinal()} of each slot, and so likewise does not call {@link #nextValue()} on the documents it covers.
+     */
+    public OrdinalRun ordinalRun() throws IOException {
+        return null;
+    }
+
+    /**
+     * Moves past the next {@code count} documents without stopping on each, leaving the cursor on the last of them,
+     * as {@code count} calls to {@link #nextDoc()} would; or answers false, having not moved, when this cursor cannot.
+     * Asked only right after a run, for documents that run covers: a caller that has every slot of them already has no
+     * reason to stop on them one at a time.
+     */
+    public boolean skipDocuments(int count) throws IOException {
+        return false;
+    }
 }

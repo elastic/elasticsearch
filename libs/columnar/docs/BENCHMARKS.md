@@ -31,6 +31,30 @@ support 128 and 512; run them together for an apples-to-apples parity comparison
 ./gradlew :benchmarks:run --args="ColumnarNumericRangeSlicingBenchmark -p format=ES95,COLUMNAR -p workload=MONOTONIC_TIMESTAMPS,RANDOM_FULL -p blockSize=128,512"
 ```
 
+## Merge: copying plain string chunks
+
+`ColumnarPlainStringMergeBenchmark` measures a force-merge of plain keyword columns with chunk
+copying on and off (`copyChunks`). Where a source segment's documents land together in the merged
+segment, a merge copies the chunks holding their bytes as they are stored, instead of
+decompressing and compressing them again. The documents are shaped like a `logsdb_columnar`
+index (`host.name`, `@timestamp`, and a keyword field that stays plain), and `sort` decides
+how much there is to copy:
+
+| `sort` | Index sort | What lands together |
+|---|---|---|
+| `NONE` | none | each segment whole |
+| `TIMESTAMP` | `@timestamp` desc (the logs default) | each segment, apart from late arrivals at a flush's edges |
+| `HOSTNAME_TIMESTAMP` | `host.name`, `@timestamp` desc (`sort_on_host_name`) | one host's documents from one segment; `hosts` sets how many |
+
+The segments are written once per trial and copied for every merge, so only the merge is timed.
+`copiedRuns` and `copiedBytes` report what one merge copied. With them, a result that shows no
+gain can be told apart from one where nothing was there to copy.
+
+```
+./gradlew :benchmarks:run --args="ColumnarPlainStringMergeBenchmark"
+./gradlew :benchmarks:run --args="ColumnarPlainStringMergeBenchmark -p sort=HOSTNAME_TIMESTAMP -p hosts=10,100,1000"
+```
+
 ## Per-stage encode/decode benchmarks
 
 These measure encode and decode throughput for each `BlockTransform` stage in isolation,

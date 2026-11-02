@@ -160,7 +160,11 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      * {@link #translate} so a new family cannot inherit this lowering by accident.
      */
     protected final IntermediateResult translateValueFunction(TranslationContext context) {
-        IntermediateResult child = context.translate(child());
+        return applyValueFunction(context, context.translate(child()));
+    }
+
+    /** Applies this function to the value of its already translated child. */
+    protected final IntermediateResult applyValueFunction(TranslationContext context, IntermediateResult child) {
         if (child.kind().constant) {
             return child;
         }

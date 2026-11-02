@@ -1797,14 +1797,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             @Override
             public void onResponse(BroadcastResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {
-                    DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                    List<DefaultShardOperationFailedException> failures = forceMergeResponse.getShardFailures();
                     String message = Strings.format(
                         "Data stream lifecycle failed to forcemerge %d shards for index [%s] due to failures [%s]",
                         forceMergeResponse.getFailedShards(),
                         targetIndex,
                         failures == null
                             ? "unknown"
-                            : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
+                            : failures.stream().map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
                     );
                     onFailure(new ElasticsearchException(message));
                 } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {

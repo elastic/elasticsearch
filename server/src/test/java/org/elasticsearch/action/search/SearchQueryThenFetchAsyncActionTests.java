@@ -789,12 +789,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         // SearchContextId.decode throws IllegalArgumentException for unknown versions.
         TransportVersion futureVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
         assertFalse("futureVersion must be unknown to this node", futureVersion.isKnown());
-        BytesReference encodedPit = SearchContextId.encode(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            futureVersion,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        BytesReference encodedPit = SearchContextId.encode(Collections.emptyMap(), Collections.emptyMap(), futureVersion, List.of());
         expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(new NamedWriteableRegistry(List.of()), encodedPit));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> channelFailure = new AtomicReference<>();

@@ -10,7 +10,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -393,7 +392,7 @@ public class QuerierTests extends ESTestCase {
             1,
             0,
             0L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
         try {

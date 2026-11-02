@@ -36,7 +36,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
@@ -2590,11 +2589,11 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             for (int i = 0; i < wraps; i++) {
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> {
-                        e = new SearchPhaseExecutionException("test", "test failure", e, new ShardSearchFailure[0]);
+                        e = new SearchPhaseExecutionException("test", "test failure", e, List.of());
                         continue;
                     }
                     case 1 -> {
-                        e = new ReduceSearchPhaseException("test", "test failure", e, new ShardSearchFailure[0]);
+                        e = new ReduceSearchPhaseException("test", "test failure", e, List.of());
                         continue;
                     }
                     case 2 -> {

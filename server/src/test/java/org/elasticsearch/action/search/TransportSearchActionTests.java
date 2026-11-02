@@ -1386,7 +1386,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 1,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -1573,7 +1573,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 1,
                 0,
                 100,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -1987,7 +1987,7 @@ public class TransportSearchActionTests extends ESTestCase {
             1,
             0,
             100L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }

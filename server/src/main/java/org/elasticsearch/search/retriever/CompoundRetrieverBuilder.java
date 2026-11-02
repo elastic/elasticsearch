@@ -233,7 +233,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     int handleShardFailures(SearchResponse response, int statusCode, List<Exception> failures) {
-        ShardSearchFailure[] shardFailures = response.getShardFailures();
+        List<ShardSearchFailure> shardFailures = response.getShardFailures();
         for (ShardSearchFailure shardFailure : shardFailures) {
             if (shardFailure != null) {
                 int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();

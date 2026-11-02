@@ -257,11 +257,7 @@ public class RestResponseTests extends ESTestCase {
             new ParsingException(1, 2, "foobar", null),
             new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null)
         );
-        SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
-            "search",
-            "all shards failed",
-            new ShardSearchFailure[] { failure, failure1 }
-        );
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", List.of(failure, failure1));
         RestResponse response = new RestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().utf8ToString();
         String expected = """
@@ -585,10 +581,7 @@ public class RestResponseTests extends ESTestCase {
             new SearchShardTarget("node", shardId, null)
         );
 
-        new RestResponse(
-            channel,
-            new SearchPhaseExecutionException("query", "all shards failed", new ShardSearchFailure[] { shardFailure })
-        );
+        new RestResponse(channel, new SearchPhaseExecutionException("query", "all shards failed", List.of(shardFailure)));
 
         final Map<String, ?> fields = lastLoggedFields();
         assertEquals(ShardNotFoundException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
@@ -618,7 +611,7 @@ public class RestResponseTests extends ESTestCase {
 
     public void testSuppressedLoggingWithTwoDifferentShardFailures() throws IOException {
         final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
-        final ShardSearchFailure[] failures = new ShardSearchFailure[] {
+        List<ShardSearchFailure> failures = List.of(
             new ShardSearchFailure(
                 new IllegalStateException("engine is closed"),
                 new SearchShardTarget("node-0", new ShardId("my-index", "uuid", 0), null)
@@ -626,7 +619,8 @@ public class RestResponseTests extends ESTestCase {
             new ShardSearchFailure(
                 new IllegalArgumentException("bad argument"),
                 new SearchShardTarget("node-1", new ShardId("other-index", "uuid", 1), null)
-            ) };
+            )
+        );
 
         new RestResponse(channel, new SearchPhaseExecutionException("query", "all shards failed", failures));
 
@@ -658,7 +652,7 @@ public class RestResponseTests extends ESTestCase {
         final SearchPhaseExecutionException searchFailure = new SearchPhaseExecutionException(
             "query",
             "all shards failed",
-            new ShardSearchFailure[] { shardFailure }
+            List.of(shardFailure)
         );
 
         new RestResponse(channel, new RemoteTransportException("error while communicating with remote cluster [remote]", searchFailure));
@@ -682,7 +676,7 @@ public class RestResponseTests extends ESTestCase {
                 "fetch",
                 "Phase failed",
                 new IllegalStateException("coordinator failure"),
-                new ShardSearchFailure[] { shardFailure }
+                List.of(shardFailure)
             )
         );
 
@@ -788,7 +782,7 @@ public class RestResponseTests extends ESTestCase {
         final SearchPhaseExecutionException searchFailure = new SearchPhaseExecutionException(
             "query",
             "all shards failed",
-            new ShardSearchFailure[] { shardFailure }
+            List.of(shardFailure)
         );
         final Exception received;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -818,12 +812,7 @@ public class RestResponseTests extends ESTestCase {
 
         new RestResponse(
             channel,
-            new SearchPhaseExecutionException(
-                "fetch",
-                "Phase failed",
-                new IllegalStateException("engine is closed"),
-                new ShardSearchFailure[] { shardFailure }
-            )
+            new SearchPhaseExecutionException("fetch", "Phase failed", new IllegalStateException("engine is closed"), List.of(shardFailure))
         );
 
         // NOTE: the coordinator failure and the shard failure share a class and a message but are unrelated, so comparing those
@@ -1252,7 +1241,7 @@ public class RestResponseTests extends ESTestCase {
     }
 
     private static SearchPhaseExecutionException searchFailure(ShardSearchFailure... failures) {
-        return new SearchPhaseExecutionException("query", "all shards failed", failures);
+        return new SearchPhaseExecutionException("query", "all shards failed", List.of(failures));
     }
 
     private Map<String, ?> lastLoggedFields() {

@@ -1014,7 +1014,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "all shards failed",
-                new ShardSearchFailure[] { new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId("s", 2))) }
+                List.of(new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId("s", 2))))
             )
         );
         RecordingClient client = new RecordingClient();
@@ -1039,7 +1039,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "all shards failed",
-                new ShardSearchFailure[] { new ShardSearchFailure(new IllegalArgumentException("wrong dimensions")) }
+                List.of(new ShardSearchFailure(new IllegalArgumentException("wrong dimensions")))
             )
         );
         KnnEvalResponse response = safeGet(execute(client, 10, null, 5.0f));

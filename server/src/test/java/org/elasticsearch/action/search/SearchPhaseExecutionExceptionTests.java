@@ -29,6 +29,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,7 +42,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         SearchPhaseExecutionException exception = new SearchPhaseExecutionException(
             "test",
             "all shards failed",
-            new ShardSearchFailure[] {
+            List.of(
                 new ShardSearchFailure(
                     new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new ShardId("foo", "_na_", 0), null)
@@ -52,7 +54,8 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
                 new ShardSearchFailure(
                     new ParsingException(5, 7, "foobar", null),
                     new SearchShardTarget("node_3", new ShardId("foo", "_na_", 2), null)
-                ), }
+                )
+            )
         );
 
         // Failures are grouped (by default)
@@ -94,17 +97,17 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
     public void testToAndFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
-        ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[randomIntBetween(1, 5)];
-        for (int i = 0; i < shardSearchFailures.length; i++) {
+        final int failureNum = randomIntBetween(1, 5);
+        List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(failureNum);
+        for (int i = 0; i < failureNum; i++) {
             Exception cause = randomFrom(
                 new ParsingException(1, 2, "foobar", null),
                 new InvalidIndexTemplateException("foo", "bar"),
                 new TimestampParsingException("foo", null),
                 new NullPointerException()
             );
-            shardSearchFailures[i] = new ShardSearchFailure(
-                cause,
-                new SearchShardTarget("node_" + i, new ShardId("test", "_na_", i), null)
+            shardSearchFailures.add(
+                new ShardSearchFailure(cause, new SearchShardTarget("node_" + i, new ShardId("test", "_na_", i), null))
             );
         }
 
@@ -130,33 +133,31 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
     }
 
     public void testPhaseFailureWithoutSearchShardFailure() {
-        final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
         final String phase = randomFrom("fetch", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(
             phase,
             "unexpected failures",
             new EsRejectedExecutionException("ES rejected execution of fetch phase"),
-            searchShardFailures
+            List.of()
         );
 
         assertEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
     }
 
     public void testPhaseFailureWithoutSearchShardFailureAndCause() {
-        final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
         final String phase = randomFrom("fetch", "search", "other");
-        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", null, searchShardFailures);
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", null, List.of());
 
         assertEquals(actual.status(), RestStatus.SERVICE_UNAVAILABLE);
     }
 
     public void testPhaseFailureWithSearchShardFailure() {
-        final ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[randomIntBetween(1, 5)];
-        for (int i = 0; i < shardSearchFailures.length; i++) {
+        final int failureNum = randomIntBetween(1, 5);
+        List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(failureNum);
+        for (int i = 0; i < failureNum; i++) {
             Exception cause = randomFrom(new ParsingException(1, 2, "foobar", null), new InvalidIndexTemplateException("foo", "bar"));
-            shardSearchFailures[i] = new ShardSearchFailure(
-                cause,
-                new SearchShardTarget("node_" + i, new ShardId("test", "_na_", i), null)
+            shardSearchFailures.add(
+                new ShardSearchFailure(cause, new SearchShardTarget("node_" + i, new ShardId("test", "_na_", i), null))
             );
         }
 
@@ -195,7 +196,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
             "search",
             "all shards failed",
-            new ShardSearchFailure[] { shardFailure1, shardFailure2 }
+            List.of(shardFailure1, shardFailure2)
         );
 
         assertThat(ex.status(), is(expectedStatusCodes[pickedIndex]));
@@ -217,7 +218,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
             "search",
             "all shards failed",
-            new ShardSearchFailure[] { shardFailure1, shardFailure2 }
+            List.of(shardFailure1, shardFailure2)
         );
 
         // The 502 takes precedence over 500.

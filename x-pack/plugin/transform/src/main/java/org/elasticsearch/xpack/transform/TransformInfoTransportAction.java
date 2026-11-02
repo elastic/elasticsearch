@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class TransformInfoTransportAction extends XPackInfoFeatureTransportAction {
@@ -128,8 +127,8 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
         }
 
         ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(searchResponse -> {
-            if (searchResponse.getShardFailures().length > 0) {
-                logger.warn("statistics summations search returned shard failures: {}", Arrays.toString(searchResponse.getShardFailures()));
+            if (!searchResponse.getShardFailures().isEmpty()) {
+                logger.warn("statistics summations search returned shard failures: {}", searchResponse.getShardFailures());
             }
 
             statsListener.onResponse(parseSearchAggs(searchResponse));

@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -52,7 +52,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
     public void testRetryingSearch_ThrowsSearchPhaseExceptionWithNoRetries() {
         final var mockClient = mock(Client.class);
-        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", List.of());
         when(mockClient.search(any())).thenThrow(searchPhaseException);
 
         var request = createSearchRequest();
@@ -75,7 +75,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
     public void testRetryingSearch_ThrowsSearchPhaseExceptionAfterOneRetry() {
         final var mockClient = mock(Client.class);
-        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", List.of());
         when(mockClient.search(any())).thenThrow(searchPhaseException);
 
         var request = createSearchRequest();
@@ -91,7 +91,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
     public void testRetryingSearch_ThrowsCircuitBreakingExceptionAfterOneRetry_FromSearchPhaseException() {
         final var mockClient = mock(Client.class);
-        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", List.of());
         var circuitBreakerException = new CircuitBreakingException("error", CircuitBreaker.Durability.TRANSIENT);
         when(mockClient.search(any())).thenThrow(searchPhaseException).thenThrow(circuitBreakerException);
 
@@ -108,7 +108,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
     public void testRetryingSearch_EnsureExceptionCannotBeUnwrapped() {
         final var mockClient = mock(Client.class);
-        var searchPhaseExecutionException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        var searchPhaseExecutionException = new SearchPhaseExecutionException("phase", "error", List.of());
         when(mockClient.search(any())).thenThrow(searchPhaseExecutionException);
 
         var request = createSearchRequest();
@@ -146,7 +146,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(mockSearchResponse);
 
-        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", List.of());
         when(mockClient.search(any())).thenThrow(searchPhaseException).thenReturn(searchFuture);
 
         var request = createSearchRequest();

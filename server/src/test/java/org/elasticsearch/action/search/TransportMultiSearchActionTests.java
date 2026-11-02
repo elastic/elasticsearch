@@ -79,6 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.hamcrest.Matchers.equalTo;
@@ -210,15 +211,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final Executor executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    var response = SearchResponseUtils.emptyWithTotalHits(
-                        null,
-                        0,
-                        0,
-                        0,
-                        0L,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
+                    var response = SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY);
                     try {
                         listener.onResponse(response);
                     } finally {
@@ -961,11 +954,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     }
 
     private static SearchPhaseExecutionException searchPhaseExecutionExceptionWithShardFailures(int numShardFailures) {
-        ShardSearchFailure[] failures = new ShardSearchFailure[numShardFailures];
-        for (int i = 0; i < numShardFailures; i++) {
-            failures[i] = new ShardSearchFailure(new RuntimeException("simulated shard failure " + i));
-        }
-        return new SearchPhaseExecutionException("query", "all shards failed", failures);
+        return new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            IntStream.range(0, numShardFailures)
+                .mapToObj(i -> new ShardSearchFailure(new RuntimeException("simulated shard failure " + i)))
+                .toList()
+        );
     }
 
     private static SearchResponse responseWithHits(SearchHit... hits) {
@@ -980,19 +975,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1, null);
         sections.adoptCoordinatorFetchCharge(() -> {});
         try {
-            return new SearchResponse(
-                sections,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY,
-                null,
-                null,
-                null
-            );
+            return new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY, null, null, null);
         } finally {
             sections.close();
         }

@@ -514,20 +514,20 @@ public final class ExceptionsHelper {
      * @param failures array to deduplicate
      * @return deduplicated array; if failures is null or empty, it will be returned without modification
      */
-    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
-        if (failures == null || failures.length == 0) {
-            return failures;
+    public static List<ShardOperationFailedException> groupBy(List<? extends ShardOperationFailedException> failures) {
+        if (failures == null) return null;
+        if (failures.isEmpty()) {
+            return List.of();
         }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
             GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
+            if (reasons.add(reason)) {
                 uniqueFailures.add(failure);
             }
         }
-        return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+        return Collections.unmodifiableList(uniqueFailures);
     }
 
     /**

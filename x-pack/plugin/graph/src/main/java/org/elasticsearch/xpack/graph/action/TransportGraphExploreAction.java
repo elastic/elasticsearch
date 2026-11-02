@@ -17,11 +17,9 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -119,7 +117,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         private final ActionListener<GraphExploreResponse> listener;
 
         private final long startTime;
-        private volatile ShardOperationFailedException[] shardFailures;
+        private volatile List<ShardOperationFailedException> shardFailures;
         private Map<VertexId, Vertex> vertices = new HashMap<>();
         private Map<ConnectionId, Connection> connections = new HashMap<>();
 
@@ -131,7 +129,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             this.request = request;
             this.listener = listener;
             this.startTime = threadPool.relativeTimeInMillis();
-            this.shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+            this.shardFailures = List.of();
         }
 
         private Vertex getVertex(String field, String term) {
@@ -778,11 +776,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        void addShardFailures(ShardOperationFailedException[] failures) {
-            if (CollectionUtils.isEmpty(failures) == false) {
-                ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
-                System.arraycopy(shardFailures, 0, duplicates, 0, shardFailures.length);
-                System.arraycopy(failures, 0, duplicates, shardFailures.length, failures.length);
+        void addShardFailures(List<? extends ShardOperationFailedException> failures) {
+            if (!failures.isEmpty()) {
+                List<ShardOperationFailedException> duplicates = new ArrayList<>(shardFailures.size() + failures.size());
+                duplicates.addAll(shardFailures);
+                duplicates.addAll(failures);
                 shardFailures = ExceptionsHelper.groupBy(duplicates);
             }
         }

@@ -33,6 +33,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchScrollAsyncActionTests extends ESTestCase {
@@ -107,8 +109,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         action.run();
         latch.await();
-        ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
-        assertEquals(0, shardSearchFailures.length);
+        List<ShardSearchFailure> shardSearchFailures = action.buildShardFailures();
+        assertThat(shardSearchFailures, empty());
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
             assertNotNull(results.get(i));
@@ -210,8 +212,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         action.run();
         latch.await();
-        ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
-        assertEquals(0, shardSearchFailures.length);
+        List<ShardSearchFailure> shardSearchFailures = action.buildShardFailures();
+        assertThat(shardSearchFailures, empty());
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
             assertNotNull(results.get(i));
@@ -294,9 +296,12 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         action.run();
         latch.await();
-        ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
-        assertEquals(1, shardSearchFailures.length);
-        assertThat(shardSearchFailures[0].reason(), startsWith("org.elasticsearch.action.search.SearchContextMissingNodesException"));
+        List<ShardSearchFailure> shardSearchFailures = action.buildShardFailures();
+        assertThat(shardSearchFailures, hasSize(1));
+        assertThat(
+            shardSearchFailures.getFirst().reason(),
+            startsWith("org.elasticsearch.action.search.SearchContextMissingNodesException")
+        );
 
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -549,9 +554,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         action.run();
         latch.await();
-        ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
-        assertEquals(1, shardSearchFailures.length);
-        assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
+        List<ShardSearchFailure> shardSearchFailures = action.buildShardFailures();
+        assertThat(shardSearchFailures, hasSize(1));
+        assertThat(shardSearchFailures.getFirst().reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -644,9 +649,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         SearchContextIdForNode[] context = scrollId.getContext();
 
-        ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
-        assertEquals(context.length, shardSearchFailures.length);
-        assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
+        List<ShardSearchFailure> shardSearchFailures = action.buildShardFailures();
+        assertThat(shardSearchFailures, hasSize(context.length));
+        assertThat(shardSearchFailures.getFirst().reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
         for (int i = 0; i < results.length(); i++) {
             assertNull(results.get(i));

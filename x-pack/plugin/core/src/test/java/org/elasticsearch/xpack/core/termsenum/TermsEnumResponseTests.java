@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -38,7 +37,7 @@ public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<Te
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
-                Arrays.asList(response.getShardFailures()),
+                response.getShardFailures(),
                 (Boolean) arg[2]
             );
         }

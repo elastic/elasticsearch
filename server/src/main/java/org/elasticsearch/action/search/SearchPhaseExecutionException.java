@@ -14,7 +14,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,15 +24,15 @@ import java.util.List;
 
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
-    private final ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
     private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
-    public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
+    public SearchPhaseExecutionException(String phaseName, String msg, List<ShardSearchFailure> shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
     @SuppressWarnings("this-escape")
-    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
+    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
@@ -44,7 +43,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     public SearchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
         phaseName = in.readOptionalString();
-        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
+        shardFailures = in.readCollectionAsImmutableList(ShardSearchFailure::new);
         guessedCause = super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
     }
 
@@ -52,10 +51,10 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
         out.writeOptionalString(phaseName);
-        out.writeArray(shardFailures);
+        out.writeCollection(shardFailures);
     }
 
-    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+    private static Throwable deduplicateCause(Throwable cause, List<ShardSearchFailure> shardFailures) {
         if (shardFailures == null) {
             throw new IllegalArgumentException("shardSearchFailures must not be null");
         }
@@ -73,7 +72,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     @Override
     public RestStatus status() {
-        if (shardFailures.length == 0) {
+        if (shardFailures.isEmpty()) {
             // if no successful shards, the failure can be due to EsRejectedExecutionException during fetch phase
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
             return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
@@ -92,10 +91,10 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             }
         }
 
-        return status == null ? shardFailures[0].status() : status;
+        return status == null ? shardFailures.getFirst().status() : status;
     }
 
-    public ShardSearchFailure[] shardFailures() {
+    public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
     }
 
@@ -112,7 +111,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         builder.field("grouped", true); // notify that it's grouped
         builder.field("failed_shards");
         builder.startArray();
-        ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
+        List<ShardOperationFailedException> failures = ExceptionsHelper.groupBy(shardFailures);
         for (ShardOperationFailedException failure : failures) {
             failure.toXContent(builder, params);
         }
@@ -136,8 +135,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     @Override
     public ElasticsearchException[] guessRootCauses() {
-        ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
-        List<ElasticsearchException> rootCauses = new ArrayList<>(failures.length);
+        List<ShardOperationFailedException> failures = ExceptionsHelper.groupBy(shardFailures);
+        List<ElasticsearchException> rootCauses = new ArrayList<>(failures.size());
         for (ShardOperationFailedException failure : failures) {
             ElasticsearchException[] guessRootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
             rootCauses.addAll(Arrays.asList(guessRootCauses));
@@ -145,7 +144,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return rootCauses.toArray(new ElasticsearchException[0]);
     }
 
-    private static ElasticsearchException guessFirstRootCause(ShardSearchFailure[] shardFailures) {
+    private static ElasticsearchException guessFirstRootCause(List<ShardSearchFailure> shardFailures) {
         for (ShardOperationFailedException failure : shardFailures) {
             ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
             if (rootCauses.length > 0) {
@@ -157,11 +156,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     @Override
     public String toString() {
-        return "Failed to execute phase ["
-            + phaseName
-            + "], "
-            + getMessage()
-            + (CollectionUtils.isEmpty(shardFailures) ? "" : buildShardFailureString());
+        return "Failed to execute phase [" + phaseName + "], " + getMessage() + (shardFailures.isEmpty() ? "" : buildShardFailureString());
     }
 
     private String buildShardFailureString() {

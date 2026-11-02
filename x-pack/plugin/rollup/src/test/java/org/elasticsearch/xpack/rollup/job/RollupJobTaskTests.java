@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
@@ -43,6 +42,7 @@ import org.junit.Before;
 
 import java.time.Clock;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -607,7 +607,7 @@ public class RollupJobTaskTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             SearchResponse r = mock(SearchResponse.class);
-            when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
+            when(r.getShardFailures()).thenReturn(List.of());
             InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
@@ -716,7 +716,7 @@ public class RollupJobTaskTests extends ESTestCase {
             assertThat(threadContext.getHeaders().get("_xpack_security_authentication"), equalTo("bar"));
 
             SearchResponse r = mock(SearchResponse.class);
-            when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
+            when(r.getShardFailures()).thenReturn(List.of());
             InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
@@ -826,7 +826,7 @@ public class RollupJobTaskTests extends ESTestCase {
             assertThat(threadContext.getHeaders().get("_xpack_security_authentication"), equalTo("bar"));
 
             SearchResponse r = mock(SearchResponse.class);
-            when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
+            when(r.getShardFailures()).thenReturn(List.of());
             InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);

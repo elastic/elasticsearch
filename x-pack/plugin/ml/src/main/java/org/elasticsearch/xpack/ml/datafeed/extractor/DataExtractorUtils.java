@@ -282,7 +282,7 @@ public final class DataExtractorUtils {
         return CloudCredentialFailureKind.NONE;
     }
 
-    private static CloudCredentialFailureKind failureKindFromShardFailures(ShardSearchFailure[] shardFailures) {
+    private static CloudCredentialFailureKind failureKindFromShardFailures(List<ShardSearchFailure> shardFailures) {
         CloudCredentialFailureKind kind = CloudCredentialFailureKind.NONE;
         for (ShardSearchFailure shardFailure : shardFailures) {
             kind = strongerCredentialFailureKind(kind, failureKindAtThrowable(shardFailure));

@@ -308,11 +308,12 @@ public class PITFailureTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void shardFailure(ActionListener<Response> listener) {
-            ShardSearchFailure[] failures = new ShardSearchFailure[] {
+            List<ShardSearchFailure> failures = List.of(
                 new ShardSearchFailure(
                     new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
-                ) };
+                )
+            );
 
             // simulate a shard failure
             listener.onFailure(new SearchPhaseExecutionException("search", PIT_EXCEPTION_MESSAGE, failures));

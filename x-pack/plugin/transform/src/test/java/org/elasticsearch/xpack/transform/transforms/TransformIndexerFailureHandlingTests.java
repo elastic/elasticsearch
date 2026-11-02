@@ -72,6 +72,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Clock;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -322,8 +323,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
-                    new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)) }
+                List.of(new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)))
             );
         };
 
@@ -433,7 +433,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
+                List.of(
                     new ShardSearchFailure(
                         new ScriptException(
                             "runtime error",
@@ -442,8 +442,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                             "test",
                             "painless"
                         )
-                    ) }
-
+                    )
+                )
             );
         };
 
@@ -509,10 +509,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
-                    new ShardSearchFailure[] {
+                    List.of(
                         new ShardSearchFailure(
                             new ElasticsearchParseException("failed to parse date field", new IllegalArgumentException("illegal format"))
-                        ) }
+                        )
+                    )
                 );
             };
 
@@ -590,7 +591,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
-                    new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timed out during dbq")) }
+                    List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timed out during dbq")))
                 );
             };
 
@@ -673,7 +674,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                         throw new SearchPhaseExecutionException(
                             "query",
                             "Partial shards failure",
-                            new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
+                            List.of(new ShardSearchFailure(new Exception()))
                         );
                     }
                     searchResponse.mustIncRef();
@@ -803,7 +804,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_1")) }
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_1")))
             )
         );
 
@@ -811,10 +812,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
+                List.of(
                     new ShardSearchFailure(
                         new BulkIndexingException("bulk_exception_1", new EsRejectedExecutionException("full queue"), false)
-                    ) }
+                    )
+                )
             )
         );
 
@@ -822,16 +824,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
-            )
-        );
-
-        // not logged
-        indexer.handleFailure(
-            new SearchPhaseExecutionException(
-                "query",
-                "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")))
             )
         );
 
@@ -840,7 +833,16 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")))
+            )
+        );
+
+        // not logged
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")))
             )
         );
 
@@ -848,10 +850,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
+                List.of(
                     new ShardSearchFailure(
                         new BulkIndexingException("bulk_exception_2", new EsRejectedExecutionException("full queue"), false)
-                    ) }
+                    )
+                )
             )
         );
 

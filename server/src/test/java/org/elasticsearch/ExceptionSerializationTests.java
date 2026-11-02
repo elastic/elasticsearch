@@ -146,8 +146,10 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.snapshots.ShardRestoringException.SHARD_RESTORING_EXCEPTION_VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
@@ -480,20 +482,21 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchPhaseExecutionException() throws IOException {
-        ShardSearchFailure[] empty = ShardSearchFailure.EMPTY_ARRAY;
-        SearchPhaseExecutionException ex = serialize(new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), empty));
+        SearchPhaseExecutionException ex = serialize(
+            new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), List.of())
+        );
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
-        assertEquals(empty.length, ex.shardFailures().length);
-        ShardSearchFailure[] one = new ShardSearchFailure[] { new ShardSearchFailure(new IllegalArgumentException("nono!")) };
+        assertThat(ex.getCause(), instanceOf(NullPointerException.class));
+        assertThat(ex.shardFailures(), empty());
+        List<ShardSearchFailure> one = List.of(new ShardSearchFailure(new IllegalArgumentException("nono!")));
 
         ex = serialize(new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), one));
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
-        assertEquals(one.length, ex.shardFailures().length);
-        assertTrue(ex.shardFailures()[0].getCause() instanceof IllegalArgumentException);
+        assertThat(ex.getCause(), instanceOf(NullPointerException.class));
+        assertThat(ex.shardFailures(), hasSize(1));
+        assertThat(ex.shardFailures().getFirst().getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testRoutingMissingException() throws IOException {

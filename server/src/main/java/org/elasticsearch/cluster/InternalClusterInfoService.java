@@ -398,7 +398,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 logger.trace("received indices stats response");
 
-                                if (indicesStatsResponse.getShardFailures().length > 0) {
+                                if (!indicesStatsResponse.getShardFailures().isEmpty()) {
                                     final Set<String> failedNodeIds = new HashSet<>();
                                     for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
                                         if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {

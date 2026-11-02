@@ -172,7 +172,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         if (response.getShardFailures() == null) {
             failures = emptyList();
         } else {
-            failures = new ArrayList<>(response.getShardFailures().length);
+            failures = new ArrayList<>(response.getShardFailures().size());
             for (ShardSearchFailure failure : response.getShardFailures()) {
                 String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
                 failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));

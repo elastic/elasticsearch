@@ -1820,7 +1820,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .setSuccessfulShards(searchResponse.getSuccessfulShards())
                 .setSkippedShards(searchResponse.getSkippedShards())
                 .setFailedShards(searchResponse.getFailedShards())
-                .setFailures(Arrays.asList(searchResponse.getShardFailures()))
+                .setFailures(searchResponse.getShardFailures())
                 .setTook(searchResponse.getTook())
                 .setTimedOut(searchResponse.isTimedOut())
                 .build();
@@ -2909,9 +2909,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
-                if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                if (searchResponse.getShardFailures() != null && !searchResponse.getShardFailures().isEmpty()) {
                     // Deduplicate failures by exception message and index
-                    ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                     for (ShardOperationFailedException f : groupedFailures) {
                         boolean causeHas500Status = false;
                         if (f.getCause() != null) {

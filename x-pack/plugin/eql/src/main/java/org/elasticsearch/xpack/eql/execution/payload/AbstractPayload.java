@@ -15,7 +15,7 @@ public abstract class AbstractPayload implements Payload {
 
     private final boolean timedOut;
     private final TimeValue timeTook;
-    private ShardSearchFailure[] shardFailures;
+    private final ShardSearchFailure[] shardFailures;
 
     protected AbstractPayload(boolean timedOut, TimeValue timeTook, ShardSearchFailure[] shardFailures) {
         this.timedOut = timedOut;

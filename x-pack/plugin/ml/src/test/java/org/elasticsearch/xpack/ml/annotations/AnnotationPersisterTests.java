@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -230,11 +229,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         return BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure(
-                "my-index",
-                docId,
-                new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY)
-            )
+            new BulkItemResponse.Failure("my-index", docId, new SearchPhaseExecutionException("query", "partial results", List.of()))
         );
     }
 

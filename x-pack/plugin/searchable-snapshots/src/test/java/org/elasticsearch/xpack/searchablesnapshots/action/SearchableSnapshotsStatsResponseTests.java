@@ -94,13 +94,13 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
         assertThat(actual.getTotalShards(), equalTo(expected.getTotalShards()));
         assertThat(actual.getSuccessfulShards(), equalTo(expected.getSuccessfulShards()));
         assertThat(actual.getFailedShards(), equalTo(expected.getFailedShards()));
-        DefaultShardOperationFailedException[] originalFailures = expected.getShardFailures();
-        DefaultShardOperationFailedException[] parsedFailures = actual.getShardFailures();
-        assertThat(originalFailures.length, equalTo(parsedFailures.length));
-        for (int i = 0; i < originalFailures.length; i++) {
-            assertThat(originalFailures[i].index(), equalTo(parsedFailures[i].index()));
-            assertThat(originalFailures[i].shardId(), equalTo(parsedFailures[i].shardId()));
-            assertThat(originalFailures[i].status(), equalTo(parsedFailures[i].status()));
+        List<DefaultShardOperationFailedException> originalFailures = expected.getShardFailures();
+        List<DefaultShardOperationFailedException> parsedFailures = actual.getShardFailures();
+        assertThat(originalFailures.size(), equalTo(parsedFailures.size()));
+        for (int i = 0; i < originalFailures.size(); i++) {
+            assertThat(originalFailures.get(i).index(), equalTo(parsedFailures.get(i).index()));
+            assertThat(originalFailures.get(i).shardId(), equalTo(parsedFailures.get(i).shardId()));
+            assertThat(originalFailures.get(i).status(), equalTo(parsedFailures.get(i).status()));
         }
         assertThat(actual.getStats(), equalTo(expected.getStats()));
     }

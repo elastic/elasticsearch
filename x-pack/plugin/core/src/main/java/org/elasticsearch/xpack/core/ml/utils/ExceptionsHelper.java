@@ -18,6 +18,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
+import java.util.List;
+
 public class ExceptionsHelper {
 
     private static String NO_KNOWN_MODEL_ERROR =
@@ -105,17 +107,17 @@ public class ExceptionsHelper {
      * Creates an error message that explains there are shard failures, displays info
      * for the first failure (shard/reason) and kindly asks to see more info in the logs
      */
-    public static String shardFailuresToErrorMsg(String jobId, ShardSearchFailure[] shardFailures) {
-        if (shardFailures == null || shardFailures.length == 0) {
+    public static String shardFailuresToErrorMsg(String jobId, List<ShardSearchFailure> shardFailures) {
+        if (shardFailures == null || shardFailures.isEmpty()) {
             throw new IllegalStateException("Invalid call with null or empty shardFailures");
         }
-        SearchShardTarget shardTarget = shardFailures[0].shard();
+        SearchShardTarget shardTarget = shardFailures.getFirst().shard();
         return "["
             + jobId
             + "] Search request returned shard failures; first failure: shard ["
             + (shardTarget == null ? "_na" : shardTarget)
             + "], reason ["
-            + shardFailures[0].reason()
+            + shardFailures.getFirst().reason()
             + "]; see logs for more info";
     }
 

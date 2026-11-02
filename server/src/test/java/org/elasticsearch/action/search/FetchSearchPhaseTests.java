@@ -105,7 +105,6 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -803,8 +802,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(1, searchResponse.getFailedShards());
             assertEquals(1, searchResponse.getSuccessfulShards());
-            assertEquals(1, searchResponse.getShardFailures().length);
-            assertTrue(searchResponse.getShardFailures()[0].getCause() instanceof MockDirectoryWrapper.FakeIOException);
+            assertEquals(1, searchResponse.getShardFailures().size());
+            assertTrue(searchResponse.getShardFailures().getFirst().getCause() instanceof MockDirectoryWrapper.FakeIOException);
             assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
             if (profiled) {
                 /*
@@ -1043,7 +1042,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals("fetch", phase.getName());
             phase.run();
             assertNotNull(mockSearchPhaseContext.searchResponse.get());
-            assertThat(mockSearchPhaseContext.searchResponse.get().getShardFailures(), arrayWithSize(1));
+            assertThat(mockSearchPhaseContext.searchResponse.get().getShardFailures(), hasSize(1));
             assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1));
         } finally {
             var resp = mockSearchPhaseContext.searchResponse.get();

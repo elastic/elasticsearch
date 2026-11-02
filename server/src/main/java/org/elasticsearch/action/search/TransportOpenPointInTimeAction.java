@@ -465,7 +465,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 }
 
                 @Override
-                protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
+                protected BytesReference buildSearchContextId(List<ShardSearchFailure> failures) {
                     return SearchContextId.encode(results.getAtomicArray().asList(), aliasFilter, minTransportVersion, failures);
                 }
             }.start();
@@ -484,7 +484,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             SearchResponse.Clusters clusters,
             List<SearchShardIterator> shardsIts,
             Map<String, Integer> skippedByClusterAlias,
-            ShardSearchFailure[] shardFailures,
+            List<ShardSearchFailure> shardFailures,
             TransportSearchAction.SearchTimeProvider timeProvider
         ) {
             if (clusters.hasClusterObjects() == false) {

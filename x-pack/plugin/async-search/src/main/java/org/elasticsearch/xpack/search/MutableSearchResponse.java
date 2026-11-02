@@ -380,7 +380,7 @@ class MutableSearchResponse extends AbstractRefCounted {
                 finalResponse.getTotalShards(),
                 finalResponse.getSuccessfulShards(),
                 finalResponse.getSkippedShards(),
-                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
+                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().size() : 0,
                 finalResponse.status(),
                 clustersInStatus
             );
@@ -447,9 +447,9 @@ class MutableSearchResponse extends AbstractRefCounted {
         }
     }
 
-    private ShardSearchFailure[] buildQueryFailures() {
+    private List<ShardSearchFailure> buildQueryFailures() {
         if (queryFailures == null) {
-            return ShardSearchFailure.EMPTY_ARRAY;
+            return List.of();
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
         for (int i = 0; i < queryFailures.length(); i++) {
@@ -458,7 +458,7 @@ class MutableSearchResponse extends AbstractRefCounted {
                 failures.add(shardSearchFailure);
             }
         }
-        return failures.toArray(ShardSearchFailure[]::new);
+        return failures;
     }
 
     private boolean shardsInResponseMatchExpected(SearchResponse response, boolean ccsMinimizeRoundtrips) {

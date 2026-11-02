@@ -89,15 +89,13 @@ public class SegmentCountStep extends AsyncWaitStep {
             .indices()
             .segments(new IndicesSegmentsRequest(targetIndexName), ActionListener.wrap(response -> {
                 IndexSegments idxSegments = response.getIndices().get(targetIndexName);
-                if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
-                    final DefaultShardOperationFailedException[] failures = response.getShardFailures();
+                if (idxSegments == null || (response.getShardFailures() != null && !response.getShardFailures().isEmpty())) {
+                    List<DefaultShardOperationFailedException> failures = response.getShardFailures();
                     logger.info(
                         "[{}] retrieval of segment counts after force merge did not succeed, there were {} shard failures. failures: {}",
                         targetIndexName,
                         response.getFailedShards(),
-                        failures == null
-                            ? "n/a"
-                            : Strings.collectionToDelimitedString(Arrays.stream(failures).map(Strings::toString).toList(), ",")
+                        failures.stream().map(Strings::toString).collect(Collectors.joining(","))
                     );
                     listener.onResponse(true, new Info(-1));
                 } else {

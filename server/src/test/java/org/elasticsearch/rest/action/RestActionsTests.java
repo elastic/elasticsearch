@@ -50,8 +50,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 public class RestActionsTests extends ESTestCase {
 
@@ -113,7 +111,7 @@ public class RestActionsTests extends ESTestCase {
     }
 
     public void testBuildBroadcastShardsHeader() throws IOException {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
+        List<ShardOperationFailedException> failures = List.of(
             createShardFailureParsingException("node0", 0, null),
             createShardFailureParsingException("node1", 1, null),
             createShardFailureParsingException("node2", 2, null),
@@ -122,7 +120,8 @@ public class RestActionsTests extends ESTestCase {
             createShardFailureParsingException("node2", 2, "cluster1"),
             createShardFailureParsingException("node0", 0, "cluster2"),
             createShardFailureParsingException("node1", 1, "cluster2"),
-            createShardFailureParsingException("node2", 2, "cluster2") };
+            createShardFailureParsingException("node2", 2, "cluster2")
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.prettyPrint();

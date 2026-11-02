@@ -19,9 +19,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 /**
  * Invokes a force merge on a single index.
@@ -83,15 +84,13 @@ public class ForceMergeStep extends AsyncActionStep {
             if (response.getFailedShards() == 0) {
                 l.onResponse(null);
             } else {
-                DefaultShardOperationFailedException[] failures = response.getShardFailures();
+                List<DefaultShardOperationFailedException> failures = response.getShardFailures();
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = Strings.format(
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",
                     indexName,
                     policyName,
-                    failures == null
-                        ? "n/a"
-                        : Strings.collectionToDelimitedString(Arrays.stream(failures).map(Strings::toString).toList(), ","),
+                    failures.stream().map(Strings::toString).collect(Collectors.joining(",")),
                     NAME
                 );
                 logger.warn(errorMessage);

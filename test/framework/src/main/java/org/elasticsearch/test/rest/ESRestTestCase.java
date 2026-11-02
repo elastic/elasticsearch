@@ -1547,7 +1547,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
-                Arrays.asList(response.getShardFailures())
+                response.getShardFailures()
             );
         }
     );

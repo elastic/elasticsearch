@@ -467,8 +467,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
             // The cancelled fetch must fail the scroll rather than complete it.
             final var e = expectThrows(SearchPhaseExecutionException.class, () -> scrollFuture.actionGet(10, TimeUnit.SECONDS));
-            assertEquals(1, e.shardFailures().length);
-            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+            assertEquals(1, e.shardFailures().size());
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures().getFirst().getCause(), TaskCancelledException.class));
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
@@ -494,7 +494,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 SearchPhaseExecutionException.class,
                 () -> client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get()
             );
-            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures().getFirst().getCause(), TaskCancelledException.class));
         } finally {
             client().prepareClearScroll().addScrollId(opened.getScrollId()).get();
             opened.decRef();
@@ -1411,7 +1411,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 ),
             (searchResponse) -> {
                 assertEquals(1, searchResponse.getSuccessfulShards());
-                assertEquals("simulated failure", searchResponse.getShardFailures()[0].getCause().getMessage());
+                assertEquals("simulated failure", searchResponse.getShardFailures().getFirst().getCause().getMessage());
                 assertNotEquals(0, searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     assertEquals(fetchFieldValue + "_" + hit.getId(), hit.getFields().get(fetchFieldName).getValue());

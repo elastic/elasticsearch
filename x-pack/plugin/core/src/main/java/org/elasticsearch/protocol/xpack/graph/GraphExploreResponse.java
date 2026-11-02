@@ -8,7 +8,6 @@ package org.elasticsearch.protocol.xpack.graph;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
@@ -20,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,20 +30,18 @@ import java.util.Map;
  */
 public class GraphExploreResponse extends ActionResponse implements ToXContentObject {
 
-    private long tookInMillis;
+    private final long tookInMillis;
     private boolean timedOut = false;
-    private ShardOperationFailedException[] shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-    private Map<VertexId, Vertex> vertices;
-    private Map<ConnectionId, Connection> connections;
-    private boolean returnDetailedInfo;
+    private final List<ShardOperationFailedException> shardFailures;
+    private final Map<VertexId, Vertex> vertices;
+    private final Map<ConnectionId, Connection> connections;
+    private final boolean returnDetailedInfo;
     static final String RETURN_DETAILED_INFO_PARAM = "returnDetailedInfo";
-
-    public GraphExploreResponse() {}
 
     public GraphExploreResponse(
         long tookInMillis,
         boolean timedOut,
-        ShardOperationFailedException[] shardFailures,
+        List<ShardOperationFailedException> shardFailures,
         Map<VertexId, Vertex> vertices,
         Map<ConnectionId, Connection> connections,
         boolean returnDetailedInfo
@@ -72,7 +70,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         return this.timedOut;
     }
 
-    public ShardOperationFailedException[] getShardFailures() {
+    public List<ShardOperationFailedException> getShardFailures() {
         return shardFailures;
     }
 
@@ -93,10 +91,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         out.writeVLong(tookInMillis);
         out.writeBoolean(timedOut);
 
-        out.writeVInt(shardFailures.length);
-        for (ShardOperationFailedException shardSearchFailure : shardFailures) {
-            shardSearchFailure.writeTo(out);
-        }
+        out.writeCollection(shardFailures);
 
         out.writeVInt(vertices.size());
         for (Vertex vertex : vertices.values()) {

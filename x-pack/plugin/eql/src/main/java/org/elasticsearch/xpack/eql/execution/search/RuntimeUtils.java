@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -62,9 +61,9 @@ public final class RuntimeUtils {
         boolean allowPartialResults
     ) {
         return listener.delegateFailureAndWrap((delegate, response) -> {
-            ShardSearchFailure[] failures = response.getShardFailures();
-            if (CollectionUtils.isEmpty(failures) == false && allowPartialResults == false) {
-                delegate.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
+            List<ShardSearchFailure> failures = response.getShardFailures();
+            if (!failures.isEmpty() && allowPartialResults == false) {
+                delegate.onFailure(new EqlIllegalArgumentException(failures.getFirst().reason(), failures.getFirst().getCause()));
                 return;
             }
             if (log.isTraceEnabled()) {
@@ -86,9 +85,9 @@ public final class RuntimeUtils {
 
                 if (failure == null) {
                     if (allowPartialSearchResults == false) {
-                        ShardSearchFailure[] failures = response.getShardFailures();
-                        if (CollectionUtils.isEmpty(failures) == false) {
-                            failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                        List<ShardSearchFailure> failures = response.getShardFailures();
+                        if (!failures.isEmpty()) {
+                            failure = new EqlIllegalArgumentException(failures.getFirst().reason(), failures.getFirst().getCause());
                         }
                     }
                 }

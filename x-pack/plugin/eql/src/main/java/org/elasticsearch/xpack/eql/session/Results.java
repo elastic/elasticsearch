@@ -25,7 +25,7 @@ public class Results {
     private final boolean timedOut;
     private final TimeValue tookTime;
     private final Type type;
-    private ShardSearchFailure[] shardFailures;
+    private final ShardSearchFailure[] shardFailures;
     private final DirectoryMetrics directoryMetrics;
 
     public static Results fromPayload(Payload payload) {

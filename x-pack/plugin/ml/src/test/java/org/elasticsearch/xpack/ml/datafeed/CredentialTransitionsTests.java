@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -881,7 +880,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             SearchResponse response = mock(SearchResponse.class);
             when(response.status()).thenReturn(org.elasticsearch.rest.RestStatus.OK);
             when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-            when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
+            when(response.getShardFailures()).thenReturn(List.of());
             listener.onResponse(response);
             return null;
         }).when(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());

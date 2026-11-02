@@ -178,7 +178,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         // log any errors that occur in a successful partial results scenario
         ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
             // Deduplicate failures by exception message and index
-            ShardOperationFailedException[] deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.getShardFailures());
+            List<ShardOperationFailedException> deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.getShardFailures());
             for (ShardOperationFailedException e : deduplicated) {
                 boolean causeHas500Status = false;
                 if (e.getCause() != null) {

@@ -93,11 +93,12 @@ public class RankEvalResponseTests extends ESTestCase {
         new SearchPhaseExecutionException(
             "search",
             "all shards failed",
-            new ShardSearchFailure[] {
+            List.of(
                 new ShardSearchFailure(
                     new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
-                ) }
+                )
+            )
         ),
         new ElasticsearchException(
             "Parsing failed",

@@ -20,7 +20,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -1047,7 +1046,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                                 1,
                                 0,
                                 0,
-                                ShardSearchFailure.EMPTY_ARRAY,
+                                List.of(),
                                 SearchResponse.Clusters.EMPTY,
                                 null,
                                 null,
@@ -1336,7 +1335,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         1,
                         0,
                         0,
-                        ShardSearchFailure.EMPTY_ARRAY,
+                        List.of(),
                         SearchResponse.Clusters.EMPTY,
                         // copy the pit from the request
                         searchRequest.pointInTimeBuilder() != null

@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -133,12 +132,7 @@ public final class BehaviorWritePlan {
         final BroadcastResponse merge = client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(maxSegments).get();
         if (merge.getFailedShards() > 0) {
             throw new AssertionError(
-                "force merge of ["
-                    + indexName
-                    + "] failed on "
-                    + merge.getFailedShards()
-                    + " shards: "
-                    + Arrays.toString(merge.getShardFailures())
+                "force merge of [" + indexName + "] failed on " + merge.getFailedShards() + " shards: " + merge.getShardFailures()
             );
         }
         client.admin().indices().prepareRefresh(indexName).get();

@@ -261,7 +261,7 @@ public class DatafeedManagerTests extends ESTestCase {
             SearchResponse response = mock(SearchResponse.class);
             when(response.status()).thenReturn(org.elasticsearch.rest.RestStatus.OK);
             when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-            when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
+            when(response.getShardFailures()).thenReturn(List.of());
             listener.onResponse(response);
             return null;
         }).when(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
@@ -291,7 +291,7 @@ public class DatafeedManagerTests extends ESTestCase {
             SearchResponse response = mock(SearchResponse.class);
             when(response.status()).thenReturn(RestStatus.OK);
             when(response.getClusters()).thenReturn(clusters);
-            when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
+            when(response.getShardFailures()).thenReturn(List.of());
             listener.onResponse(response);
             return null;
         }).when(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());

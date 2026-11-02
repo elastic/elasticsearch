@@ -11,7 +11,6 @@ package org.elasticsearch.script.mustache;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -27,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -86,7 +86,7 @@ public class SearchTemplateResponseTests extends ESTestCase {
             successfulShards,
             skippedShards,
             tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }
@@ -204,7 +204,7 @@ public class SearchTemplateResponseTests extends ESTestCase {
             0,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
         sHits.decRef(); // transfer ownership to searchResponse

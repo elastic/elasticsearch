@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
@@ -461,7 +460,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = TimeValue.timeValueSeconds(2);
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createContext(1000L, 2300L));
         when(dataExtractorFactory.newExtractor(1000L, 2300L)).thenThrow(
-            new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY)
+            new SearchPhaseExecutionException("search phase 1", "boom", List.of())
         );
 
         assertThat(extractor.hasNext(), is(true));

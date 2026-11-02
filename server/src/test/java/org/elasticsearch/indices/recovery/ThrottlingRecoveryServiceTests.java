@@ -75,6 +75,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
@@ -343,23 +344,23 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(peakConcurrent.get(), equalTo(maxConcurrentRecoveries));
     }
 
-    public void testRelocationRecoveriesMaxProportion() {
+    public void testNonCriticalRecoveriesMaxProportion() {
         final var taskQueue = new DeterministicTaskQueue();
         // Power-of-two limit to keep the derived proportion exactly representable through RatioValue's percent conversion.
         final int maxConcurrentRecoveries = randomFrom(8, 16);
-        // Ensure that there are at least two slots for any recovery and at least two slots for recoveries from unassigned only.
-        final int maxConcurrentRelocationRecoveries = between(2, maxConcurrentRecoveries - 2);
-        // ceil(maxConcurrentRecoveries * relocationProportion) = maxConcurrentRelocationRecoveries.
-        final double relocationProportion = (double) maxConcurrentRelocationRecoveries / maxConcurrentRecoveries;
+        // Ensure that there are at least two slots for any recovery and at least two slots for critical recoveries only.
+        final int maxConcurrentNonCriticalRecoveries = between(2, maxConcurrentRecoveries - 2);
+        // ceil(maxConcurrentRecoveries * nonCriticalProportion) = maxConcurrentNonCriticalRecoveries.
+        final double nonCriticalProportion = (double) maxConcurrentNonCriticalRecoveries / maxConcurrentRecoveries;
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
-            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), relocationProportion)
+            .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), nonCriticalProportion)
             .build();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(settings));
 
         Map<String, RecoveryListener> runningRecoveries = new HashMap<>();
-        // Enqueue maxConcurrentRelocationRecoveries relocations, and assert that they all start:
-        for (int i = 0; i < maxConcurrentRelocationRecoveries; i++) {
+        // Enqueue maxConcurrentNonCriticalRecoveries relocations (which are non-critical), and assert that they all start:
+        for (int i = 0; i < maxConcurrentNonCriticalRecoveries; i++) {
             String id = "relocation-" + i;
             service.enqueue(
                 ProjectId.DEFAULT,
@@ -372,10 +373,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(
             runningRecoveries.keySet(),
-            equalTo(IntStream.range(0, maxConcurrentRelocationRecoveries).mapToObj(i -> "relocation-" + i).collect(toSet()))
+            equalTo(IntStream.range(0, maxConcurrentNonCriticalRecoveries).mapToObj(i -> "relocation-" + i).collect(toSet()))
         );
 
-        // Enqueue another relocation, and assert that it does not start (we have reached the limit for relocations):
+        // Enqueue another relocation, and assert that it does not start (we have reached the non-critical limit):
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
@@ -386,13 +387,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
 
-        // Enqueue recoveries from unassigned up to the limit, and assert that they all start:
-        for (int i = 0; i < maxConcurrentRecoveries - maxConcurrentRelocationRecoveries; i++) {
-            String id = "unassigned-" + i;
+        // Enqueue critical recoveries up to the limit, and assert that they all start:
+        for (int i = 0; i < maxConcurrentRecoveries - maxConcurrentNonCriticalRecoveries; i++) {
+            String id = "critical-" + i;
             service.enqueue(
                 ProjectId.DEFAULT,
                 noopRecoveryListener(),
-                mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
                 listener -> runningRecoveries.put(id, listener)
             );
@@ -402,43 +403,134 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             runningRecoveries.keySet(),
             equalTo(
                 Stream.concat(
-                    IntStream.range(0, maxConcurrentRelocationRecoveries).mapToObj(i -> "relocation-" + i),
-                    IntStream.range(0, maxConcurrentRecoveries - maxConcurrentRelocationRecoveries).mapToObj(i -> "unassigned-" + i)
+                    IntStream.range(0, maxConcurrentNonCriticalRecoveries).mapToObj(i -> "relocation-" + i),
+                    IntStream.range(0, maxConcurrentRecoveries - maxConcurrentNonCriticalRecoveries).mapToObj(i -> "critical-" + i)
                 ).collect(toSet())
             )
         );
 
-        // Enqueue another recovery from unassigned, and assert that it does not start (we have reached the overall limit):
+        // Enqueue another critical recovery, and assert that it does not start (we have reached the overall limit):
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
-            mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            listener -> runningRecoveries.put("blocked-unassigned", listener)
+            listener -> runningRecoveries.put("blocked-critical", listener)
         );
         taskQueue.runAllRunnableTasks();
-        assertThat(runningRecoveries.keySet(), not(hasItem("blocked-unassigned")));
+        assertThat(runningRecoveries.keySet(), not(hasItem("blocked-critical")));
 
-        // Complete one of the unassigned recoveries, and assert that the blocked one starts:
-        runningRecoveries.remove("unassigned-" + randomIntBetween(0, maxConcurrentRecoveries - maxConcurrentRelocationRecoveries - 1))
+        // Complete one of the critical recoveries, and assert that the blocked one starts:
+        runningRecoveries.remove("critical-" + randomIntBetween(0, maxConcurrentRecoveries - maxConcurrentNonCriticalRecoveries - 1))
             .onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
-        assertThat(runningRecoveries.keySet(), hasItem("blocked-unassigned"));
+        assertThat(runningRecoveries.keySet(), hasItem("blocked-critical"));
 
-        // Complete another one of the unassigned recoveries, and assert that the blocked relocation does not start (we are still using all
-        // the relocation slots):
-        runningRecoveries.remove("blocked-unassigned").onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        // Complete another one of the critical recoveries, and assert that the blocked relocation does not start (we are still using all
+        // the non-critical slots):
+        runningRecoveries.remove("blocked-critical").onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
         assertThat(runningRecoveries.keySet(), not(hasItem("blocked-relocation")));
 
         // Complete one of the relocations, and assert that the blocked one starts:
-        runningRecoveries.remove("relocation-" + randomIntBetween(0, maxConcurrentRelocationRecoveries - 1))
+        runningRecoveries.remove("relocation-" + randomIntBetween(0, maxConcurrentNonCriticalRecoveries - 1))
             .onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
         assertThat(runningRecoveries.keySet(), hasItem("blocked-relocation"));
 
         // The queue is now empty, just complete all the remaining recoveries to clean up:
         runningRecoveries.values().forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+    }
+
+    /// Non-critical recoveries of unassigned shards ([ShardRouting.RecoveryPriority#UNASSIGNED_RESTORING] and
+    /// [ShardRouting.RecoveryPriority#UNASSIGNED_PERFORMANCE_SCALING]) share the non-critical limit with relocations, and
+    /// rank below [ShardRouting.RecoveryPriority#RELOCATION_CAN_REMAIN_NO] within it, while critical recoveries can still
+    /// use the remaining slots.
+    public void testNonCriticalUnassignedRecoveriesShareNonCriticalLimitWithRelocations() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // Power-of-two limit to keep the derived proportion exactly representable through RatioValue's percent conversion.
+        final int maxConcurrentRecoveries = randomFrom(8, 16);
+        // Ensure that there is at least one slot for any recovery and at least two slots for critical recoveries only.
+        final int maxConcurrentNonCriticalRecoveries = between(1, maxConcurrentRecoveries - 2);
+        final double nonCriticalProportion = (double) maxConcurrentNonCriticalRecoveries / maxConcurrentRecoveries;
+        final Settings settings = Settings.builder()
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
+            .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), nonCriticalProportion)
+            .build();
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(settings));
+        final Map<String, RecoveryListener> runningRecoveries = new HashMap<>();
+        // Use up all the non-critical slots with relocations
+        for (int i = 0; i < maxConcurrentNonCriticalRecoveries; i++) {
+            enqueueRecovery(service, runningRecoveries, "relocation-" + i, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(maxConcurrentNonCriticalRecoveries));
+
+        // Enqueue a relocation and non-critical recoveries of unassigned shards in random order: none of them start, even though
+        // there are free slots, because the non-critical limit is reached
+        final List<Runnable> enqueueActions = new ArrayList<>();
+        enqueueActions.add(
+            () -> enqueueRecovery(service, runningRecoveries, "queued-relocation", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
+        );
+        enqueueActions.add(
+            () -> enqueueRecovery(service, runningRecoveries, "restoring", ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING)
+        );
+        enqueueActions.add(
+            () -> enqueueRecovery(
+                service,
+                runningRecoveries,
+                "performance-scaling",
+                ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            )
+        );
+        Collections.shuffle(enqueueActions, random());
+        enqueueActions.forEach(Runnable::run);
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(maxConcurrentNonCriticalRecoveries));
+
+        // Critical recoveries can still use all the remaining slots
+        final int criticalRecoveries = maxConcurrentRecoveries - maxConcurrentNonCriticalRecoveries;
+        for (int i = 0; i < criticalRecoveries; i++) {
+            enqueueRecovery(service, runningRecoveries, "critical-" + i, newCriticalRecoveryState().getRecoveryPriority());
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(maxConcurrentRecoveries));
+        assertThat(service.currentQueueSize(), equalTo(enqueueActions.size()));
+
+        // Completing a critical recovery does not free a non-critical slot, so nothing else starts
+        runningRecoveries.remove("critical-" + between(0, criticalRecoveries - 1))
+            .onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(enqueueActions.size()));
+
+        // Each completed non-critical recovery frees a slot for the highest priority queued non-critical recovery
+        for (final var expectedNext : List.of("queued-relocation", "restoring", "performance-scaling")) {
+            final var completed = randomFrom(
+                runningRecoveries.keySet().stream().filter(id -> id.startsWith("critical-") == false).toList()
+            );
+            runningRecoveries.remove(completed).onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            taskQueue.runAllRunnableTasks();
+            assertThat(runningRecoveries.keySet(), hasItem(expectedNext));
+        }
+
+        // The queue is now empty, just complete all the remaining recoveries to clean up:
+        assertThat(service.currentQueueSize(), equalTo(0));
+        runningRecoveries.values().forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+    }
+
+    private void enqueueRecovery(
+        ThrottlingRecoveryService service,
+        Map<String, RecoveryListener> runningRecoveries,
+        String id,
+        ShardRouting.RecoveryPriority recoveryPriority
+    ) {
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newRecoveryState(recoveryPriority), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            listener -> runningRecoveries.put(id, listener)
+        );
     }
 
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
@@ -532,20 +624,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(started.get(), equalTo(6));
         assertThat(done.get(), equalTo(6));
         assertThat(service.currentQueueSize(), equalTo(0));
-    }
-
-    public void testHeapBasedLimitRejectsZero() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(
-                Settings.builder()
-                    .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                        0.0
-                    )
-                    .build()
-            )
-        );
     }
 
     public void testHeapBasedLimitFallsBackToStaticLimitWhenHeapUnknown() {
@@ -1020,7 +1098,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(
                 ProjectId.DEFAULT,
                 noopRecoveryListener(),
-                mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
                 newIndexMetadata(),
                 runningRecoveries::add
             );
@@ -1037,19 +1115,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         service.close();
-    }
-
-    public void testRelocationRecoveriesMaxProportionRejectsZero() {
-        for (final var zeroValue : List.of("0", "0%")) {
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(
-                    Settings.builder()
-                        .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), zeroValue)
-                        .build()
-                )
-            );
-        }
     }
 
     public void testIncreasingRelocationRecoveriesMaxProportionStartsPendingTasks() {
@@ -1681,7 +1746,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     service.close();
                 }
                 boolean isRelocation = randomBoolean();
-                RecoveryState recoveryState = isRelocation ? newRelocationRecoveryState() : newUnassignedRecoveryState();
+                RecoveryState recoveryState = isRelocation ? newRelocationRecoveryState() : newCriticalRecoveryState();
                 taskQueue.scheduleNow(
                     () -> service.enqueue(
                         ProjectId.DEFAULT,
@@ -2251,7 +2316,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
-            mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
             blockerListener::set
         );
@@ -2367,7 +2432,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             noopRecoveryListener(),
-            mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
             blockerInternalListener::set
         );
@@ -2456,6 +2521,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             Set.of(
                 INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                 INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
+                INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
             )
         );
@@ -2505,7 +2571,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         return newRecoveryState(new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), randomIntBetween(0, 99)), recoveryPriority);
     }
 
-    private static RecoveryState newUnassignedRecoveryState() {
+    private static RecoveryState newCriticalRecoveryState() {
         return newRecoveryState(
             randomFrom(
                 ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
@@ -2527,7 +2593,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static RecoveryState newRecoveryState(ShardId shardId, ShardRouting.RecoveryPriority recoveryPriority) {
         String relocatingNodeId = switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> null;
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING ->
+                null;
             case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
             case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");
         };

@@ -614,22 +614,23 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                     + "/ on (cluster) sum by (cluster) (network.eth0.rx))"
             )
         );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        assertThat(e.getMessage(), containsString("binary expressions with WITHOUT are not supported at this time"));
     }
 
-    public void testVectorMatchRejectsOpaqueSelectorOperand() {
+    /**
+     * Shape 3 (asymmetric): concrete {@code by} × opaque selector with {@code on (cluster)}. Match keys are declared by
+     * {@code on}; Resolve materializes {@code cluster} from the selector's rest.
+     */
+    public void testVectorMatchOnAllowsOpaqueSelectorOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)")
-        );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        var plan = planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)");
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "cluster"));
     }
 
     public void testVectorMatchComposedWithOpaqueOperandRejected() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
-        // concrete-label requirement, which the bare selector operand does not satisfy.
+        // The unmatched + pairs the aggregated match result with the raw selector in one shared aggregation.
         VerificationException e = assertThrows(
             VerificationException.class,
             () -> planPromql(
@@ -637,7 +638,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                     + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
             )
         );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        assertThat(e.getMessage(), containsString("binary operations between an aggregated and a raw vector are not supported"));
     }
 
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {
@@ -881,25 +882,24 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * When {@code __name__} is a dimension, every metric lives in its own series, so an unmatched binary operator between
-     * different metrics folded into one shared frame would find one side null on every row and silently return nothing.
-     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected.
+     * When {@code __name__} is a dimension, every metric lives in its own series. Default matching over opaque operands
+     * is implicit {@code ignoring(__name__)}: each side packs metadata excluding the metric name and the operator
+     * translates as an {@link HashJoin}.
      */
-    public void testDifferentMetricsInSeparateSeriesRejected() {
+    public void testDifferentMetricsInSeparateSeriesDefaultMatchJoins() {
         for (String promql : List.of(
             "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
-            "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
             "rate(node_cpu_seconds_total[5m]) / node_memory_MemTotal_bytes",
             "(node_memory_MemAvailable_bytes + 1) * node_memory_MemTotal_bytes",
-            "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
-            "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
+            "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+            // Across-series sum of a cross-metric binary (promcheck grouping_key_empty bucket).
+            "sum(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+            "sum(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)",
+            "sum(node_memory_MemAvailable_bytes + node_memory_MemTotal_bytes)"
         )) {
-            VerificationException e = expectThrows(VerificationException.class, () -> planPrometheusLayout(promql));
-            assertThat(
-                promql,
-                e.getMessage(),
-                containsString("binary operations between different metrics require aggregating both operands by the labels to match on")
-            );
+            var plan = planPrometheusLayout(promql);
+            assertFalse(promql, plan.collect(HashJoin.class).isEmpty());
+            assertTrue(promql, plan.resolved());
         }
     }
 

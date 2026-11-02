@@ -438,6 +438,83 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
+     * An array of many short values costs many times its size in {@code _source} while its values are held, more than the reservation
+     * of the loader of all fields stands for. The values are charged as they are held, the read trips the breaker and it leaves nothing
+     * charged.
+     */
+    public void testAllFieldsLoaderChargesTheValuesItHolds() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        // A reservation of the size of _source: all of what is held beyond the JSON that is built is charged.
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 1.0));
+        assertTripsWhileHoldingValues(loader, json("{\"a\":" + arrayOfShortStrings(100_000) + "}"));
+    }
+
+    /**
+     * The values of a name are held with no reservation at all, so what they cost is charged from the first byte.
+     */
+    public void testNamedLoaderChargesTheValuesItHolds() throws IOException {
+        assertTripsWhileHoldingValues(loader("a"), json("{\"a\":" + arrayOfShortStrings(100_000) + "}"));
+    }
+
+    /**
+     * A document that spells a field in two ways is walked again with all of its values held.
+     */
+    public void testValuesOfADocumentSpelledInTwoWaysAreCharged() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 1.0));
+        String array = arrayOfShortStrings(60_000);
+        assertTripsWhileHoldingValues(loader, json("{\"a.b\":" + array + ",\"a\":{\"b\":" + array + "}}"));
+    }
+
+    /**
+     * What is held up to the part of the reservation that stands for held values is paid for already, and is not charged again.
+     */
+    public void testHeldValuesTheReservationCoversAreNotChargedAgain() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        // Held values cost less than the share of the reservation that is left once the JSON that is built is paid for.
+        String json = "{\"a\":" + "[" + String.join(",", Collections.nCopies(3_000, "\"" + "x".repeat(100) + "\"")) + "]}";
+        long reservation = json.length() * 10L;
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(reservation + ByteSizeValue.ofKb(100).getBytes()));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long inherited = breaker.getUsed();
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            reader.read(0, storedFields(json(json)), builder);
+            assertThat(breaker.getUsed(), equalTo(inherited));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Reads {@code source} with a breaker that has room for the reservation of the loader but not for the values that the read holds,
+     * which trips it and leaves nothing charged. A breaker with room for all of it reads the same document, so what trips the small
+     * one is what is held.
+     */
+    private void assertTripsWhileHoldingValues(BlockLoader loader, Source source) throws IOException {
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(roomy, null)) {
+            reader.read(0, storedFields(source), loader.builder(TestBlock.factory(), 1));
+        }
+        assertThat(roomy.getUsed(), equalTo(0L));
+
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(2));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long inherited = breaker.getUsed();
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            expectThrows(CircuitBreakingException.class, () -> reader.read(0, storedFields(source), builder));
+            assertThat(breaker.getUsed(), equalTo(inherited));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private static String arrayOfShortStrings(int elements) {
+        return "[" + String.join(",", Collections.nCopies(elements, "\"x\"")) + "]";
+    }
+
+    /**
      * A document that cannot be read, or whose reservation does not fit, fails the read and leaves nothing reserved.
      */
     public void testAllFieldsLoaderReleasesItsReservationWhenItFails() throws IOException {

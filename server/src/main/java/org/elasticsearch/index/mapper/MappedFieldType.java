@@ -185,6 +185,18 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if this field stores values in Lucene {@link org.apache.lucene.index.DocValuesType#BINARY}
+     * doc values rather than {@link org.apache.lucene.index.DocValuesType#SORTED_SET} (or another layout).
+     * <p>
+     * Keyword and text fields with {@code doc_values.cardinality: high} use binary doc values; the default
+     * keyword layout is sorted-set. Callers that choose between Lucene term/ordinal queries and binary
+     * scans (or that decide whether a predicate should stay in the compute engine) must distinguish the two.
+     */
+    public boolean usesBinaryDocValues() {
+        return false;
+    }
+
+    /**
      * Returns true if the field is aggregatable.
      */
     public boolean isAggregatable(BooleanSupplier idFieldDataEnabled) {

@@ -619,9 +619,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * TODO: document
+     * Returns a copy of this routing entry whose {@link ShardId} points at {@code index}. Used when an index is renamed: the
+     * UUID of {@code index} must match the UUID of the current index, only the name changes.
      */
     public ShardRouting updateIndex(Index index) {
+        assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
         return new ShardRouting(
             new ShardId(index, shardId.id()),
             currentNodeId,
@@ -629,6 +631,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
+            recoveryPriority,
             unassignedInfo,
             relocationFailureInfo,
             allocationId,

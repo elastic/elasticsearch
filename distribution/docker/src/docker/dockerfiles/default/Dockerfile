@@ -13,6 +13,14 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
+<% /*
+  Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
+  the layers that do not change between builds can be reused. List them from the least to the most
+  frequently changing. Wildcards are allowed: the distribution only contains the machine learning
+  libraries of the architecture being built.
+*/
+def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -66,15 +74,16 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
     chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
-# Move the JDK and the native machine learning libraries out of the way, so that they are copied to the final
-# image in layers of their own. The distribution only contains the libraries of the architecture being built,
-# hence the wildcard.
-    mkdir /jdk-layer && \\
-    mv jdk /jdk-layer/ && \\
-    mkdir /ml-layer && \\
-    for lib in modules/x-pack-ml/platform/*/lib; do \\
-        [ -d "\$lib" ] || continue; \\
-        mkdir -p "/ml-layer/\$(dirname "\$lib")" && mv "\$lib" "/ml-layer/\$lib" || exit 1; \\
+# Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer
+    mkdir /layers && \\
+    n=0 && \\
+    for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
+        mkdir "/layers/\$n"; \\
+        for path in \$pattern; do \\
+            [ -d "\$path" ] || continue; \\
+            mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
+        done; \\
+        n=\$((n + 1)); \\
     done
 
 # The distribution includes a `config` directory, no need to create it
@@ -107,10 +116,10 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
-COPY --from=builder --chown=0:0 /jdk-layer/jdk jdk
-
-COPY --from=builder --chown=0:0 /ml-layer .
-
+<% separateLayers.eachWithIndex { path, i -> %>
+# Layer of its own: ${path}
+COPY --from=builder --chown=0:0 /layers/${i} .
+<% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
@@ -126,8 +135,6 @@ COPY --chmod=0555 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     chmod 0775 /usr/share/elasticsearch && \\
-# COPY creates the destination directory with default permissions, so restore the one set in the builder stage
-    chmod 0555 jdk && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
 EXPOSE 9200 9300

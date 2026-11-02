@@ -28,13 +28,7 @@ Other S3-compatible services have not been validated and are not supported.
 
 ## Manage data sources
 
-You can manage data sources in two ways:
-
-[Kibana UI](esql-data-federation-manage-data-sources-ui.md)
-:   Connect data sources from a form, and view, edit, and delete them from the **Data sources** tab.
-
-[API](esql-data-federation-manage-data-sources-api.md)
-:   Create, get, list, delete, and test data sources with the `/_query/data_source` endpoint.
+You can connect, view, edit, and delete data sources in the {{kib}} UI or with the `/_query/data_source` API. Refer to [](esql-data-federation-manage-data-sources.md).
 
 ## Data source settings
 

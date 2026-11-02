@@ -15,7 +15,7 @@ hand-off notes are in the tracking issue.
 The index keeps its UUID, shards, settings, mappings, aliases, blocks, ILM state
 and data stream membership; only the name under which it is addressed changes.
 No shard is closed, recovered or relocated, and indexing and search continue
-across the rename.
+across the rename. Renames are batched through a `MasterServiceTaskQueue`.
 
 The index UUID is treated as the identity of an index throughout. Everything
 already keyed on the UUID survives a rename untouched: node data paths
@@ -28,30 +28,37 @@ repository `IndexId`, see below).
 
 ### Master side
 
-`TransportRenameIndexAction` validates the request, then submits a cluster state
-update that:
+`TransportRenameIndexAction` validates the request, then submits a task to a
+`MasterServiceTaskQueue` (batched, acknowledged by every node) that:
 
 1. builds a new `IndexRoutingTable` for `new Index(target, uuid)` by rewriting
    the `ShardId` of every `ShardRouting` (`ShardRouting#updateIndex`), and
    removes the old one;
 2. moves the index blocks from the old name to the new name;
-3. puts the `IndexMetadata` under the new name and removes the old entry,
-   tagging the new entry with the custom metadata `index_rename`
-   (`{original_name, new_name}`);
+3. puts the `IndexMetadata` under the new name and removes the old entry;
 4. if the index is a backing or failure index of a data stream, replaces it in
    the data stream.
 
-A second cluster state update then removes the `index_rename` tag. The request
-is acknowledged after the second update.
+Nothing in the cluster state marks the rename. The request is acknowledged once
+every node has applied the state.
 
 ### Data node side
 
-`IndicesClusterStateService#deleteIndices` sees the old name disappear and, before
-treating that as a deletion, looks for an `index_rename` tag whose
-`original_name` matches. If it finds one it calls `IndicesService#renameIndex`
-instead, which updates the `IndexService` metadata and calls
-`IndexShard#renameTo` on every shard. That swaps the shard's `ShardId` and its
-`ShardRouting` in place.
+`ClusterChangedEvent#indicesRenamed()` reports every index whose previous name
+is gone from a project while an index with the same UUID is still present
+there, using a lazily built by-UUID map on `ProjectMetadata`
+(`ProjectMetadata#indexByUuid`). `indicesDeleted()` excludes those indices.
+`IndicesClusterStateService#renameIndices` runs first in the applier and calls
+`IndicesService#renameIndex` for each, which updates the `IndexService`
+metadata and calls `IndexShard#renameTo` on every shard. That swaps the shard's
+`ShardId` and its `ShardRouting` in place.
+
+Detection by UUID holds however many cluster states a node missed: a node that
+was partitioned during a rename and rejoins later still finds the UUID under
+the new name. A marker in the cluster state (the first version of this
+prototype used a custom metadata tag removed by a second update) does not have
+that property, and a node that skipped the tagged state would have deleted the
+index's shards.
 
 To make that possible, `Index#equals`/`hashCode` compare only the UUID (the
 name is used only when the UUID is the `_na_` placeholder), `ShardId` therefore
@@ -103,26 +110,22 @@ Alternative considered: keep name-and-UUID equality and swap every `Index`
 instance on rename. That means finding every map keyed on `Index`/`ShardId`
 across server, modules and x-pack and is why previous attempts stalled.
 
-### T2. The rename signal is a two-step custom metadata tag
+### T2. Rename detection costs a by-UUID map per cluster state
 
-The `index_rename` custom metadata is how `IndicesClusterStateService`
-distinguishes a rename from a delete-and-create, and it has to be removed in a
-second cluster state update. Between the two updates the tag is visible in
-`GET _cluster/state` and `GET {index}`, and a master failover between the two
-updates leaves the tag in place (harmless, but it is never cleaned up).
+`ProjectMetadata#indexByUuid` is backed by an `ImmutableOpenMap` built lazily on
+first use and cached, the same pattern as `indicesLookup`. It is not serialized.
+Keys are the UUID strings the index metadata already holds, so at 15,000
+indices the map adds roughly 256 KB per cluster state and a sub-millisecond
+build on first lookup. Every applier that compares states by index name now has
+to consult `indicesRenamed()`; today only `IndicesClusterStateService` does.
+Other candidates are listed under D2.
 
-Alternative (Mary's branch `space-time-aug-2025/atomic-index-rename`): detect a
-rename by looking the deleted index's UUID up in the new state. That needs a
-by-UUID index map in `ProjectMetadata` (cheap, one extra map per project) and
-makes the rename a single cluster state update. It is the better design; the
-prototype keeps the tag because it already worked end to end.
+### T3. Renames have their own task queue
 
-### T3. Unbatched cluster state tasks
-
-Both cluster state updates use `submitUnbatchedStateUpdateTask`. Production code
-should use a `MasterServiceTaskQueue`, ideally the one in
-`MetadataIndexAliasesService`, so that renames batch with alias changes and
-`remove_index` actions (see D1).
+Renames go through a dedicated `MasterServiceTaskQueue`, so several renames
+batch into one cluster state update, but they do not batch with alias changes
+or `remove_index`. Making a rename atomic with those needs the rename to be an
+action of the aliases executor (see D1).
 
 ### T4. Data node state is mutated in place
 
@@ -161,13 +164,12 @@ refuses to rename an index while it is being snapshotted or restored, mirroring
 match on index UUID as well as name, which is a repository format change and out
 of scope for the prototype.
 
-### T7. The `index_rename` tag survives in persisted index metadata
+### T7. Two indices with one UUID would be silently merged
 
-Because the tag is custom `IndexMetadata`, it is written to disk by every node
-between the two cluster state updates. Nodes that restart in that window reload
-it and remove it when the second update arrives. There is no scenario in which
-a stale tag causes a wrong decision, because the applier only consults it for
-indices whose old name disappeared in the same cluster state diff.
+`indexByUuid` keeps one entry per UUID. Two live indices sharing a UUID is
+impossible today (restore, clone, shrink and split all mint new UUIDs) and the
+builder asserts it, but the production change should turn that into a
+validation in `ProjectMetadata.Builder`.
 
 ### T8. Validation is done twice and is not exhaustive
 
@@ -221,13 +223,12 @@ need rename, `remove_index` and alias moves to be one atomic cluster state
 update, which argues for (b) or (c). (c) is the recommendation: discoverability
 for the simple case, atomicity for the automated ones.
 
-### D2. Rename signal: metadata tag or UUID diff
+### D2. Which other appliers need `indicesRenamed()`
 
-See T2. Recommendation: UUID diff, with `ClusterChangedEvent` gaining an
-`indicesRenamed()` accessor so that every applier (not only
-`IndicesClusterStateService`) can tell renames from deletions. Candidates that
-need to care: `IndicesStore` (deletes shard folders for indices not in the
-routing table), `SearchService` (frees contexts on index removal), and the
+`IndicesClusterStateService` is the only applier the prototype teaches about
+renames. Candidates to audit: `IndicesStore` (deletes shard folders for indices
+not in the routing table; keyed by `ShardId`, so UUID equality covers it, but
+unverified), `SearchService` (frees contexts on index removal), and the
 ILM/SLM/CCR/enrich cluster state listeners that key work by index name.
 
 ### D3. Data node mutation versus advisory names

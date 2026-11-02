@@ -115,6 +115,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final String[] visibleClosedIndices;
 
     private volatile SortedMap<String, IndexAbstraction> indicesLookup;
+    /**
+     * Lazily built view of {@link #indices} keyed by index UUID. Not serialized; built on first use on every node that needs it,
+     * which today is only the cluster state applier when it has to tell a renamed index apart from a deleted one.
+     */
+    private volatile ImmutableOpenMap<String, IndexMetadata> indicesByUuid;
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final IndexVersion oldestIndexVersion;
@@ -562,6 +567,34 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             );
         }
         throw new IndexNotFoundException(index, id);
+    }
+
+    /**
+     * @return the metadata of the index with the given UUID, whatever its current name, or {@code null} if no such index exists in
+     * this project. This is how a renamed index (same UUID, new name) is recognised across cluster states.
+     */
+    @Nullable
+    public IndexMetadata indexByUuid(String indexUuid) {
+        ImmutableOpenMap<String, IndexMetadata> lookup = indicesByUuid;
+        if (lookup == null) {
+            lookup = buildIndicesByUuid();
+        }
+        return lookup.get(indexUuid);
+    }
+
+    private synchronized ImmutableOpenMap<String, IndexMetadata> buildIndicesByUuid() {
+        ImmutableOpenMap<String, IndexMetadata> lookup = indicesByUuid;
+        if (lookup != null) {
+            return lookup;
+        }
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices.size());
+        for (IndexMetadata indexMetadata : indices.values()) {
+            final IndexMetadata previous = builder.put(indexMetadata.getIndexUUID(), indexMetadata);
+            assert previous == null : "duplicate index uuid [" + indexMetadata.getIndexUUID() + "] for " + indexMetadata.getIndex();
+        }
+        lookup = builder.build();
+        indicesByUuid = lookup;
+        return lookup;
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {

@@ -13,9 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,15 +26,16 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexFeatures;
@@ -56,10 +59,9 @@ import java.util.Set;
  * under which it is addressed changes. The rename is a single cluster state update, so from the point of view of any other cluster
  * state consumer the old name disappears and the new name appears atomically.
  * <p>
- * The rename is applied in two cluster state updates. The first one performs the rename and tags the renamed {@link IndexMetadata}
- * with {@link MetadataIndexAliasesService#CUSTOM_RENAME_METADATA_KEY} so that cluster state appliers (most importantly
- * {@link org.elasticsearch.indices.cluster.IndicesClusterStateService}) can tell a rename apart from a delete-and-create. The
- * second one removes that tag again. See {@code docs/internal/atomic-index-rename.md} for the tradeoffs of this design.
+ * Nothing marks the rename in the cluster state: appliers recognise it because an index with the same UUID is still present under
+ * another name (see {@link org.elasticsearch.cluster.ClusterChangedEvent#indicesRenamed()}). That holds however many cluster
+ * states a node missed in between. See {@code docs/internal/atomic-index-rename.md} for the tradeoffs of this design.
  */
 public class TransportRenameIndexAction extends TransportMasterNodeAction<RenameIndexAction.Request, AcknowledgedResponse> {
 
@@ -67,6 +69,7 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
 
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final MasterServiceTaskQueue<RenameIndexTask> taskQueue;
 
     @Inject
     public TransportRenameIndexAction(
@@ -89,6 +92,31 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
         );
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        // Renames batch like other index metadata changes. Each task is validated and applied against the state produced by the
+        // tasks before it in the batch, so two renames of the same index in one batch behave as if they had run one after another.
+        this.taskQueue = clusterService.createTaskQueue("rename-index", Priority.URGENT, new SimpleBatchedAckListenerTaskExecutor<>() {
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(RenameIndexTask task, ClusterState clusterState) {
+                return Tuple.tuple(rename(clusterState, task.projectId, task.originalName, task.destinationName), task);
+            }
+        });
+    }
+
+    /**
+     * One queued rename. Acknowledged once every node has applied the cluster state that carries the rename, so that a caller
+     * who sees the acknowledgement can address the index by its new name on any node.
+     */
+    private static class RenameIndexTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String originalName;
+        private final String destinationName;
+
+        RenameIndexTask(RenameIndexAction.Request request, ProjectId projectId, ActionListener<AcknowledgedResponse> listener) {
+            super(request.ackTimeout(), listener);
+            this.projectId = projectId;
+            this.originalName = request.getSourceIndex();
+            this.destinationName = request.getDestinationIndex();
+        }
     }
 
     @Override
@@ -102,7 +130,6 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
             .indicesBlockedException(projectId, ClusterBlockLevel.METADATA_WRITE, new String[] { request.getSourceIndex() });
     }
 
-    @SuppressForbidden(reason = "usage of unbatched task") // TODO batch renames, ideally through the aliases executor
     @Override
     protected void masterOperation(
         Task task,
@@ -119,9 +146,10 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
             listener.onFailure(e);
             return;
         }
-        clusterService.submitUnbatchedStateUpdateTask(
+        taskQueue.submitTask(
             "rename from [" + originalName + "] to [" + destinationName + "]",
-            new RenameIndexClusterStateUpdateTask(projectState.projectId(), originalName, destinationName, listener)
+            new RenameIndexTask(request, projectState.projectId(), listener),
+            request.masterNodeTimeout()
         );
     }
 
@@ -188,141 +216,58 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
         return indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
     }
 
-    private class RenameIndexClusterStateUpdateTask extends ClusterStateUpdateTask {
+    /**
+     * Builds the cluster state with {@code originalName} renamed to {@code destinationName}: the index metadata is re-keyed under
+     * the new name, the routing table and the index blocks are rewritten for it, and a data stream it belongs to is updated.
+     */
+    private ClusterState rename(ClusterState currentState, ProjectId projectId, String originalName, String destinationName) {
+        final ProjectState projectState = currentState.projectState(projectId);
+        validate(currentState, projectState, originalName, destinationName);
+        final ProjectMetadata currentProject = projectState.metadata();
+        final IndexMetadata currentMetadata = currentProject.index(originalName);
+        final Index index = currentMetadata.getIndex();
+        final Index newIndex = new Index(destinationName, index.getUUID());
 
-        private final ProjectId projectId;
-        private final String originalName;
-        private final String destinationName;
-        private final ActionListener<AcknowledgedResponse> listener;
+        final RoutingTable existingRoutingTable = projectState.routingTable();
+        final RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
+        final IndexRoutingTable indexTable = existingRoutingTable.index(originalName);
+        final IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(newIndex);
+        indexTable.allShards().forEach(shard -> tableBuilder.addIndexShard(shard.rename(newIndex)));
+        rtBuilder.add(tableBuilder);
+        rtBuilder.remove(originalName);
 
-        RenameIndexClusterStateUpdateTask(
-            ProjectId projectId,
-            String originalName,
-            String destinationName,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
-            this.projectId = projectId;
-            this.originalName = originalName;
-            this.destinationName = destinationName;
-            this.listener = listener;
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) {
-            final ProjectState projectState = currentState.projectState(projectId);
-            validate(currentState, projectState, originalName, destinationName);
-            final ProjectMetadata currentProject = projectState.metadata();
-            final IndexMetadata currentMetadata = currentProject.index(originalName);
-            final Index index = currentMetadata.getIndex();
-            final Index newIndex = new Index(destinationName, index.getUUID());
-
-            final RoutingTable existingRoutingTable = projectState.routingTable();
-            final RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
-            final IndexRoutingTable indexTable = existingRoutingTable.index(originalName);
-            final IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(newIndex);
-            indexTable.allShards().forEach(shard -> tableBuilder.addIndexShard(shard.rename(newIndex)));
-            rtBuilder.add(tableBuilder);
-            rtBuilder.remove(originalName);
-
-            var clusterBlocks = currentState.blocks();
-            final Set<ClusterBlock> indexBlocks = clusterBlocks.projectBlocks(projectId).indices().get(originalName);
-            if (indexBlocks != null) {
-                final var blocksBuilder = ClusterBlocks.builder(currentState.blocks());
-                for (ClusterBlock indexBlock : indexBlocks) {
-                    blocksBuilder.removeIndexBlock(projectId, originalName, indexBlock);
-                    blocksBuilder.addIndexBlock(projectId, destinationName, indexBlock);
-                }
-                clusterBlocks = blocksBuilder.build();
+        var clusterBlocks = currentState.blocks();
+        final Set<ClusterBlock> indexBlocks = clusterBlocks.projectBlocks(projectId).indices().get(originalName);
+        if (indexBlocks != null) {
+            final var blocksBuilder = ClusterBlocks.builder(currentState.blocks());
+            for (ClusterBlock indexBlock : indexBlocks) {
+                blocksBuilder.removeIndexBlock(projectId, originalName, indexBlock);
+                blocksBuilder.addIndexBlock(projectId, destinationName, indexBlock);
             }
+            clusterBlocks = blocksBuilder.build();
+        }
 
-            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(currentProject)
-                // Add the metadata under the new name
-                .put(
-                    IndexMetadata.builder(currentMetadata)
-                        .index(destinationName)
-                        .putCustom(
-                            MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY,
-                            Map.of("original_name", originalName, "new_name", destinationName)
-                        )
-                )
-                // Remove the existing one
-                .remove(originalName);
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(currentProject)
+            // Add the metadata under the new name
+            .put(IndexMetadata.builder(currentMetadata).index(destinationName))
+            // Remove the existing one
+            .remove(originalName);
 
-            final DataStream dataStream = parentDataStream(currentProject, originalName);
-            if (dataStream != null) {
-                // TODO: replaceBackingIndex/replaceFailureStoreIndex bump the data stream generation, which a rename should not do
-                if (dataStream.isFailureStoreIndex(originalName)) {
-                    projectBuilder.put(dataStream.replaceFailureStoreIndex(index, newIndex));
-                } else {
-                    projectBuilder.put(dataStream.replaceBackingIndex(index, newIndex));
-                }
+        final DataStream dataStream = parentDataStream(currentProject, originalName);
+        if (dataStream != null) {
+            // TODO: replaceBackingIndex/replaceFailureStoreIndex bump the data stream generation, which a rename should not do
+            if (dataStream.isFailureStoreIndex(originalName)) {
+                projectBuilder.put(dataStream.replaceFailureStoreIndex(index, newIndex));
+            } else {
+                projectBuilder.put(dataStream.replaceBackingIndex(index, newIndex));
             }
-
-            logger.debug("renaming index [{}] to [{}] in project [{}]", originalName, destinationName, projectId);
-            return ClusterState.builder(currentState)
-                .putRoutingTable(projectId, rtBuilder.build())
-                .blocks(clusterBlocks)
-                .putProjectMetadata(projectBuilder)
-                .build();
         }
 
-        @SuppressForbidden(reason = "usage of unbatched task") // TODO add support for batching here
-        @Override
-        public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-            clusterService.submitUnbatchedStateUpdateTask(
-                "remove rename metadata for index [" + destinationName + "] in project [" + projectId + "]",
-                new RemoveRenameMetadataClusterStateUpdateTask(projectId, destinationName, listener)
-            );
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.debug(
-                () -> "failed to rename index [" + originalName + "] to [" + destinationName + "] in project [" + projectId + "]",
-                e
-            );
-            listener.onFailure(e);
-        }
-    }
-
-    private static class RemoveRenameMetadataClusterStateUpdateTask extends ClusterStateUpdateTask {
-
-        private final ProjectId projectId;
-        private final String indexName;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        RemoveRenameMetadataClusterStateUpdateTask(ProjectId projectId, String indexName, ActionListener<AcknowledgedResponse> listener) {
-            this.projectId = projectId;
-            this.indexName = indexName;
-            this.listener = listener;
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
-            ProjectMetadata project = currentState.metadata().getProject(projectId);
-            IndexMetadata indexMetadata = project.index(indexName);
-            if (indexMetadata == null) {
-                logger.debug("index [{}] not found in project [{}] for rename metadata removal", indexName, projectId);
-                return currentState;
-            }
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-            indexMetadataBuilder.removeCustom(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
-
-            logger.debug("removing rename metadata from index [{}] in project [{}]", indexName, projectId);
-            return ClusterState.builder(currentState)
-                .putProjectMetadata(ProjectMetadata.builder(project).put(indexMetadataBuilder))
-                .build();
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.debug(() -> "failed to remove rename metadata from index [" + indexName + "] in project [" + projectId + "]", e);
-            listener.onFailure(e);
-        }
+        logger.debug("renaming index [{}] to [{}] in project [{}]", originalName, destinationName, projectId);
+        return ClusterState.builder(currentState)
+            .putRoutingTable(projectId, rtBuilder.build())
+            .blocks(clusterBlocks)
+            .putProjectMetadata(projectBuilder)
+            .build();
     }
 }

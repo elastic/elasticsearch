@@ -108,6 +108,45 @@ public class ClusterChangedEvent {
     /**
      * Returns the indices deleted in this event
      */
+    /**
+     * An index whose name changed between the previous and the current cluster state while keeping its UUID.
+     *
+     * @param previous the index as it was known in the previous state
+     * @param current  the metadata of the same index in the current state, under its new name
+     */
+    public record RenamedIndex(Index previous, IndexMetadata current) {}
+
+    /**
+     * Returns the indices renamed in this event. A rename keeps the index UUID, so an index counts as renamed, not deleted, when
+     * its previous name is gone from a project but an index with the same UUID is still present there. Nothing is reported if the
+     * previous state was not recovered or belongs to a different cluster, mirroring {@link #indicesDeleted()}.
+     */
+    public List<RenamedIndex> indicesRenamed() {
+        if (previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || metadataChanged() == false || isNewCluster()) {
+            return Collections.emptyList();
+        }
+        List<RenamedIndex> renamed = null;
+        for (ProjectMetadata project : state.metadata().projects().values()) {
+            final ProjectMetadata previousProject = previousState.metadata().projects().get(project.id());
+            if (previousProject == null || project.indices() == previousProject.indices()) {
+                continue;
+            }
+            for (IndexMetadata previousIndex : previousProject.indices().values()) {
+                if (project.index(previousIndex.getIndex()) != null) {
+                    continue;
+                }
+                final IndexMetadata current = project.indexByUuid(previousIndex.getIndexUUID());
+                if (current != null) {
+                    if (renamed == null) {
+                        renamed = new ArrayList<>();
+                    }
+                    renamed.add(new RenamedIndex(previousIndex.getIndex(), current));
+                }
+            }
+        }
+        return renamed == null ? Collections.emptyList() : renamed;
+    }
+
     public List<Index> indicesDeleted() {
         if (previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // working off of a non-initialized previous state, so use the tombstones for index deletions
@@ -313,7 +352,8 @@ public class ClusterChangedEvent {
             if (project.indices() != previousProject.indices()) {
                 for (IndexMetadata index : previousProject.indices().values()) {
                     IndexMetadata current = project.index(index.getIndex());
-                    if (current == null) {
+                    // an index whose name is gone but whose UUID is still present was renamed, see indicesRenamed()
+                    if (current == null && project.indexByUuid(index.getIndexUUID()) == null) {
                         if (deleted == null) {
                             deleted = new HashSet<>();
                         }

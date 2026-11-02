@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -393,6 +392,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         updateFailedShardsCache(state);
 
+        renameIndices(event); // must run before anything that compares local index services with the cluster state by name
+
         deleteIndices(event); // also deletes shards of deleted indices
 
         removeIndicesAndShards(event); // also removes shards of removed indices
@@ -474,14 +475,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
-            // A renamed index looks like a deleted one from the name-based diff. The rename tag on the new entry tells them apart;
-            // see docs/internal/atomic-index-rename.md (T2) for the alternative of diffing by UUID instead.
-            final IndexMetadata beingRenamed = isBeingRenamed(event, index);
-            if (beingRenamed != null) {
-                logger.debug("renaming index [{}] to [{}]", index.getName(), beingRenamed.getIndex());
-                indicesService.renameIndex(index, beingRenamed);
-                continue;
-            }
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
             }
@@ -780,33 +773,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * @return the {@link IndexMetadata} that {@code index} was renamed to in this event, or {@code null} if {@code index} was deleted.
+     * Applies index renames to the local index services. A renamed index keeps its UUID and its shards; only the name the local
+     * {@link IndexService} and its shards report changes. This runs before {@link #deleteIndices} and
+     * {@link #removeIndicesAndShards}, which would otherwise mistake the renamed index for a deleted or unassigned one.
      */
-    @Nullable
-    private static IndexMetadata isBeingRenamed(ClusterChangedEvent event, Index index) {
-        final Optional<ProjectMetadata> previousProject = event.previousState().metadata().lookupProject(index);
-        if (previousProject.isEmpty()) {
-            return null;
+    private void renameIndices(final ClusterChangedEvent event) {
+        for (ClusterChangedEvent.RenamedIndex renamedIndex : event.indicesRenamed()) {
+            logger.debug("renaming index [{}] to [{}]", renamedIndex.previous().getName(), renamedIndex.current().getIndex());
+            indicesService.renameIndex(renamedIndex.previous(), renamedIndex.current());
         }
-        final var currentProject = event.state().metadata().projects().get(previousProject.get().id());
-        if (currentProject == null) {
-            // the project was removed, so no rename is in progress
-            return null;
-        }
-        for (var indexMetadata : currentProject.indices().values()) {
-            final Map<String, String> renameMetadata = indexMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
-            if (renameMetadata == null || renameMetadata.isEmpty() != false) {
-                continue;
-            }
-            final String originalName = renameMetadata.get("original_name");
-            assert originalName != null : "original_name must not be null in rename metadata";
-            if (index.getName().equals(originalName) == false) {
-                continue;
-            }
-            assert indexMetadata.getIndexUUID().equals(index.getUUID()) : "rename tag on [" + indexMetadata.getIndex() + "] for " + index;
-            return indexMetadata;
-        }
-        return null;
     }
 
     /**

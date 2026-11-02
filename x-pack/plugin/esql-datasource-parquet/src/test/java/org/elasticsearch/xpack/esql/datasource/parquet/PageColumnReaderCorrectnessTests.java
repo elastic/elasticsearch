@@ -836,8 +836,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
      * results are correct. Asserting on the bytes catches that for every element type, rather than only for
      * boolean, where deserialization happens to reject a byte that is neither zero nor one.
      * <p>
-     * The read is repeated because the allocation skips zeroing only once the decode path has been compiled:
-     * a handful of cold reads cannot show the difference.
+     * The read is repeated because the leftover memory is not guaranteed to differ between any two reads:
+     * a single pair can coincide. Repetition is what makes the divergence reliable, not JIT warm-up — the
+     * allocation hands back unzeroed memory from the first read onwards.
      */
     public void testNullableColumnSerializesDeterministically() throws IOException {
         UninitializedArrays.ensureUnsafeEnabled();

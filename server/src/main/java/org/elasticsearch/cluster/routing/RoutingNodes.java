@@ -942,13 +942,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         if (failedShard.primary() && failedShard.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT) {
             final IndexReshardingMetadata reshardingMetadata = metadata.indexMetadata(failedShard.index()).getReshardingMetadata();
-            assert IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata)
-                : "expected shard with a reshard split recovery source to be a split target in the resharding metadata ["
-                    + reshardingMetadata
-                    + "], but got "
-                    + failedShard;
-
-            if (reshardingMetadata.getSplit().targetStateAtLeast(failedShard.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
+            if (IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata) == false
+                || reshardingMetadata.getSplit()
+                    .targetStateAtLeast(failedShard.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
                 return ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
             }
         }

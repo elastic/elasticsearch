@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.integration.RoleMappingFileSettingsIT;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -143,12 +145,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
-        resetMigration();
-
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-
-        assertAllRoleMappings(
+        rerunMigrationsAndAssertRoleMappings(
             "everyone_kibana_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
             "everyone_fleet_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
             "dont_clean_this_up"
@@ -175,12 +172,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
-        resetMigration();
-
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-
-        assertAllRoleMappings(
+        rerunMigrationsAndAssertRoleMappings(
             "everyone_kibana_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
             "everyone_fleet_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
             "some_native_mapping",
@@ -207,12 +199,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
-        resetMigration();
-
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-
-        assertAllRoleMappings(
+        rerunMigrationsAndAssertRoleMappings(
             "everyone_kibana_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
             "everyone_fleet_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX
         );
@@ -235,10 +222,15 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         createNativeRoleMapping("everyone_fleet_alone");
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
-        resetMigration();
-
-        // Make sure migration didn't run yet (blocked by the fallback name)
-        assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        // Retry the reset since a late duplicate "skip all migrations" task from index creation can overwrite it
+        assertBusy(() -> {
+            assertFalse(isSecurityMigrationTaskPresent(clusterService().state()));
+            resetMigration();
+            // Make sure migration didn't run yet (blocked by the fallback name)
+            ClusterState state = clusterService().state();
+            assertThat(getCurrentMigrationVersion(state), lessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION));
+            assertFalse(isSecurityMigrationTaskPresent(state));
+        });
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         SecurityIndexManager.RoleMappingsCleanupMigrationStatus status = SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
             clusterService.state(),
@@ -262,12 +254,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
-        resetMigration();
-
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-
-        assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
+        rerunMigrationsAndAssertRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
     }
 
     public void testSkipMigrationEmptyFileBasedMappings() throws Exception {
@@ -291,12 +278,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
-        resetMigration();
-
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-
-        assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
+        rerunMigrationsAndAssertRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
     }
 
     public void testNewIndexSkipMigration() {
@@ -369,6 +351,19 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         ).actionGet();
     }
 
+    /**
+     * Resets the migration version, waits for the migrations to be re-applied and asserts the resulting role mappings. Retries since a
+     * late duplicate "skip all migrations" task from the index creation can mark the migrations as applied without running them.
+     */
+    private void rerunMigrationsAndAssertRoleMappings(String... expectedRoleMappingNames) throws Exception {
+        assertBusy(() -> {
+            assertFalse(isSecurityMigrationTaskPresent(clusterService().state()));
+            resetMigration();
+            waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+            assertAllRoleMappings(expectedRoleMappingNames);
+        }, 30, TimeUnit.SECONDS);
+    }
+
     private void createNativeRoleMapping(String name) {
         PutRoleMappingRequest request = new PutRoleMappingRequest();
         request.setName(name);
@@ -391,16 +386,17 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertThat(getCurrentMigrationVersion(), greaterThanOrEqualTo(expectedVersion));
     }
 
-    private void assertMigrationLessThan(int expectedVersion) {
-        assertThat(getCurrentMigrationVersion(), lessThan(expectedVersion));
-    }
-
     private int getCurrentMigrationVersion(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().getIndices().get(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }
         return Integer.parseInt(indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY).get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
+    }
+
+    private boolean isSecurityMigrationTaskPresent(ClusterState state) {
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getProject());
+        return tasks != null && tasks.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
     }
 
     private int getCurrentMigrationVersion() {

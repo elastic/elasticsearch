@@ -40,16 +40,18 @@ public final class TranslateTimeSeriesCollapse extends AnalyzerRules.Parameteriz
             return collapse.child();
         }
         if (collapse.child() instanceof PromqlCommand pc) {
-            // pc.promqlPlan().output() is the dimension list by construction: PromqlCommand.output() is
-            // [value, step] ++ promqlPlan.output(). ResolvePromqlFunctions has reshaped promqlPlan during
-            // analysis, so by the time this optimizer rule runs the output is representative.
+            // Dimensions are the public label columns of PromqlCommand.output() ([value, step] ++ labels), not
+            // promqlPlan.output(). The command rewrites time-series metadata to the shared _timeseries id; using the
+            // unresolved metadata from the inner plan lets PathTrace rename it to _timeseries$… while the projected layout
+            // still carries _timeseries, leaving a dense collapse channel hole (channel [2] uncovered).
             // Bounds expressions flow straight through; the Mapper folds them when building TimeSeriesCollapseExec.
+            var commandOutput = pc.output();
             return new TimeSeriesCollapse(
                 collapse.source(),
                 pc,
                 collapse.value(),
                 collapse.step(),
-                pc.promqlPlan().output(),
+                commandOutput.subList(2, commandOutput.size()),
                 pc.start(),
                 pc.end(),
                 pc.resolveTimeBucketSize()

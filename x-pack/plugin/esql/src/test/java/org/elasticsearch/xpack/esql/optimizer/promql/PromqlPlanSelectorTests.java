@@ -90,7 +90,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 + "(http_request_duration_seconds_bucket)))"
         );
 
-        // `le` is dropped and `cluster` retained: the output carries cluster, not le. (The histogram regroup packs its
+        // `le` is dropped and `cluster` retained: the output carries cluster, not le. (The histogram emitAggregate packs its
         // carried dimensions for multi-value safety, so the grouping keys are packed aliases - assert on the output.)
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "cluster")));
         assertThat(collectHistogramQuantiles(plan), hasSize(1));

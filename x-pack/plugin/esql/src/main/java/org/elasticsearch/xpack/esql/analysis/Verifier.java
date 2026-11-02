@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -172,6 +174,13 @@ public class Verifier {
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
+        plan.forEachExpressionDown(TimeSeriesFunction.class, function -> {
+            if (EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled() == false) {
+                failures.add(fail(function, "Time-series metadata functions are experimental and disabled"));
+            } else if (TimeSeriesMetadataAttribute.supportTimeSeriesMetadataType(context.minimumVersion()) == false) {
+                failures.add(fail(function, "Time-series metadata functions require support on every participating node"));
+            }
+        });
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());

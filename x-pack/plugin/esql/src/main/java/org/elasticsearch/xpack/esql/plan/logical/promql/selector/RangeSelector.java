@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -15,9 +16,11 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlAttribute;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a PromQL range vector selector.
@@ -99,6 +102,15 @@ public final class RangeSelector extends Selector {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), range);
+    }
+
+    /** A range vector keeps one series per label set, like an instant vector. */
+    @Override
+    public List<Attribute> output() {
+        if (output == null) {
+            output = List.of(UnresolvedPromqlAttribute.metadata(source(), Set.of()));
+        }
+        return output;
     }
 
     @Override

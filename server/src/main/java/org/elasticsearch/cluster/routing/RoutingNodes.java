@@ -522,7 +522,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         long expectedShardSize,
         String reason,
         RoutingChangesObserver changes,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         ensureMutable();
         relocatingShards++;
@@ -926,12 +926,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /// Returns the priority with which to recover a shard which has failed. If the shard was active then the failure
-    /// has reduced availability, so it takes priority [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED]. If the
+    /// has reduced availability, so it takes priority [RecoveryPriority#UNASSIGNED_UNEXPECTED]. If the
     /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
     /// just a retry, so it keeps the last priority it had.
-    private static ShardRouting.RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard, Metadata metadata) {
+    private static RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard, Metadata metadata) {
         if (failedShard.initializing() == false) {
-            return ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
+            return RecoveryPriority.UNASSIGNED_UNEXPECTED;
         }
         assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
 
@@ -944,7 +944,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata) == false
                 || reshardingMetadata.getSplit()
                     .targetStateAtLeast(failedShard.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
-                return ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                return RecoveryPriority.UNASSIGNED_UNEXPECTED;
             }
         }
         return failedShard.recoveryPriority();
@@ -958,7 +958,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         assert shard.primary() : "only primary can be demoted to replica (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED)
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, RecoveryPriority.UNASSIGNED_UNEXPECTED)
             .moveUnassignedFromPrimary();
         unassignedShards.add(unassigned);
         return unassigned;

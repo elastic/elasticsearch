@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -578,9 +579,7 @@ public class ReshardIndexService {
                     routingTableBuilder.getShardRoutingRoleStrategy().newEmptyRole(j),
                     // Replicas can only start once the target primary has taken over its share of the writes, and the split
                     // only waits a bounded time for them before routing searches to the target, so they must not be deferred
-                    primary
-                        ? ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
-                        : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                    primary ? RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING : RecoveryPriority.UNASSIGNED_EXPECTED
                 );
                 indexShardRoutingBuilder.addShard(shardRouting);
             }

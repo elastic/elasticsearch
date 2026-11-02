@@ -533,6 +533,8 @@ With the fix (T13) the two stateless suites were rerun: 691 tests, 7 failed,
   the commit carries the creation-time name, so the count stays zero. Same
   cause as above.
 
+All three suites pass on plain main, so none of this is pre-existing flakiness.
+
 Not yet run with the trick: REST tests, and the unit test suites that
 construct `Index` objects by hand. Niels's last CI run of the trick extended to
 `assertAcked` failed on security tests; that extension is not part of this

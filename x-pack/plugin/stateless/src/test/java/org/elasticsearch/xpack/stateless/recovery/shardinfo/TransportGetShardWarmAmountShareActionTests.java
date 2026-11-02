@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -56,7 +57,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
@@ -67,7 +67,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -218,12 +217,50 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         assertEstimated(0, 2);
     }
 
-    public void testMissingEstimateIsNoShareAndNotMemoized() {
+    public void testRemovedOrClosingCompetingCopyIsSkipped() {
+        final long startedAt = randomNonNegativeLong();
+        state = sourceState(startedAt, relocating(0, TARGET), started(1), started(2));
+        withAmounts(600L, 300L, 100L);
+
+        // shard 1 already removed from IndicesService, shard 2 store already closing
+        when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
+        indicesService.getShardOrNull(new ShardId(index, 2)).store().close();
+
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
+        // Requested shard itself removed or closing is NO_SHARE
+        assertThat(action.computeShare(request(1, startedAt)), equalTo(Response.NO_SHARE));
+        assertThat(action.computeShare(request(2, startedAt)), equalTo(Response.NO_SHARE));
+    }
+
+    public void testMemoizedCopyClosingBeforeClusterStateUpdateIsSkipped() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
         withAmounts(600L, 300L);
-        final var missingShardId = new ShardId(index, 1);
-        when(indicesService.getShardOrNull(missingShardId)).thenReturn(null);
+
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 900L)));
+
+        // shard 1 closes before ClusterState removes it from localRoutingNode
+        indicesService.getShardOrNull(new ShardId(index, 1)).store().close();
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
+        assertThat(action.computeShare(request(1, startedAt)), equalTo(Response.NO_SHARE));
+    }
+
+    public void testConcurrentStoreCloseDuringEstimateIsSkipped() {
+        final long startedAt = randomNonNegativeLong();
+        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        withAmounts(600L, 300L);
+        doThrow(new AlreadyClosedException("closed concurrently")).when(directories.get(new ShardId(index, 1)))
+            .getCurrentCommitBlobFileRanges();
+
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
+        assertThat(action.computeShare(request(1, startedAt)), equalTo(Response.NO_SHARE));
+    }
+
+    public void testFailedEstimateIsNoShareAndNotMemoized() {
+        final long startedAt = randomNonNegativeLong();
+        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        withAmounts(600L, 300L);
+        doThrow(new RuntimeException("directory failed")).when(directories.get(new ShardId(index, 1))).getCurrentCommitBlobFileRanges();
 
         assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
 
@@ -258,6 +295,20 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         assertEstimated(1, 2);
     }
 
+    public void testInitializingCopyNotCreatedYetCountsAsZeroAndIsNotMemoized() {
+        final long startedAt = randomNonNegativeLong();
+        state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
+        withAmount(0, 600L);
+        when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
+
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
+
+        withAmount(1, 300L);
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 900L)));
+        assertEstimated(0, 1);
+        assertEstimated(1, 1);
+    }
+
     public void testZeroAmountOfStartedCopyIsMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
@@ -269,24 +320,13 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         assertEstimated(1, 1);
     }
 
-    public void testEstimateSkippedWhenStoreRefNotAcquired() throws Exception {
+    public void testEstimateThrowsAlreadyClosedWhenStoreClosed() {
         final ShardId shardId = new ShardId(index, 0);
         final Store store = newStore(shardId, new ByteBuffersDirectory());
         store.close();
         final IndexShard shard = mockShard(shardId, store);
 
-        assertThat(action.tryEstimateShardWarmAmount(shard, 0L), equalTo(OptionalLong.empty()));
-    }
-
-    public void testEstimateReleasesStoreRefWhenDirectoryThrows() {
-        final ShardId shardId = new ShardId(index, 0);
-        final Store store = spy(newStore(shardId, new ByteBuffersDirectory()));
-        doThrow(new RuntimeException("directory failed")).when(store).directory();
-        final IndexShard shard = mockShard(shardId, store);
-        final int refsBefore = store.refCount();
-
-        assertThat(action.tryEstimateShardWarmAmount(shard, 0L), equalTo(OptionalLong.empty()));
-        assertThat(store.refCount(), equalTo(refsBefore));
+        expectThrows(AlreadyClosedException.class, () -> action.estimateShardWarmAmount(shard, 0L));
     }
 
     public void testEstimateWarmAmountRatioZeroIsZero() {

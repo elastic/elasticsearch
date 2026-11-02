@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -26,6 +24,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -237,8 +237,6 @@ public class SearchRecoveryTimeoutCalculationService {
         return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previousPlan, SourceWarmAmountShare.NOT_REQUESTED);
     }
 
-    /// As [#searchRecoveryTimeout(ClusterState, IndexShard, long, SearchRecoveryTimeout)], with the shutting-down source's answer to
-    /// this shard's warm-amount share, see [SourceWarmAmountShare].
     public SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,

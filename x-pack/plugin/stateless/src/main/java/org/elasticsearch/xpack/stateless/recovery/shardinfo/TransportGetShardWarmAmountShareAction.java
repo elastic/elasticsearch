@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -31,9 +30,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
@@ -51,7 +51,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
@@ -130,17 +129,9 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
             logger.debug("no routing node for local node [{}], no warm amount share for [{}]", localNodeId, request.shardId());
             return Response.NO_SHARE;
         }
-        final var localShutdown = state.metadata().nodeShutdowns().get(localNodeId);
-        // A target may still act on a shutdown signal this node has already replaced, or one it has not applied yet. Answer it, but only
-        // keep estimates computed under this node's own current signal.
-        final boolean memoizable = localShutdown != null && localShutdown.getStartedAtMillis() == request.shutdownSignalTimestamp();
         final long nowMillis = nowSupplier.getAsLong();
         synchronized (memoLock) {
-            if (memoizable && memoShutdownSignalTimestamp != request.shutdownSignalTimestamp()) {
-                memo = new HashMap<>();
-                memoShutdownSignalTimestamp = request.shutdownSignalTimestamp();
-            }
-            final Map<ShardId, Long> estimates = memoizable ? memo : new HashMap<>();
+            final Map<ShardId, Long> estimates = estimatesForSignal(state, localNodeId, request.shutdownSignalTimestamp());
             long competingSum = 0L;
             long shardAmount = -1L;
             for (ShardRouting routing : localRoutingNode) {
@@ -148,12 +139,31 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
                     // already relocating to another target, so not competing for this one
                     continue;
                 }
-                final OptionalLong estimate = memoizedShardWarmAmount(routing, estimates, nowMillis);
-                if (estimate.isEmpty()) {
-                    logger.debug("no warm amount estimate for [{}], no warm amount share for [{}]", routing.shardId(), request.shardId());
-                    return Response.NO_SHARE;
+                final IndexShard shard = indicesService.getShardOrNull(routing.shardId());
+                if (shard == null || shard.store().isClosing()) {
+                    // Already removed or closing on this node, so it will not relocate to the target.
+                    continue;
                 }
-                final long amount = estimate.getAsLong();
+                final Long memoized = estimates.get(routing.shardId());
+                final long amount;
+                if (memoized != null) {
+                    amount = memoized;
+                } else {
+                    try {
+                        amount = estimateShardWarmAmount(shard, nowMillis);
+                    } catch (AlreadyClosedException e) {
+                        // Store closed concurrently between isClosing() and directory(); it will not relocate to the target.
+                        continue;
+                    } catch (Exception e) {
+                        logger.warn(() -> "failed to estimate warm amount for " + routing.shardId(), e);
+                        return Response.NO_SHARE;
+                    }
+                    // A copy recovering onto this node estimates to 0 until its recovery registers the first commit,
+                    // just before warming starts. Don't memoize that 0, so later requests count its real amount.
+                    if (routing.initializing() == false || amount > 0L) {
+                        estimates.put(routing.shardId(), amount);
+                    }
+                }
                 competingSum += amount;
                 if (routing.shardId().equals(request.shardId())) {
                     shardAmount = amount;
@@ -167,55 +177,29 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
         }
     }
 
-    private OptionalLong memoizedShardWarmAmount(ShardRouting routing, Map<ShardId, Long> estimates, long nowMillis) {
-        final Long memoized = estimates.get(routing.shardId());
-        if (memoized != null) {
-            return OptionalLong.of(memoized);
+    /// Returns the memoized map when the request matches this node's active shutdown signal, or a throwaway map otherwise.
+    private Map<ShardId, Long> estimatesForSignal(ClusterState state, String localNodeId, long requestSignalTimestamp) {
+        assert Thread.holdsLock(memoLock);
+        final var localShutdown = state.metadata().nodeShutdowns().get(localNodeId);
+        if (localShutdown == null || localShutdown.getStartedAtMillis() != requestSignalTimestamp) {
+            return new HashMap<>();
         }
-        final OptionalLong estimate = estimateShardWarmAmount(routing.shardId(), nowMillis);
-        // A copy recovering onto this node estimates to 0 until its recovery registers the first commit, just before warming starts.
-        // Don't memoize that 0, so later requests count its real amount.
-        if (estimate.isPresent() && (routing.initializing() == false || estimate.getAsLong() > 0L)) {
-            estimates.put(routing.shardId(), estimate.getAsLong());
+        if (memoShutdownSignalTimestamp != requestSignalTimestamp) {
+            memo = new HashMap<>();
+            memoShutdownSignalTimestamp = requestSignalTimestamp;
         }
-        return estimate;
-    }
-
-    private OptionalLong estimateShardWarmAmount(ShardId shardId, long nowMillis) {
-        final IndexShard shard = indicesService.getShardOrNull(shardId);
-        if (shard == null) {
-            return OptionalLong.empty();
-        }
-        return tryEstimateShardWarmAmount(shard, nowMillis);
+        return memo;
     }
 
     // visible for testing
-    OptionalLong tryEstimateShardWarmAmount(IndexShard shard, long nowMillis) {
-        Store store = null;
-        boolean acquired = false;
-        try {
-            store = shard.store();
-            acquired = store.tryIncRef();
-            if (acquired == false) {
-                return OptionalLong.empty();
-            }
-            SearchDirectory directory = SearchDirectory.unwrapDirectory(store.directory());
-            return OptionalLong.of(
-                estimateWarmAmount(
-                    directory.getCurrentCommitBlobFileRanges(),
-                    warmingRatioProviderFactory.create(shard.shardId()),
-                    directory::resolveRegionTimestampMillis,
-                    nowMillis
-                )
-            );
-        } catch (Exception e) {
-            logger.warn(() -> "failed to estimate warm amount for " + shard.shardId(), e);
-            return OptionalLong.empty();
-        } finally {
-            if (acquired) {
-                store.decRef();
-            }
-        }
+    long estimateShardWarmAmount(IndexShard shard, long nowMillis) {
+        final SearchDirectory directory = SearchDirectory.unwrapDirectory(shard.store().directory());
+        return estimateWarmAmount(
+            directory.getCurrentCommitBlobFileRanges(),
+            warmingRatioProviderFactory.create(shard.shardId()),
+            directory::resolveRegionTimestampMillis,
+            nowMillis
+        );
     }
 
     /// Estimated bytes offline warming would fetch, repeating

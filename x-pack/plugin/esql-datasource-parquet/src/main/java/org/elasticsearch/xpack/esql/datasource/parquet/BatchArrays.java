@@ -19,27 +19,31 @@ import org.elasticsearch.compute.data.UninitializedArrays;
  * around it, so the writer has no mask to consult — and a boolean read rejects any byte that is neither
  * zero nor one. An array that may keep unassigned positions therefore has to arrive zeroed.
  *
- * <p>Pass the same condition the arm uses to decide whether it needs a null mask, so the two decisions
- * cannot drift apart. The condition is not simply "the column has definition levels": a declared
- * string-to-datetime coercion nulls a position whose value failed to parse, on a column that has none.
+ * <p>Pass whether the arm can leave a position unassigned, which is not the same as whether it can emit a
+ * null: an arm that marks a position null after writing a value to it still assigns every slot. It is also
+ * not simply "the column has definition levels" — a declared string-to-datetime coercion nulls a position
+ * whose value failed to parse, on a column that carries none.
+ *
+ * <p>An arm that builds its mask lazily, inside the decode loop, has no up-front condition to pass here.
+ * Such an arm must assign a defined value where it sets the mask instead; see {@code readDateNanosColumn}.
  */
 final class BatchArrays {
 
     private BatchArrays() {}
 
-    static boolean[] booleans(int length, boolean mayEmitNull) {
-        return mayEmitNull ? new boolean[length] : UninitializedArrays.newBooleanArray(length);
+    static boolean[] booleans(int length, boolean mayLeaveSlotUnassigned) {
+        return mayLeaveSlotUnassigned ? new boolean[length] : UninitializedArrays.newBooleanArray(length);
     }
 
-    static int[] ints(int length, boolean mayEmitNull) {
-        return mayEmitNull ? new int[length] : UninitializedArrays.newIntArray(length);
+    static int[] ints(int length, boolean mayLeaveSlotUnassigned) {
+        return mayLeaveSlotUnassigned ? new int[length] : UninitializedArrays.newIntArray(length);
     }
 
-    static long[] longs(int length, boolean mayEmitNull) {
-        return mayEmitNull ? new long[length] : UninitializedArrays.newLongArray(length);
+    static long[] longs(int length, boolean mayLeaveSlotUnassigned) {
+        return mayLeaveSlotUnassigned ? new long[length] : UninitializedArrays.newLongArray(length);
     }
 
-    static double[] doubles(int length, boolean mayEmitNull) {
-        return mayEmitNull ? new double[length] : UninitializedArrays.newDoubleArray(length);
+    static double[] doubles(int length, boolean mayLeaveSlotUnassigned) {
+        return mayLeaveSlotUnassigned ? new double[length] : UninitializedArrays.newDoubleArray(length);
     }
 }

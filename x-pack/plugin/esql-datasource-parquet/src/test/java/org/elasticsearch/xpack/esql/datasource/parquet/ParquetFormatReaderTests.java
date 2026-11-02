@@ -45,6 +45,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -4143,6 +4145,72 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
             assertThat("the reader must relay its warning", warnings, contains(expectedWarning));
             assertThat("the warning must not leak to the scan thread's response headers", drainWarnings(), empty());
+        }
+    }
+
+    /**
+     * A {@code required} MICROS column whose value overflows the nanosecond range marks the position null, but the
+     * array was allocated for a dense column and so is uninitialized. The position is serialized with the rest
+     * regardless of the mask, so leaving it unassigned puts stale memory on the wire: two reads of the same file
+     * would not agree. A long slot never fails deserialization, so the serialized bytes are the only oracle.
+     */
+    public void testRequiredMicrosOverflowSerializesDeterministically() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+
+        long inRangeMicros = 946728000000L * 1_000;
+        long outOfRangeMicros = 20_000_000_000_000_000L;
+        assertTrue("precondition: value must overflow nanos scaling", ParquetColumnDecoding.microsOverflowsNanos(outOfRangeMicros));
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", inRangeMicros);
+            Group g2 = factory.newGroup();
+            g2.add("ts", outOfRangeMicros);
+            return List.of(g1, g2);
+        });
+
+        byte[] expected = null;
+        for (int read = 0; read < 200; read++) {
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    storageObject,
+                    FormatReadContext.builder().batchSize(10).informationalWarningSink(w -> {}).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertFalse("in-range value must be present", block.isNull(0));
+                    assertTrue("overflowing value must be null", block.isNull(1));
+                    byte[] actual = serializedBytes(block);
+                    if (expected == null) {
+                        expected = actual;
+                    } else {
+                        assertArrayEquals("serialized form changed on read " + read, expected, actual);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The block's serialized bytes, copied out while the stream is open: closing a {@link BytesStreamOutput}
+     * returns its pages to the recycler, so a reference held past that point may be reused memory.
+     */
+    private static byte[] serializedBytes(Block block) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Block.writeTypedBlock(block, out);
+            return BytesReference.toBytes(out.bytes());
         }
     }
 

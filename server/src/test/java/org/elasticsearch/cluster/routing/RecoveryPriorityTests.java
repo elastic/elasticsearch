@@ -20,7 +20,7 @@ import java.util.List;
 
 public class RecoveryPriorityTests extends ESTestCase {
 
-    public void testRecoveryPrioritySerialization() throws IOException {
+    public void testSerialization() throws IOException {
         for (RecoveryPriority originalPriority : RecoveryPriority.values()) {
             RecoveryPriority copyPriority = copyInstance(
                 originalPriority,
@@ -46,7 +46,7 @@ public class RecoveryPriorityTests extends ESTestCase {
     /// Serializes a [RecoveryPriority] using a [TransportVersion] from before the introduction of
     /// [RecoveryPriority#UNKNOWN] and [RecoveryPriority#UNASSIGNED_NEW_PRIMARY], deserializes them the way that
     /// we used to before that change to get a [LegacyRecoveryPriority], and assert that it is the equivalent or closest value.
-    public void testRecoveryPrioritySerialization_legacyReader() throws IOException {
+    public void testSerialization_legacyReader() throws IOException {
         for (RecoveryPriority originalPriority : RecoveryPriority.values()) {
             TransportVersion version = ShardRouting.RECOVERY_PRIORITY_TRANSPORT_VERSION;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -71,7 +71,7 @@ public class RecoveryPriorityTests extends ESTestCase {
     /// Serializes a [LegacyRecoveryPriority] the way we used to before the introduction of [RecoveryPriority#UNKNOWN] and
     /// [RecoveryPriority#UNASSIGNED_NEW_PRIMARY], deserializes them to get a [RecoveryPriority] using a
     /// [TransportVersion] from before that change, and assert that it is an equivalent value.
-    public void testRecoveryPrioritySerialization_legacyWriter() throws IOException {
+    public void testSerialization_legacyWriter() throws IOException {
         for (LegacyRecoveryPriority originalPriority : LegacyRecoveryPriority.values()) {
             TransportVersion version = ShardRouting.RECOVERY_PRIORITY_TRANSPORT_VERSION;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -108,7 +108,7 @@ public class RecoveryPriorityTests extends ESTestCase {
     /// [RecoveryPriority#UNASSIGNED_RESTORING] and [RecoveryPriority#UNASSIGNED_PERFORMANCE_SCALING],
     /// deserializes them the way that we used to before that change to get a [RecoveryPriorityBeforeNonCriticalUnassigned],
     /// and assert that it is the equivalent or closest value.
-    public void testRecoveryPrioritySerialization_beforeNonCriticalUnassignedReader() throws IOException {
+    public void testSerialization_beforeNonCriticalUnassignedReader() throws IOException {
         for (final var originalPriority : RecoveryPriority.values()) {
             final var version = RecoveryPriority.RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -137,7 +137,7 @@ public class RecoveryPriorityTests extends ESTestCase {
     /// [RecoveryPriority#UNASSIGNED_RESTORING] and [RecoveryPriority#UNASSIGNED_PERFORMANCE_SCALING],
     /// deserializes them to get a [RecoveryPriority] using a [TransportVersion] from before that change, and assert
     /// that it is an equivalent value.
-    public void testRecoveryPrioritySerialization_beforeNonCriticalUnassignedWriter() throws IOException {
+    public void testSerialization_beforeNonCriticalUnassignedWriter() throws IOException {
         for (final var originalPriority : RecoveryPriorityBeforeNonCriticalUnassigned.values()) {
             final var version = RecoveryPriority.RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION;
             try (BytesStreamOutput output = new BytesStreamOutput()) {

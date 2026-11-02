@@ -1296,6 +1296,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * An ECS-style {@code event.original}: a non-indexed keyword with {@code doc_values: false}. In strict-columnar modes the attribute
      * is ignored, so the field keeps its doc values and the attribute is not persisted.
      */
+    private static String docValuesIgnoredWarning(String field) {
+        return "The [doc_values] parameter of field ["
+            + field
+            + "] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter.";
+    }
+
     public void testColumnarIgnoresDocValuesFalse() throws Exception {
         for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
@@ -1305,6 +1311,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 b.endObject();
                 b.startObject("count").field("type", "long").field("doc_values", false).endObject();
             }));
+            assertWarnings(docValuesIgnoredWarning("event.original"), docValuesIgnoredWarning("count"));
             assertTrue(mapperService.fieldType("event.original").hasDocValues());
             assertTrue(mapperService.fieldType("count").hasDocValues());
             assertThat(Strings.toString(mapperService.documentMapper().mapping()), not(containsString("doc_values")));
@@ -1317,6 +1324,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             settings,
             fieldMapping(b -> b.field("type", "keyword").field("doc_values", true))
         );
+        // doc_values: true is accepted silently: only an explicit false is worth warning about.
+        ensureNoWarnings();
         assertTrue(mapperService.fieldType("field").hasDocValues());
         assertThat(Strings.toString(mapperService.documentMapper().mapping()), not(containsString("doc_values")));
     }
@@ -1327,6 +1336,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             settings,
             fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("multi_value", false))
         );
+        assertWarnings(docValuesIgnoredWarning("field"));
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().enabled(), equalTo(true));
         assertThat(mapper.docValuesParameters().multiValue(), equalTo(false));
@@ -1339,6 +1349,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
         merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
+        assertWarnings(docValuesIgnoredWarning("field"));
         assertTrue(mapperService.fieldType("field").hasDocValues());
     }
 
@@ -1355,6 +1366,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("tmpl_a", "value")));
         assertNotNull(doc.dynamicMappingsUpdate());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+        assertWarnings(docValuesIgnoredWarning("__dynamic__no_dv"), docValuesIgnoredWarning("tmpl_a"));
         assertTrue(mapperService.fieldType("tmpl_a").hasDocValues());
         // The field mapped from the template does not persist doc_values.
         assertThat(Strings.toString(mapperService.documentMapper().mappers().getMapper("tmpl_a")), not(containsString("doc_values")));

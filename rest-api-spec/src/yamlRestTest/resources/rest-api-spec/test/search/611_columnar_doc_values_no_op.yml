@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, warnings ]
       capabilities:
         - method: PUT
           path: /{index}
@@ -21,6 +21,9 @@ teardown:
 
 doc_values false is ignored and trimmed from the mapping in columnar:
   - do:
+      warnings:
+        - "The [doc_values] parameter of field [event.original] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+        - "The [doc_values] parameter of field [count] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
       indices.create:
         index: test
         body:
@@ -113,6 +116,8 @@ doc_values false does not conflict with an omitted doc_values on mapping update:
                 type: keyword
 
   - do:
+      warnings:
+        - "The [doc_values] parameter of field [kwd] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
       indices.put_mapping:
         index: test
         body:

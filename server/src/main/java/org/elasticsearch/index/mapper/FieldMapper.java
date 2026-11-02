@@ -2081,6 +2081,16 @@ public abstract class FieldMapper extends Mapper {
             } else {
                 boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
                 if (ignoresDocValuesAttribute) {
+                    if (enabled == false) {
+                        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
+                        deprecationLogger.warn(
+                            DeprecationCategory.MAPPINGS,
+                            "doc_values_ignored_in_columnar",
+                            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
+                                + "always enabled. Remove the parameter.",
+                            field
+                        );
+                    }
                     // Leaving the value unset keeps it out of the persisted mapping.
                     return;
                 }

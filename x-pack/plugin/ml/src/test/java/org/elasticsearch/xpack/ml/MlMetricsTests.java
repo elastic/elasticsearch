@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -32,15 +37,23 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlMetricsTests extends ESTestCase {
 
@@ -179,6 +192,62 @@ public class MlMetricsTests extends ESTestCase {
             ByteSizeValue.ofMb(2000).getBytes()
         );
         assertThat(bytesFree, is(ByteSizeValue.ofMb(500).getBytes() - NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()));
+    }
+
+    public void testHardLimitGaugeShouldReportJobsAtHardLimitWithoutAttributes() {
+        AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);
+        when(autodetectProcessManager.countJobsAtHardLimit()).thenReturn(3L);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        startedMlNodeMetrics(meterRegistry, autodetectProcessManager, DiscoveryNodeRole.ML_ROLE);
+
+        assertThat(hardLimitMeasurements(meterRegistry), equalTo(List.of(new Measurement(3L, Map.of(), false))));
+    }
+
+    public void testHardLimitGaugeShouldReflectLatestCountOnEveryCollection() {
+        AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);
+        when(autodetectProcessManager.countJobsAtHardLimit()).thenReturn(1L, 0L);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        startedMlNodeMetrics(meterRegistry, autodetectProcessManager, DiscoveryNodeRole.ML_ROLE);
+
+        hardLimitMeasurements(meterRegistry);
+        List<Measurement> measurements = hardLimitMeasurements(meterRegistry);
+
+        assertThat(measurements.stream().map(Measurement::getLong).toList(), equalTo(List.of(1L, 0L)));
+    }
+
+    public void testNodeWithoutMlRoleShouldNotRegisterHardLimitGauge() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        startedMlNodeMetrics(meterRegistry, mock(AutodetectProcessManager.class), DiscoveryNodeRole.MASTER_ROLE);
+
+        assertThat(
+            meterRegistry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE),
+            not(hasItem("es.ml.anomaly_detectors.hard_limit.current"))
+        );
+    }
+
+    static MlMetrics startedMlNodeMetrics(
+        RecordingMeterRegistry meterRegistry,
+        AutodetectProcessManager autodetectProcessManager,
+        DiscoveryNodeRole role
+    ) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(USE_AUTO_MACHINE_MEMORY_PERCENT, MachineLearning.MAX_MACHINE_MEMORY_PERCENT))
+        );
+        MlMetrics mlMetrics = new MlMetrics(
+            meterRegistry,
+            clusterService,
+            Settings.builder().putList("node.roles", role.roleName()).build(),
+            autodetectProcessManager,
+            mock(DataFrameAnalyticsManager.class)
+        );
+        mlMetrics.start();
+        return mlMetrics;
+    }
+
+    private static List<Measurement> hardLimitMeasurements(RecordingMeterRegistry meterRegistry) {
+        meterRegistry.getRecorder().collect();
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.ml.anomaly_detectors.hard_limit.current");
     }
 
     public static void addDatafeedTask(

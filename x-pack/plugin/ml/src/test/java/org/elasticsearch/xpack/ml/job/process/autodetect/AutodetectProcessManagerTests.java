@@ -860,6 +860,45 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertThat(manager.getOpenProcessMemoryUsage(), equalTo(ByteSizeValue.ofBytes(expectedSizeBytes)));
     }
 
+    public void testNoOpenJobsShouldCountZeroJobsAtHardLimit() {
+        assertThat(createSpyManager().countJobsAtHardLimit(), equalTo(0L));
+    }
+
+    public void testOpenJobsShouldCountOnlyJobsAtHardLimit() {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask hardLimitTask = openJobWithMemoryStatus(manager, 1L, ModelSizeStats.MemoryStatus.HARD_LIMIT);
+        openJobWithMemoryStatus(manager, 2L, ModelSizeStats.MemoryStatus.SOFT_LIMIT);
+        openJobWithMemoryStatus(manager, 3L, ModelSizeStats.MemoryStatus.OK);
+        openJobWithMemoryStatus(manager, 4L, ModelSizeStats.MemoryStatus.HARD_LIMIT);
+
+        assertThat(manager.countJobsAtHardLimit(), equalTo(2L));
+
+        manager.killProcess(hardLimitTask, false, null);
+
+        assertThat(manager.countJobsAtHardLimit(), equalTo(1L));
+    }
+
+    public void testOpenJobWithoutModelSizeStatsShouldNotCountAsHardLimit() {
+        AutodetectProcessManager manager = createSpyManager();
+        when(autodetectCommunicator.getModelSizeStats()).thenReturn(null);
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        assertThat(manager.countJobsAtHardLimit(), equalTo(0L));
+    }
+
+    private JobTask openJobWithMemoryStatus(AutodetectProcessManager manager, long allocationId, ModelSizeStats.MemoryStatus status) {
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        when(communicator.getModelSizeStats()).thenReturn(new ModelSizeStats.Builder("foo").setMemoryStatus(status).build());
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getAllocationId()).thenReturn(allocationId);
+        doReturn(communicator).when(manager).create(eq(jobTask), any(), any(), any());
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+        return jobTask;
+    }
+
     public void testSetJobState_withoutHandler_invokesPersistentTaskUpdate() {
         AutodetectProcessManager manager = createSpyManager();
         JobTask jobTask = mock(JobTask.class);

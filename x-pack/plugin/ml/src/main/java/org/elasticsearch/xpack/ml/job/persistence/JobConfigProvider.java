@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -686,6 +687,30 @@ public class JobConfigProvider {
                 response -> listener.onResponse(response.getHits().getTotalHits().value() > 0),
                 listener::onFailure
             ),
+            client::search
+        );
+    }
+
+    /**
+     * Counts the anomaly detector job configs, excluding jobs marked as deleting. Not capped by the results window.
+     */
+    public void countJobs(ActionListener<Long> listener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(new String[] { Metadata.ALL }, true))
+            .size(0)
+            .trackTotalHits(true);
+
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSource(sourceBuilder)
+            .request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
+                delegate.onResponse(response.getHits().getTotalHits().value());
+            }),
             client::search
         );
     }

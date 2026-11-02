@@ -27,10 +27,12 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -58,12 +61,15 @@ public class MlConfigMetricsTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
+    private JobConfigProvider jobConfigProvider;
     private DatafeedConfigProvider datafeedConfigProvider;
     private MeterRegistry meterRegistry;
     private Supplier<Measurement> internalCredentialsObserver;
     private Supplier<Collection<Measurement>> authTypeObserver;
     private Supplier<Collection<Measurement>> projectRoutingObserver;
     private Supplier<Collection<Measurement>> extractorTypeObserver;
+    private Supplier<Collection<Measurement>> jobTotalObserver;
+    private Supplier<Collection<Measurement>> datafeedTotalObserver;
 
     @Before
     public void initMlConfigMetricsTestDeps() throws Exception {
@@ -71,8 +77,12 @@ public class MlConfigMetricsTests extends ESTestCase {
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
         clusterService = mock(ClusterService.class);
+        jobConfigProvider = mock(JobConfigProvider.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        stubTotals(0L, 0L);
         meterRegistry = mock(MeterRegistry.class);
+        jobTotalObserver = captureLongsGauge(meterRegistry, "es.ml.anomaly_detectors.total.current");
+        datafeedTotalObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.total.current");
         internalCredentialsObserver = captureLongGauge(meterRegistry, "es.ml.datafeeds.cps.internal_credentials.current");
         authTypeObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.cps.auth_type.current");
         projectRoutingObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.cps.project_routing.current");
@@ -141,6 +151,7 @@ public class MlConfigMetricsTests extends ESTestCase {
             meterRegistry,
             clusterService,
             threadPool,
+            jobConfigProvider,
             datafeedConfigProvider,
             settings,
             xContentRegistry()
@@ -172,6 +183,7 @@ public class MlConfigMetricsTests extends ESTestCase {
             meterRegistry,
             clusterService,
             threadPool,
+            jobConfigProvider,
             datafeedConfigProvider,
             settings,
             xContentRegistry()
@@ -195,6 +207,7 @@ public class MlConfigMetricsTests extends ESTestCase {
             meterRegistry,
             clusterService,
             threadPool,
+            jobConfigProvider,
             datafeedConfigProvider,
             settings,
             xContentRegistry()
@@ -233,6 +246,7 @@ public class MlConfigMetricsTests extends ESTestCase {
             meterRegistry,
             clusterService,
             threadPool,
+            jobConfigProvider,
             datafeedConfigProvider,
             settings,
             xContentRegistry()
@@ -240,6 +254,198 @@ public class MlConfigMetricsTests extends ESTestCase {
         metrics.pollIfMaster();
 
         assertThat(internalCredentialsObserver.get().getLong(), equalTo(0L));
+    }
+
+    public void testPollIfMasterShouldPublishJobAndDatafeedTotals() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        stubTotals(7L, 5L);
+        MlConfigMetrics metrics = newMasterMetrics();
+        metrics.clusterChanged(masterClusterChangedEvent());
+
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), equalTo(List.of(7L)));
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(5L)));
+        assertThat(jobTotalObserver.get().iterator().next().attributes(), equalTo(Map.of("es.ml.is_master", true)));
+        assertThat(datafeedTotalObserver.get().iterator().next().attributes(), equalTo(Map.of("es.ml.is_master", true)));
+    }
+
+    public void testPollIfMasterShouldReportTotalsBeyondConfigScanWindow() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        long beyondScanWindow = MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW + 1L;
+        stubTotals(beyondScanWindow, beyondScanWindow + 1);
+        MlConfigMetrics metrics = newMasterMetrics();
+
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), equalTo(List.of(beyondScanWindow)));
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(beyondScanWindow + 1)));
+    }
+
+    public void testTotalsBeforeFirstSuccessfulPollShouldNotBeRecorded() {
+        newMasterMetrics();
+
+        assertThat(longValues(jobTotalObserver), empty());
+        assertThat(longValues(datafeedTotalObserver), empty());
+    }
+
+    public void testFirstPollWithFailedCountsShouldNotRecordZeroTotals() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        stubTotalsFailure();
+        MlConfigMetrics metrics = newMasterMetrics();
+
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), empty());
+        assertThat(longValues(datafeedTotalObserver), empty());
+    }
+
+    public void testFailedCountsShouldKeepPreviousTotalsAndAllowNextPoll() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        stubTotals(7L, 5L);
+        MlConfigMetrics metrics = newMasterMetrics();
+        metrics.pollIfMaster();
+
+        stubTotalsFailure();
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), equalTo(List.of(7L)));
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(5L)));
+
+        stubTotals(8L, 6L);
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), equalTo(List.of(8L)));
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(6L)));
+    }
+
+    public void testFailedJobCountShouldStillUpdateDatafeedTotal() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Long>>getArgument(0).onFailure(new IllegalStateException("simulated job count failure"));
+            return null;
+        }).when(jobConfigProvider).countJobs(any());
+        MlConfigMetrics metrics = newMasterMetrics();
+
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), empty());
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(0L)));
+    }
+
+    public void testFailedDatafeedScanShouldStillUpdateTotals() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<List<DatafeedConfig.Builder>>>getArgument(3)
+                .onFailure(new IllegalStateException("simulated scan failure"));
+            return null;
+        }).when(datafeedConfigProvider).expandDatafeedConfigs(eq("_all"), eq(true), isNull(), any());
+        stubTotals(3L, 2L);
+        MlConfigMetrics metrics = newMasterMetrics();
+
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), equalTo(List.of(3L)));
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(2L)));
+    }
+
+    public void testPollOnNonMasterShouldClearTotals() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        stubTotals(7L, 5L);
+        MlConfigMetrics metrics = newMasterMetrics();
+        metrics.pollIfMaster();
+        assertThat(longValues(jobTotalObserver), equalTo(List.of(7L)));
+
+        when(clusterService.state()).thenReturn(nonMasterClusterState());
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), empty());
+        assertThat(longValues(datafeedTotalObserver), empty());
+    }
+
+    public void testDemotionShouldClearTotals() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        stubTotals(7L, 5L);
+        MlConfigMetrics metrics = newMasterMetrics();
+        metrics.pollIfMaster();
+        assertThat(longValues(datafeedTotalObserver), equalTo(List.of(5L)));
+
+        metrics.clusterChanged(nonMasterClusterChangedEvent());
+
+        assertThat(longValues(jobTotalObserver), empty());
+        assertThat(longValues(datafeedTotalObserver), empty());
+    }
+
+    public void testDemotionWhileCountInFlightShouldNotPublishTotals() {
+        when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
+        stubExpandDatafeedConfigs(List.of());
+        doAnswer(invocation -> {
+            when(clusterService.state()).thenReturn(nonMasterClusterState());
+            invocation.<ActionListener<Long>>getArgument(0).onResponse(7L);
+            return null;
+        }).when(jobConfigProvider).countJobs(any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Long>>getArgument(0).onResponse(5L);
+            return null;
+        }).when(datafeedConfigProvider).countDatafeeds(any());
+        MlConfigMetrics metrics = newMasterMetrics();
+
+        metrics.pollIfMaster();
+
+        assertThat(longValues(jobTotalObserver), empty());
+        assertThat(longValues(datafeedTotalObserver), empty());
+    }
+
+    private MlConfigMetrics newMasterMetrics() {
+        return new MlConfigMetrics(
+            meterRegistry,
+            clusterService,
+            threadPool,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            Settings.builder().put(DiscoveryNodeRole.MASTER_ROLE.roleName(), true).build(),
+            xContentRegistry()
+        );
+    }
+
+    private void stubTotals(long jobs, long datafeeds) {
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Long>>getArgument(0).onResponse(jobs);
+            return null;
+        }).when(jobConfigProvider).countJobs(any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Long>>getArgument(0).onResponse(datafeeds);
+            return null;
+        }).when(datafeedConfigProvider).countDatafeeds(any());
+    }
+
+    private void stubTotalsFailure() {
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Long>>getArgument(0).onFailure(new IllegalStateException("simulated job count failure"));
+            return null;
+        }).when(jobConfigProvider).countJobs(any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Long>>getArgument(0).onFailure(new IllegalStateException("simulated datafeed count failure"));
+            return null;
+        }).when(datafeedConfigProvider).countDatafeeds(any());
+    }
+
+    private static List<Long> longValues(Supplier<Collection<Measurement>> observer) {
+        return observer.get().stream().map(Measurement::getLong).toList();
+    }
+
+    private ClusterChangedEvent nonMasterClusterChangedEvent() {
+        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+        when(event.localNodeMaster()).thenReturn(false);
+        when(event.state()).thenReturn(nonMasterClusterState());
+        return event;
     }
 
     private static Settings cpsMasterSettings() {

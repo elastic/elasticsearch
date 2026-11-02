@@ -623,6 +623,30 @@ public class DatafeedConfigProvider {
 
     }
 
+    /**
+     * Counts the datafeed configs. Not capped by the results window.
+     */
+    public void countDatafeeds(ActionListener<Long> listener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(
+            new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE)
+        ).size(0).trackTotalHits(true);
+
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSource(sourceBuilder)
+            .request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
+                delegate.onResponse(response.getHits().getTotalHits().value());
+            }),
+            client::search
+        );
+    }
+
     private static QueryBuilder buildDatafeedIdQuery(String[] tokens) {
         QueryBuilder datafeedQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
         if (Strings.isAllOrWildcard(tokens)) {

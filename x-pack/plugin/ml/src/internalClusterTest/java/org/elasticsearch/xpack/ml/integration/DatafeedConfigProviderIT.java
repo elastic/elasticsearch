@@ -418,6 +418,23 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("No datafeed with id [foo-1*] exists"));
     }
 
+    public void testCountDatafeedsWithNoDatafeedsShouldReturnZero() throws Exception {
+        Long count = blockingCall(actionListener -> datafeedConfigProvider.countDatafeeds(actionListener));
+
+        assertThat(count, equalTo(0L));
+    }
+
+    public void testCountDatafeedsShouldCountEveryDatafeedConfig() throws Exception {
+        putDatafeedConfig(createDatafeedConfig("count-1", "cj1"), Collections.emptyMap());
+        putDatafeedConfig(createDatafeedConfig("count-2", "cj2"), Collections.emptyMap());
+        putDatafeedConfig(createDatafeedConfig("count-3", "cj3"), Collections.emptyMap());
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
+
+        Long count = blockingCall(actionListener -> datafeedConfigProvider.countDatafeeds(actionListener));
+
+        assertThat(count, equalTo(3L));
+    }
+
     public void testFindDatafeedIdsForJobIds() throws Exception {
         putDatafeedConfig(createDatafeedConfig("foo-1", "j1"), Collections.emptyMap());
         putDatafeedConfig(createDatafeedConfig("foo-2", "j2"), Collections.emptyMap());

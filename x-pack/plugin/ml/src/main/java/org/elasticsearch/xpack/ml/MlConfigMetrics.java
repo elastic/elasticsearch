@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -58,6 +59,9 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
 
     private static final Map<String, Object> MASTER_TRUE_MAP = Map.of("es.ml.is_master", Boolean.TRUE);
     private static final Map<String, Object> MASTER_FALSE_MAP = Map.of("es.ml.is_master", Boolean.FALSE);
+
+    /** Marks a total that has not been counted since this node became master; its gauge records nothing. */
+    private static final long TOTAL_UNAVAILABLE = -1L;
 
     public static final Setting<TimeValue> POLL_INTERVAL = Setting.timeSetting(
         "xpack.ml.config.metrics.poll_interval",
@@ -142,6 +146,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final CrossProjectModeDecider crossProjectModeDecider;
@@ -151,6 +156,8 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
     private volatile Map<String, Object> isMasterMap = MASTER_FALSE_MAP;
     private volatile CpsDatafeedCounts cpsCounts = CpsDatafeedCounts.EMPTY;
     private volatile Map<ExtractorType, Long> extractorTypeCounts = emptyExtractorTypeCounts();
+    private volatile long anomalyDetectorTotal = TOTAL_UNAVAILABLE;
+    private volatile long datafeedTotal = TOTAL_UNAVAILABLE;
     private final AtomicBoolean pollInProgress = new AtomicBoolean(false);
 
     private Scheduler.Cancellable scheduledPoll;
@@ -160,12 +167,14 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         MeterRegistry meterRegistry,
         ClusterService clusterService,
         ThreadPool threadPool,
+        JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         Settings settings,
         NamedXContentRegistry xContentRegistry
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
@@ -210,6 +219,28 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
                 this::recordExtractorTypeCounts
             )
         );
+        metrics.add(
+            meterRegistry.registerLongAsyncGauge(
+                "es.ml.anomaly_detectors.total.current",
+                "Count of anomaly detection job configs, excluding jobs being deleted.",
+                "jobs",
+                measurement -> recordTotal(measurement, anomalyDetectorTotal)
+            )
+        );
+        metrics.add(
+            meterRegistry.registerLongAsyncGauge(
+                "es.ml.datafeeds.total.current",
+                "Count of datafeed configs.",
+                "datafeeds",
+                measurement -> recordTotal(measurement, datafeedTotal)
+            )
+        );
+    }
+
+    private void recordTotal(LongAsyncMeasurement measurement, long total) {
+        if (total != TOTAL_UNAVAILABLE) {
+            measurement.record(total, isMasterMap);
+        }
     }
 
     private void recordExtractorTypeCounts(LongAsyncMeasurement measurement) {
@@ -276,6 +307,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         if (event.localNodeMaster() == false) {
             cpsCounts = CpsDatafeedCounts.EMPTY;
             extractorTypeCounts = emptyExtractorTypeCounts();
+            resetTotals();
             return;
         }
         if (crossProjectMlEnabled() == false) {
@@ -290,31 +322,52 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
             cpsCounts = CpsDatafeedCounts.EMPTY;
             extractorTypeCounts = emptyExtractorTypeCounts();
+            resetTotals();
             return;
         }
         if (pollInProgress.compareAndSet(false, true) == false) {
             return;
         }
-        datafeedConfigProvider.expandDatafeedConfigs("_all", true, null, ActionListener.wrap(builders -> {
-            try {
-                List<DatafeedConfig> configs = builders.stream().map(DatafeedConfig.Builder::build).toList();
-                // The scan is async: this node may have lost mastership while the request was in flight.
-                // clusterChanged() already reset counts on demotion; re-check here so a late response
-                // can't overwrite that with stale non-empty counts on a now non-master node.
-                if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-                    extractorTypeCounts = computeExtractorTypeCounts(configs, xContentRegistry);
-                    cpsCounts = crossProjectMlEnabled() ? computeCounts(configs) : CpsDatafeedCounts.EMPTY;
-                } else {
-                    cpsCounts = CpsDatafeedCounts.EMPTY;
-                    extractorTypeCounts = emptyExtractorTypeCounts();
-                }
-            } finally {
-                pollInProgress.set(false);
+        // pollTotals() runs after the scan whether it succeeds or fails; pollDatafeedTotal(), the last link of the chain, releases
+        // pollInProgress.
+        datafeedConfigProvider.expandDatafeedConfigs("_all", true, null, ActionListener.runAfter(ActionListener.wrap(builders -> {
+            List<DatafeedConfig> configs = builders.stream().map(DatafeedConfig.Builder::build).toList();
+            // The scan is async: this node may have lost mastership while the request was in flight.
+            // clusterChanged() already reset counts on demotion; re-check here so a late response
+            // can't overwrite that with stale non-empty counts on a now non-master node.
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                extractorTypeCounts = computeExtractorTypeCounts(configs, xContentRegistry);
+                cpsCounts = crossProjectMlEnabled() ? computeCounts(configs) : CpsDatafeedCounts.EMPTY;
+            } else {
+                cpsCounts = CpsDatafeedCounts.EMPTY;
+                extractorTypeCounts = emptyExtractorTypeCounts();
             }
-        }, e -> {
-            logger.warn("Failed to poll datafeed configs for ML config metrics", e);
-            pollInProgress.set(false);
-        }));
+        }, e -> logger.warn("Failed to poll datafeed configs for ML config metrics", e)), this::pollTotals));
+    }
+
+    private void pollTotals() {
+        jobConfigProvider.countJobs(ActionListener.runAfter(ActionListener.wrap(count -> {
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                anomalyDetectorTotal = count;
+            } else {
+                resetTotals();
+            }
+        }, e -> logger.warn("Failed to count anomaly detector jobs for ML config metrics", e)), this::pollDatafeedTotal));
+    }
+
+    private void pollDatafeedTotal() {
+        datafeedConfigProvider.countDatafeeds(ActionListener.runAfter(ActionListener.wrap(count -> {
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                datafeedTotal = count;
+            } else {
+                resetTotals();
+            }
+        }, e -> logger.warn("Failed to count datafeeds for ML config metrics", e)), () -> pollInProgress.set(false)));
+    }
+
+    private void resetTotals() {
+        anomalyDetectorTotal = TOTAL_UNAVAILABLE;
+        datafeedTotal = TOTAL_UNAVAILABLE;
     }
 
     static Map<ExtractorType, Long> computeExtractorTypeCounts(Iterable<DatafeedConfig> configs, NamedXContentRegistry xContentRegistry) {

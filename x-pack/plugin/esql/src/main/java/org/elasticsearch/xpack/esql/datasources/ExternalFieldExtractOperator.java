@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -501,6 +502,17 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             Status::readFrom
         );
 
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(Status::toXContent)
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_extracted", ProfileSchema.integer())
+            .required("extract_nanos", ProfileSchema.integer())
+            .required("extract_cpu_nanos", ProfileSchema.integer())
+            .build();
+
         private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
         private static final TransportVersion ESQL_EXTRACT_CPU_NANOS = TransportVersion.fromName("esql_extract_cpu_nanos");
 
@@ -578,12 +590,20 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, org.elasticsearch.xcontent.ToXContent.Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(
+            XContentBuilder builder,
+            Status status,
+            org.elasticsearch.xcontent.ToXContent.Params params
+        ) throws IOException {
             builder.startObject();
-            innerToXContent(builder);
-            builder.field("pages_processed", completedPages());
-            builder.field("rows_extracted", rowsExtracted);
-            builder.field("extract_nanos", extractNanos);
-            builder.field("extract_cpu_nanos", extractCpuNanos);
+            status.innerToXContent(builder);
+            builder.field("pages_processed", status.completedPages());
+            builder.field("rows_extracted", status.rowsExtracted);
+            builder.field("extract_nanos", status.extractNanos);
+            builder.field("extract_cpu_nanos", status.extractCpuNanos);
             return builder.endObject();
         }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.PlanProfile;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -60,6 +61,38 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
+
+    /**
+     * Schema and non-chunked writer for the value of the response's {@code profile} field.
+     * Production response rendering remains chunked.
+     */
+    public static final ProfileSchema<ProfileValue> PROFILE_SCHEMA = ProfileSchema.<ProfileValue>object((builder, value, params) -> {
+        builder.startObject();
+        if (value.queryProfile() != null) {
+            EsqlQueryProfile.PROFILE_SCHEMA.write(builder, value.queryProfile(), params);
+        }
+        builder.startArray("drivers");
+        for (DriverProfile driver : value.profile().drivers()) {
+            ChunkedToXContent.wrapAsToXContent(driver).toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.startArray("plans");
+        for (PlanProfile plan : value.profile().plans()) {
+            PlanProfile.PROFILE_SCHEMA.write(builder, plan, params);
+        }
+        builder.endArray();
+        TransportVersion minimumVersion = value.profile().minimumVersion();
+        builder.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
+        return builder.endObject();
+    })
+        .include(EsqlQueryProfile.PROFILE_SCHEMA)
+        .required("drivers", ProfileSchema.array(ProfileSchema.ref("DriverProfile")))
+        .required("plans", ProfileSchema.array(ProfileSchema.ref("PlanProfile")))
+        .required("minimumTransportVersion", ProfileSchema.nullable(ProfileSchema.integer()))
+        .build();
+
+    /** Values needed to render the flattened {@code profile} response object. */
+    public record ProfileValue(Profile profile, @Nullable EsqlQueryProfile queryProfile) {}
 
     private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;

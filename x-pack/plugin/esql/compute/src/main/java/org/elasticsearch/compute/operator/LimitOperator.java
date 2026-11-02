@@ -174,6 +174,15 @@ public class LimitOperator implements Operator {
             "limit",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("limit", ProfileSchema.integer())
+            .required("limit_remaining", ProfileSchema.integer())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         /**
          * Total number of position that are emitted by this operator.
@@ -265,8 +274,7 @@ public class LimitOperator implements Operator {
             return rowsEmitted;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("limit", limit);
             builder.field("limit_remaining", limitRemaining);
@@ -274,6 +282,11 @@ public class LimitOperator implements Operator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

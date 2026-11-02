@@ -1,0 +1,66 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.esql-release'
+
+base {
+  archivesName = 'esql-profile-schema'
+}
+
+configurations {
+  esqlProfileSchema {
+    canBeResolved = false
+    canBeConsumed = true
+  }
+}
+
+dependencies {
+  implementation project(':server')
+  implementation project(xpackModule('core'))
+  implementation project(xpackModule('esql'))
+  implementation project(xpackModule('esql:compute'))
+  implementation project(xpackModule('esql-core'))
+  implementation(project(xpackModule('esql-datasource-csv'))) {
+    transitive = false
+  }
+  implementation(project(xpackModule('esql-datasource-ndjson'))) {
+    transitive = false
+  }
+  implementation(project(xpackModule('esql-datasource-orc'))) {
+    transitive = false
+  }
+  implementation(project(xpackModule('esql-datasource-parquet'))) {
+    transitive = false
+  }
+
+  testImplementation project(':test:framework')
+  testImplementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testImplementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
+}
+
+def realCommonsLang = configurations.testRuntimeClasspath.filter { it.name.startsWith('commons-lang3-') }
+tasks.named('test').configure {
+  // The ORC plugin contains a minimal same-FQN StringUtils stub for its isolated production
+  // classloader. NetworkNT needs the complete library, so put it first on this flat test classpath.
+  classpath = realCommonsLang + (classpath - realCommonsLang)
+}
+
+def generatedSchema = layout.buildDirectory.file('generated-resources/esql-profile/esql-profile.schema.json')
+
+def generateProfileSchema = tasks.register('generateProfileSchema', JavaExec) {
+  group = 'Build'
+  description = 'Generates the complete ES|QL profile response JSON Schema.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.profileschema.GenerateProfileSchema'
+  args generatedSchema.get().asFile
+  outputs.file(generatedSchema)
+}
+
+artifacts {
+  esqlProfileSchema(generatedSchema) {
+    builtBy generateProfileSchema
+  }
+}
+
+tasks.named('assemble').configure {
+  dependsOn generateProfileSchema
+}

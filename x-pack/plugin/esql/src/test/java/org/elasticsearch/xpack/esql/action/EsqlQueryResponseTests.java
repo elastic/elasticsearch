@@ -1633,6 +1633,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "operators" : [
                           {
                             "operator" : "asdf",
+                            "status_type" : "page_mapping",
                             "status" : {
                               "process_nanos" : 10021,
                               "pages_processed" : 10,

@@ -58,6 +58,19 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
             }"""));
     }
 
+    public void testProfileSchemas() {
+        Map<?, ?> sleepProperties = (Map<?, ?>) DriverSleeps.Sleep.PROFILE_SCHEMA.schema().get("properties");
+        assertEquals(
+            List.of("reason", "thread_name", "sleep", "sleep_millis", "wake", "wake_millis"),
+            new ArrayList<>(sleepProperties.keySet())
+        );
+        assertEquals(List.of("reason", "thread_name", "sleep_millis"), DriverSleeps.Sleep.PROFILE_SCHEMA.schema().get("required"));
+
+        Map<?, ?> sleepsProperties = (Map<?, ?>) DriverSleeps.PROFILE_SCHEMA.schema().get("properties");
+        assertEquals(List.of("counts", "first", "last"), new ArrayList<>(sleepsProperties.keySet()));
+        assertEquals(List.of("counts", "first", "last"), DriverSleeps.PROFILE_SCHEMA.schema().get("required"));
+    }
+
     public void testSleepingToXContent() {
         Formatter formatter = new Formatter(Locale.US);
         String expected = formatter.format("""

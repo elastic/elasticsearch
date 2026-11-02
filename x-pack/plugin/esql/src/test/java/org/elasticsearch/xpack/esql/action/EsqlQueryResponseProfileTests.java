@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -17,6 +19,9 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.List;
@@ -104,5 +109,29 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     public static TransportVersion randomMinimumVersion() {
         return randomBoolean() ? null : EsqlTestUtils.randomMinimumVersion();
+    }
+
+    public void testProfileSchemaWriterMatchesChunkedResponseWriter() throws Exception {
+        EsqlQueryResponse.Profile profile = createTestInstance();
+        for (boolean humanReadable : List.of(false, true)) {
+            String expected;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder().humanReadable(humanReadable)) {
+                builder.startObject();
+                ChunkedToXContent.wrapAsToXContent(EsqlQueryResponse.profileXContent(profile, null))
+                    .toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                expected = Strings.toString(builder);
+            }
+
+            String actual;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder().humanReadable(humanReadable)) {
+                builder.startObject();
+                builder.field("profile");
+                EsqlQueryResponse.PROFILE_SCHEMA.write(builder, new EsqlQueryResponse.ProfileValue(profile, null), ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                actual = Strings.toString(builder);
+            }
+            assertEquals(expected, actual);
+        }
     }
 }

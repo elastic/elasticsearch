@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
@@ -58,6 +59,33 @@ public record DriverProfile(
     List<OperatorStatus> operators,
     DriverSleeps sleeps
 ) implements Writeable, ChunkedToXContentObject {
+
+    public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.<DriverProfile>object(
+        (builder, value, params) -> ChunkedToXContent.wrapAsToXContent(value).toXContent(builder, params)
+    )
+        .required("description", ProfileSchema.string())
+        .required("cluster_name", ProfileSchema.string())
+        .required("node_name", ProfileSchema.string())
+        .optional("start", ProfileSchema.string())
+        .required("start_millis", ProfileSchema.integer())
+        .optional("stop", ProfileSchema.string())
+        .required("stop_millis", ProfileSchema.integer())
+        .required("took_nanos", ProfileSchema.integer())
+        .optional("took_time", ProfileSchema.string())
+        .required("cpu_nanos", ProfileSchema.integer())
+        .optional("cpu_time", ProfileSchema.string())
+        .required("driver_nanos", ProfileSchema.integer())
+        .optional("driver_time", ProfileSchema.string())
+        .required("documents_found", ProfileSchema.integer())
+        .required("values_loaded", ProfileSchema.integer())
+        .required("rows_emitted", ProfileSchema.integer())
+        .required("bytes_read", ProfileSchema.integer())
+        .required("read_nanos", ProfileSchema.integer())
+        .required("read_cpu_nanos", ProfileSchema.integer())
+        .required("iterations", ProfileSchema.integer())
+        .required("operators", ProfileSchema.array(OperatorStatus.PROFILE_SCHEMA.schema()))
+        .required("sleeps", DriverSleeps.PROFILE_SCHEMA.schema())
+        .build();
 
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");

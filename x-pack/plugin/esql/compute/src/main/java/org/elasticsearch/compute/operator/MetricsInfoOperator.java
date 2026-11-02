@@ -526,6 +526,15 @@ public class MetricsInfoOperator implements Operator {
             "metrics_info",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("mode", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("metrics_accumulated", ProfileSchema.integer())
+            .build();
 
         private static final TransportVersion ESQL_METRICS_INFO_OPERATOR_STATUS = TransportVersion.fromName(
             "esql_metrics_info_operator_status"
@@ -549,8 +558,7 @@ public class MetricsInfoOperator implements Operator {
             return ENTRY.name;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("mode", mode);
             builder.field("pages_received", pagesReceived);
@@ -558,6 +566,11 @@ public class MetricsInfoOperator implements Operator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("metrics_accumulated", metricsAccumulated);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

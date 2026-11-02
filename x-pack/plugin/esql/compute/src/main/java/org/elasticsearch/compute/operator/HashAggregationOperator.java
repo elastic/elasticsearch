@@ -785,6 +785,21 @@ public class HashAggregationOperator implements Operator {
             "hashagg",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("hash_nanos", ProfileSchema.integer())
+            .optional("hash_time", ProfileSchema.string())
+            .required("aggregation_nanos", ProfileSchema.integer())
+            .optional("aggregation_time", ProfileSchema.string())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .optional("emit_count", ProfileSchema.integer())
+            .required("emit_nanos", ProfileSchema.integer())
+            .optional("emit_time", ProfileSchema.string())
+            .optional("partitioning", ParallelHashAggregationOperator.PartitioningStatus.partitioningSchema())
+            .build();
 
         private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = TransportVersion.fromName(
             "esql_hash_operator_status_output_time"
@@ -956,8 +971,7 @@ public class HashAggregationOperator implements Operator {
             return extraFields;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hash_nanos", hashNanos);
             if (builder.humanReadable()) {
@@ -981,7 +995,11 @@ public class HashAggregationOperator implements Operator {
                 ef.toXContent(builder, params);
             }
             return builder.endObject();
+        }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

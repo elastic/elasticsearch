@@ -32,50 +32,67 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Unit tests for {@link InnerJoin}: it is an INNER {@link Join} subtype, and it participates in the coordinator phase loop via its own
- * {@link InnerJoin#firstSubPlan} / {@link InnerJoin#newMainPlan} hooks. Unlike the SEMI family ({@link AbstractSubqueryJoin}), its
- * {@link InnerJoin#newMainPlan} path simply replaces the right child with the materialized {@link LocalRelation} so the mapper can
- * lower the node to LEFT {@code HashJoinExec} + lookup-ordinal filter - it does not rewrite into an {@code IN} list or hash join.
+ * Unit tests for {@link HashJoin}: coordinator hash join ({@link Join} subtype), and it participates in the coordinator phase loop via its own
+ * {@link HashJoin#firstSubPlan} / {@link HashJoin#newMainPlan} hooks. Unlike the SEMI family ({@link AbstractSubqueryJoin}), its
+ * {@link HashJoin#newMainPlan} path simply replaces the right child with the materialized {@link LocalRelation} so the mapper can
+ * lower the node to {@code HashJoinExec} (+ lookup-ordinal filter for INNER) - it does not rewrite into an {@code IN} list.
  */
-public class InnerJoinTests extends ESTestCase {
+public class HashJoinTests extends ESTestCase {
 
-    public void testIsInnerJoinWithInnerJoinShape() {
+    public void testIsHashJoinWithHashJoinShape() {
         FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute value = getFieldAttribute("v", DataType.LONG);
-        InnerJoin innerJoin = innerJoin(leftKey, rightKey, value, true);
+        HashJoin hashJoin = hashJoin(leftKey, rightKey, value, true);
 
-        assertThat(innerJoin, instanceOf(Join.class));
-        assertThat(innerJoin.config().type(), sameInstance(JoinTypes.INNER));
-        assertThat(innerJoin.leftFields(), equalTo(List.of(leftKey)));
-        assertThat(innerJoin.rightFields(), equalTo(List.of(rightKey)));
-        assertThat(innerJoin.addedFields(), equalTo(List.of(value)));
-        assertThat(innerJoin.unique(), is(true));
+        assertThat(hashJoin, instanceOf(Join.class));
+        assertThat(hashJoin.config().type(), sameInstance(JoinTypes.INNER));
+        assertThat(hashJoin.leftFields(), equalTo(List.of(leftKey)));
+        assertThat(hashJoin.rightFields(), equalTo(List.of(rightKey)));
+        assertThat(hashJoin.addedFields(), equalTo(List.of(value)));
+        assertThat(hashJoin.unique(), is(true));
         // INNER equi-join output: the copied build column(s) plus the (probe) join key, as the physical HashJoinExec produces.
-        assertThat(innerJoin.output(), equalTo(List.of(value, leftKey)));
+        assertThat(hashJoin.output(), equalTo(List.of(value, leftKey)));
+    }
+
+    public void testLeftJoinType() {
+        FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
+        FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
+        FieldAttribute value = getFieldAttribute("v", DataType.LONG);
+        HashJoin hashJoin = new HashJoin(
+            Source.EMPTY,
+            localRelation(List.of(leftKey)),
+            localRelation(List.of(rightKey, value)),
+            List.of(leftKey),
+            List.of(rightKey),
+            List.of(value),
+            false,
+            JoinTypes.LEFT
+        );
+        assertThat(hashJoin.config().type(), sameInstance(JoinTypes.LEFT));
     }
 
     public void testNotSerialized() {
-        InnerJoin innerJoin = innerJoin(getFieldAttribute("k", DataType.LONG), getFieldAttribute("k", DataType.LONG), null, false);
-        expectThrows(UnsupportedOperationException.class, () -> innerJoin.writeTo((StreamOutput) null));
-        expectThrows(UnsupportedOperationException.class, innerJoin::getWriteableName);
+        HashJoin hashJoin = hashJoin(getFieldAttribute("k", DataType.LONG), getFieldAttribute("k", DataType.LONG), null, false);
+        expectThrows(UnsupportedOperationException.class, () -> hashJoin.writeTo((StreamOutput) null));
+        expectThrows(UnsupportedOperationException.class, hashJoin::getWriteableName);
     }
 
-    public void testFirstSubPlanFindsInnerJoinRight() {
-        InnerJoin innerJoin = innerJoin(getFieldAttribute("k", DataType.LONG), getFieldAttribute("k", DataType.LONG), null, true);
+    public void testFirstSubPlanFindsHashJoinRight() {
+        HashJoin hashJoin = hashJoin(getFieldAttribute("k", DataType.LONG), getFieldAttribute("k", DataType.LONG), null, true);
 
-        InnerJoin.LogicalPlanTuple tuple = InnerJoin.firstSubPlan(innerJoin, new HashSet<>());
+        HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(hashJoin, new HashSet<>());
         assertThat(tuple, notNullValue());
         // The right subquery is the very instance held on the join, doubling as the identity key for newMainPlan.
-        assertThat(tuple.subPlan(), sameInstance(innerJoin.right()));
-        assertThat(tuple.originalSubPlan(), sameInstance(innerJoin.right()));
+        assertThat(tuple.subPlan(), sameInstance(hashJoin.right()));
+        assertThat(tuple.originalSubPlan(), sameInstance(hashJoin.right()));
     }
 
     public void testFirstSubPlanSkipsAlreadyMaterializedRight() {
         FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         LocalRelation materializedRight = localRelation(List.of(rightKey));
-        InnerJoin innerJoin = new InnerJoin(
+        HashJoin hashJoin = new HashJoin(
             Source.EMPTY,
             localRelation(List.of(leftKey)),
             materializedRight,
@@ -87,36 +104,36 @@ public class InnerJoinTests extends ESTestCase {
 
         Set<LocalRelation> processed = new HashSet<>();
         processed.add(materializedRight);
-        assertThat(InnerJoin.firstSubPlan(innerJoin, processed), nullValue());
+        assertThat(HashJoin.firstSubPlan(hashJoin, processed), nullValue());
     }
 
     public void testNewMainPlanReplacesRightWithLocalRelation() {
         FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute value = getFieldAttribute("v", DataType.LONG);
-        InnerJoin innerJoin = innerJoin(leftKey, rightKey, value, true);
+        HashJoin hashJoin = hashJoin(leftKey, rightKey, value, true);
 
-        InnerJoin.LogicalPlanTuple tuple = InnerJoin.firstSubPlan(innerJoin, new HashSet<>());
+        HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(hashJoin, new HashSet<>());
         assertThat(tuple, notNullValue());
 
         LocalRelation materialized = localRelation(List.of(rightKey, value));
-        LogicalPlan newMain = InnerJoin.newMainPlan(innerJoin, tuple, materialized);
+        LogicalPlan newMain = HashJoin.newMainPlan(hashJoin, tuple, materialized);
 
-        // Still an InnerJoin (not rewritten into a Filter/HashJoin like the SEMI family), now with the materialized build side on its
+        // Still a HashJoin (not rewritten into a Filter/HashJoin like the SEMI family), now with the materialized build side on its
         // right.
-        InnerJoin rebuilt = as(newMain, InnerJoin.class);
+        HashJoin rebuilt = as(newMain, HashJoin.class);
         assertThat(rebuilt.right(), sameInstance(materialized));
-        assertThat(rebuilt.left(), sameInstance(innerJoin.left()));
-        assertThat(rebuilt.leftFields(), equalTo(innerJoin.leftFields()));
-        assertThat(rebuilt.rightFields(), equalTo(innerJoin.rightFields()));
-        assertThat(rebuilt.addedFields(), equalTo(innerJoin.addedFields()));
-        assertThat(rebuilt.unique(), is(innerJoin.unique()));
+        assertThat(rebuilt.left(), sameInstance(hashJoin.left()));
+        assertThat(rebuilt.leftFields(), equalTo(hashJoin.leftFields()));
+        assertThat(rebuilt.rightFields(), equalTo(hashJoin.rightFields()));
+        assertThat(rebuilt.addedFields(), equalTo(hashJoin.addedFields()));
+        assertThat(rebuilt.unique(), is(hashJoin.unique()));
     }
 
-    private static InnerJoin innerJoin(FieldAttribute leftKey, FieldAttribute rightKey, FieldAttribute addedValue, boolean unique) {
+    private static HashJoin hashJoin(FieldAttribute leftKey, FieldAttribute rightKey, FieldAttribute addedValue, boolean unique) {
         List<Attribute> rightOutput = addedValue == null ? List.of(rightKey) : List.of(rightKey, addedValue);
         List<Attribute> added = addedValue == null ? List.of() : List.of(addedValue);
-        return new InnerJoin(
+        return new HashJoin(
             Source.EMPTY,
             localRelation(List.of(leftKey)),
             localRelation(rightOutput),

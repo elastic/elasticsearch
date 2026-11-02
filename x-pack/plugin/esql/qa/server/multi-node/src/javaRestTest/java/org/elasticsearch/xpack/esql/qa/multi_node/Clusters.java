@@ -32,7 +32,8 @@ public class Clusters {
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
         LocalClusterSpecBuilder<ElasticsearchCluster> cluster = baseCluster(csvDataPath).nodes(2)
             .setting("esql.external.local_allowed_paths", csvDataPath::toString)
-            // Federation is only on by default in snapshot builds; the EXTERNAL and dataset specs run here need it on.
+            // Pinned so the external data source and dataset specs run here do not depend on the default, which is off
+            // on a stateless release build.
             .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             .apply(() -> configProvider);

@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -189,6 +190,23 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
         }));
         assertFalse(createSearchExecutionContext(mapperService).unmappedFields().mayExist());
         assertMayHoldUnmappedFields(mapperService, b -> b.field("field", "value").field("unmapped", "value"), false);
+    }
+
+    public void testStrictColumnarSinkHoldsUnmappedFields() throws IOException {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), randomFrom("synthetic", "columnar_stored"))
+            .build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
+        String value = randomAlphanumericOfLength(5);
+        // Neither source has an _ignored_source or _ignored field for an absorbed field to go by: only the sink's keyed field tells.
+        assertMayHoldUnmappedFields(mapperService, b -> b.field("field", value), false);
+        assertMayHoldUnmappedFields(mapperService, b -> b.field("field", value).field("unmapped", value), true);
     }
 
     public void testWithoutSearcher() throws IOException {

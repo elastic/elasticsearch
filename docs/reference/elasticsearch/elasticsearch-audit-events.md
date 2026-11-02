@@ -641,7 +641,7 @@ $$$event-tampered-request$$$
     ::::
 
 $$$event-put-data-source$$$
-`put_data_source` {applies_to}`stack: experimental 9.6+`
+`put_data_source` {applies_to}`stack: preview 9.6+`
 :   Logged when the [create or update data source API](../query-languages/esql/esql-data-federation-sources.md#create-or-update-a-data-source) is invoked to create or update a data source at `/_query/data_source/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
@@ -658,7 +658,7 @@ $$$event-put-data-source$$$
     ::::
 
 $$$event-delete-data-source$$$
-`delete_data_source` {applies_to}`stack: experimental 9.6+`
+`delete_data_source` {applies_to}`stack: preview 9.6+`
 :   Logged when the [delete data source API](../query-languages/esql/esql-data-federation-sources.md#delete-a-data-source) is invoked to delete a data source at `/_query/data_source/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
@@ -675,8 +675,8 @@ $$$event-delete-data-source$$$
     ::::
 
 $$$event-put-dataset$$$
-`put_dataset` {applies_to}`stack: experimental 9.6+`
-:   Logged when the [create or update dataset API](../query-languages/esql/esql-data-federation-manage-datasets.md#create-or-update-a-dataset) is invoked to create or update a dataset at `/_query/dataset/{name}`.
+`put_dataset` {applies_to}`stack: preview 9.6+`
+:   Logged when the [create or update dataset API](../query-languages/esql/esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset) is invoked to create or update a dataset at `/_query/dataset/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -693,8 +693,8 @@ $$$event-put-dataset$$$
     ::::
 
 $$$event-delete-dataset$$$
-`delete_dataset` {applies_to}`stack: experimental 9.6+`
-:   Logged when the [delete dataset API](../query-languages/esql/esql-data-federation-manage-datasets.md#delete-a-dataset) is invoked to delete a dataset at `/_query/dataset/{name}`.
+`delete_dataset` {applies_to}`stack: preview 9.6+`
+:   Logged when the [delete dataset API](../query-languages/esql/esql-data-federation-manage-datasets-api.md#delete-a-dataset) is invoked to delete a dataset at `/_query/dataset/{name}`.
 
     You must include the `security_config_change` event type to audit the related event action.
 
@@ -742,7 +742,7 @@ The following list shows attributes that are common to all audit event types:
 
     * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
     * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
-    * {applies_to}`stack: experimental 9.6+` `put_data_source`, `delete_data_source`, `put_dataset`, `delete_dataset`
+    * {applies_to}`stack: preview 9.6+` `put_data_source`, `delete_data_source`, `put_dataset`, `delete_dataset`
 
 `request.id`
 :   A synthetic identifier that can be used to correlate the events associated with a particular REST request.
@@ -830,7 +830,7 @@ The events with the `event.type` attribute equal to `security_config_change` hav
 
    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
-   * {applies_to}`stack: experimental 9.6+` `put_dataset`, `delete_dataset`, `put_data_source`, `delete_data_source`
+   * {applies_to}`stack: preview 9.6+` `put_dataset`, `delete_dataset`, `put_data_source`, `delete_data_source`
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
@@ -838,13 +838,13 @@ These events also have **one** of the following extra attributes (in addition to
 :   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the following objects:
     * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
     * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
-    * {applies_to}`stack: experimental 9.6+` `data_source` or `dataset`
+    * {applies_to}`stack: preview 9.6+` `data_source` or `dataset`
 
 `delete`
 :   The object representation of the security config that is being deleted. It contains one of the following:
     * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
     * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
-    * {applies_to}`stack: experimental 9.6+` `data_source` or `dataset`
+    * {applies_to}`stack: preview 9.6+` `data_source` or `dataset`
 
 `change`
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.

@@ -92,12 +92,13 @@ setup:
           - '{"index": {"_index": "my_index2", "_id": "2"}}'
           - '{"my_field": "goodbye"}'
 
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_no_relocating_shards: true
+
 ---
 "Reload analyzers for specific synonym set":
-# These specific tests can't succeed in BwC, as synonyms auto-expand replicas are 0-all. Replicas can't be associated to
-#  upgraded nodes, and thus we are not able to guarantee that the shards are not failed.
-# This test is skipped for BwC until synonyms index has auto-exapnd replicas set to 0-1.
-
   - do:
       synonyms.put_synonym:
         id: synonyms_set1

@@ -18,8 +18,8 @@ import java.util.Map;
 ///
 /// - [#COMMIT_PREFETCH_TOTAL_METRIC]: one sample per notification, tagged with the [#TYPE_ATTRIBUTE] (the [PrefetchResult]), including the
 ///   notifications for which prefetching was skipped;
-/// - [#COMMIT_PREFETCH_DURATION_HISTOGRAM_METRIC]: how long a prefetch took, from its start until all the ranges are in the cache. Unlike the
-///   notification time measured on indexing shards, it is not capped by the timeout used to release the VBCC.
+/// - [#COMMIT_PREFETCH_DURATION_HISTOGRAM_METRIC]: how long a prefetch took, from its start until all the ranges are in the cache.
+///   Unlike the notification time measured on indexing shards, it is not capped by the timeout used to release the VBCC.
 public record SearchCommitPrefetcherMetrics(LongCounter prefetchCounter, LongHistogram prefetchDurationHistogram) {
 
     public static final String COMMIT_PREFETCH_TOTAL_METRIC = "es.stateless.search.commit_prefetch.total";

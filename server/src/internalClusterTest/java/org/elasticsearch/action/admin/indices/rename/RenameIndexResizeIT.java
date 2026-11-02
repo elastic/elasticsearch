@@ -37,7 +37,10 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
         rename("source", "renamed");
 
         final ResizeType type = randomFrom(ResizeType.CLONE, ResizeType.SHRINK, ResizeType.SPLIT);
-        final Settings.Builder targetSettings = Settings.builder().putNull(IndexMetadata.SETTING_BLOCKS_WRITE);
+        // the test index template may add replicas, which a one-node cluster cannot allocate
+        final Settings.Builder targetSettings = Settings.builder()
+            .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         if (type == ResizeType.SHRINK) {
             targetSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         } else if (type == ResizeType.SPLIT) {
@@ -58,7 +61,14 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), "source");
 
         // rename the source right after the target is created, while its shards may still be recovering from the source
-        assertAcked(executeResize(ResizeType.CLONE, "source", "target", Settings.builder().putNull(IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertAcked(
+            executeResize(
+                ResizeType.CLONE,
+                "source",
+                "target",
+                Settings.builder().putNull(IndexMetadata.SETTING_BLOCKS_WRITE).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+        );
         rename("source", "renamed");
         ensureGreen("target", "renamed");
         ElasticsearchAssertions.assertHitCount(prepareSearch("target").setSize(0), docs);

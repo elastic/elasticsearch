@@ -37,7 +37,10 @@ import static org.hamcrest.Matchers.nullValue;
  * Renaming a leader or a follower index keeps its UUID, which is what cross-cluster replication identifies indices by, so
  * replication must carry on across a rename on either side, and the follower must stay manageable under its new name.
  */
-@TestLogging(value = "org.elasticsearch.xpack.ccr:DEBUG", reason = "diagnose replication after a rename")
+@TestLogging(
+    value = "org.elasticsearch.xpack.ccr:DEBUG,org.elasticsearch.xpack.ccr.action:TRACE,org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG",
+    reason = "diagnose replication after a rename"
+)
 public class CcrRenameIT extends CcrIntegTestCase {
 
     public void testRenameLeaderWhileFollowing() throws Exception {
@@ -179,13 +182,16 @@ public class CcrRenameIT extends CcrIntegTestCase {
         // a fresh index proves the coordinator keeps running after the rename
         assertAcked(leaderClient().admin().indices().prepareCreate("logs-3").setSource(leaderIndexSettings, XContentType.JSON));
         assertBusy(() -> assertTrue(followerIndexExists("copy-logs-3")));
+        // the followed uuid is recorded once the follow request completes, which is after the follower index appears
+        assertBusy(() -> {
+            final AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService()
+                .state()
+                .metadata()
+                .getProject()
+                .custom(AutoFollowMetadata.TYPE);
+            assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("rename-pattern"), hasSize(2));
+        });
         assertFalse(followerIndexExists("copy-logs-2"));
-        final AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService()
-            .state()
-            .metadata()
-            .getProject()
-            .custom(AutoFollowMetadata.TYPE);
-        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("rename-pattern"), hasSize(2));
 
         // and the existing follower of the renamed leader keeps receiving writes
         leaderClient().prepareIndex("logs-2").setSource("{\"f\": 1}", XContentType.JSON).get();

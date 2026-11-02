@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164279
+summary: "Add forecast requested, finished and failed counters"
+type: enhancement

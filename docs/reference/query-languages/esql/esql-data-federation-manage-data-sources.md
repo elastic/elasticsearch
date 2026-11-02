@@ -92,6 +92,8 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources]({{es-apis}}operation/operation-esql-delete-data-source) |
 
+This section is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
+
 <!-- Restore this table row when the test connection API is released:
 | [Test connection](#test-a-connection) {applies_to}`stack: preview 9.7+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
 -->

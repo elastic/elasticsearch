@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -66,9 +66,6 @@ import java.util.function.Predicate;
  */
 public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
-    /** Same wire name emitters use for or-match keys; kept local so this PR does not touch plan operators. */
-    private static final String OR_MATCH_KEY = "$_or_match";
-
     /** Same wire name emitters use for empty signatures; kept local so this PR does not touch plan operators. */
     private static final String EMPTY_SIGNATURE_KEY = "$empty_prom_sig";
 
@@ -91,14 +88,24 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
         private final boolean typed;
         /** Unset of each PathTrace-named metadata column (against source). */
         private final Map<String, Set<String>> unsetByName = new HashMap<>(Map.of(PromqlLabels.metadataLabelName(Set.of()), Set.of()));
+        /**
+         * Ids of the aliases translation puts over references: until a reference binds, its alias's {@link Alias#toAttribute()}
+         * is an UnresolvedAttribute under the same id, a pin that must rebind. A user's own reference never has one of these ids.
+         */
+        private final Set<NameId> pinIds = new HashSet<>();
 
         private Pass(AnalyzerContext context, LogicalPlan plan) {
             this.context = context;
             this.typed = PromqlCommand.usesTimeSeriesMetadata(context);
-            // NamePromqlMetadataReferences named every metadata reference after what it leaves out
+            // PathTraceUnresolvedPromqlAttributeRefs named every metadata reference after what it leaves out
             plan.forEachExpressionDown(UnresolvedPromqlAttribute.class, ref -> {
                 if (ref.isMetadata()) {
                     unsetByName.putIfAbsent(ref.name(), ref.unset());
+                }
+            });
+            plan.forEachExpressionDown(Alias.class, alias -> {
+                if (alias.child() instanceof UnresolvedPromqlAttribute) {
+                    pinIds.add(alias.id());
                 }
             });
         }
@@ -116,25 +123,18 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
         }
 
         /**
-         * Alias.toAttribute of unresolved tsIdentity metadata leaves UnresolvedAttribute pins ({@code _timeseries},
-         * {@code $_or_match}) that must rebind. Ordinary analysis UnresolvedAttributes must not trigger this path.
+         * Whether {@code node} reads a pin ({@code _timeseries}, {@code $_or_match}) left by an alias over a reference. A user's
+         * own {@code _timeseries} reference ({@code DROP _timeseries}) or a {@code TIMESERIES_WITHOUT} column is ordinary
+         * analysis input: matching pins by id keeps this rule off them.
          */
-        private static boolean hasUnresolvedAttributePins(LogicalPlan node) {
-            boolean[] found = { false };
-            node.transformExpressionsOnly(Attribute.class, attribute -> {
-                if (attribute instanceof UnresolvedAttribute unresolved && isTsIdentityPin(unresolved.name())) {
-                    found[0] = true;
+        private boolean hasUnresolvedAttributePins(LogicalPlan node) {
+            Holder<Boolean> found = new Holder<>(false);
+            node.forEachExpression(UnresolvedAttribute.class, unresolved -> {
+                if (pinIds.contains(unresolved.id())) {
+                    found.set(true);
                 }
-                return attribute;
             });
-            return found[0];
-        }
-
-        private static boolean isTsIdentityPin(String name) {
-            return name != null
-                && (MetadataAttribute.TIMESERIES.equals(name)
-                    || name.startsWith(MetadataAttribute.TIMESERIES + "$")
-                    || OR_MATCH_KEY.equals(name));
+            return found.get();
         }
 
         /** Rebuilds {@code node}, binding its own references, so that it carries every column of {@code needs} it can. */
@@ -453,6 +453,8 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
             if (grain.metadata() != null) {
                 metadata.add(grain.metadata());
             }
+            // Whether anything above reads the aggregate's own metadata; one row per series keys by it for nothing else.
+            boolean grainRead = grain.metadata() != null && needs.stream().anyMatch(grain.metadata()::reads);
             var carried = new ArrayList<UnresolvedPromqlAttribute>();
             for (UnresolvedPromqlAttribute need : needs) {
                 if (need.isMetadata()) {
@@ -474,6 +476,10 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
                                 unsetByName.putIfAbsent(finest.name(), finest.unset());
                                 metadata.set(0, finest);
                             }
+                        } else if (grainRead == false && metadata.size() == 1 && metadata.getFirst() == grain.metadata()) {
+                            // Keyword _timeseries cannot derive one view from another, but nothing reads the aggregate's own
+                            // view: the source reads the one needed instead.
+                            metadata.set(0, need);
                         } else {
                             // Keyword _timeseries cannot derive a second view; require typed metadata.
                             throw unsupported(need);

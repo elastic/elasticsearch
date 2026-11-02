@@ -108,7 +108,7 @@ serverless: unavailable
 Use a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) name to query external data through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md):
 
 ```esql
-FROM speedtest_data
+FROM my_s3_dataset
 ```
 
 {applies_to}`stack: preview 9.6+` By default, a wildcard doesn't match datasets. To include datasets in a wildcard, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#match-datasets-with-wildcards).

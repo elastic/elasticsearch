@@ -929,17 +929,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /// has reduced availability, so it takes priority [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED]. If the
     /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
     /// just a retry, so it keeps the last priority it had.
-    ///
-    /// The exception is a reshard split target primary, which takes over writes for its share of the documents at
-    /// [IndexReshardingState.Split.TargetShardState#HANDOFF], before it becomes active. Its failure from then on does reduce
-    /// availability, so it also takes priority [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED] rather than queueing
-    /// behind other deferrable recoveries such as pending split clones.
     private static ShardRouting.RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard, Metadata metadata) {
         if (failedShard.initializing() == false) {
             return ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
         }
         assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
 
+        // A reshard split target primary takes over writes for its share at [IndexReshardingState.Split.TargetShardState#HANDOFF],
+        // before it becomes active. Its failure from then on does reduce availability, so it should also take priority
+        // [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED] rather than queueing behind other deferrable recoveries
+        // such as pending split clones.
         if (failedShard.primary() && failedShard.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT) {
             final IndexReshardingMetadata reshardingMetadata = metadata.indexMetadata(failedShard.index()).getReshardingMetadata();
             if (IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata) == false

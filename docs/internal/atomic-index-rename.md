@@ -127,22 +127,43 @@ batch into one cluster state update, but they do not batch with alias changes
 or `remove_index`. Making a rename atomic with those needs the rename to be an
 action of the aliases executor (see D1).
 
-### T4. Data node state is mutated in place
+### T4. Data node state is mutated in place, and only partly
 
 `AbstractIndexShardComponent#shardId` became `volatile` and `IndexShard#renameTo`
-replaces `shardId` and `shardRouting` under the shard's monitor. Every read of
-`shardId()` on the hot path is now a volatile read. On x86 and arm64 that is a
-plain load, so the cost is negligible, but the semantic change is that
-`shardId()` can return different values across two calls. Nothing in the
-prototype re-reads it in a way that matters, but this has not been audited
-beyond "the integration tests pass". `IndexSettings#getIndex()` likewise became
-a read through the volatile `indexMetadata` field.
+replaces `shardId` and `shardRouting` together under the shard's `mutex`, the
+same lock `updateShardState` takes for relocations and promotions, so a rename
+never interleaves with a routing update. `IndexSettings#getIndex()` likewise
+became a read through the volatile `indexMetadata` field.
 
-Alternative: leave the data node's `ShardId` immutable with the original name
-and rely on UUID equality for every lookup, treating the name on data nodes as
-advisory. That avoids the volatile field but makes stale names permanent until
-the shard is reallocated. The failure inventory below is the input for choosing
-between the two.
+Decision (D3): keep the mutation. The alternative, leaving the data node's
+`ShardId` immutable and treating the name as advisory, is not the cheaper option
+it looks like. Because `Index` and `ShardId` compare by UUID (T1), a stale name
+is harmless wherever the id is a key, but a data node also uses the name as a
+string in two places that matter: `ProjectMetadata#index(Index)` resolves by
+name first and returns `null` for a stale `Index` (eleven call sites in server
+feed it a shard's own id, including `IndicesClusterStateService#updateShard` on
+every cluster state), and `DocWriteResponse` writes `_index` from the data
+node's shard id, so every index, delete and bulk item after a rename would
+report the old name to the client. Mutation fixes both at the source; advisory
+names would need a UUID fallback at each lookup and would still leave the write
+responses wrong. The suite-wide run (see the failure inventory) found nothing
+that trips on a changed shard id.
+
+What "different values across two calls" can cost: almost nothing, for the same
+reason. Code that reads `shardId()` twice and compares, hashes or looks up still
+gets equal results, since only the name differs. The volatile read itself is a
+plain load on x86 and arm64.
+
+The mutation is partial, by design. Only `IndexShard` and its `ShardGetService`
+are renamed. `Store`, `Translog`, `ReplicationTracker`,
+`ShardIndexWarmerService` and `ShardBitsetFilterCache` each copied the shard id
+at construction and keep the old name. They use it in log and exception
+messages and as a key, and keys compare by UUID, so the stale name there is
+cosmetic. Loggers are the same: every shard-scoped logger is prefixed with the
+creation-time shard id and is never re-created, so log lines for a renamed
+shard keep the old name until the shard is reallocated. The production change
+should say so in the rename API documentation rather than try to chase every
+copy.
 
 ### T5. Data stream membership reuses `replaceBackingIndex`
 
@@ -233,7 +254,8 @@ ILM/SLM/CCR/enrich cluster state listeners that key work by index name.
 
 ### D3. Data node mutation versus advisory names
 
-See T4. Decide after reviewing the failure inventory.
+Decided in favour of mutation; see T4 for the reasoning and the caveats
+(partial mutation, stale logger prefixes).
 
 ### D4. Preconditions for a first release
 

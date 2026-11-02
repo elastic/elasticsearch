@@ -5381,11 +5381,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Applies an index rename to this shard under {@link #mutex}, the lock that {@link #updateShardState} also takes, so that the
+     * shard id and the routing entry change together and never interleave with a routing update from another cluster state.
+     * Only this shard and its {@link ShardGetService} are renamed; the {@link Store}, {@link org.elasticsearch.index.translog.Translog},
+     * {@link ReplicationTracker} and the caches keep the shard id they were created with. They use it only in log and exception
+     * messages, and they compare shard ids by UUID, so the stale name there is cosmetic.
+     */
     @Override
     public void renameTo(Index newIndex) {
-        super.renameTo(newIndex);
-        getService.renameTo(newIndex);
-        synchronized (this) {
+        synchronized (mutex) {
+            super.renameTo(newIndex);
+            getService.renameTo(newIndex);
             this.shardRouting = this.shardRouting.updateIndex(newIndex);
         }
     }

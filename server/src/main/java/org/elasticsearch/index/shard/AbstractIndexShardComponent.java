@@ -39,15 +39,14 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
 
     /**
      * Points this component at the renamed index. Only the name changes: {@code index} must have the same UUID as the current
-     * shard id's index, which is why {@link #shardId} is volatile rather than final. Subclasses that cache the shard id or the
-     * routing entry (such as {@link IndexShard}) override this to update their copies.
+     * shard id's index, which is why {@link #shardId} is volatile rather than final. A single volatile write is all that is
+     * needed here; a subclass that keeps other state in step with the shard id (such as {@link IndexShard} and its routing entry)
+     * overrides this and takes its own lock around the whole update. The logger keeps its creation-time prefix.
      */
     public void renameTo(Index index) {
         assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
-        synchronized (this) {
-            final var oldShardId = this.shardId;
-            this.shardId = new ShardId(index, this.shardId.getId());
-            logger.debug("renamed shard from [{}] to [{}]", oldShardId, index);
-        }
+        final var oldShardId = this.shardId;
+        this.shardId = new ShardId(index, this.shardId.getId());
+        logger.debug("renamed shard from [{}] to [{}]", oldShardId, index);
     }
 }

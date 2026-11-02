@@ -19,6 +19,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
 import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
@@ -121,6 +122,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             LIMIT_PARAM,
             limit == DEFAULT_LIMIT ? null : limit
         );
+        esqlRequest.directClient(DirectClient.classify(request));
 
         return channel -> PromqlQueryExecutor.execute(
             client,

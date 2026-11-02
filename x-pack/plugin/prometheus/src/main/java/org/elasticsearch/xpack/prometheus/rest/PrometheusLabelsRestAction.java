@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
 import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.io.IOException;
@@ -106,6 +107,7 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
             MATCH_PARAM,
             matchSelectors
         );
+        esqlRequest.directClient(DirectClient.classify(request));
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, PrometheusLabelsResponseListener.create(channel, limit));
     }

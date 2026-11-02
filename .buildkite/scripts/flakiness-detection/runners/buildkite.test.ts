@@ -25,7 +25,7 @@ function javaRest(project: string, fqcn: string): PlanCommand {
     kind: "javaRestTest",
     label: "java rest tests",
     key: "flakiness-detection:java-rest",
-    command: `.buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ ${project}:javaRestTest --tests ${fqcn} --rerun`,
+    command: `.buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ ${project}:javaRestTest --tests ${fqcn} --rerun`,
   };
 }
 
@@ -84,8 +84,8 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.key).toBe("flakiness-detection:java-rest");
     expect(step.parallelism).toBe(5);
     expect(step.env).toBeDefined();
-    expect(step.env!["FLAKINESS_CMD_0"]).toContain("repeat-rest-test.sh");
-    expect(step.env!["FLAKINESS_CMD_4"]).toContain("repeat-rest-test.sh");
+    expect(step.env!["FLAKINESS_CMD_0"]).toContain("repeat-gradle-run.sh");
+    expect(step.env!["FLAKINESS_CMD_4"]).toContain("repeat-gradle-run.sh");
     // Raw commands only: the wrapper is emitted once, in the step's `command`, not copied per batch.
     expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("timeout --foreground");
     expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("buildkite-agent annotate");
@@ -170,14 +170,14 @@ describe("toBuildkitePipeline end-to-end", () => {
         label: "yaml rest test runner",
         key: "flakiness-detection:yaml-runner",
         command:
-          ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ :x-pack:plugin:ml:yamlRestTest --rerun",
+          ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ :x-pack:plugin:ml:yamlRestTest --rerun",
       },
       {
         kind: "yamlRestTestSuite",
         label: "yaml rest tests",
         key: "flakiness-detection:yaml-suite",
         command:
-          ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test",
+          ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test",
       },
     ];
 

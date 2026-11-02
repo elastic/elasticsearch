@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -50,6 +52,13 @@ import java.util.concurrent.Executor;
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
+
+    /**
+     * Bounds WARN lines for HTTP error-response bodies: the body is withheld from the user-facing message (it often
+     * names the bucket or object), so the node log is the only place it survives. Shared across every HTTP object on
+     * the node — anyone who can query a failing dataset can repeat the failure.
+     */
+    static final LogThrottle ERROR_BODY_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final HttpClient client;
     private final StoragePath path;
@@ -159,12 +168,12 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         // The error body is logged, not folded into the message: an S3- or GCS-compatible endpoint answers with XML/JSON
         // naming the bucket, key and host, and the message reaches users who may only read the dataset.
         if (detail != null && detail.isEmpty() == false) {
-            logger.debug(
-                "HTTP read of [{}] failed with status [{}], body: {}",
-                ExternalFailures.redactHttpUrl(path.toString()),
-                statusCode,
-                detail
-            );
+            String location = ExternalFailures.redactHttpUrl(path.toString());
+            if (ERROR_BODY_WARN.tryAcquire()) {
+                logger.warn("HTTP read of [{}] failed with status [{}], body: {}", location, statusCode, detail);
+            } else {
+                logger.debug("HTTP read of [{}] failed with status [{}], body: {}", location, statusCode, detail);
+            }
         }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);

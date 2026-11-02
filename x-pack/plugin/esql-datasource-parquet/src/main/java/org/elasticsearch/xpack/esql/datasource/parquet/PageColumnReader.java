@@ -68,7 +68,9 @@ import java.util.function.IntConsumer;
  *
  * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
  * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
- * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
+ * hash only the {@code k} dictionary entries instead of the {@code N} row values. Batches whose
+ * row count is small relative to the chunk dictionary (see {@link OrdinalBytesRefBlock#isDense})
+ * are expanded to a plain {@link BytesRefBlock} instead, since hashing {@code k} would cost more. The
  * dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
  * array is shared across every batch in the chunk via its atomic ref-count
  * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each emitted batch creates a
@@ -1265,8 +1267,8 @@ final class PageColumnReader implements Releasable {
 
     private Block readBytesBatch(int maxRows, BlockFactory blockFactory) {
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
-        // Dictionary-encoded chunk: emit an OrdinalBytesRefBlock so downstream BlockHash can
-        // hash only k dictionary entries instead of N row values. Skip for UUID, where each
+        // Dictionary-encoded chunk: emit an OrdinalBytesRefBlock (when dense) so downstream BlockHash
+        // can hash only k dictionary entries instead of N row values. Skip for UUID, where each
         // value needs per-row byte formatting that the ordinal path does not perform.
         if (dictionary != null && isUuid == false) {
             return readBytesBatchAsOrdinals(maxRows, blockFactory);
@@ -1508,6 +1510,12 @@ final class PageColumnReader implements Releasable {
                 return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
             }
         }
+        // The dictionary covers the whole column chunk, so for high-cardinality columns it can be far
+        // larger than the batch. Consumers such as BlockHash process every dictionary entry of an
+        // ordinal block, so only emit one when it is dense, like the Lucene ordinals reader does.
+        if (OrdinalBytesRefBlock.isDense(produced, dict.length) == false) {
+            return expandOrdinals(ensureCachedDictArray(dict, blockFactory), ordinals, nulls, produced, blockFactory);
+        }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
         try {
@@ -1517,6 +1525,34 @@ final class PageColumnReader implements Releasable {
         } catch (Throwable e) {
             ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
             throw e;
+        }
+    }
+
+    private static BytesRefBlock expandOrdinals(
+        BytesRefArray dict,
+        int[] ordinals,
+        WordMask nulls,
+        int produced,
+        BlockFactory blockFactory
+    ) {
+        BytesRef scratch = new BytesRef();
+        if (nulls == null || nulls.isEmpty()) {
+            try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(produced)) {
+                for (int i = 0; i < produced; i++) {
+                    builder.appendBytesRef(dict.get(ordinals[i], scratch));
+                }
+                return builder.build().asBlock();
+            }
+        }
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(produced)) {
+            for (int i = 0; i < produced; i++) {
+                if (nulls.get(i)) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(dict.get(ordinals[i], scratch));
+                }
+            }
+            return builder.build();
         }
     }
 

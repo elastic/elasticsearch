@@ -323,6 +323,38 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         }
     }
 
+    public void testSparseDictionaryBatchesAreExpanded() throws IOException {
+        // Values repeat within each page, so the writer keeps the column dictionary-encoded, but the
+        // chunk dictionary is larger than half a batch: expanding is cheaper than handing BlockHash
+        // the whole dictionary.
+        int numRows = 5_000;
+        int dictSize = BATCH_SIZE;
+        IntFunction<String> valueFor = row -> row % 7 == 0 ? null : "id_" + ((row / 4) % dictSize);
+        byte[] data = writeStringFile(numRows, true, valueFor);
+
+        List<Page> pages = readAll(data);
+        try {
+            int row = 0;
+            BytesRef scratch = new BytesRef();
+            for (Page page : pages) {
+                BytesRefBlock block = page.getBlock(0);
+                assertNull("sparse batch should not be ordinal-encoded", block.asOrdinals());
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    String expected = valueFor.apply(row);
+                    if (expected == null) {
+                        assertTrue("expected null at row " + row, block.isNull(p));
+                    } else {
+                        assertEquals("row " + row, new BytesRef(expected), block.getBytesRef(p, scratch));
+                    }
+                    row++;
+                }
+            }
+            assertEquals(numRows, row);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testUniqueStringsRemainCorrectAcrossPages() throws IOException {
         // High-cardinality input: every value distinct. Whether the writer keeps the column
         // dictionary-encoded or falls back to PLAIN depends on parquet-mr's per-column

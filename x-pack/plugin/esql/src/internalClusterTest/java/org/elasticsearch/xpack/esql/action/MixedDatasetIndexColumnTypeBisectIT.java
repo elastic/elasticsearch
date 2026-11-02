@@ -132,6 +132,48 @@ public class MixedDatasetIndexColumnTypeBisectIT extends AbstractExternalDataSou
         );
     }
 
+    /**
+     * The nullable numeric cells. The earlier matrix declared these {@code required}, which exercises the arm that
+     * writes every slot and therefore proves nothing about the nullable path. These are the cells that decide whether
+     * garbage in a nullable numeric column reaches the peer node without failing the query.
+     */
+    public void testNullableIntOnly() throws Exception {
+        createDisjointIndex();
+        assertMixedCount(registerSingleTypeDataset("ds_int_null", "optional int32 n;", (g, i) -> {
+            if (i % 5 != 0) {
+                g.add("n", i);
+            }
+        }));
+    }
+
+    public void testNullableLongOnly() throws Exception {
+        createDisjointIndex();
+        assertMixedCount(registerSingleTypeDataset("ds_long_null", "optional int64 l;", (g, i) -> {
+            if (i % 5 != 0) {
+                g.add("l", (long) i);
+            }
+        }));
+    }
+
+    public void testNullableDoubleOnly() throws Exception {
+        createDisjointIndex();
+        assertMixedCount(registerSingleTypeDataset("ds_double_null", "optional double d;", (g, i) -> {
+            if (i % 5 != 0) {
+                g.add("d", i * 1.5);
+            }
+        }));
+    }
+
+    /** A nullable low-cardinality string, so the dictionary path ships an ordinals block carrying garbage ordinals. */
+    public void testNullableKeywordLowCardinalityOnly() throws Exception {
+        createDisjointIndex();
+        assertMixedCount(registerSingleTypeDataset("ds_kw_low_null", "optional binary s (UTF8);", (g, i) -> {
+            if (i % 5 != 0) {
+                g.add("s", "region_" + (i % 5));
+            }
+        }));
+    }
+
     /** A nullable column, so the branch ships a null mask rather than a plain vector. */
     public void testNullableBooleanOnly() throws Exception {
         createDisjointIndex();

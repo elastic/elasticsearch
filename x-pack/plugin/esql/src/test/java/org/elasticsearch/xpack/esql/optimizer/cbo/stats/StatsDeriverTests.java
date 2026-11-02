@@ -48,6 +48,23 @@ public class StatsDeriverTests extends ESTestCase {
         assertEquals(Optional.of(99L), stats.column(field).maxValue());
     }
 
+    public void testColumnWidthsUseDecodedInMemorySize() {
+        Attribute rating = new ReferenceAttribute(Source.EMPTY, "rating", DataType.DOUBLE);
+        Attribute id = new ReferenceAttribute(Source.EMPTY, "id", DataType.KEYWORD);
+        SourceStatistics statistics = sourceStatistics(
+            100,
+            1_000,
+            Map.of("rating", columnStatistics(0, 10, 100, 90, 1.0, 9.0), "id", columnStatistics(0, 100, 100, 1_000, "a", "z"))
+        );
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(List.of(rating, id), "test", "path", statistics, List.of());
+        ExternalRelation relation = new ExternalRelation(Source.EMPTY, "path", metadata, List.of(rating, id), null, Map.of());
+
+        PlanStats stats = new StatsDeriver().derive(relation).get(relation);
+
+        assertEquals(Double.BYTES, stats.column(rating).averageBytes().value(), 0);
+        assertEquals(10 + Integer.BYTES, stats.column(id).averageBytes().value(), 0);
+    }
+
     public void testSampleWidthDoesNotBecomeTotalCardinality() {
         Attribute field = attribute("value");
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(

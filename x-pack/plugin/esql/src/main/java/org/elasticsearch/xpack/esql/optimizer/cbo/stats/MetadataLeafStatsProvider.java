@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -69,7 +70,7 @@ final class MetadataLeafStatsProvider implements LeafStatsProvider {
             }
             Estimate ndv = estimate(sourceColumn.distinctCount());
             Estimate nullFraction = nullFraction(sourceColumn.nullCount(), rows);
-            Estimate averageBytes = averageBytes(sourceColumn, rows);
+            Estimate averageBytes = averageBytes(sourceColumn, rows, attribute.dataType());
             Estimate averageValuesPerRow = averageValuesPerRow(sourceColumn.valueCount(), rows);
             columns.put(
                 attribute.id(),
@@ -124,7 +125,13 @@ final class MetadataLeafStatsProvider implements LeafStatsProvider {
         return Estimate.metadata(Math.min(1, (double) nullCount.getAsLong() / rows.value()));
     }
 
-    private static Estimate averageBytes(SourceStatistics.ColumnStatistics sourceColumn, Estimate rows) {
+    /**
+     * Average in-memory bytes per value. Source column sizes are encoded sizes (dictionary and run-length encoded
+     * values can take a byte or less per value), while the plan holds decoded blocks: fixed-width values take their
+     * full width, and every string value carries an offset next to its bytes. Underestimating here lets a build side
+     * pass the materialization fit check and then fail at runtime, so the width is raised to the decoded floor.
+     */
+    private static Estimate averageBytes(SourceStatistics.ColumnStatistics sourceColumn, Estimate rows, DataType type) {
         OptionalLong size = sourceColumn.sizeInBytes();
         if (size.isEmpty() || size.getAsLong() < 0) {
             return Estimate.UNKNOWN;
@@ -133,7 +140,12 @@ final class MetadataLeafStatsProvider implements LeafStatsProvider {
         double divisor = values.isPresent() && values.getAsLong() > 0 ? values.getAsLong()
             : rows.isUnknown() == false && rows.value() > 0 ? rows.value()
             : 0;
-        return divisor > 0 ? Estimate.metadata(size.getAsLong() / divisor) : Estimate.UNKNOWN;
+        if (divisor <= 0) {
+            return Estimate.UNKNOWN;
+        }
+        double encoded = size.getAsLong() / divisor;
+        double decoded = DataType.isString(type) ? encoded + Integer.BYTES : Math.max(encoded, type.estimatedSize());
+        return Estimate.metadata(decoded);
     }
 
     private static Estimate averageValuesPerRow(OptionalLong valueCount, Estimate rows) {

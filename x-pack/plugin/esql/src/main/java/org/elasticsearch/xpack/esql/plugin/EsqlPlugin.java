@@ -691,7 +691,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
-            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector),
+            // Without federation no external split is ever dispatched, so there is nothing to hold a joining node back from.
+            new ExternalWorkerReadiness(
+                services.clusterService(),
+                services.client(),
+                services.threadPool(),
+                Federation.isAvailable(settings)
+            )
         );
     }
 

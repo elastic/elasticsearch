@@ -207,8 +207,8 @@ Slow queries
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
-503 error while nodes join the cluster
-:   A node that has just joined the cluster, or that has not yet applied a recent dataset change, cannot run a query's external reads until it catches up. {{es}} sends the reads to another node when one is available; otherwise the node waits to catch up. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
+503 error after changing a dataset or while nodes join
+:   A node that has not yet applied a recent dataset change cannot run a query's external reads until it catches up, and waits to. A node that has just joined the cluster is not given external reads until it has caught up; when no other node could take them, the query waits for it. If the node does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
 
 $$$unknown-index-dataset$$$
 

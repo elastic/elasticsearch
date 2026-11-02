@@ -74,7 +74,10 @@ public class QueryFailureTelemetryTests extends ESTestCase {
     public void testWorkerNotReadyIsOtherAndRetryable() throws IOException {
         ExternalUnavailableException notReady = new ExternalUnavailableException(Condition.WORKER_NOT_READY, "waited [10s]", "");
         assertThat(notReady.objectName(), equalTo(""));
-        assertThat(notReady.getMessage(), equalTo("Node has not yet applied the cluster state this query was planned from (waited [10s])"));
+        assertThat(
+            notReady.getMessage(),
+            equalTo("An external worker has not yet applied the cluster state this query needs (waited [10s])")
+        );
         Failure expected = new Failure("other", "503");
         assertThat(QueryFailureTelemetry.classify(notReady), equalTo(expected));
         Exception received = roundTrip(notReady);

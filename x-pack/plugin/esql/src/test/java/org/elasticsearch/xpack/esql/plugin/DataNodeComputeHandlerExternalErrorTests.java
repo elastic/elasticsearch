@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.hamcrest.Matchers.containsString;
@@ -141,16 +143,18 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
     }
 
     /**
-     * A worker's decline reaches the coordinator as a {@link RemoteTransportException} around the wire form of the
-     * {@link ExternalException}, which is not a registered exception and so arrives as a {@link NotSerializableExceptionWrapper}.
-     * The coordinator must still recognise it as a decline, by its condition, and must not take any other failure for one.
+     * A worker that gave up waiting for the cluster state fails the request with the {@link ExternalException}, which is not a
+     * registered exception and so reaches the coordinator as a {@link RemoteTransportException} around a
+     * {@link NotSerializableExceptionWrapper}. The typed condition must survive that, since it is what tells the client the
+     * failure is retryable, and no other failure must read as it.
      */
     public void testWorkerNotReadyIsRecognisedThroughTheTransportWrappers() throws IOException {
-        Exception declined = roundTrip(DataNodeComputeHandler.workerNotReady(""));
-        assertThat(declined, instanceOf(NotSerializableExceptionWrapper.class));
-        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(declined));
-        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", declined)));
-        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(DataNodeComputeHandler.workerNotReady("waited [1s]")));
+        Exception notReady = roundTrip(DataNodeComputeHandler.workerNotReady("waited [1s]"));
+        assertThat(notReady, instanceOf(NotSerializableExceptionWrapper.class));
+        assertTrue(ExternalException.hasCondition(notReady, ExternalException.Condition.WORKER_NOT_READY));
+        assertTrue(
+            ExternalException.hasCondition(new RemoteTransportException("worker", notReady), ExternalException.Condition.WORKER_NOT_READY)
+        );
 
         Exception unavailable = roundTrip(
             new ExternalUnavailableException(
@@ -162,9 +166,24 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
                 0L
             )
         );
-        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", unavailable)));
-        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", new IOException("boom"))));
-        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new NodeNotConnectedException(createNodes(1).get("node-0"), "gone")));
+        assertFalse(
+            ExternalException.hasCondition(
+                new RemoteTransportException("worker", unavailable),
+                ExternalException.Condition.WORKER_NOT_READY
+            )
+        );
+        assertFalse(
+            ExternalException.hasCondition(
+                new RemoteTransportException("worker", new IOException("boom")),
+                ExternalException.Condition.WORKER_NOT_READY
+            )
+        );
+        assertFalse(
+            ExternalException.hasCondition(
+                new NodeNotConnectedException(createNodes(1).get("node-0"), "gone"),
+                ExternalException.Condition.WORKER_NOT_READY
+            )
+        );
     }
 
     private static Exception roundTrip(Exception e) throws IOException {
@@ -192,6 +211,75 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             }
         }
         assertTrue("At least one node should become stale when cluster shrinks", staleNodeCount > 0);
+    }
+
+    /**
+     * The coordinator waits for a worker only when the strategy would have distributed the splits over eligible workers and
+     * every one of them is held back; not without splits, not under {@code coordinator_only}, not with a ready worker, not
+     * without any worker, and never when the coordinator is itself an eligible worker, which is never held back.
+     */
+    public void testWaitsOnlyWhenEveryEligibleWorkerIsHeldBackAndTheStrategyWouldDistribute() {
+        DiscoveryNodes workers = createNodes(3);
+        DiscoveryNodes none = DiscoveryNodes.builder().build();
+        var collected = new ComputeService.CollectedSplits(createDummyPlan(), createSplits(6));
+        var noSplits = new ComputeService.CollectedSplits(createDummyPlan(), List.of());
+        QueryPragmas roundRobin = pragmas("round_robin");
+        QueryPragmas coordinatorOnly = pragmas("coordinator_only");
+        UnaryOperator<DiscoveryNodes> allHeldBack = nodes -> none;
+        UnaryOperator<DiscoveryNodes> oneReady = nodes -> createNodes(1);
+        UnaryOperator<DiscoveryNodes> noneHeldBack = UnaryOperator.identity();
+
+        assertTrue(ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workers, allHeldBack));
+        assertTrue(ComputeService.mustWaitForExternalWorker(collected, QueryPragmas.EMPTY, SiblingPlacement.SINGLE, workers, allHeldBack));
+
+        assertFalse(
+            "a ready worker",
+            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workers, oneReady)
+        );
+        assertFalse(
+            "nobody held back",
+            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workers, noneHeldBack)
+        );
+        assertFalse(
+            "no worker at all",
+            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, none, allHeldBack)
+        );
+        assertFalse(
+            "no splits",
+            ComputeService.mustWaitForExternalWorker(noSplits, roundRobin, SiblingPlacement.SINGLE, workers, allHeldBack)
+        );
+        assertFalse(
+            "coordinator_only",
+            ComputeService.mustWaitForExternalWorker(collected, coordinatorOnly, SiblingPlacement.SINGLE, workers, allHeldBack)
+        );
+        // The coordinator is itself a worker: never held back, so always among the ready ones.
+        DiscoveryNodes workersAndLocal = DiscoveryNodes.builder(workers)
+            .add(DiscoveryNodeUtils.builder("local").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .localNodeId("local")
+            .build();
+        UnaryOperator<DiscoveryNodes> allButLocalHeldBack = nodes -> DiscoveryNodes.builder()
+            .add(nodes.getLocalNode())
+            .localNodeId("local")
+            .build();
+        assertFalse(
+            "a data-node coordinator",
+            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workersAndLocal, allButLocalHeldBack)
+        );
+        // The adaptive strategy keeps a single split local whatever the workers: nothing to wait for.
+        var oneSplit = new ComputeService.CollectedSplits(createDummyPlan(), createSplits(1));
+        assertFalse(
+            "adaptive keeps it local",
+            ComputeService.mustWaitForExternalWorker(oneSplit, QueryPragmas.EMPTY, SiblingPlacement.SINGLE, workers, allHeldBack)
+        );
+
+        assertTrue(ComputeService.externalWorkerAvailable(workers, oneReady));
+        assertTrue(ComputeService.externalWorkerAvailable(workers, noneHeldBack));
+        assertTrue("no worker at all: the local fallback", ComputeService.externalWorkerAvailable(none, allHeldBack));
+        assertFalse(ComputeService.externalWorkerAvailable(workers, allHeldBack));
+    }
+
+    private static QueryPragmas pragmas(String distribution) {
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), distribution).build());
     }
 
     // -- helpers --

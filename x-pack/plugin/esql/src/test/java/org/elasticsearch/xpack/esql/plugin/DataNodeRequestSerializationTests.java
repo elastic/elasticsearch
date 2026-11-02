@@ -112,7 +112,6 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             randomBoolean(),
             List.of(),
-            randomBoolean(),
             randomNonNegativeLong()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
@@ -120,20 +119,24 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     /**
-     * An old coordinator sends neither readiness field. The worker then waits for the state it lacks rather than declining
-     * (the old coordinator cannot reroute) and consults no version.
+     * An old coordinator sends no cluster state version, and the worker then consults none; one between the two readiness
+     * versions sends it after the dropped decline flag.
      */
-    public void testReadinessFieldsDefaultOnOldVersions() throws IOException {
+    public void testClusterStateVersionAcrossTheReadinessVersions() throws IOException {
         DataNodeRequest request = createTestInstance();
-        DataNodeRequest copy = copyInstance(
+        DataNodeRequest old = copyInstance(
             request,
             TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)
         );
-        assertFalse(copy.declineIfNotReady());
-        assertThat(copy.requiredClusterStateVersion(), equalTo(0L));
+        assertThat(old.requiredClusterStateVersion(), equalTo(0L));
+
+        DataNodeRequest withFlag = copyInstance(
+            request,
+            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING)
+        );
+        assertThat(withFlag.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
 
         DataNodeRequest current = copyInstance(request, TransportVersion.current());
-        assertThat(current.declineIfNotReady(), equalTo(request.declineIfNotReady()));
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
     }
 
@@ -198,11 +201,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var runNodeLevelReduction = in.runNodeLevelReduction();
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
-        var declineIfNotReady = in.declineIfNotReady();
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 12)) {
+        switch (between(0, 11)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -251,8 +253,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 reductionLateMaterialization = reductionLateMaterialization == false;
             }
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
-            case 11 -> declineIfNotReady = declineIfNotReady == false;
-            case 12 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 11 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError("invalid value");
         }
 
@@ -269,7 +270,6 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             reductionLateMaterialization,
             singleNodeOptimizations,
             List.of(),
-            declineIfNotReady,
             requiredClusterStateVersion
         );
         request.setParentTask(parentTask);

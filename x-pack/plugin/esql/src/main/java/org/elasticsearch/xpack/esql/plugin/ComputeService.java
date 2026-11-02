@@ -142,8 +142,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
@@ -223,6 +225,8 @@ public class ComputeService {
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
+    /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
+    private final ExternalWorkerReadiness externalWorkerReadiness;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -235,8 +239,10 @@ public class ComputeService {
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
-        Client client
+        Client client,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
+        this.externalWorkerReadiness = externalWorkerReadiness;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -472,7 +478,17 @@ public class ComputeService {
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
-        return externalCoalesceFloor(effectiveConcurrency, clusterService.state().nodes());
+        return externalCoalesceFloor(effectiveConcurrency, externalWorkers());
+    }
+
+    /**
+     * The nodes external splits may be distributed over: the cluster state's, less those that have just joined and not yet
+     * confirmed they applied the state that added them ({@link ExternalWorkerReadiness}). The coalescing floor and the
+     * distribution each read it, so a node released or added in between gives a floor computed for one node more or fewer
+     * than are distributed over; that only affects the balance, as it did when both read the cluster state directly.
+     */
+    private DiscoveryNodes externalWorkers() {
+        return externalWorkerReadiness.readyNodes(clusterService.state().nodes());
     }
 
     /**
@@ -519,6 +535,42 @@ public class ComputeService {
     }
 
     /**
+     * Whether a query must wait for an external worker before its splits are distributed: no external worker is available
+     * ({@link #externalWorkerAvailable}) though there are eligible ones, every one held back for having just joined
+     * ({@link ExternalWorkerReadiness}), and the strategy would have distributed the splits over them. Never true on a
+     * coordinator that is itself an eligible worker, which is never held back: the strategies then self-assign as always.
+     * The strategy is run once on the unfiltered nodes to find out; it is pure, and this is the rare case. That also
+     * answers "no splits", the {@code coordinator_only} pragma and a split count the adaptive strategy keeps local anyway,
+     * none of which wait. Decided once; the wait itself re-checks only {@link #externalWorkerAvailable}, which is what a
+     * change to the cluster can alter cheaply.
+     *
+     * @param ready the nodes less those held back, computed from {@code nodes}
+     */
+    static boolean mustWaitForExternalWorker(
+        CollectedSplits collected,
+        QueryPragmas pragmas,
+        SiblingPlacement placement,
+        DiscoveryNodes nodes,
+        UnaryOperator<DiscoveryNodes> ready
+    ) {
+        if (collected.splits().isEmpty() || externalWorkerAvailable(nodes, ready)) {
+            return false;
+        }
+        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(pragmas);
+        return strategy.planDistribution(new ExternalDistributionContext(collected.plan(), collected.splits(), nodes, pragmas, placement))
+            .distributed();
+    }
+
+    /**
+     * Whether external splits can be distributed now: an eligible worker that is not held back, or no eligible worker at
+     * all, in which case the scan stays on the coordinator as it always has. The condition a wait for a worker re-checks.
+     */
+    static boolean externalWorkerAvailable(DiscoveryNodes nodes, UnaryOperator<DiscoveryNodes> ready) {
+        return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(ready.apply(nodes)).isEmpty() == false
+            || NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).isEmpty();
+    }
+
+    /**
      * CPU-only distribution after splits are already collected. Must not perform object-store IO.
      */
     ExternalDistributionResult applyExternalDistributionStrategy(
@@ -539,7 +591,7 @@ public class ComputeService {
         ExternalDistributionContext context = new ExternalDistributionContext(
             resolvedPlan,
             externalSplits,
-            clusterService.state().nodes(),
+            externalWorkers(),
             configuration.pragmas(),
             placement
         );
@@ -1237,32 +1289,46 @@ public class ComputeService {
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
-        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
-            ActionListener.wrap(
-                collected -> runOnSearch(
-                    () -> executePlanAfterDiscovery(
-                        sessionId,
-                        rootTask,
-                        flags,
-                        collected,
-                        configuration,
-                        foldContext,
-                        execInfo,
-                        profileQualifier,
-                        releasing,
-                        exchangeSinkSupplier,
-                        initialClusterStatuses,
-                        planTimeProfile,
-                        warnIndexCoordinatorOnce,
-                        splitDiscoveryStart,
-                        placement
-                    ),
-                    releasing
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(ActionListener.wrap(collected -> {
+            // The discovery clock stops here: a wait for a worker below is not object-store time.
+            final long discoveryEnd = System.nanoTime();
+            final LongConsumer runAfterDiscovery = waitedNanos -> runOnSearch(
+                () -> executePlanAfterDiscovery(
+                    sessionId,
+                    rootTask,
+                    flags,
+                    collected,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    profileQualifier,
+                    releasing,
+                    exchangeSinkSupplier,
+                    initialClusterStatuses,
+                    planTimeProfile,
+                    warnIndexCoordinatorOnce,
+                    splitDiscoveryStart + waitedNanos,
+                    placement
                 ),
-                releasing::onFailure
-            ),
-            threadPool.getThreadContext()
-        );
+                releasing
+            );
+            if (mustWaitForExternalWorker(
+                collected,
+                configuration.pragmas(),
+                placement,
+                clusterService.state().nodes(),
+                externalWorkerReadiness::readyNodes
+            ) == false) {
+                runAfterDiscovery.accept(0L);
+                return;
+            }
+            externalWorkerReadiness.awaitEligibleWorker(
+                () -> externalWorkerAvailable(clusterService.state().nodes(), externalWorkerReadiness::readyNodes),
+                rootTask,
+                "distributing [" + collected.splits().size() + "] external splits, session [" + sessionId + "]",
+                ActionListener.wrap(ignored -> runAfterDiscovery.accept(System.nanoTime() - discoveryEnd), releasing::onFailure)
+            );
+        }, releasing::onFailure), threadPool.getThreadContext());
         // Skip-path: no footer/probe scheduling. SEARCH inbound stays inline (sync-fast).
         if (operatorFactoryRegistry == null) {
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));

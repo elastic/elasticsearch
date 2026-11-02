@@ -108,12 +108,12 @@ public class ClusterChangedEvent {
     /**
      * Returns the indices deleted in this event
      */
-    /**
-     * An index whose name changed between the previous and the current cluster state while keeping its UUID.
-     *
-     * @param previous the index as it was known in the previous state
-     * @param current  the metadata of the same index in the current state, under its new name
-     */
+       /**
+        * An index whose name changed between the previous and the current cluster state while keeping its UUID.
+        *
+        * @param previous the index as it was known in the previous state
+        * @param current  the metadata of the same index in the current state, under its new name
+        */
     public record RenamedIndex(Index previous, IndexMetadata current) {}
 
     /**
@@ -122,7 +122,9 @@ public class ClusterChangedEvent {
      * previous state was not recovered or belongs to a different cluster, mirroring {@link #indicesDeleted()}.
      */
     public List<RenamedIndex> indicesRenamed() {
-        if (previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || metadataChanged() == false || isNewCluster()) {
+        if (previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+            || metadataChanged() == false
+            || isNewCluster()) {
             return Collections.emptyList();
         }
         List<RenamedIndex> renamed = null;

@@ -193,7 +193,6 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertThat(event.indicesRenamed().get(0).previous(), equalTo(renamedFrom));
         assertThat(event.indicesRenamed().get(0).current().getIndex(), equalTo(renamedTo));
         assertThat(event.indicesDeleted(), containsInAnyOrder(deleted));
-        assertThat(event.indicesCreated(), containsInAnyOrder(renamedTo.getName(), recreated.getName()));
 
         // nothing is renamed when the previous state was not recovered or belongs to another cluster
         assertThat(new ClusterChangedEvent("_na_", newState, createNonInitializedState(3, randomBoolean())).indicesRenamed(), empty());

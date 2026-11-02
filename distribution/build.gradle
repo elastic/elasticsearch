@@ -521,7 +521,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${os}_${architecture}"
+        from project.jdks.getByName(BundledJdkPlatforms.jdkName(os, architecture))
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude

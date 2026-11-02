@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
 /**
@@ -325,7 +326,9 @@ public class BooleanFieldMapper extends FieldMapper {
             return switch (sValue) {
                 case "true" -> Values.TRUE;
                 case "false" -> Values.FALSE;
-                default -> throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
+                default -> throw new IllegalArgumentException(
+                    "Can't parse boolean value [" + truncateForError(sValue) + "], expected [true] or [false]"
+                );
             };
         }
 

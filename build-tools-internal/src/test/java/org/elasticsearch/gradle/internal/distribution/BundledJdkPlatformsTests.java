@@ -47,4 +47,10 @@ public class BundledJdkPlatformsTests {
     public void unknownPlatformIsRejected() {
         assertThrows(IllegalArgumentException.class, () -> BundledJdkPlatforms.architecturesFor("solaris", 27));
     }
+
+    @Test
+    public void jdkName() {
+        assertEquals("bundled_linux_x64", BundledJdkPlatforms.jdkName("linux", "x64"));
+        assertEquals("bundled_darwin_aarch64", BundledJdkPlatforms.jdkName("darwin", "aarch64"));
+    }
 }

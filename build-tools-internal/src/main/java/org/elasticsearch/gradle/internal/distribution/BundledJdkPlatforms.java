@@ -60,4 +60,11 @@ public final class BundledJdkPlatforms {
     public static boolean isSupported(String platform, String architecture, int bundledJdkMajor) {
         return architecturesFor(platform, bundledJdkMajor).contains(architecture);
     }
+
+    /**
+     * The name the bundled JDK for the given platform and architecture is registered under in the {@code jdks} container.
+     */
+    public static String jdkName(String platform, String architecture) {
+        return "bundled_" + platform + "_" + architecture;
+    }
 }

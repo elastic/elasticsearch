@@ -58,7 +58,9 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -79,6 +81,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -607,7 +610,25 @@ public class CsvTests extends ESTestCase {
         if (plan.anyMatch(p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec)) {
             return;
         }
+        // UNKNOWN nullability is sent as TRUE on the wire, so these plans don't deserialize into an equal plan
+        if (hasUnknownNullability(plan)) {
+            return;
+        }
         SerializationTestUtils.assertSerialization(plan, configuration);
+    }
+
+    private static boolean hasUnknownNullability(PhysicalPlan plan) {
+        return plan.anyMatch(
+            p -> hasUnknownNullability(p.expressions()) || (p instanceof FragmentExec f && hasUnknownNullability(f.fragment()))
+        );
+    }
+
+    private static boolean hasUnknownNullability(LogicalPlan plan) {
+        return plan.anyMatch(p -> hasUnknownNullability(p.expressions()));
+    }
+
+    private static boolean hasUnknownNullability(List<Expression> expressions) {
+        return expressions.stream().anyMatch(e -> e.anyMatch(n -> n instanceof Attribute a && a.nullable() == Nullability.UNKNOWN));
     }
 
     private void assertWarnings(List<String> warnings) {

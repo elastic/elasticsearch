@@ -37,10 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Renaming a leader or a follower index keeps its UUID, which is what cross-cluster replication identifies indices by, so
  * replication must carry on across a rename on either side, and the follower must stay manageable under its new name.
  */
-@TestLogging(
-    value = "org.elasticsearch.xpack.ccr:DEBUG,org.elasticsearch.xpack.ccr.action:TRACE,org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG",
-    reason = "diagnose replication after a rename"
-)
+@TestLogging(value = "org.elasticsearch.xpack.ccr:DEBUG", reason = "follow task activity around the rename")
 public class CcrRenameIT extends CcrIntegTestCase {
 
     public void testRenameLeaderWhileFollowing() throws Exception {

@@ -13,6 +13,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 /**
  * A mounted searchable snapshot index keeps the snapshot and repository it is backed by in its settings, which move with the
  * metadata on a rename, so the renamed index must stay searchable and must recover from the snapshot again under its new name.

@@ -226,7 +226,35 @@ so these should keep working). The enrich, ML, transform and watcher references
 that store index names in their own configuration stay the user's problem, as
 they are today with reindex.
 
-Cross-cluster replication is handled rather than refused, see T14.
+Cross-cluster replication is handled rather than refused, see T14. Tests now
+cover: rename refused during a snapshot and during a restore, snapshot and
+restore of a renamed index (`RenameIndexSnapshotIT`); clone, shrink and split
+from a renamed source and a rename of the source while a clone target recovers
+(`RenameIndexResizeIT`); rename of a system index and into a system index name,
+both refused (`RenameSystemIndexIT`, which found that the destination was not
+checked against system index patterns, now fixed); a mounted searchable
+snapshot index renamed and recovered again after a full restart
+(`SearchableSnapshotsRenameIT`); ILM carrying on under the new name
+(`IndexLifecycleInitialisationTests#testRenameIndexWhileWaitingOnStep`, see
+T15); and the mixed-cluster gate (`IndexRenameRollingUpgradeIT`, compiled but
+not run locally, since it needs the previous version's distribution).
+
+### T15. ILM steps queued before a rename may see the old name
+
+`ExecuteStepsUpdateTask` carries the `Index` the step was queued with and hands
+it to the step. The task itself finds the index metadata through `index(Index)`,
+which falls back to the UUID (T13), but several wait steps resolve the index by
+name string from that `Index` (`WaitForRolloverReadyStep`,
+`WaitForActiveShardsStep`, `WaitForIndexColorStep`,
+`UpdateRolloverLifecycleDateStep`, `ReplaceDataStreamBackingIndexStep`, the
+shrink, downsample and searchable snapshot action steps). A step task queued
+just before a rename and executed just after it therefore fails once with a
+`NullPointerException` and moves the index to the ERROR step; the next ILM run
+starts from the current metadata and retryable steps recover. The production
+fix is one line in `ExecuteStepsUpdateTask`: hand the steps
+`indexMetadata.getIndex()` rather than the captured `Index`. Found by the ILM
+rename test, whose test-only wait step happened to look the index up by a
+fixed name and failed the same way.
 
 ### T14. Cross-cluster replication follows by UUID across a rename
 

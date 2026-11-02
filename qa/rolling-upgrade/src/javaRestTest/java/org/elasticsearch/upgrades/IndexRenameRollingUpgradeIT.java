@@ -16,7 +16,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
@@ -65,20 +64,4 @@ public class IndexRenameRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
         return (Integer) XContentMapValues.extractValue("count", response);
     }
 
-    private static boolean indexExists(String index) throws IOException {
-        try {
-            client().performRequest(new Request("HEAD", "/" + index));
-            return true;
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                return false;
-            }
-            throw e;
-        }
-    }
-
-    @SuppressWarnings("unused")
-    private static ObjectPath objectPath(Map<String, Object> map) {
-        return new ObjectPath(map);
-    }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

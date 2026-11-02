@@ -637,7 +637,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ProjectState currentState) {
-            boolean complete = currentState.metadata().index("test").getSettings().getAsBoolean("index.lifecycle.test.complete", false);
+            // look the index up by Index rather than by a fixed name: the index may have been renamed since the step was queued
+            boolean complete = currentState.metadata().index(index).getSettings().getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }
     }

@@ -139,7 +139,7 @@ public class CcrRenameIT extends CcrIntegTestCase {
         );
         assertAcked(followerClient().admin().indices().prepareClose("follower-renamed").get());
         assertAcked(
-            followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, "follower-renamed")).get()
+            followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "follower-renamed")).get()
         );
         assertAcked(followerClient().admin().indices().prepareOpen("follower-renamed").get());
         ensureFollowerGreen("follower-renamed");

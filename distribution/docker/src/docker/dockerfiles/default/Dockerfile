@@ -65,7 +65,12 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # You can't install plugins that include configuration when running as `elasticsearch` and the `config`
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
-    chown 1000:1000 bin config config/jvm.options.d data logs plugins
+    chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
+# Move the JDK out of the way, so that it is copied to the final image in its own layer. It rarely
+# changes, unlike the rest of the distribution, so the layer can be reused by the Docker build cache
+# and does not have to be pushed or pulled again.
+    mkdir /jdk-layer && \\
+    mv jdk /jdk-layer/
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -97,6 +102,8 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
+COPY --from=builder --chown=0:0 /jdk-layer/jdk jdk
+
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
@@ -112,6 +119,8 @@ COPY --chmod=0555 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     chmod 0775 /usr/share/elasticsearch && \\
+# COPY creates the destination directory with default permissions, so restore the one set in the builder stage
+    chmod 0555 jdk && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
 EXPOSE 9200 9300

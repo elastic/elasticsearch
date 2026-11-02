@@ -551,3 +551,18 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShardFilesNotDeletedOnStateNotRecoveredDedicatedMaster
   issue: https://github.com/elastic/elasticsearch/issues/164248
+- class: org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164266
+- class: org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164269
+- class: org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164271

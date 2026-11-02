@@ -9,8 +9,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
@@ -45,9 +47,9 @@ public class StaleIndexLookupTests extends ESTestCase {
             .addAsNew(renamedMetadata)
             .addAsNew(reusingMetadata)
             .build();
-        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(project))
-            .putRoutingTable(project.id(), routingTable)
+            .routingTable(GlobalRoutingTable.builder().put(project.id(), routingTable).build())
             .build();
 
         // the stale Index resolves to the renamed index, not to the index that reuses the old name

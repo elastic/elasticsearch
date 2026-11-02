@@ -102,7 +102,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
-    private final List<SearchPhaseFailure> phaseFailures = new CopyOnWriteArrayList<>();
+    protected final List<SearchPhaseFailure> phaseFailures = new CopyOnWriteArrayList<>();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
     protected final SearchTimeProvider timeProvider;

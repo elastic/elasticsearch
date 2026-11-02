@@ -84,7 +84,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -96,7 +95,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -319,7 +317,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 mergerBreaker()
             )
         ) {
-            Set<String> expectedPhases = new HashSet<>();
+            List<String> expectedPhases = new ArrayList<>();
             for (int i = 0; i < numResponses; i++) {
                 SearchResponseUtils.SearchResponseBuilder builder = SearchResponseUtils.response()
                     .shards(1, 1, 0)
@@ -340,10 +338,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
                 assertThat(
-                    mergedResponse.getPhaseFailures().stream().map(SearchPhaseFailure::phase).collect(Collectors.toSet()),
-                    equalTo(expectedPhases)
+                    mergedResponse.getPhaseFailures().stream().map(SearchPhaseFailure::phase).toList(),
+                    containsInAnyOrder(expectedPhases.toArray(String[]::new))
                 );
-                assertThat(mergedResponse.getPhaseFailures().size(), equalTo(expectedPhases.size()));
             } finally {
                 mergedResponse.decRef();
             }

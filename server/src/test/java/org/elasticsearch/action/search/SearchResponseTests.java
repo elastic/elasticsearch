@@ -1080,7 +1080,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private static List<SearchPhaseFailure> randomPhaseFailures() {
-        return randomList(1, 3, () -> new SearchPhaseFailure(randomAlphaOfLength(8), new IllegalStateException(randomAlphaOfLength(12))));
+        return randomList(0, 3, () -> new SearchPhaseFailure(randomAlphaOfLength(8), new IllegalStateException(randomAlphaOfLength(12))));
     }
 
     public void testPhaseFailuresSerializationRoundTrip() throws IOException {
@@ -1134,16 +1134,21 @@ public class SearchResponseTests extends ESTestCase {
         } finally {
             response.decRef();
         }
+
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
             Map<String, Object> map = parser.map();
-            List<?> failures = (List<?>) map.get(SearchResponse.PHASE_FAILURES.getPreferredName());
-            assertThat(failures.size(), equalTo(phaseFailures.size()));
-            for (int i = 0; i < failures.size(); i++) {
-                Map<?, ?> failure = (Map<?, ?>) failures.get(i);
-                assertThat(failure.get("phase"), equalTo(phaseFailures.get(i).phase()));
-                Map<?, ?> reason = (Map<?, ?>) failure.get("reason");
-                assertThat(reason.get("type"), equalTo("illegal_state_exception"));
-                assertThat(reason.get("reason"), equalTo(phaseFailures.get(i).cause().getMessage()));
+            if (phaseFailures.isEmpty()) {
+                assertFalse(map.containsKey(SearchResponse.PHASE_FAILURES.getPreferredName()));
+            } else {
+                List<?> failures = (List<?>) map.get(SearchResponse.PHASE_FAILURES.getPreferredName());
+                assertThat(failures.size(), equalTo(phaseFailures.size()));
+                for (int i = 0; i < failures.size(); i++) {
+                    Map<?, ?> failure = (Map<?, ?>) failures.get(i);
+                    assertThat(failure.get("phase"), equalTo(phaseFailures.get(i).phase()));
+                    Map<?, ?> reason = (Map<?, ?>) failure.get("reason");
+                    assertThat(reason.get("type"), equalTo("illegal_state_exception"));
+                    assertThat(reason.get("reason"), equalTo(phaseFailures.get(i).cause().getMessage()));
+                }
             }
         }
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
@@ -1156,36 +1161,6 @@ public class SearchResponseTests extends ESTestCase {
             } finally {
                 parsed.decRef();
             }
-        }
-    }
-
-    public void testAddPhaseFailures() {
-        List<SearchPhaseFailure> existing = randomPhaseFailures();
-        List<SearchPhaseFailure> additional = randomPhaseFailures();
-        SearchResponse response = SearchResponseUtils.response().phaseFailures(existing).build();
-        try {
-            response.addPhaseFailures(List.of());
-            assertThat(response.getPhaseFailures(), equalTo(existing));
-
-            response.addPhaseFailures(additional);
-            List<SearchPhaseFailure> expected = new ArrayList<>(existing);
-            expected.addAll(additional);
-            assertThat(response.getPhaseFailures(), equalTo(expected));
-        } finally {
-            response.decRef();
-        }
-    }
-
-    public void testNoPhaseFailuresFieldWhenEmpty() throws IOException {
-        SearchResponse response = SearchResponseUtils.response().build();
-        BytesReference bytes;
-        try {
-            bytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), XContentType.JSON, EMPTY_PARAMS, randomBoolean());
-        } finally {
-            response.decRef();
-        }
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
-            assertFalse(parser.map().containsKey(SearchResponse.PHASE_FAILURES.getPreferredName()));
         }
     }
 

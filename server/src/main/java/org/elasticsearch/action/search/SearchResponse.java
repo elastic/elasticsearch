@@ -466,7 +466,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * response is handed to its caller.
      */
     void addPhaseFailures(List<SearchPhaseFailure> additionalFailures) {
-        if (additionalFailures.isEmpty() == false) {
+        if (!additionalFailures.isEmpty()) {
             phaseFailures = Stream.concat(phaseFailures.stream(), additionalFailures.stream()).toList();
         }
     }

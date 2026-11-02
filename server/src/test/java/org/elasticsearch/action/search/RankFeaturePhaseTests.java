@@ -57,6 +57,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -572,18 +574,18 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 if (failuresAllowed) {
                     mockSearchPhaseContext.assertNoFailure();
                     assertTrue(phaseDone.get());
-                    assertThat(mockSearchPhaseContext.nonFatalPhaseFailures, hasSize(1));
-                    SearchPhaseFailure phaseFailure = mockSearchPhaseContext.nonFatalPhaseFailures.get(0);
+                    assertThat(mockSearchPhaseContext.phaseFailures, hasSize(1));
+                    SearchPhaseFailure phaseFailure = mockSearchPhaseContext.phaseFailures.get(0);
                     assertThat(phaseFailure.phase(), equalTo(RankFeaturePhase.NAME));
                     assertThat(phaseFailure.cause(), instanceOf(IllegalStateException.class));
                     assertThat(phaseFailure.cause().getMessage(), equalTo("reranker unavailable"));
                     // the docs keep the query phase order
-                    assertThat(finalResults[0].length, equalTo(2));
+                    assertThat(finalResults[0], arrayWithSize(2));
                     assertThat(finalResults[0][0].doc, equalTo(1));
                     assertThat(finalResults[0][1].doc, equalTo(2));
                 } else {
                     assertFalse(phaseDone.get());
-                    assertThat(mockSearchPhaseContext.nonFatalPhaseFailures, hasSize(0));
+                    assertThat(mockSearchPhaseContext.phaseFailures, empty());
                     assertNotNull(mockSearchPhaseContext.phaseFailure.get());
                     assertThat(mockSearchPhaseContext.phaseFailure.get().getMessage(), equalTo("reranker unavailable"));
                 }

@@ -59,11 +59,10 @@ import static org.mockito.Mockito.mock;
 public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
     public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
-    public final AtomicInteger phaseFailures = new AtomicInteger();
+    public final AtomicInteger phaseFailureCount = new AtomicInteger();
     final int numShards;
     final AtomicInteger numSuccess;
     public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
-    public final List<SearchPhaseFailure> nonFatalPhaseFailures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -168,7 +167,7 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
                 0,
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-                List.copyOf(nonFatalPhaseFailures),
+                List.copyOf(phaseFailures),
                 SearchResponse.Clusters.EMPTY,
                 searchContextId,
                 null,
@@ -182,15 +181,10 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
     }
 
     @Override
-    void addPhaseFailure(String phase, Exception cause) {
-        nonFatalPhaseFailures.add(new SearchPhaseFailure(phase, cause));
-    }
-
-    @Override
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
         // Counted because raisePhaseFailure completes the search listener, which must not happen twice.
-        phaseFailures.incrementAndGet();
+        phaseFailureCount.incrementAndGet();
         // Completes the listener as production does, so anything registered with addReleasable is released. Unlike
         // raisePhaseFailure it does not release the successful shards' contexts or notify the progress listener.
         doneFuture.onResponse(null);

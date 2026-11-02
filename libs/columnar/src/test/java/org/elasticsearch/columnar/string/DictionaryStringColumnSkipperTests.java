@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
@@ -52,6 +53,73 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
             assertEquals(count, skipper.docCount());
             assertEquals(count - 1, skipper.maxDocId());
         });
+    }
+
+    /**
+     * Each interval of the index names the documents it covers and the ordinals they hold, exactly: the intervals tile
+     * the documents holding a value, and an interval off by a single document bounds the wrong ordinals. Dense columns of
+     * a slot a document have their ordinals written without walking the documents again, the others walk them.
+     */
+    public void testEachIntervalBoundsTheOrdinalsOfItsOwnDocuments() throws IOException {
+        final int count = INTERVAL * between(2, 5) + between(0, INTERVAL - 1);
+        final int terms = between(20, 80);
+        final boolean sparse = randomBoolean();
+        final int maxSlots = randomBoolean() ? 1 : between(2, 3);
+        final BytesRef[][] docSlots = new BytesRef[count][];
+        for (int doc = 0; doc < count; doc++) {
+            if (sparse && randomBoolean()) {
+                continue;
+            }
+            docSlots[doc] = new BytesRef[between(1, maxSlots)];
+            for (int slot = 0; slot < docSlots[doc].length; slot++) {
+                docSlots[doc][slot] = term(between(0, terms - 1));
+            }
+        }
+        // Every term repeats often enough to earn a place, so a term's ordinal is its rank among them.
+        final List<BytesRef> dictionary = new ArrayList<>(new TreeSet<>(values(docSlots)));
+        withColumnAndSkipIndex(docSlots, options(), (metadata, reader, skipIndex) -> {
+            assertFalse(((StringColumnMetadata.Dictionary) metadata).hasEscapes());
+            final NumericColumnMetadata.Skipper meta = skipperOf(metadata);
+            assertNotNull(meta);
+            final DocValuesSkipper skipper = SkipIndexCodec.forId(meta.codecId()).reader(meta, skipIndex);
+            int expectedMinDoc = nextValued(docSlots, 0);
+            for (skipper.advance(0); skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS; skipper.advance(skipper.maxDocID(0) + 1)) {
+                final int minDoc = skipper.minDocID(0);
+                final int maxDoc = skipper.maxDocID(0);
+                assertEquals("where the interval starts", expectedMinDoc, minDoc);
+                long minOrdinal = Long.MAX_VALUE;
+                long maxOrdinal = Long.MIN_VALUE;
+                int valued = 0;
+                for (int doc = minDoc; doc <= maxDoc; doc++) {
+                    if (docSlots[doc] == null) {
+                        continue;
+                    }
+                    valued++;
+                    for (BytesRef value : docSlots[doc]) {
+                        final long ordinal = dictionary.indexOf(value) + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+                        minOrdinal = Math.min(minOrdinal, ordinal);
+                        maxOrdinal = Math.max(maxOrdinal, ordinal);
+                    }
+                }
+                final String interval = "interval [" + minDoc + ", " + maxDoc + "]";
+                assertNotNull(interval + " ends on a document holding a value", docSlots[maxDoc]);
+                assertEquals(interval, valued, skipper.docCount(0));
+                assertEquals(interval, minOrdinal, skipper.minValue(0));
+                assertEquals(interval, maxOrdinal, skipper.maxValue(0));
+                expectedMinDoc = nextValued(docSlots, maxDoc + 1);
+            }
+            assertEquals("every document holding a value is covered", DocIdSetIterator.NO_MORE_DOCS, expectedMinDoc);
+        });
+    }
+
+    /** The first document from {@code from} on that holds a value. */
+    private static int nextValued(BytesRef[][] docSlots, int from) {
+        for (int doc = from; doc < docSlots.length; doc++) {
+            if (docSlots[doc] != null) {
+                return doc;
+            }
+        }
+        return DocIdSetIterator.NO_MORE_DOCS;
     }
 
     public void testAColumnWithEscapesGetsNoIndex() throws IOException {

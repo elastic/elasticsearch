@@ -113,6 +113,18 @@ final class AddressingWriter {
     }
 
     /**
+     * Records the next {@code count} documents of a column holding one slot a document, the first beginning at
+     * {@code valueAddress}, as {@code count} calls to {@link #startDocument} would.
+     */
+    void startDocuments(long valueAddress, int count) throws IOException {
+        if (counts != null) {
+            throw new IllegalStateException("documents recorded in bulk in a column whose documents may hold several slots");
+        }
+        startDocument(valueAddress);
+        written += count - 1;
+    }
+
+    /**
      * Finishes the counts and the bases, {@code writtenSlots} being the number of slots the
      * caller actually wrote — the address one past the column's last slot, which closes the last document's
      * count.

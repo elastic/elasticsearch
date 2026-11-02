@@ -166,6 +166,8 @@ final class PlainValues {
         private boolean previousNull;
         /** Whether values come through {@link #transfer}, which keeps no {@link #previous}; a column takes one or the other. */
         private Boolean transferred;
+        /** Whether the slot before is the last of a copied run whose value {@link #previous} was not set to. */
+        private boolean previousCopied;
 
         /** Holds the bytes a copy appends around the chunks it copies, a piece at a time. */
         private byte[] copyBuffer = new byte[0];
@@ -207,20 +209,11 @@ final class PlainValues {
         void add(BytesRef value) throws IOException {
             assert transferred != Boolean.TRUE : "a column's values are either added or transferred";
             transferred = false;
-            add(value, true);
-        }
-
-        /**
-         * Adds {@code value}, as a repeat of the one before it where {@code detectRepeats} says it may be one. A column
-         * whose values come through {@link #transfer} keeps no {@link #previous}, so it has nothing to compare with
-         * and stores the value again, which decodes the same.
-         */
-        private void add(BytesRef value, boolean detectRepeats) throws IOException {
             if (constantLength >= 0 && value.length != constantLength) {
                 // The column's addresses are computed from the length, so one value off it misplaces every one after.
                 throw new IllegalStateException("a value of " + value.length + " bytes in a column counted at " + constantLength);
             }
-            final boolean repeat = detectRepeats && count > 0 && previousNull == false && previous.get().bytesEquals(value);
+            final boolean repeat = count > 0 && previousNull == false && previousCopied == false && previous.get().bytesEquals(value);
             startSlot();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
@@ -236,6 +229,7 @@ final class PlainValues {
             if (repeat == false) {
                 runs++;
                 previous.copyBytes(value);
+                previousCopied = false;
             }
             previousNull = false;
             count++;
@@ -305,9 +299,11 @@ final class PlainValues {
          * over bytes already written — so the block decodes on its own and no byte is written twice.
          *
          * <p>Leading repeats refer to a value before the run, which this stream holds under bytes of its own, so
-         * they go through {@link #add} like any value arriving from outside, except in a column whose values are transferred,
-         * which keeps nothing to tell a repeat by and stores them again. The bytes before the run's first
-         * whole chunk and after its last are appended as they are read; the chunks between are copied.
+         * they go through {@link #add} like any value arriving from outside. A stream whose values are not known to
+         * be added — it may be taking them through {@link #transfer}, which holds none whole — stores each of them
+         * with its bytes appended as they are read instead, and does not read the run's last value to compare the
+         * next one added against. The bytes before the run's first whole chunk and after its last are appended as
+         * they are read; the chunks between are copied.
          */
         Copied copy(Reader source, long from, long to) throws IOException {
             assert from < to && to <= source.numValues() : "[" + from + ", " + to + ") of " + source.numValues();
@@ -341,10 +337,15 @@ final class PlainValues {
                 return null;
             }
 
+            final boolean adding = transferred == Boolean.FALSE;
             final BytesRef scratch = new BytesRef();
             for (long v = from; v < first; v++) {
-                source.get(v, scratch);
-                add(scratch, transferred != Boolean.TRUE);
+                if (adding) {
+                    source.get(v, scratch);
+                    add(scratch);
+                } else {
+                    store(source, v);
+                }
             }
 
             final long base = chunks.uncompressedLength();
@@ -392,10 +393,12 @@ final class PlainValues {
             assert chunks.uncompressedLength() == base + end - begin
                 : "stream at " + chunks.uncompressedLength() + " after copying [" + begin + ", " + end + ") from " + base;
 
-            if (previousNull == false) {
+            if (previousNull == false && adding) {
                 // What the next value added is compared against to decide whether it repeats.
                 source.get(to - 1, scratch);
                 previous.copyBytes(scratch);
+            } else {
+                previousCopied = previousNull == false;
             }
             return new Copied(
                 to - from,
@@ -403,6 +406,23 @@ final class PlainValues {
                 lastChunk - firstChunk,
                 sourceChunks.chunkStart(lastChunk) - sourceChunks.chunkStart(firstChunk)
             );
+        }
+
+        /** Adds the source's value at {@code valueAddress} as one stored in full, its bytes appended as they are read. */
+        private void store(Reader source, long valueAddress) throws IOException {
+            final int length = source.length(valueAddress);
+            final long begin = source.start(valueAddress);
+            startSlot();
+            appendFrom(source.chunks(), begin, begin + length);
+            if (lengths != null) {
+                lengths.add(code(length));
+            }
+            valueBytes += length;
+            minLength = minLength < 0 ? length : Math.min(minLength, length);
+            maxLength = Math.max(maxLength, length);
+            runs++;
+            previousNull = false;
+            count++;
         }
 
         /** Appends the source's bytes in {@code [begin, end)} as they are read, a bounded piece at a time. */

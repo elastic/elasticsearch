@@ -15,7 +15,9 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
@@ -25,6 +27,7 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
@@ -207,6 +210,120 @@ public class NumericColumnTests extends ESTestCase {
 
         assertEquals(numValues, roundTripped.numValues());
         assertEquals((numValues + blockSize - 1) / blockSize, roundTripped.numBlocks());
+    }
+
+    /**
+     * A cursor that hands over the values of consecutive documents in bulk writes the column byte for byte as one read a
+     * value at a time does, however many values each read hands over, so values land in the blocks and the skip index
+     * exactly where they would.
+     */
+    public void testValuesOfConsecutiveDocumentsReadInBulkWriteTheSameColumn() throws IOException {
+        final int maxDoc = between(1, 5000);
+        final long[][] docValues = new long[maxDoc][];
+        final long base = randomLong();
+        for (int d = 0; d < maxDoc; d++) {
+            docValues[d] = new long[] { randomBoolean() ? base + between(0, 1000) : randomLong() };
+        }
+        final int blockSize = randomValidBlockSize();
+        final byte[] segmentId = new byte[16];
+        random().nextBytes(segmentId);
+        try (Directory dir = newDirectory()) {
+            final byte[] oneAtATime = writeColumn(dir, "one", segmentId, docValues, blockSize, () -> cursor(docValues));
+            final byte[] inBulk = writeColumn(dir, "bulk", segmentId, docValues, blockSize, () -> bulkCursor(docValues));
+            assertArrayEquals("metadata", oneAtATime, inBulk);
+            for (String extension : new String[] { "cnd", "cna", "cnl", "cnn", "cns" }) {
+                assertArrayEquals(extension, fileBytes(dir, "one." + extension), fileBytes(dir, "bulk." + extension));
+            }
+        }
+    }
+
+    /** Writes a dense column of a value a document under {@code name}, answering its metadata as written. */
+    private static byte[] writeColumn(
+        Directory dir,
+        String name,
+        byte[] segmentId,
+        long[][] docValues,
+        int blockSize,
+        IOSupplier<NumericColumnValues> cursors
+    ) throws IOException {
+        final NumericColumnMetadata written;
+        try (
+            ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, name, segmentId);
+            IndexOutput skip = dir.createOutput(name + ".cns", IOContext.DEFAULT)
+        ) {
+            ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
+            written = NumericColumnWriter.write(
+                docValues.length,
+                docValues.length,
+                docValues.length,
+                true,
+                cursors,
+                NumericPipeline.defaultPipeline(blockSize),
+                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
+                out.outputs(),
+                skip
+            );
+            ColumnarCodecUtil.writeFooter(skip);
+        }
+        final byte[] buf = new byte[1024];
+        final ByteArrayDataOutput meta = new ByteArrayDataOutput(buf);
+        written.writeTo(meta);
+        return Arrays.copyOf(buf, meta.getPosition());
+    }
+
+    private static byte[] fileBytes(Directory dir, String name) throws IOException {
+        try (IndexInput in = dir.openInput(name, IOContext.READONCE)) {
+            final byte[] bytes = new byte[Math.toIntExact(in.length())];
+            in.readBytes(bytes, 0, bytes.length);
+            return bytes;
+        }
+    }
+
+    /** As {@link #cursor}, over documents holding a value apiece, handing over a random number of them at a time. */
+    private static NumericColumnValues bulkCursor(long[][] docValues) {
+        return new NumericColumnValues() {
+            private int doc = -1;
+
+            @Override
+            public int nextValuesOfConsecutiveDocuments(long[] dst) {
+                final int read = Math.min(between(1, dst.length), docValues.length - 1 - doc);
+                for (int i = 0; i < read; i++) {
+                    dst[i] = docValues[++doc][0];
+                }
+                return read;
+            }
+
+            @Override
+            public int valueCount() {
+                throw new AssertionError("read in bulk");
+            }
+
+            @Override
+            public long nextValue() {
+                throw new AssertionError("read in bulk");
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                throw new AssertionError("read in bulk");
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return docValues.length;
+            }
+        };
     }
 
     private void assertColumn(long[][] docValues) throws IOException {

@@ -237,6 +237,24 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
+     * Reads the ordinals of up to {@code max} slots from {@code valueAddress} into {@code dst}, each translated through
+     * {@code ordinalMap}, stopping at the end of the block {@code valueAddress} lies in; answers how many were read.
+     * Only asked of a column that let nothing escape, so every slot holds a term's ordinal or the reserved null's, and
+     * the map has an entry for each.
+     */
+    int translateOrdinals(long valueAddress, int max, int[] ordinalMap, int[] dst) throws IOException {
+        assert escapeCount == 0 : "an escaped slot has no ordinal to translate";
+        final int blockSize = ordinals.blockSize();
+        final long[] block = ordinals.block(valueAddress >>> Integer.numberOfTrailingZeros(blockSize));
+        final int start = (int) (valueAddress & (blockSize - 1));
+        final int count = Math.min(blockSize - start, max);
+        for (int i = 0; i < count; i++) {
+            dst[i] = ordinalMap[(int) block[start + i]];
+        }
+        return count;
+    }
+
+    /**
      * The extreme value, decided over ordinals. The dictionary is in term order, so the largest ordinal a document
      * holds names its largest value and the smallest its smallest - the terms are never read to find out, and only the
      * one that wins is resolved.

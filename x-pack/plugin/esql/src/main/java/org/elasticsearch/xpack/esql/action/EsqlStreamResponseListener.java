@@ -675,7 +675,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     private ToXContent.Params errorParams(int statusCode) {
         ToXContent.Params params = channel.request();
-        if (statusCode != RestStatus.UNAUTHORIZED.getStatus() && params.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
+        if (statusCode != RestStatus.UNAUTHORIZED.getStatus()
+            && params.paramAsBoolean(RestController.ERROR_TRACE_PARAM, RestController.ERROR_TRACE_DEFAULT)) {
             params = new ToXContent.DelegatingMapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;

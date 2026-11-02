@@ -78,6 +78,47 @@ exit 9
         !result.output.contains('Isolated projects violations are within threshold')
     }
 
+    def "counts Gradle 9.9 isolated-projects problem ids"() {
+        given:
+        // Gradle 9.9 reports isolated-projects violations under the "Gradle:Isolated Projects:"
+        // problem group rather than the previous "validation:configuration-cache:" group.
+        def sandbox = createSandbox('''
+#!/bin/bash
+set -euo pipefail
+mkdir -p "${WORKSPACE}/build"
+cat > "${WORKSPACE}/build/problems-status.json" <<'EOF'
+{
+  "totalProblems" : 493,
+  "severities" : [
+    { "severity" : "ERROR", "count" : 493 }
+  ],
+  "problems" : [
+    {
+      "id" : "Gradle:Isolated Projects:Cross-project model access",
+      "displayName" : "Cross-project model access",
+      "severity" : "ERROR",
+      "count" : 491
+    },
+    {
+      "id" : "Gradle:Isolated Projects:Task graph access to other projects tasks",
+      "displayName" : "Task graph access to other projects tasks",
+      "severity" : "ERROR",
+      "count" : 2
+    }
+  ]
+}
+EOF
+''')
+
+        when:
+        def result = runValidationScript(sandbox)
+
+        then:
+        result.exitCode == 0
+        result.output.contains('Isolated projects validation violations: 493')
+        result.output.contains('Isolated projects violations are within threshold')
+    }
+
     def "fails when violations exceed the threshold"() {
         given:
         def sandbox = createSandbox('''
@@ -218,7 +259,7 @@ json_file = sys.argv[2]
 with open(json_file, 'r', encoding='utf-8') as f:
     report = json.load(f)
 
-problems = [p for p in report.get('problems', []) if p.get('id', '').startswith('validation:configuration-cache:')]
+problems = [p for p in report.get('problems', []) if p.get('id', '').startswith(('validation:configuration-cache:', 'Gradle:Isolated Projects:'))]
 if 'add // 0' in query:
     print(sum(int(p.get('count', 0)) for p in problems))
 else:

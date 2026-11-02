@@ -209,7 +209,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                     }
                     final RemoteClusterClient remote;
                     try {
-                        remote = remoteClient(params);
+                        remote = remoteClientForkingResponses(params);
                     } catch (NoSuchRemoteClusterException ex) {
                         errorHandler.accept(ex);
                         return;
@@ -642,6 +642,24 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 // which are about as easy to parse as shard bulks, and which handle their own forking, so we can handle responses on the
                 // transport thread
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+            ),
+            params.getHeaders(),
+            clusterService.state()
+        );
+    }
+
+    /**
+     * Like {@link #remoteClient} but with responses handled on the ccr executor. Used for the indices-stats listing that resolves a
+     * renamed leader by UUID: an {@link org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse} is O(#shards) to read and
+     * must not be deserialized on a transport thread.
+     */
+    private RemoteClusterClient remoteClientForkingResponses(ShardFollowTask params) {
+        return wrapRemoteClusterClient(
+            client.threadPool().getThreadContext(),
+            client.getRemoteClusterClient(
+                params.getRemoteCluster(),
+                ccrExecutor,
                 RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
             ),
             params.getHeaders(),

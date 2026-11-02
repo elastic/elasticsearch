@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
@@ -209,7 +210,12 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             ? labelReplaceValue(context, source)
             : labelJoinValue(context, source);
 
-        Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
+        // A derived label named like a built-in output column resolves to that column, and must not shadow it inside the
+        // pipeline by name or id. The verifier rejects every position where such a label would surface, so it is only ever
+        // dropped by an enclosing grouping.
+        Alias derived = namesBuiltInColumn(context)
+            ? new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName(destination.name()), destinationValue)
+            : new Alias(source, destination.name(), destinationValue, destination.id());
         // The derived label shadows a stored one of the same name; BindPromqlLabelReferences drops the stored column.
         var fields = new ArrayList<Alias>(List.of(derived));
         UnresolvedPromqlAttribute metadata = PromqlLabels.metadataLabel(output());
@@ -243,7 +249,10 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         Expression replacement = params.get(1);
         Expression src = sourceLabelValue(source, srcLabel);
         Expression extracted = new RegexExpand(source, src, regex, replacement);
-        Expression existingDst = sourceLabelValue(source, PromqlLabels.labelName(destination()));
+        // A built-in column is no label of the series, so a destination naming one has no value to keep: it is a new label.
+        Expression existingDst = namesBuiltInColumn(context)
+            ? Literal.keyword(source, "")
+            : sourceLabelValue(source, PromqlLabels.labelName(destination()));
         return new Coalesce(source, extracted, List.of(existingDst));
     }
 
@@ -277,6 +286,12 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * The value of a source label as a non-null string: {@code COALESCE(label, "")}. The verifier admits string labels only,
      * and a label the input lacks binds to null.
      */
+    /** Whether the destination is named like one of the command's built-in output columns (the step or the value column). */
+    private boolean namesBuiltInColumn(TranslationContext context) {
+        String name = PromqlLabels.labelName(destination().name());
+        return name.equals(context.cmd().stepColumnName()) || name.equals(context.cmd().valueColumnName());
+    }
+
     private Expression sourceLabelValue(Source source, String labelName) {
         return new Coalesce(source, UnresolvedPromqlAttribute.label(source(), labelName), List.of(Literal.keyword(source, "")));
     }

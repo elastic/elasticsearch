@@ -387,6 +387,18 @@ explicitly, because `index(Index)` answers yes for a renamed index.
 fallback silently stopped every rename from being reported to the appliers,
 which surfaced as "shard has not applied block" failures in `RenameIndexIT`.
 
+One hard rule comes with the fallback: authorization must never use it. The
+fulfilling-cluster check for shard-level actions (`RBACEngine#shardIdAuthorized`)
+grants access for the *name* in a shard id and then proved that the shard id
+belongs to that index with `hasIndex(Index)`. With the fallback, a forged shard
+id pairing an authorized name with another index's UUID resolved to that other
+index and passed, which `RemoteClusterSecurityFcActionAuthorizationIT` caught
+in CI. The check now resolves by name and compares the UUID strictly. The
+production change should give the strict form its own method
+(`ProjectMetadata#indexStrict(Index)` or similar) and audit every caller that
+uses an `Index` as proof of identity rather than as a key; the security module
+had only this one.
+
 Two fixes ride along: `RecoveryState` is renamed with its shard so that
 `GET _recovery` groups the index under its current name, and
 `index.provided_name` is updated to the new name, since tooling (including the
@@ -581,9 +593,16 @@ tests of the new code:
 - `PutTransformActionRequestTests#testCloudCredentialRoundTripPreservesValue`
   failed once on a locale-dependent string and passes on repeat; unrelated.
 
-Not yet run with the trick: REST tests. Niels's last CI run of the trick
-extended to `assertAcked` failed on security tests; that extension is not part
-of this prototype.
+### CI
+
+The PR's CI builds (each push starts one and cancels the previous) found, on
+top of the local sweep: the security authorization regression above; the
+rolling-upgrade gate test assuming the old version lacks the feature, which is
+false for an upgrade within the same minor where the "old" nodes are built from
+this branch (the test now consults `oldClusterHasFeature`); and the logger
+usage check on a log line inherited from the spike. All fixed. Niels's last CI
+run of the trick extended to `assertAcked` failed on security tests; that
+extension is not part of this prototype.
 
 ## Suggested sequence of production PRs
 

@@ -30,6 +30,7 @@ public class IndexRenameRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
 
     private static final String INDEX_NAME = "test_rename_upgrade";
     private static final String RENAMED_INDEX_NAME = "test_rename_upgrade_renamed";
+    private static final String RENAME_FEATURE = "index.rename";
 
     public IndexRenameRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -42,6 +43,12 @@ public class IndexRenameRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
                 newXContentRequest(HttpMethod.PUT, "/" + INDEX_NAME + "/_doc/1?refresh=true", (builder, params) -> builder.field("f", "v"))
             );
         } else if (isMixedCluster()) {
+            if (oldClusterHasFeature(RENAME_FEATURE)) {
+                // the old version already supports renames (for example an upgrade within the same minor built from this
+                // branch), so the gate never engages; leave the index alone until the cluster is fully upgraded
+                assertThat(docCount(INDEX_NAME), equalTo(1));
+                return;
+            }
             // an old node has no rename endpoint and a new node refuses because not every node supports renames; either way the
             // request fails and the index is untouched
             expectThrows(ResponseException.class, () -> rename(INDEX_NAME, RENAMED_INDEX_NAME));

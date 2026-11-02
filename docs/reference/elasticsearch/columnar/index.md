@@ -124,8 +124,7 @@ PUT my-index
 {
   "settings": {
     "mode": "columnar",
-    "sort.field": [ "agent.id", "@timestamp" ],
-    "sort.order": [ "asc", "desc" ]
+    "sort": "agent.id, @timestamp DESC"
   }
 }
 ```
@@ -137,8 +136,7 @@ PUT my-logs-index
 {
   "settings": {
     "mode": "logsdb_columnar",
-    "sort.field": [ "@timestamp" ],
-    "sort.order": [ "desc" ]
+    "sort": "@timestamp DESC"
   }
 }
 ```

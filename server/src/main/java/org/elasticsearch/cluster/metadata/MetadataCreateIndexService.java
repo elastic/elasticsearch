@@ -2116,6 +2116,7 @@ public class MetadataCreateIndexService {
             final Predicate<String> sourceSettingsPredicate = (s) -> (s.startsWith("index.similarity.")
                 || s.startsWith("index.analysis.")
                 || s.startsWith("index.sort.")
+                || s.equals(IndexSortConfig.INDEX_SORT_SETTING.getKey())
                 || s.equals("index.soft_deletes.enabled")) && indexSettingsBuilder.keys().contains(s) == false;
             builder.put(sourceMetadata.getSettings().filter(sourceSettingsPredicate));
         }

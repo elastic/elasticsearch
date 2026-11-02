@@ -290,6 +290,55 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(fromExpression, equalTo(fromSettings));
     }
 
+    public void testSliceEnabledRejectsReservedFieldsInSortExpression() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String field = randomFrom(
+            RoutingFieldMapper.NAME,
+            SliceIndexing.FIELD_NAME,
+            SliceIndexing.SLICE_KEY_FIELD_NAME,
+            SliceIndexing.SLICE_HASH_FIELD_NAME
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put("index.sort", field + " DESC, field1")
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(
+            e.getMessage(),
+            containsString("setting [index.sort] must not contain [_routing], [_slice], [_slice_key] or [_slice_hash]")
+        );
+    }
+
+    public void testSliceEnabledPrependsSliceKeyToSortExpression() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put("index.sort", "field1 DESC MISSING_FIRST, field2")
+            .build();
+        IndexSortConfig config = indexSettings(settings).getIndexSortConfig();
+        assertThat(config.sortSpecs.length, equalTo(3));
+        assertThat(config.sortSpecs[0].field, equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME));
+        assertThat(config.sortSpecs[1].field, equalTo("field1"));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
+        assertThat(config.sortSpecs[2].field, equalTo("field2"));
+        assertThat(config.sortSpecs[2].order, equalTo(SortOrder.ASC));
+    }
+
+    public void testSortExpressionWhitespaceAndCase() {
+        Settings settings = Settings.builder().put("index.sort", "a\tDESC,\n b  MISSING_FIRST ,  c Mv_First_Max   aSc ").build();
+        IndexSortConfig config = indexSettings(settings).getIndexSortConfig();
+        assertThat(config.sortSpecs.length, equalTo(3));
+        assertThat(config.sortSpecs[0].field, equalTo("a"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[1].field, equalTo("b"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
+        assertThat(config.sortSpecs[2].field, equalTo("c"));
+        assertThat(config.sortSpecs[2].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[2].mode, equalTo(MultiValueMode.MAX));
+    }
+
     public void testEmptySortExpressionHasNoSort() {
         assertFalse(indexSettings(Settings.builder().put("index.sort", "").build()).getIndexSortConfig().hasIndexSort());
     }

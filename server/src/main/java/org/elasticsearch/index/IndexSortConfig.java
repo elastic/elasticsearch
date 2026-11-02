@@ -430,7 +430,7 @@ public final class IndexSortConfig {
                     || field.equals(SliceIndexing.SLICE_HASH_FIELD_NAME)) {
                     throw new IllegalArgumentException(
                         "setting ["
-                            + INDEX_SORT_FIELD_SETTING.getKey()
+                            + (hasSortExpression ? INDEX_SORT_SETTING.getKey() : INDEX_SORT_FIELD_SETTING.getKey())
                             + "] must not contain ["
                             + RoutingFieldMapper.NAME
                             + "], ["

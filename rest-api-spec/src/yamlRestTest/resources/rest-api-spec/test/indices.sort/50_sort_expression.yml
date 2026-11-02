@@ -131,6 +131,79 @@ setup:
   - match: { error.root_cause.0.reason: "/cannot.be.combined.with.\\[index.sort.field\\]/" }
 
 ---
+"Sort expression rejects an unknown keyword":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "rank SIDEWAYS"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/unknown.keyword.\\[SIDEWAYS\\]/" }
+
+---
+"Sort expression rejects a trailing comma":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "rank,"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/empty.sort.entry/" }
+
+---
+"Sort expression rejects a duplicate field":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "rank, rank DESC"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/field.\\[rank\\].more.than.once/" }
+
+---
+"Sort expression rejects a field missing from the mappings":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "not_mapped"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/unknown.index.sort.field/" }
+
+---
+"Invalid sort expression in an index template fails at put time":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: invalid_sorted_template
+        body:
+          index_patterns: [ "invalid_sorted_template_*" ]
+          template:
+            settings:
+              index.sort: "rank SIDEWAYS"
+  - match: { error.reason: "/unknown.keyword.\\[SIDEWAYS\\]/" }
+
+---
 "Sort expression cannot sort on a field under a nested object":
   - do:
       catch: /cannot apply index sort to field \[nested_field\.foo\] under nested object \[nested_field\]/

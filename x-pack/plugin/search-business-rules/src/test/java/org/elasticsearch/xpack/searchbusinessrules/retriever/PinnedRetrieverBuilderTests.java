@@ -16,6 +16,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -209,7 +212,20 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         multipleSortsSource.query(dummyQuery);
         multipleSortsSource.sort("_score");
         multipleSortsSource.sort("field1");
-        e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(multipleSortsSource));
+        builder.finalizeSourceBuilder(multipleSortsSource);
+
+        assertThat(multipleSortsSource.sorts().size(), equalTo(2));
+        assertThat(multipleSortsSource.sorts().get(0), instanceOf(ScoreSortBuilder.class));
+        assertThat(((ScoreSortBuilder) multipleSortsSource.sorts().get(0)).order(), equalTo(SortOrder.DESC));
+        assertThat(multipleSortsSource.sorts().get(1), instanceOf(FieldSortBuilder.class));
+        assertThat(((FieldSortBuilder) multipleSortsSource.sorts().get(1)).getFieldName(), equalTo("field1"));
+        assertThat(((FieldSortBuilder) multipleSortsSource.sorts().get(1)).order(), equalTo(SortOrder.ASC));
+
+        SearchSourceBuilder fieldFirstSource = new SearchSourceBuilder();
+        fieldFirstSource.query(dummyQuery);
+        fieldFirstSource.sort("field1");
+        fieldFirstSource.sort("_score");
+        e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(fieldFirstSource));
         assertThat(
             e.getMessage(),
             equalTo(

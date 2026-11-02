@@ -41,6 +41,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -70,6 +71,7 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
 
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final SystemIndices systemIndices;
     private final MasterServiceTaskQueue<RenameIndexTask> taskQueue;
 
     @Inject
@@ -79,7 +81,8 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        FeatureService featureService
+        FeatureService featureService,
+        SystemIndices systemIndices
     ) {
         super(
             RenameIndexAction.NAME,
@@ -93,6 +96,7 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
         );
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        this.systemIndices = systemIndices;
         // Renames batch like other index metadata changes. Each task is validated and applied against the state produced by the
         // tasks before it in the batch, so two renames of the same index in one batch behave as if they had run one after another.
         this.taskQueue = clusterService.createTaskQueue("rename-index", Priority.URGENT, new SimpleBatchedAckListenerTaskExecutor<>() {
@@ -176,6 +180,11 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
         }
         if (indexMetadata.isSystem()) {
             throw new IllegalArgumentException("cannot rename system index [" + originalName + "]");
+        }
+        if (systemIndices.isSystemName(destinationName)) {
+            throw new IllegalArgumentException(
+                "cannot rename index [" + originalName + "] to [" + destinationName + "] because that is a system index name"
+            );
         }
         MetadataCreateIndexService.validateIndexName(destinationName, project, projectState.routingTable());
         final Index index = indexMetadata.getIndex();

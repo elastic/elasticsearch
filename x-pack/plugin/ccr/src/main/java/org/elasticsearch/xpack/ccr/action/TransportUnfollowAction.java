@@ -269,7 +269,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasks.tasks()) {
                 if (persistentTask.getTaskName().equals(ShardFollowTask.NAME)) {
                     ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
-                    if (shardFollowTask.getFollowShardId().getIndexName().equals(followerIndex)) {
+                    if (shardFollowTask.getFollowShardId().getIndex().getUUID().equals(followerIMD.getIndexUUID())) {
                         throw new IllegalArgumentException(
                             "cannot convert the follower index [" + followerIndex + "] to a non-follower, because it has not been paused"
                         );

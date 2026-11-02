@@ -220,13 +220,50 @@ again inside the cluster state task. The checks are: feature gate, source
 exists, source is not a system index, destination passes
 `MetadataCreateIndexService#validateIndexName` (valid name, no existing index,
 alias, ESQL view or dataset), and no snapshot or restore in flight for the
-source. Not checked: CCR (a follower whose
-leader is renamed stops following, and a renamed follower keeps its leader
-settings), searchable snapshot mounts (settings move with the metadata, so
-these should keep working but are untested), shrink/split/clone with the source
-as resize source, and the enrich, ML, transform and watcher references that
-store index names in their own configuration (these are the user's problem, as
-they are today with reindex).
+source. Not checked, and not yet tested: shrink/split/clone with the source as
+resize source, and searchable snapshot mounts (settings move with the metadata,
+so these should keep working). The enrich, ML, transform and watcher references
+that store index names in their own configuration stay the user's problem, as
+they are today with reindex.
+
+Cross-cluster replication is handled rather than refused, see T14.
+
+### T14. Cross-cluster replication follows by UUID across a rename
+
+CCR already identifies indices by UUID where it matters: the follower stores
+`leader_index_uuid`, every shard-changes fetch is checked against the leader's
+history UUID, and auto-follow records followed leaders by UUID. Names were only
+used as addresses, and that is where a rename broke things. Today a leader that
+disappears fails the shard follow task fatally (`IndexNotFoundException` is not
+retried), while a leader or follower that is merely closed is retried. A rename
+keeps the identity, so it belongs with the retried cases, not with delete.
+
+What was name-based and is now resolved through the UUID:
+
+- The follower's leader metadata requests (mapping, settings and alias sync)
+  filter the remote cluster state by leader name. `ShardFollowTasksExecutor`
+  now runs each through `runWithLeaderIndex`: on an `IndexNotFoundException`
+  it asks the leader cluster for the current name by UUID
+  (`CcrRequests#resolveIndexByUuid`, an indices-stats listing without stats,
+  only on that miss path), remembers it, and retries once. A leader that is
+  really gone still fails the task as before.
+- `ShardChangesAction` resolved the leader shard by the name in the request;
+  it now resolves through `RoutingTable#index(Index)`, which falls back to the
+  UUID (T13).
+- The follower side fetched its own shard stats by the task's follower name;
+  it now takes the current name from the metadata found by UUID.
+- Pause, unfollow and follow-stats matched tasks to the requested follower by
+  name; they now match by UUID after resolving the requested name.
+
+Not changed: the follower's `leader_index_name` custom metadata keeps the name
+the leader had when following started, and `_ccr/info` shows that. The
+production change should show the current name instead.
+
+`CcrRenameIT` covers a leader rename mid-replication (writes, a mapping change,
+a settings change and an alias change afterwards all reach the follower), a
+follower rename (replication continues, and stats, pause, resume and unfollow
+work under the new name) and auto-follow with a renamed leader (no second
+follower is created, the existing one keeps replicating).
 
 ### T9. The REST API is a dedicated endpoint, not an `_aliases` action
 
@@ -289,6 +326,17 @@ was deleted and recreated under the same name still resolves to nothing, as
 before, while a stale `Index` whose name was later reused by a different index
 now resolves to the renamed index rather than to nothing. `StaleIndexLookupTests`
 covers both.
+
+With the fallback in place `StatelessRenameIndexIT` passes: a rename in a
+stateless cluster followed by a write with a dynamic mapping update, a plain
+write, a refresh and a search through the search tier.
+
+One subtlety the fallback introduces: code that detects a rename or a deletion
+by asking "is this `Index` still in the metadata" must now look up by name
+explicitly, because `index(Index)` answers yes for a renamed index.
+`ClusterChangedEvent#indicesRenamed()` does so; the first version of the
+fallback silently stopped every rename from being reported to the appliers,
+which surfaced as "shard has not applied block" failures in `RenameIndexIT`.
 
 Two fixes ride along: `RecoveryState` is renamed with its shard so that
 `GET _recovery` groups the index under its current name, and

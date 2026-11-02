@@ -81,7 +81,8 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
-                return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
+                // match by uuid: the follower index may have been renamed since its tasks were created
+                return shardFollowTask.getFollowShardId().getIndex().getUUID().equals(followerIMD.getIndexUUID());
             })
             .map(PersistentTasksCustomMetadata.PersistentTask::getId)
             .toList();

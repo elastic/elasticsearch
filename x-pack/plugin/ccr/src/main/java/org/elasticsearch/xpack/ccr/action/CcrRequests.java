@@ -13,12 +13,17 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
@@ -38,6 +43,26 @@ public final class CcrRequests {
         clusterStateRequest.metadata(true);
         clusterStateRequest.indices(leaderIndex);
         return clusterStateRequest;
+    }
+
+    /**
+     * Resolves the current name of {@code index} on the remote cluster by its UUID. A renamed index keeps its UUID, so this is how a
+     * follower finds a leader whose name changed after it was captured. It lists the shards of every index the caller may see,
+     * without any stats, which is cheap but not free, so it is only used after a request by name came back with nothing.
+     */
+    public static void resolveIndexByUuid(RemoteClusterClient client, Index index, ActionListener<Index> listener) {
+        final IndicesStatsRequest request = new IndicesStatsRequest().indices("*").clear();
+        request.indicesOptions(IndicesOptions.lenientExpandHidden());
+        client.execute(IndicesStatsAction.REMOTE_TYPE, request, listener.delegateFailureAndWrap((delegate, response) -> {
+            for (ShardStats shardStats : response.getShards()) {
+                final Index candidate = shardStats.getShardRouting().index();
+                if (candidate.getUUID().equals(index.getUUID())) {
+                    delegate.onResponse(candidate);
+                    return;
+                }
+            }
+            delegate.onFailure(new IndexNotFoundException(index));
+        }));
     }
 
     public static PutMappingRequest putMappingRequest(String followerIndex, MappingMetadata mappingMetadata) {

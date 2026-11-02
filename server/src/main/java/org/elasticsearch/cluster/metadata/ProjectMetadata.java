@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -606,6 +607,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
         final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices.size());
         for (IndexMetadata indexMetadata : indices.values()) {
+            if (ClusterState.UNKNOWN_UUID.equals(indexMetadata.getIndexUUID())) {
+                // the placeholder uuid identifies nothing; tests share it between indices, and Index#equals compares such
+                // indices by name, so they are never looked up by uuid
+                continue;
+            }
             final IndexMetadata previous = builder.put(indexMetadata.getIndexUUID(), indexMetadata);
             assert previous == null : "duplicate index uuid [" + indexMetadata.getIndexUUID() + "] for " + indexMetadata.getIndex();
         }

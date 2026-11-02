@@ -199,6 +199,51 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Lifecycle execution state lives in the index metadata and follows a rename; the policy must carry on under the new name.
+     */
+    public void testRenameIndexWhileWaitingOnStep() throws Exception {
+        internalCluster().startNode();
+        assertAcked(
+            client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get()
+        );
+        assertAcked(indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet());
+        awaitIndexExists("test");
+        // the mock step waits for the index.lifecycle.test.complete setting
+        assertBusy(() -> assertThat(lifecycleStateOf("test").step(), equalTo(ObservableClusterStateWaitStep.NAME)));
+
+        client().execute(
+            org.elasticsearch.action.admin.indices.rename.RenameIndexAction.INSTANCE,
+            new org.elasticsearch.action.admin.indices.rename.RenameIndexAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "test",
+                "test-renamed"
+            )
+        ).actionGet();
+        assertThat(lifecycleStateOf("test-renamed").step(), equalTo(ObservableClusterStateWaitStep.NAME));
+
+        updateIndexSettings(Settings.builder().put("index.lifecycle.test.complete", true), "test-renamed");
+        assertBusy(() -> assertThat(lifecycleStateOf("test-renamed").step(), equalTo("complete")));
+
+        final ExplainLifecycleResponse explain = client().execute(
+            ExplainLifecycleAction.INSTANCE,
+            new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices("test-renamed")
+        ).get();
+        assertThat(explain.getIndexResponses().get("test-renamed").managedByILM(), equalTo(true));
+        assertThat(explain.getIndexResponses().get("test-renamed").getStep(), equalTo("complete"));
+    }
+
+    private LifecycleExecutionState lifecycleStateOf(String index) {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .getProject(ProjectId.DEFAULT)
+            .index(index)
+            .getLifecycleExecutionState();
+    }
+
     public void testNoOpPolicyUpdates() throws Exception {
         internalCluster().startNode();
         Map<String, Phase> phases = new HashMap<>();

@@ -14,10 +14,10 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -105,7 +105,11 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         final var tasks = new ArrayList<ShardFollowNodeTask>();
         for (final Task task : taskManager.getTasks().values()) {
             if (task instanceof final ShardFollowNodeTask shardFollowNodeTask) {
-                if (followerIndices.contains(shardFollowNodeTask.getFollowShardId().getIndexName())) {
+                // the follower may have been renamed since the task was created, so compare its current name
+                final IndexMetadata followerIndexMetadata = state.metadata()
+                    .getProject()
+                    .index(shardFollowNodeTask.getFollowShardId().getIndex());
+                if (followerIndexMetadata != null && followerIndices.contains(followerIndexMetadata.getIndex().getName())) {
                     tasks.add(shardFollowNodeTask);
                 }
             }
@@ -139,9 +143,9 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndex();
             })
-            .filter(followerIndex -> metadata.getProject().index(followerIndex) != null) // hide tasks that are orphaned (see
-                                                                                         // ShardFollowTaskCleaner)
-            .map(Index::getName)
+            .map(followerIndex -> metadata.getProject().index(followerIndex)) // found by uuid, so a renamed follower resolves too
+            .filter(Objects::nonNull) // hide tasks that are orphaned (see ShardFollowTaskCleaner)
+            .map(followerIndexMetadata -> followerIndexMetadata.getIndex().getName())
             .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());
     }

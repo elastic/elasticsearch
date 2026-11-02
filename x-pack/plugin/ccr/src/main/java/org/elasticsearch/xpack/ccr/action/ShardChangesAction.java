@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -498,9 +499,14 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
         @Override
         protected ShardsIterator shards(ProjectState state, InternalRequest request) {
-            return state.routingTable()
-                .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
-                .activeInitializingShardsRandomIt();
+            // resolve through the Index rather than the name in the request: the leader may have been renamed since the follower
+            // captured it, and RoutingTable#index(Index) falls back to the uuid
+            final ShardId shardId = request.request().getShard();
+            final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.getIndex());
+            if (indexRoutingTable == null) {
+                throw new IndexNotFoundException(shardId.getIndex());
+            }
+            return indexRoutingTable.shard(shardId.id()).activeInitializingShardsRandomIt();
         }
 
         @Override

@@ -175,90 +175,134 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
             System::nanoTime
         ) {
 
+            /** The leader index as currently known; updated when a request by name misses and the UUID resolves to a new name. */
+            private volatile Index leaderIndex = params.getLeaderShardId().getIndex();
+
+            /**
+             * Runs {@code attempt} with the leader index as currently known. A rename keeps the leader's UUID, so when the attempt
+             * fails with an {@link IndexNotFoundException} the current name is looked up by UUID on the remote cluster and the
+             * attempt is retried once under it. Any other failure, and a leader that really is gone, reaches {@code errorHandler}
+             * unchanged, so a deleted leader still fails the task the way it does today.
+             */
+            private void runWithLeaderIndex(BiConsumer<Index, Consumer<Exception>> attempt, Consumer<Exception> errorHandler) {
+                final Index current = leaderIndex;
+                attempt.accept(current, e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException == false) {
+                        errorHandler.accept(e);
+                        return;
+                    }
+                    final RemoteClusterClient remote;
+                    try {
+                        remote = remoteClient(params);
+                    } catch (NoSuchRemoteClusterException ex) {
+                        errorHandler.accept(ex);
+                        return;
+                    }
+                    CcrRequests.resolveIndexByUuid(remote, current, ActionListener.wrap(resolved -> {
+                        if (resolved.getName().equals(current.getName())) {
+                            errorHandler.accept(e);
+                            return;
+                        }
+                        logger.info(
+                            "leader index {} of follower {} was renamed to [{}]",
+                            current,
+                            params.getFollowShardId(),
+                            resolved.getName()
+                        );
+                        leaderIndex = resolved;
+                        attempt.accept(resolved, errorHandler);
+                    }, resolveFailure -> {
+                        e.addSuppressed(resolveFailure);
+                        errorHandler.accept(e);
+                    }));
+                });
+            }
+
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 final Index followerIndex = params.getFollowShardId().getIndex();
-                final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
-                final ActionListener<IndexMetadata> listener = ActionListener.wrap(indexMetadata -> {
-                    if (indexMetadata.mapping() == null) {
-                        assert indexMetadata.getMappingVersion() == 1;
-                        handler.accept(indexMetadata.getMappingVersion());
-                        return;
+                runWithLeaderIndex((leaderIndex, onError) -> {
+                    final ActionListener<IndexMetadata> listener = ActionListener.wrap(indexMetadata -> {
+                        if (indexMetadata.mapping() == null) {
+                            assert indexMetadata.getMappingVersion() == 1;
+                            handler.accept(indexMetadata.getMappingVersion());
+                            return;
+                        }
+                        MappingMetadata mappingMetadata = indexMetadata.mapping();
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
+                        followerClient.admin()
+                            .indices()
+                            .putMapping(
+                                putMappingRequest,
+                                ActionListener.wrap(putMappingResponse -> handler.accept(indexMetadata.getMappingVersion()), errorHandler)
+                            );
+                    }, onError);
+                    try {
+                        CcrRequests.getIndexMetadata(remoteClient(params), leaderIndex, minRequiredMappingVersion, 0L, timeout, listener);
+                    } catch (NoSuchRemoteClusterException e) {
+                        onError.accept(e);
                     }
-                    MappingMetadata mappingMetadata = indexMetadata.mapping();
-                    PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
-                    followerClient.admin()
-                        .indices()
-                        .putMapping(
-                            putMappingRequest,
-                            ActionListener.wrap(putMappingResponse -> handler.accept(indexMetadata.getMappingVersion()), errorHandler)
-                        );
                 }, errorHandler);
-                try {
-                    CcrRequests.getIndexMetadata(remoteClient(params), leaderIndex, minRequiredMappingVersion, 0L, timeout, listener);
-                } catch (NoSuchRemoteClusterException e) {
-                    errorHandler.accept(e);
-                }
             }
 
             @Override
             protected void innerUpdateSettings(final LongConsumer finalHandler, final Consumer<Exception> errorHandler) {
-                final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Index followIndex = params.getFollowShardId().getIndex();
+                runWithLeaderIndex((leaderIndex, onError) -> {
+                    CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
+                        final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().getProject().getIndexSafe(leaderIndex);
+                        final IndexMetadata followerIMD = clusterService.state().metadata().getProject().getIndexSafe(followIndex);
 
-                CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().getProject().getIndexSafe(leaderIndex);
-                    final IndexMetadata followerIMD = clusterService.state().metadata().getProject().getIndexSafe(followIndex);
-
-                    final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
-                    final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
-                    if (existingSettings.equals(settings)) {
-                        // If no settings have been changed then just propagate settings version to shard follow node task:
-                        finalHandler.accept(leaderIMD.getSettingsVersion());
-                    } else {
-                        // Figure out which settings have been updated:
-                        final Settings updatedSettings = settings.filter(s -> {
-                            final Setting<?> indexSettings = indexScopedSettings.get(s);
-                            if (indexSettings == null || indexSettings.isPrivateIndex() || indexSettings.isInternalIndex()) {
-                                return false;
-                            }
-                            return existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false;
-                        });
-                        if (updatedSettings.isEmpty()) {
+                        final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
+                        final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
+                        if (existingSettings.equals(settings)) {
+                            // If no settings have been changed then just propagate settings version to shard follow node task:
                             finalHandler.accept(leaderIMD.getSettingsVersion());
-                            return;
-                        }
-                        // Figure out whether the updated settings are all dynamic settings and
-                        // if so just update the follower index's settings:
-                        if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
-                            // If only dynamic settings have been updated then just update these settings in follower index:
-                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName())
-                                .masterNodeTimeout(TimeValue.MAX_VALUE)
-                                .settings(updatedSettings);
-                            followerClient.admin()
-                                .indices()
-                                .updateSettings(
-                                    updateSettingsRequest,
-                                    ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler)
-                                );
                         } else {
-                            // If one or more setting are not dynamic then close follow index, update leader settings and
-                            // then open leader index:
-                            Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
-                            closeIndexUpdateSettingsAndOpenIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                            // Figure out which settings have been updated:
+                            final Settings updatedSettings = settings.filter(s -> {
+                                final Setting<?> indexSettings = indexScopedSettings.get(s);
+                                if (indexSettings == null || indexSettings.isPrivateIndex() || indexSettings.isInternalIndex()) {
+                                    return false;
+                                }
+                                return existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false;
+                            });
+                            if (updatedSettings.isEmpty()) {
+                                finalHandler.accept(leaderIMD.getSettingsVersion());
+                                return;
+                            }
+                            // Figure out whether the updated settings are all dynamic settings and
+                            // if so just update the follower index's settings:
+                            if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
+                                // If only dynamic settings have been updated then just update these settings in follower index:
+                                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName())
+                                    .masterNodeTimeout(TimeValue.MAX_VALUE)
+                                    .settings(updatedSettings);
+                                followerClient.admin()
+                                    .indices()
+                                    .updateSettings(
+                                        updateSettingsRequest,
+                                        ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler)
+                                    );
+                            } else {
+                                // If one or more setting are not dynamic then close follow index, update leader settings and
+                                // then open leader index:
+                                Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
+                                closeIndexUpdateSettingsAndOpenIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                            }
                         }
+                    };
+                    try {
+                        remoteClient(params).execute(
+                            ClusterStateAction.REMOTE_TYPE,
+                            CcrRequests.metadataRequest(leaderIndex.getName()),
+                            ActionListener.wrap(onResponse, onError)
+                        );
+                    } catch (NoSuchRemoteClusterException e) {
+                        onError.accept(e);
                     }
-                };
-                try {
-                    remoteClient(params).execute(
-                        ClusterStateAction.REMOTE_TYPE,
-                        CcrRequests.metadataRequest(leaderIndex.getName()),
-                        ActionListener.wrap(onResponse, errorHandler)
-                    );
-                } catch (NoSuchRemoteClusterException e) {
-                    errorHandler.accept(e);
-                }
+                }, errorHandler);
             }
 
             @Override
@@ -286,108 +330,111 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                  *
                  * For aliases that are on the follower but not the leader, we remove those aliases from the follower.
                  */
-                final var leaderIndex = params.getLeaderShardId().getIndex();
                 final var followerIndex = params.getFollowShardId().getIndex();
+                runWithLeaderIndex((leaderIndex, onError) -> {
+                    final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
+                        final var leaderIndexMetadata = clusterStateResponse.getState().metadata().getProject().getIndexSafe(leaderIndex);
+                        final var followerIndexMetadata = clusterService.state().metadata().getProject().getIndexSafe(followerIndex);
 
-                final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final var leaderIndexMetadata = clusterStateResponse.getState().metadata().getProject().getIndexSafe(leaderIndex);
-                    final var followerIndexMetadata = clusterService.state().metadata().getProject().getIndexSafe(followerIndex);
+                        // partition the aliases into the three sets
+                        final var aliasesOnLeaderNotOnFollower = new HashSet<String>();
+                        final var aliasesInCommon = new HashSet<String>();
+                        final var aliasesOnFollowerNotOnLeader = new HashSet<String>();
 
-                    // partition the aliases into the three sets
-                    final var aliasesOnLeaderNotOnFollower = new HashSet<String>();
-                    final var aliasesInCommon = new HashSet<String>();
-                    final var aliasesOnFollowerNotOnLeader = new HashSet<String>();
-
-                    for (final var aliasName : leaderIndexMetadata.getAliases().keySet()) {
-                        if (followerIndexMetadata.getAliases().containsKey(aliasName)) {
-                            aliasesInCommon.add(aliasName);
-                        } else {
-                            aliasesOnLeaderNotOnFollower.add(aliasName);
+                        for (final var aliasName : leaderIndexMetadata.getAliases().keySet()) {
+                            if (followerIndexMetadata.getAliases().containsKey(aliasName)) {
+                                aliasesInCommon.add(aliasName);
+                            } else {
+                                aliasesOnLeaderNotOnFollower.add(aliasName);
+                            }
                         }
-                    }
 
-                    for (final var aliasName : followerIndexMetadata.getAliases().keySet()) {
-                        if (leaderIndexMetadata.getAliases().containsKey(aliasName)) {
-                            assert aliasesInCommon.contains(aliasName) : aliasName;
-                        } else {
-                            aliasesOnFollowerNotOnLeader.add(aliasName);
+                        for (final var aliasName : followerIndexMetadata.getAliases().keySet()) {
+                            if (leaderIndexMetadata.getAliases().containsKey(aliasName)) {
+                                assert aliasesInCommon.contains(aliasName) : aliasName;
+                            } else {
+                                aliasesOnFollowerNotOnLeader.add(aliasName);
+                            }
                         }
-                    }
 
-                    final var aliasActions = new ArrayList<IndicesAliasesRequest.AliasActions>();
+                        final var aliasActions = new ArrayList<IndicesAliasesRequest.AliasActions>();
 
-                    // add the aliases the follower does not have
-                    for (final var aliasName : aliasesOnLeaderNotOnFollower) {
-                        final var alias = leaderIndexMetadata.getAliases().get(aliasName);
-                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        aliasActions.add(
-                            IndicesAliasesRequest.AliasActions.add()
-                                .index(followerIndex.getName())
-                                .alias(alias.alias())
-                                .filter(alias.filter() == null ? null : alias.filter().toString())
-                                .indexRouting(alias.indexRouting())
-                                .searchRouting(alias.searchRouting())
-                                .writeIndex(false)
-                        );
-                    }
-
-                    // update the aliases that are different (ignoring write aliases)
-                    for (final var aliasName : aliasesInCommon) {
-                        final var leaderAliasMetadata = leaderIndexMetadata.getAliases().get(aliasName);
-                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        final var leaderAliasMetadataWithoutWriteIndex = new AliasMetadata.Builder(aliasName).filter(
-                            leaderAliasMetadata.filter()
-                        )
-                            .indexRouting(leaderAliasMetadata.indexRouting())
-                            .searchRouting(leaderAliasMetadata.searchRouting())
-                            .writeIndex(false)
-                            .build();
-                        final var followerAliasMetadata = followerIndexMetadata.getAliases().get(aliasName);
-                        if (leaderAliasMetadataWithoutWriteIndex.equals(followerAliasMetadata)) {
-                            // skip this alias, the leader and follower have the same modulo the write index
-                            continue;
+                        // add the aliases the follower does not have
+                        for (final var aliasName : aliasesOnLeaderNotOnFollower) {
+                            final var alias = leaderIndexMetadata.getAliases().get(aliasName);
+                            // we intentionally override that the alias is not a write alias as follower indices do not receive direct
+                            // writes
+                            aliasActions.add(
+                                IndicesAliasesRequest.AliasActions.add()
+                                    .index(followerIndex.getName())
+                                    .alias(alias.alias())
+                                    .filter(alias.filter() == null ? null : alias.filter().toString())
+                                    .indexRouting(alias.indexRouting())
+                                    .searchRouting(alias.searchRouting())
+                                    .writeIndex(false)
+                            );
                         }
-                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        aliasActions.add(
-                            IndicesAliasesRequest.AliasActions.add()
-                                .index(followerIndex.getName())
-                                .alias(leaderAliasMetadata.alias())
-                                .filter(leaderAliasMetadata.filter() == null ? null : leaderAliasMetadata.filter().toString())
+
+                        // update the aliases that are different (ignoring write aliases)
+                        for (final var aliasName : aliasesInCommon) {
+                            final var leaderAliasMetadata = leaderIndexMetadata.getAliases().get(aliasName);
+                            // we intentionally override that the alias is not a write alias as follower indices do not receive direct
+                            // writes
+                            final var leaderAliasMetadataWithoutWriteIndex = new AliasMetadata.Builder(aliasName).filter(
+                                leaderAliasMetadata.filter()
+                            )
                                 .indexRouting(leaderAliasMetadata.indexRouting())
                                 .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false)
-                        );
-                    }
-
-                    // remove aliases that the leader no longer has
-                    for (final var aliasName : aliasesOnFollowerNotOnLeader) {
-                        aliasActions.add(IndicesAliasesRequest.AliasActions.remove().index(followerIndex.getName()).alias(aliasName));
-                    }
-
-                    if (aliasActions.isEmpty()) {
-                        handler.accept(leaderIndexMetadata.getAliasesVersion());
-                    } else {
-                        final var request = new IndicesAliasesRequest(TimeValue.MAX_VALUE, TimeValue.ZERO);
-                        request.origin("ccr");
-                        aliasActions.forEach(request::addAliasAction);
-                        followerClient.admin()
-                            .indices()
-                            .aliases(
-                                request,
-                                ActionListener.wrap(r -> handler.accept(leaderIndexMetadata.getAliasesVersion()), errorHandler)
+                                .build();
+                            final var followerAliasMetadata = followerIndexMetadata.getAliases().get(aliasName);
+                            if (leaderAliasMetadataWithoutWriteIndex.equals(followerAliasMetadata)) {
+                                // skip this alias, the leader and follower have the same modulo the write index
+                                continue;
+                            }
+                            // we intentionally override that the alias is not a write alias as follower indices do not receive direct
+                            // writes
+                            aliasActions.add(
+                                IndicesAliasesRequest.AliasActions.add()
+                                    .index(followerIndex.getName())
+                                    .alias(leaderAliasMetadata.alias())
+                                    .filter(leaderAliasMetadata.filter() == null ? null : leaderAliasMetadata.filter().toString())
+                                    .indexRouting(leaderAliasMetadata.indexRouting())
+                                    .searchRouting(leaderAliasMetadata.searchRouting())
+                                    .writeIndex(false)
                             );
-                    }
-                };
+                        }
 
-                try {
-                    remoteClient(params).execute(
-                        ClusterStateAction.REMOTE_TYPE,
-                        CcrRequests.metadataRequest(leaderIndex.getName()),
-                        ActionListener.wrap(onResponse, errorHandler)
-                    );
-                } catch (final NoSuchRemoteClusterException e) {
-                    errorHandler.accept(e);
-                }
+                        // remove aliases that the leader no longer has
+                        for (final var aliasName : aliasesOnFollowerNotOnLeader) {
+                            aliasActions.add(IndicesAliasesRequest.AliasActions.remove().index(followerIndex.getName()).alias(aliasName));
+                        }
+
+                        if (aliasActions.isEmpty()) {
+                            handler.accept(leaderIndexMetadata.getAliasesVersion());
+                        } else {
+                            final var request = new IndicesAliasesRequest(TimeValue.MAX_VALUE, TimeValue.ZERO);
+                            request.origin("ccr");
+                            aliasActions.forEach(request::addAliasAction);
+                            followerClient.admin()
+                                .indices()
+                                .aliases(
+                                    request,
+                                    ActionListener.wrap(r -> handler.accept(leaderIndexMetadata.getAliasesVersion()), errorHandler)
+                                );
+                        }
+                    };
+
+                    try {
+                        remoteClient(params).execute(
+                            ClusterStateAction.REMOTE_TYPE,
+                            CcrRequests.metadataRequest(leaderIndex.getName()),
+                            ActionListener.wrap(onResponse, onError)
+                        );
+                    } catch (final NoSuchRemoteClusterException e) {
+                        onError.accept(e);
+                    }
+                }, errorHandler);
             }
 
             private void closeIndexUpdateSettingsAndOpenIndex(
@@ -634,15 +681,17 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         final FollowerStatsInfoHandler handler,
         final Consumer<Exception> errorHandler
     ) {
-        followerClient.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
-            IndexStats indexStats = r.getIndex(shardId.getIndexName());
+        // the follower may have been renamed since the task was created; its metadata is found by uuid and carries the current name
+        final IndexMetadata followerIndexMetadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
+        if (followerIndexMetadata == null) {
+            errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+            return;
+        }
+        final String followerIndexName = followerIndexMetadata.getIndex().getName();
+        followerClient.admin().indices().stats(new IndicesStatsRequest().indices(followerIndexName), ActionListener.wrap(r -> {
+            IndexStats indexStats = r.getIndex(followerIndexName);
             if (indexStats == null) {
-                IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
-                if (indexMetadata != null) {
-                    errorHandler.accept(new ShardNotFoundException(shardId));
-                } else {
-                    errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
-                }
+                errorHandler.accept(new ShardNotFoundException(shardId));
                 return;
             }
 

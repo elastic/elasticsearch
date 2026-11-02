@@ -368,15 +368,15 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The coordinator sees the parked node in its cluster state and leaves it out of its external workers. The applier
-     * publishes a state before it runs the listeners, so the hold can trail the state by a moment.
+     * The coordinator sees the parked node in its cluster state and leaves it out of its external workers. The hold is
+     * installed by an applier, before the state that adds the node is visible, so it cannot trail the state: no waiting.
      */
-    private static void assertHeldBack(String coordinator, ClusterService parkedClusterService) throws Exception {
+    private static void assertHeldBack(String coordinator, ClusterService parkedClusterService) {
         String parkedId = parkedClusterService.localNode().getId();
         DiscoveryNodes nodes = internalCluster().clusterService(coordinator).state().nodes();
         assertNotNull("the coordinator must see the joining node", nodes.get(parkedId));
         var readiness = internalCluster().getInstance(ExternalWorkerReadiness.class, coordinator);
-        assertBusy(() -> assertNull("held back", readiness.readyNodes(nodes).get(parkedId)));
+        assertNull("held back", readiness.readyNodes(nodes).get(parkedId));
     }
 
     private static void assertReleased(String coordinator, ClusterService parkedClusterService) {

@@ -478,14 +478,13 @@ public class ComputeService {
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
-        return externalCoalesceFloor(effectiveConcurrency, externalWorkers());
+        return externalCoalesceFloor(effectiveConcurrency, clusterService.state().nodes());
     }
 
     /**
      * The nodes external splits may be distributed over: the cluster state's, less those that have just joined and not yet
-     * confirmed they applied the state that added them ({@link ExternalWorkerReadiness}). The coalescing floor and the
-     * distribution each read it, so a node released or added in between gives a floor computed for one node more or fewer
-     * than are distributed over; that only affects the balance, as it did when both read the cluster state directly.
+     * confirmed they applied the state that added them ({@link ExternalWorkerReadiness}). Not what the coalescing floor
+     * counts, which is every eligible worker, held back or not ({@link #externalCoalesceFloor(int, DiscoveryNodes)}).
      */
     private DiscoveryNodes externalWorkers() {
         return externalWorkerReadiness.readyNodes(clusterService.state().nodes());
@@ -509,6 +508,12 @@ public class ComputeService {
      * therefore gets more groups than its one node can occupy. That overshoot is harmless — the groups become slices
      * in a shared queue and the driver count is still capped at {@code min(groupCount, task_concurrency)} — whereas
      * undershooting would leave a distributable scan unable to fill the cluster.
+     *
+     * <p>For the same reason the count includes the workers held back for having just joined ({@link ExternalWorkerReadiness}),
+     * which the distribution leaves out: the splits are coalesced before a query waits for such a worker
+     * ({@link #mustWaitForExternalWorker}) and must still fill the workers once they are released. Counting the ready ones
+     * alone would, while every worker is joining, collapse the floor to one node's worth, and with it the split count the
+     * adaptive strategy weighs against the nodes: the query would then not wait but scan on the coordinator.
      */
     static int externalCoalesceFloor(int taskConcurrency, DiscoveryNodes availableNodes) {
         int eligibleNodeCount = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(availableNodes).size();

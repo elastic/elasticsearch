@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -52,7 +54,13 @@ import java.util.function.BooleanSupplier;
  * started. External splits are routed by role, so the readiness is established here instead: each added node is asked,
  * through {@link TransportAwaitClusterStateVersionAppliedAction}, to confirm it has applied the version that added it,
  * and is held back until it answers. The answer comes from the node's applier thread, so a node still in its first
- * apply answers only once that apply is done.
+ * apply answers only once that apply is done. A node older than the action ({@link #AWAIT_ACTION_SINCE}) is neither
+ * asked nor held back.
+ *
+ * <p>The hold is installed by a {@link ClusterStateApplier}, which runs before the state that adds the node becomes the
+ * one {@link ClusterService#state()} hands out, so a query cannot find the node in that state and not yet held back. A
+ * node that leaves is forgotten by a {@link ClusterStateListener}, which runs once the state without it is visible, so a
+ * wait woken by the departure cannot find the node in the state and no longer held back either.
  *
  * <p>This covers the join. A node that is behind a later state, a dataset change the coordinator planned from, say, is
  * not held back; the worker-side wait in {@code DataNodeComputeHandler} covers that, bounded by
@@ -67,7 +75,7 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The first state this node applies adds every other node, so each is asked once at startup; they answer at once.
  */
-public final class ExternalWorkerReadiness implements ClusterStateListener {
+public final class ExternalWorkerReadiness implements ClusterStateApplier, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ExternalWorkerReadiness.class);
 
@@ -77,6 +85,13 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
     static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueSeconds(10);
     /** How long a node may be held back before the fact is reported, once. */
     static final TimeValue HOLD_REPORT_AFTER = TimeValue.timeValueSeconds(30);
+    /**
+     * The first version with {@link TransportAwaitClusterStateVersionAppliedAction}. An older node has no handler for it and
+     * is not asked: a request for an action a node does not have trips an assertion on that node, fatal to it when its
+     * assertions are enabled, as a test cluster's are. Such a node is not held back either: it never was before, and what
+     * protects a query sent to it while it catches up is its own wait, if it has one.
+     */
+    static final Version AWAIT_ACTION_SINCE = Version.V_9_4_0;
 
     private final ClusterService clusterService;
     private final Client client;
@@ -91,7 +106,8 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
      * The waits of {@link #awaitEligibleWorker} not yet decided, woken on every change to {@link #pending}: a release, a
      * removal, an addition. Invariant: {@link #pending} is mutated before the waiters are woken, and a waiter registers
      * before it first evaluates, so a change is never missed: either the wake-up finds the waiter registered, or the
-     * waiter's own evaluation sees the change. A decided wait removes itself, so nothing of a query outlives its wait.
+     * waiter's own evaluation sees the change. A waiter registers before anything that can decide it, and only the decision
+     * removes it, so nothing of a query outlives its wait.
      */
     private final Set<Waiter> waiters = ConcurrentHashMap.newKeySet();
     /** {@link ExternalSourceSettings#WORKER_READY_TIMEOUT}, tracked live; bounds {@link #awaitEligibleWorker}. */
@@ -113,6 +129,7 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(ExternalSourceSettings.WORKER_READY_TIMEOUT, workerReadyTimeout::set);
         if (enabled) {
+            clusterService.addStateApplier(this);
             clusterService.addListener(this);
         }
     }
@@ -183,6 +200,10 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
         }
 
         void start() {
+            // Registered before anything that can decide the wait, since a decision removes the registration and nothing
+            // else does: the timer, which can fire before the schedule returns on a budget of a millisecond, or the
+            // cancellation, which fires inline when the task is cancelled already.
+            waiters.add(this);
             try {
                 timer = threadPool.schedule(() -> {
                     if (check() == false) {
@@ -193,10 +214,8 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
                 complete(e);
                 return;
             }
-            // Fires at once if already cancelled.
             task.addListener(() -> complete(new TaskCancelledException(task.getReasonCancelled())));
-            // Registered before the first evaluation, which may see what a wake-up in between would have told it.
-            waiters.add(this);
+            // The first evaluation, after the registration, so that it sees what a wake-up in between would have told it.
             check();
         }
 
@@ -294,19 +313,15 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
         return Set.copyOf(pending.keySet());
     }
 
+    /** The waits of {@link #awaitEligibleWorker} not yet decided, for tests. */
+    int waiterCount() {
+        return waiters.size();
+    }
+
+    /** Holds every added worker back, before the state that adds it is visible; see the class comment for the order. */
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         final DiscoveryNodes.Delta delta = event.nodesDelta();
-        boolean removedAny = false;
-        for (DiscoveryNode removed : delta.removedNodes()) {
-            if (pending.remove(removed.getEphemeralId()) != null) {
-                logger.debug("external worker [{}] left the cluster before confirming its cluster state", removed.getName());
-                removedAny = true;
-            }
-        }
-        if (removedAny) {
-            notifyChanged();
-        }
         if (delta.added() == false) {
             return;
         }
@@ -315,6 +330,14 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
         for (DiscoveryNode added : delta.addedNodes()) {
             // This node plans from the state it applied, so it is never behind itself.
             if (added.getId().equals(localNodeId) || NodeEligibilityStrategy.isExternalWorker(added) == false) {
+                continue;
+            }
+            if (canBeAsked(added) == false) {
+                logger.debug(
+                    "not holding external worker [{}] back: at version [{}] it cannot be asked for its cluster state version",
+                    added.getName(),
+                    added.getVersionInformation().nodeVersion()
+                );
                 continue;
             }
             final Pending entry = new Pending(added, version);
@@ -326,6 +349,26 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
             run(entry, TimeValue.ZERO, () -> await(entry, 0));
             run(entry, HOLD_REPORT_AFTER, () -> reportStillHeld(entry));
         }
+    }
+
+    /** Forgets every removed worker, once the state without it is visible; see the class comment for the order. */
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        boolean removedAny = false;
+        for (DiscoveryNode removed : event.nodesDelta().removedNodes()) {
+            if (pending.remove(removed.getEphemeralId()) != null) {
+                logger.debug("external worker [{}] left the cluster before confirming its cluster state", removed.getName());
+                removedAny = true;
+            }
+        }
+        if (removedAny) {
+            notifyChanged();
+        }
+    }
+
+    /** Whether {@code node} has the action to ask: at {@link #AWAIT_ACTION_SINCE} or later. */
+    static boolean canBeAsked(DiscoveryNode node) {
+        return node.getVersionInformation().nodeVersion().onOrAfter(AWAIT_ACTION_SINCE);
     }
 
     /** Runs {@code task} on the generic pool after {@code delay}, if {@code entry} is still the one held back then. */
@@ -386,8 +429,8 @@ public final class ExternalWorkerReadiness implements ClusterStateListener {
             return;
         }
         if (ExceptionsHelper.unwrap(failure, ActionNotFoundTransportException.class) != null) {
-            // A node older than the action cannot be asked. It was never held back before either; what protects a query
-            // sent to it while it catches up is its own wait, if it has one.
+            // Not expected, since a node older than the action is not asked (AWAIT_ACTION_SINCE); should that bound be off,
+            // the node is released rather than asked again for good.
             release(entry, "it cannot be asked for its cluster state version");
             return;
         }

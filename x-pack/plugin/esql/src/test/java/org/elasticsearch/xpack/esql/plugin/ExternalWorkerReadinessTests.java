@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -35,6 +38,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -188,7 +192,26 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         assertThat(readiness.pendingEphemeralIds(), empty());
     }
 
-    /** A node without the action is older than it, and was never held back before; it is not held back now either. */
+    /**
+     * A node older than the action has no handler to ask, and asking it would be fatal to it with its assertions enabled:
+     * it is neither asked nor held back, as it never was before the action existed.
+     */
+    public void testWorkerOlderThanTheActionIsNeitherAskedNorHeldBack() throws Exception {
+        DiscoveryNode tooOld = dataNode("old", "e1", VersionUtils.getPreviousVersion(ExternalWorkerReadiness.AWAIT_ACTION_SINCE));
+        DiscoveryNode newEnough = dataNode("new", "e2", ExternalWorkerReadiness.AWAIT_ACTION_SINCE);
+        assertFalse(ExternalWorkerReadiness.canBeAsked(tooOld));
+        assertTrue(ExternalWorkerReadiness.canBeAsked(newEnough));
+
+        ClusterState joined = apply(state(10, tooOld, newEnough));
+
+        assertThat(readiness.pendingEphemeralIds(), contains("e2"));
+        awaitAwaits(1);
+        DiscoveryNodes ready = readiness.readyNodes(joined.nodes());
+        assertNotNull("not held back", ready.get(tooOld.getId()));
+        assertNull("held back", ready.get(newEnough.getId()));
+    }
+
+    /** Should a node answer that it has no such action, which the version bound is meant to prevent, it is released. */
     public void testWorkerThatCannotBeAskedIsNotHeldBack() throws Exception {
         DiscoveryNode worker = dataNode("worker", "e1");
         apply(state(10, worker));
@@ -275,6 +298,47 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         assertNotNull(ready.get(local.getId()));
     }
 
+    /**
+     * The hold precedes the state: it is installed by an applier, before the state that adds the node becomes the one the
+     * cluster service hands out, so a query that reads the node from that state finds it held back already. Observed from
+     * an applier registered after the readiness, which runs after its applier and before the state is swapped.
+     */
+    public void testAJoinedWorkerIsHeldBackBeforeTheStateThatAddsItIsVisible() throws Exception {
+        DiscoveryNode worker = dataNode("worker", "e1");
+        AtomicReference<Set<String>> pendingDuringApply = new AtomicReference<>();
+        clusterService.addStateApplier(event -> {
+            if (event.nodesDelta().added()) {
+                pendingDuringApply.set(readiness.pendingEphemeralIds());
+            }
+        });
+
+        apply(state(10, worker));
+
+        assertThat("held back before the state was swapped", pendingDuringApply.get(), contains("e1"));
+        awaitAwaits(1);
+    }
+
+    /**
+     * The reverse order for a node that leaves: still held back while the state without it is applied, forgotten once that
+     * state is visible, so a wait woken by the departure cannot find the node in the state and no longer held back.
+     */
+    public void testALeavingWorkerIsForgottenOnlyOnceTheStateWithoutItIsVisible() throws Exception {
+        DiscoveryNode worker = dataNode("worker", "e1");
+        apply(state(10, worker));
+        awaitAwaits(1);
+        AtomicReference<Set<String>> pendingDuringApply = new AtomicReference<>();
+        clusterService.addStateApplier(event -> {
+            if (event.nodesDelta().removed()) {
+                pendingDuringApply.set(readiness.pendingEphemeralIds());
+            }
+        });
+
+        apply(state(11));
+
+        assertThat("still held back while the state without it was applied", pendingDuringApply.get(), contains("e1"));
+        assertThat("forgotten once that state is visible", readiness.pendingEphemeralIds(), empty());
+    }
+
     // -- the coordinator-side wait --
 
     private static final String WHAT = "distributing [1] external splits, session [test]";
@@ -297,6 +361,7 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         awaits.getFirst().listener().onResponse(applied());
 
         assertNull("woken by the release", waited.actionGet(TimeValue.timeValueSeconds(30)));
+        assertNoWaiters();
     }
 
     /** The only worker leaves: nothing is eligible any more and the query proceeds, to its local fallback. */
@@ -343,6 +408,20 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertTrue(failure.toString(), ExternalException.hasCondition(failure, ExternalException.Condition.WORKER_NOT_READY));
         assertThat(failure.getMessage(), containsString("waited [100ms] on the coordinator"));
+        assertNoWaiters();
+    }
+
+    /** The shortest budget there is: the timer can fire before the wait is even registered, and must still unregister it. */
+    public void testAWaitThatTimesOutAtOnceIsNotLeftRegistered() throws Exception {
+        setWorkerReadyTimeout(TimeValue.timeValueMillis(1));
+        PlainActionFuture<Void> waited = new PlainActionFuture<>();
+        readiness.awaitEligibleWorker(() -> false, task(), WHAT, waited);
+
+        assertBusy(() -> assertTrue(waited.isDone()));
+        assertTrue(
+            ExternalException.hasCondition(expectThrows(Exception.class, waited::actionGet), ExternalException.Condition.WORKER_NOT_READY)
+        );
+        assertNoWaiters();
     }
 
     /** Satisfied without a change notification, between the last check and the timer: the timer checks once more. */
@@ -398,6 +477,20 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         assertTrue(waited.isDone());
         Exception failure = expectThrows(Exception.class, waited::actionGet);
         assertThat(failure, instanceOf(TaskCancelledException.class));
+        assertNoWaiters();
+    }
+
+    /** A task cancelled before the wait starts: the cancellation ends it at once, and nothing of it is left registered. */
+    public void testAWaitOnATaskAlreadyCancelledIsNotLeftRegistered() {
+        CancellableTask task = task();
+        TaskCancelHelper.cancel(task, "test");
+        PlainActionFuture<Void> waited = new PlainActionFuture<>();
+
+        readiness.awaitEligibleWorker(() -> false, task, WHAT, waited);
+
+        assertTrue(waited.isDone());
+        assertThat(expectThrows(Exception.class, waited::actionGet), instanceOf(TaskCancelledException.class));
+        assertNoWaiters();
     }
 
     /**
@@ -456,6 +549,11 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
             || NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).stream().allMatch(n -> n.getId().equals(local.getId()));
     }
 
+    /** A decided wait is unregistered by its decision, before the listener hears of it. */
+    private void assertNoWaiters() {
+        assertThat("nothing of the query outlives its wait", readiness.waiterCount(), equalTo(0));
+    }
+
     private void setWorkerReadyTimeout(TimeValue timeout) {
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.WORKER_READY_TIMEOUT.getKey(), timeout).build());
     }
@@ -487,6 +585,15 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
 
     private static DiscoveryNode dataNode(String id, String ephemeralId) {
         return DiscoveryNodeUtils.builder(id).name(id).ephemeralId(ephemeralId).roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
+    }
+
+    private static DiscoveryNode dataNode(String id, String ephemeralId, Version version) {
+        return DiscoveryNodeUtils.builder(id)
+            .name(id)
+            .ephemeralId(ephemeralId)
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .version(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
     }
 
     private AwaitClusterStateVersionAppliedResponse applied() {

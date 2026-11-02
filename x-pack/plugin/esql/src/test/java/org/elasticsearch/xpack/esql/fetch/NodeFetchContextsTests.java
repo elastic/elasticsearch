@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -72,6 +74,55 @@ public class NodeFetchContextsTests extends FetchContextsTestCase {
         contexts.freeAll("the test is done");
         endRequest(contexts);
         assertAllFreed();
+    }
+
+    /**
+     * A node keeps no context longer than its {@code search.max_keep_alive}, like the contexts of {@code _search}, also when
+     * the keep-alive of the query is longer. It says which keep-alive it gave them, for the coordinator to refresh them in
+     * time.
+     */
+    public void testNoContextKeepsMoreThanTheMaxKeepAliveOfTheNode() throws Exception {
+        createIndexWithDocs(INDEX);
+        TimeValue nodeDefault = TimeValue.timeValueMinutes(1);
+        TimeValue nodeMax = TimeValue.timeValueMinutes(2);
+        updateClusterSettings(
+            Settings.builder()
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), nodeDefault)
+                .put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), nodeMax)
+                .build()
+        );
+        try {
+            NodeFetchContexts contexts = service.newNodeContexts(null, TimeValue.timeValueHours(between(1, 24)));
+
+            List<SearchContext> opened = openEveryShard(contexts, INDEX);
+
+            assertThat(contexts.keepAlive(), equalTo(nodeMax));
+            for (SearchContext searchContext : opened) {
+                assertThat(searchContext.readerContext().keepAlive(), equalTo(nodeMax.millis()));
+            }
+            contexts.freeAll("the test is done");
+            endRequest(contexts);
+            assertAllFreed();
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey())
+                    .putNull(SearchService.MAX_KEEPALIVE_SETTING.getKey())
+                    .build()
+            );
+        }
+    }
+
+    /**
+     * A node that allows the keep-alive of the query gives the contexts that one.
+     */
+    public void testTheKeepAliveOfTheQueryStaysWhenTheNodeAllowsIt() {
+        TimeValue queryKeepAlive = TimeValue.timeValueMillis(between(1, (int) searchService().getMaxKeepAliveInMillis()));
+
+        NodeFetchContexts contexts = service.newNodeContexts(null, queryKeepAlive);
+
+        assertThat(contexts.keepAlive(), equalTo(queryKeepAlive));
+        endRequest(contexts);
     }
 
     /**

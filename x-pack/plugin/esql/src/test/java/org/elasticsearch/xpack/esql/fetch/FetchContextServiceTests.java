@@ -86,6 +86,38 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
         free(open);
     }
 
+    /**
+     * A keep-alive never raises a context past {@code search.max_keep_alive} of its node, which can be shorter than the
+     * keep-alive of the query.
+     */
+    public void testAKeepAliveNeverPassesTheMaxKeepAliveOfTheNode() throws Exception {
+        TimeValue nodeMax = TimeValue.timeValueMinutes(2);
+        updateClusterSettings(
+            Settings.builder()
+                .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+                .put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), nodeMax)
+                .build()
+        );
+        try {
+            createIndexWithDocs(INDEX);
+            List<ShardSearchContextId> open = respond(INDEX);
+
+            service.serveKeepAlive(new FetchContextKeepAliveRequest(QUERY_INDICES, open, TimeValue.timeValueHours(between(1, 24))));
+
+            for (ShardSearchContextId id : open) {
+                assertThat(keepAliveOf(id), equalTo(nodeMax.millis()));
+            }
+            free(open);
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey())
+                    .putNull(SearchService.MAX_KEEPALIVE_SETTING.getKey())
+                    .build()
+            );
+        }
+    }
+
     public void testAKeepAliveNeverShortensTheKeepAliveOfAContext() throws Exception {
         createIndexWithDocs(INDEX);
         List<ShardSearchContextId> open = respond(INDEX);

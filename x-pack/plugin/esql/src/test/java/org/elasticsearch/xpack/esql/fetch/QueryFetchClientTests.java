@@ -55,6 +55,10 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * {@link #NODE}, as the lease names the node of its contexts.
      */
     private static final FetchNode FETCH_NODE = FetchNode.local("n1");
+    /**
+     * The keep-alive {@link #NODE} gives its contexts, longer than the one of the query.
+     */
+    private static final TimeValue NODE_KEEP_ALIVE = TimeValue.timeValueDays(1);
     private static final FetchRequest.ShardDocs SHARD = new FetchRequest.ShardDocs(
         new ShardId("logs", "uuid", 0),
         new ShardSearchContextId("session", 7),
@@ -220,7 +224,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
             );
             ShardSearchContextId read = new ShardSearchContextId("session", 1);
             ShardSearchContextId unread = new ShardSearchContextId("session", 2);
-            recorded.execution().add(FETCH_NODE, List.of(read, unread));
+            recorded.execution().add(FETCH_NODE, List.of(read, unread), NODE_KEEP_ALIVE);
 
             client.cutEnded(Set.of(read));
             assertThat(recorded.transport().freed(), equalTo(Set.of(unread)));
@@ -252,7 +256,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
             ShardSearchContextId readAgain = new ShardSearchContextId("session", 8);
-            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId(), readAgain));
+            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId(), readAgain), NODE_KEEP_ALIVE);
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
@@ -285,7 +289,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
                 List.of("logs-*")
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
-            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()));
+            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()), NODE_KEEP_ALIVE);
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
@@ -314,7 +318,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
                 List.of("logs-*")
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
-            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()));
+            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()), NODE_KEEP_ALIVE);
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();

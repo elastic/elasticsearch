@@ -82,8 +82,9 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
     @Nullable
     private volatile Task task;
     /**
-     * The keep-alive of the query. The coordinator refreshes the contexts it owns every third of it, so they must not
-     * expire sooner, whatever the default keep-alive of this node.
+     * The keep-alive of the query, and at most the longest this node allows. The response tells the coordinator, which
+     * refreshes the contexts it owns every third of it, so they don't expire sooner, whatever the default keep-alive of
+     * this node.
      */
     private final TimeValue keepAlive;
     /**
@@ -100,7 +101,16 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
         }
         this.service = service;
         this.task = task;
-        this.keepAlive = keepAlive;
+        // like _search, which rejects a longer keep-alive. The query didn't ask for one, its coordinator picked it.
+        this.keepAlive = TimeValue.timeValueMillis(Math.min(keepAlive.millis(), service.searchService().getMaxKeepAliveInMillis()));
+    }
+
+    /**
+     * The keep-alive this node gives the contexts of the request: the keep-alive of the query, and at most
+     * {@code search.max_keep_alive} of this node, which can be shorter than the one of the coordinator.
+     */
+    public TimeValue keepAlive() {
+        return keepAlive;
     }
 
     /**

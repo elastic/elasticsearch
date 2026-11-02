@@ -244,16 +244,18 @@ public final class FetchContextService implements FetchContextTransport {
     }
 
     /**
-     * Keeps every context of {@code request} open for at least the keep-alive of the request, from now. Skips a context
-     * that {@link #fetchContext} doesn't find: the fetch that needs it reports it. The response is the same either way, so
-     * it tells nobody which contexts exist.
+     * Keeps every context of {@code request} open for at least the keep-alive of the request, from now, and at most for
+     * {@code search.max_keep_alive} of this node, as the contexts opened. Skips a context that {@link #fetchContext}
+     * doesn't find: the fetch that needs it reports it. The response is the same either way, so it tells nobody which
+     * contexts exist.
      */
     void serveKeepAlive(FetchContextKeepAliveRequest request) {
         assert Transports.assertNotTransportThread("dropping a reference to a fetch context can close its reader");
         IndicesAccessControl accessControl = ShardAccess.of(transportService.getThreadPool().getThreadContext());
+        long keepAlive = Math.min(request.keepAlive().millis(), searchService.getMaxKeepAliveInMillis());
         for (ShardSearchContextId id : request.contextIds()) {
             try {
-                fetchContext(id, request, accessControl, KEEP_ALIVE_ACTION_NAME).markAsUsed(request.keepAlive().millis()).close();
+                fetchContext(id, request, accessControl, KEEP_ALIVE_ACTION_NAME).markAsUsed(keepAlive).close();
             } catch (SearchContextMissingException | ElasticsearchSecurityException e) {
                 logger.debug("can't keep fetch context [{}] alive: {}", id, e.getMessage());
             }

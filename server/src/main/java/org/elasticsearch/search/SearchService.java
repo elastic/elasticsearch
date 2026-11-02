@@ -2671,6 +2671,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
+     * The longest keep-alive this node gives a reader context, {@code search.max_keep_alive}. It can differ between nodes.
+     */
+    public long getMaxKeepAliveInMillis() {
+        return maxKeepAlive;
+    }
+
+    /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
     protected enum ResultsType {

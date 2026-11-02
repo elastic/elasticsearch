@@ -34,10 +34,11 @@ import java.util.function.Supplier;
  * once its fetch ended. The lease frees what is left when the query ends, whether it succeeded, failed or was cancelled. A
  * context that a response lists after its execution stopped reading it is freed at once.
  * <p>
- * The data nodes open the contexts with the {@link Execution#keepAlive keep-alive} of the query. While the lease holds
- * contexts, it refreshes them every third of it, so a query that waits for a slow node doesn't lose the readers of the
- * nodes that finished first. Once nobody refreshes a context, because the query ended or its coordinator left, the context
- * expires after its keep-alive like any other.
+ * The data nodes open the contexts with the {@link Execution#keepAlive keep-alive} of the query, or a shorter one when their
+ * {@code search.max_keep_alive} is shorter, and their responses say which. While the lease holds contexts, it refreshes them
+ * every third of the shortest keep-alive a node gave them, so a query that waits for a slow node doesn't lose the readers
+ * of the nodes that finished first. Once nobody refreshes a context, because the query ended or its coordinator left, the
+ * context expires after its keep-alive like any other.
  * <p>
  * The lease holds the contexts of each {@link FetchNode}, and reaches their nodes through a {@link FetchContextTransport},
  * so it doesn't depend on the cluster a node is in. It sends its requests as the user who ran the query, also when an
@@ -56,6 +57,11 @@ public final class FetchContextLease implements Releasable {
     private final Supplier<ThreadContext.StoredContext> ownerContext;
     private final TimeValue keepAlive;
     private final List<Execution> executions = new ArrayList<>();
+    /**
+     * The shortest keep-alive a node gave the contexts of the lease, and the keep-alive of the query until a node gives a
+     * shorter one. The refresh runs every third of it.
+     */
+    private TimeValue shortestKeepAlive;
     /**
      * Runs while the lease holds contexts.
      */
@@ -85,6 +91,7 @@ public final class FetchContextLease implements Releasable {
         this.rootTask = rootTask;
         this.ownerContext = ownerContext;
         this.keepAlive = keepAlive;
+        this.shortestKeepAlive = keepAlive;
     }
 
     /**
@@ -167,11 +174,16 @@ public final class FetchContextLease implements Releasable {
     private record Contexts(OriginalIndices indices, FetchNode node, List<ShardSearchContextId> ids) {}
 
     /**
-     * Called with the lock held, when the lease starts holding a context.
+     * Called with the lock held, when the lease holds contexts that a node keeps open for {@code nodeKeepAlive}. A keep-alive
+     * shorter than any before restarts the refresh, at a third of it.
      */
-    private void startRefreshing() {
+    private void refreshWithin(TimeValue nodeKeepAlive) {
+        if (nodeKeepAlive.millis() < shortestKeepAlive.millis()) {
+            shortestKeepAlive = nodeKeepAlive;
+            stopRefreshing();
+        }
         if (refreshing == null) {
-            TimeValue interval = TimeValue.timeValueMillis(Math.max(1, keepAlive.millis() / REFRESHES_PER_KEEP_ALIVE));
+            TimeValue interval = TimeValue.timeValueMillis(Math.max(1, shortestKeepAlive.millis() / REFRESHES_PER_KEEP_ALIVE));
             refreshing = service.scheduleRefresh(this::refresh, interval);
         }
     }
@@ -218,8 +230,8 @@ public final class FetchContextLease implements Releasable {
         }
 
         /**
-         * How long a context of the query stays open after its last use, at least. The data nodes open the contexts of the
-         * execution with it.
+         * How long a context of the query stays open after its last use. The data nodes open the contexts of the execution
+         * with it, or with their {@code search.max_keep_alive} when that is shorter.
          */
         public TimeValue keepAlive() {
             return keepAlive;
@@ -227,11 +239,14 @@ public final class FetchContextLease implements Releasable {
 
         /**
          * Takes over the contexts that the response of {@code node} lists, and frees the ones the execution no longer reads.
+         *
+         * @param nodeKeepAlive the keep-alive the node gave them, at most the keep-alive of the query
          */
-        public void add(FetchNode node, List<ShardSearchContextId> ids) {
+        public void add(FetchNode node, List<ShardSearchContextId> ids, TimeValue nodeKeepAlive) {
             if (ids.isEmpty()) {
                 return;
             }
+            Objects.requireNonNull(nodeKeepAlive, "nodeKeepAlive");
             List<ShardSearchContextId> unread = new ArrayList<>();
             synchronized (FetchContextLease.this) {
                 if (closed) {
@@ -246,7 +261,7 @@ public final class FetchContextLease implements Releasable {
                         }
                     }
                     if (unread.size() < ids.size()) {
-                        startRefreshing();
+                        refreshWithin(nodeKeepAlive);
                     }
                 }
             }

@@ -137,6 +137,39 @@ public class EsqlFetchKeepAliveIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A data node whose {@code search.max_keep_alive} is below the keep-alive of the coordinator keeps its contexts no
+     * longer than that, and says so. The coordinator then refreshes them every third of it, so the fast node still has its
+     * contexts when the slow one answers, far later than the longest keep-alive the fast node allows.
+     */
+    public void testANodeWithAShorterMaxKeepAliveIsRefreshedInTime() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        String coordinator = internalCluster().startDataOnlyNode(keepAlive(TimeValue.timeValueSeconds(3)));
+        TimeValue nodeMax = TimeValue.timeValueMillis(300);
+        Settings shortMax = Settings.builder().put(keepAlive(nodeMax)).put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), nodeMax).build();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2, shortMax);
+        countContexts();
+        AtomicInteger keepAlives = countKeepAlives();
+        createFastAndSlowIndices(dataNodes.get(0), dataNodes.get(1));
+
+        ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(EsqlQueryAction.INSTANCE, topTenOfBoth());
+        boolean slowShardWaits;
+        try {
+            slowShardWaits = SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+            // more than six times the longest keep-alive the fast node allows, and more than half the one of the coordinator
+            safeSleep(2000);
+        } finally {
+            SimplePauseFieldPlugin.release();
+        }
+        try (EsqlQueryResponse response = query.actionGet(30, TimeUnit.SECONDS)) {
+            assertTrue("the slow shard waits", slowShardWaits);
+            assertTheWinnersOfTheFastIndex(response);
+        }
+        // every 100 milliseconds for 2 seconds. Every third of the keep-alive of the coordinator would be 2.
+        assertThat("refreshes within the keep-alive of the fast node", keepAlives.get(), greaterThan(6));
+        assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
+    }
+
+    /**
      * The contexts of a query whose free requests got lost expire once their keep-alive passed, because nobody refreshes
      * them after the query ended. The winners of the cut sit in one index, whose contexts the fetch frees. The other index
      * holds only losers, whose contexts the coordinator frees.

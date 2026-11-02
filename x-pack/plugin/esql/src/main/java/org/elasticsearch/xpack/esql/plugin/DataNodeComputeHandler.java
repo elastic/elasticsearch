@@ -295,7 +295,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     if (fetchContexts != null) {
-                                        fetchContexts.add(new FetchNode(clusterAlias, connection.getNode().getId()), r.openContexts());
+                                        fetchContexts.add(
+                                            new FetchNode(clusterAlias, connection.getNode().getId()),
+                                            r.openContexts(),
+                                            r.fetchContextsKeepAlive()
+                                        );
                                     }
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
@@ -1521,7 +1525,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 public void onResponse(DataNodeComputeResponse response) {
                     // the response lists the contexts the coordinator owns from now on
                     List<ShardSearchContextId> open = fetchContexts.listOpenContributing();
-                    listener.onResponse(response.withOpenContexts(open));
+                    listener.onResponse(response.withOpenContexts(open, fetchContexts.keepAlive()));
                     fetchContexts.responded();
                 }
 

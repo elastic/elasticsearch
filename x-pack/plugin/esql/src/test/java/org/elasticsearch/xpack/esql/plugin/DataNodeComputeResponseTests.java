@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -24,15 +25,36 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataNodeComputeResponseTests extends ESTestCase {
     public void testOpenContextsRoundTrip() throws IOException {
-        List<ShardSearchContextId> open = randomList(0, 5, DataNodeComputeResponseTests::randomOpenContext);
-        DataNodeComputeResponse response = new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()).withOpenContexts(open);
+        List<ShardSearchContextId> open = randomList(1, 5, DataNodeComputeResponseTests::randomOpenContext);
+        TimeValue keepAlive = randomTimeValue();
+        DataNodeComputeResponse response = new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()).withOpenContexts(
+            open,
+            keepAlive
+        );
 
         DataNodeComputeResponse copy = roundTrip(response, TransportVersion.current());
 
         assertThat(copy.openContexts(), equalTo(open));
+        assertThat("the keep-alive the data node gave them", copy.fetchContextsKeepAlive(), equalTo(keepAlive));
+    }
+
+    /**
+     * A response that lists no fetch context has no keep-alive for them.
+     */
+    public void testNoOpenContextsHaveNoKeepAlive() throws IOException {
+        DataNodeComputeResponse response = new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()).withOpenContexts(
+            List.of(),
+            randomTimeValue()
+        );
+
+        DataNodeComputeResponse copy = roundTrip(response, TransportVersion.current());
+
+        assertThat(copy.openContexts(), empty());
+        assertThat(copy.fetchContextsKeepAlive(), nullValue());
     }
 
     /**
@@ -43,7 +65,7 @@ public class DataNodeComputeResponseTests extends ESTestCase {
         DataNodeComputeResponse without = new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of());
         assertThat(roundTrip(without, older).openContexts(), empty());
 
-        DataNodeComputeResponse with = without.withOpenContexts(List.of(randomOpenContext()));
+        DataNodeComputeResponse with = without.withOpenContexts(List.of(randomOpenContext()), randomTimeValue());
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> roundTrip(with, older));
         assertThat(e.getMessage(), containsString("can't send fetch contexts to a node on"));
     }

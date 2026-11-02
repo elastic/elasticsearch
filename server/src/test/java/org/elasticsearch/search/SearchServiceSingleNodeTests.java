@@ -2711,6 +2711,24 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertFalse("a second free finds nothing", searchService.freeReaderContext(readerContext.id()));
     }
 
+    /**
+     * A caller that keeps reader contexts alive for its own keep-alive, like ES|QL, reads the longest one the node allows.
+     */
+    public void testTheMaxKeepAliveFollowsItsSetting() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        TimeValue maxKeepAlive = TimeValue.timeValueMinutes(between(10, 60));
+        updateClusterSettings(Settings.builder().put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), maxKeepAlive).build());
+        try {
+            assertThat(searchService.getMaxKeepAliveInMillis(), equalTo(maxKeepAlive.millis()));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SearchService.MAX_KEEPALIVE_SETTING.getKey()).build());
+        }
+        assertThat(
+            searchService.getMaxKeepAliveInMillis(),
+            equalTo(SearchService.MAX_KEEPALIVE_SETTING.getDefault(Settings.EMPTY).millis())
+        );
+    }
+
     public void testCreateSearchContextOnAFreedReaderContextFails() {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
@@ -20,15 +21,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -40,12 +36,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -58,8 +54,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests that a tracked parser charges for every token however it is read, that the breaker is checked each time a request charges a
- * chunk, that the size a tracked object reports replaces the estimate for its tokens, and that the charge is held until the reservation
- * closes.
+ * chunk, and that the charge is held until the reservation closes.
  */
 public class ParsedContentReservationTests extends ESTestCase {
 
@@ -78,6 +73,31 @@ public class ParsedContentReservationTests extends ESTestCase {
             assertThat(breaker.getUsed(), equalTo(expected));
         }
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testBigDecimalIsChargedByItsDigits() throws IOException {
+        // JSON reads a decimal as a double, so only the binary formats keep a BigDecimal.
+        XContentType type = randomFrom(XContentType.SMILE, XContentType.CBOR);
+        BigDecimal value = new BigDecimal("1234567890.12345678901234567890");
+        BytesReference content;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            content = BytesReference.bytes(builder.startObject().field("value", value).endObject());
+        }
+        long charged = charge(type, content, ParsedContentReservationTests::readAllTokens);
+        try (XContentParser parser = parser(type, content)) {
+            parser.nextToken();
+            parser.nextToken();
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
+            assertThat(parser.numberType(), equalTo(XContentParser.NumberType.BIG_DECIMAL));
+        }
+        assertThat(charged, equalTo(expectedCharge(type, content)));
+        assertThat(charged, greaterThan(expectedCharge(type, numberDocument(type, 1.5))));
+    }
+
+    private static BytesReference numberDocument(XContentType type, double value) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            return BytesReference.bytes(builder.startObject().field("value", value).endObject());
+        }
     }
 
     public void testSmileAndCborAreChargedLikeJson() throws IOException {
@@ -253,22 +273,6 @@ public class ParsedContentReservationTests extends ESTestCase {
         }
     }
 
-    public void testTrackedRootIsChargedItsSizeWithoutClose() throws IOException {
-        XContentType type = randomFrom(TYPES);
-        BytesReference content = stringMap(type, between(1, 50));
-        // The estimate for 1 to 50 entries is 308 to about 11,000 bytes, so one size releases part of it and the other adds to it.
-        for (long size : new long[] { 100, 20_000 }) {
-            try (ParsedContentReservation reservation = new ParsedContentReservation(requestBreaker(ByteSizeValue.ofMb(100)), true)) {
-                XContentParser parser = reservation.track(parser(type, content));
-                // The root itself is tracked, so it ends before its size replaces the estimate.
-                ParsedObjectTracker.of(parser).parseSized(parser::map, map -> size);
-                assertThat(reservation.reservedBytes(), equalTo(size + distinctNames(type, content)));
-                parser.close();
-                assertThat(reservation.reservedBytes(), equalTo(size + distinctNames(type, content)));
-            }
-        }
-    }
-
     public void testParserWithItsOwnReservationIsCheckedAndReleased() throws IOException {
         XContentType type = randomFrom(TYPES);
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
@@ -418,110 +422,7 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testTrackedObjectIsChargedItsReportedSize() throws IOException {
-        XContentType type = randomFrom(TYPES);
-        BytesReference content = namedObjectDocument(type, "sized", stringMap(type, between(1, 50)));
-        long estimate = expectedCharge(type, content);
-        long withoutItsOwnTokens = chargeOfNamedObject(type, content, 0, 0);
-        // UNKNOWN, or any other negative size, keeps the estimate.
-        assertThat(chargeOfNamedObject(type, content, SizedParsedObject.UNKNOWN, 0), equalTo(estimate));
-        assertThat(chargeOfNamedObject(type, content, -randomLongBetween(2, 1000), 0), equalTo(estimate));
-        assertThat(withoutItsOwnTokens, lessThan(estimate));
-        long size = randomLongBetween(0, 100_000);
-        assertThat(chargeOfNamedObject(type, content, size, 0), equalTo(withoutItsOwnTokens + size));
-    }
-
-    public void testObjectsInsideATrackedObjectKeepTheirCharges() throws IOException {
-        XContentType type = randomFrom(TYPES);
-        int inner = between(2, 20);
-        BytesReference content;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
-            builder.startObject().startObject("outer");
-            for (int i = 0; i < inner; i++) {
-                builder.startObject("inner-" + i).field("key", "value-" + i).endObject();
-            }
-            builder.endObject().endObject();
-            content = BytesReference.bytes(builder);
-        }
-        long estimate = expectedCharge(type, content);
-        long outside = chargeOfNamedObject(type, content, 0, 0);
-        long innerEstimates = chargeOfNamedObject(type, content, 0, SizedParsedObject.UNKNOWN) - outside;
-        long outerSize = randomLongBetween(0, 10_000);
-        long innerSize = randomLongBetween(0, 10_000);
-        // The outer size replaces only what its own tokens were charged, whether or not the inner objects report a size.
-        assertThat(chargeOfNamedObject(type, content, SizedParsedObject.UNKNOWN, SizedParsedObject.UNKNOWN), equalTo(estimate));
-        assertThat(chargeOfNamedObject(type, content, outerSize, innerSize), equalTo(outside + outerSize + inner * innerSize));
-        assertThat(chargeOfNamedObject(type, content, outerSize, SizedParsedObject.UNKNOWN), equalTo(outside + outerSize + innerEstimates));
-        assertThat(
-            chargeOfNamedObject(type, content, SizedParsedObject.UNKNOWN, innerSize),
-            equalTo(estimate - innerEstimates + inner * innerSize)
-        );
-    }
-
-    public void testLargeObjectIsCheckedWhileReadAndReleasedOnceParsed() throws IOException {
-        XContentType type = randomFrom(TYPES);
-        BytesReference content = namedObjectDocument(type, "sized", stringMap(type, 50_000));
-        long estimate = expectedCharge(type, content);
-        assertThat(estimate, greaterThan(4 * ChargingXContentParser.CHUNK_BYTES));
-        long size = randomLongBetween(0, ChargingXContentParser.CHUNK_BYTES);
-
-        // Under a limit above the estimate, the object is charged its size once parsed.
-        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(2 * estimate));
-        long outside = chargeOfNamedObject(type, content, 0, 0);
-        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
-            try (XContentParser parser = reservation.track(namedObjectParser(type, content, size, 0))) {
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                String name = parser.nextFieldName();
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                parser.namedObject(Object.class, name, null);
-                // Released as soon as the object is parsed, before the root ends.
-                assertThat(breaker.getUsed(), lessThan(outside + size + ChargingXContentParser.CHUNK_BYTES));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
-                assertNull(parser.nextToken());
-            }
-            assertThat(reservation.reservedBytes(), equalTo(outside + size));
-        }
-        assertThat(breaker.getUsed(), equalTo(0L));
-
-        // Under a limit below the estimate, reading it trips though its size would fit, since the estimate guards the heap until then.
-        CircuitBreaker tight = requestBreaker(ByteSizeValue.ofBytes(estimate / 2));
-        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, true)) {
-            try (XContentParser parser = reservation.track(namedObjectParser(type, content, size, 0))) {
-                expectThrows(CircuitBreakingException.class, () -> readNamedObjectDocument(parser));
-            }
-        }
-        assertThat(tight.getUsed(), equalTo(0L));
-    }
-
-    public void testReportedSizeAboveTheEstimateIsChecked() throws IOException {
-        XContentType type = randomFrom(TYPES);
-        BytesReference content = namedObjectDocument(type, "sized", stringMap(type, between(1, 50)));
-        // Content this small is not checked while read, so the check comes when the size replaces the estimate.
-        long size = 3 * ChargingXContentParser.CHUNK_BYTES;
-        long outside = chargeOfNamedObject(type, content, 0, 0);
-        assertThat(chargeOfNamedObject(type, content, size, 0), equalTo(outside + size));
-
-        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(2 * ChargingXContentParser.CHUNK_BYTES));
-        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
-            try (XContentParser parser = reservation.track(namedObjectParser(type, content, size, 0))) {
-                expectThrows(CircuitBreakingException.class, () -> readNamedObjectDocument(parser));
-            }
-            assertThat(breaker.getTrippedCount(), equalTo(1L));
-        }
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testFailureInsideATrackedObjectKeepsItsEstimate() throws IOException {
-        XContentType type = randomFrom(TYPES);
-        long outerSize = randomLongBetween(0, 10_000);
-        long innerSize = randomLongBetween(0, 10_000);
-        // Failing to parse or to size keeps the estimate, as UNKNOWN does, and the object after it is charged as usual.
-        long unsized = chargeWithFirstInner(type, "unsized", outerSize, innerSize);
-        assertThat(chargeWithFirstInner(type, "failing", outerSize, innerSize), equalTo(unsized));
-        assertThat(chargeWithFirstInner(type, "badsize", outerSize, innerSize), equalTo(unsized));
-    }
-
-    public void testTripNestedInTrackedObjects() throws IOException {
+    public void testParserTripsAgainAfterACaughtTrip() throws IOException {
         XContentType type = randomFrom(TYPES);
         BytesReference content;
         try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
@@ -547,8 +448,8 @@ public class ParsedContentReservationTests extends ESTestCase {
                         assertThat(p.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                     }
                     assertThat(p.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
-                    return new Sized(10, null);
-                }), new NamedXContentRegistry.Entry(Object.class, new ParseField("o2"), p -> new Sized(10, p.map())))
+                    return "o1";
+                }), new NamedXContentRegistry.Entry(Object.class, new ParseField("o2"), XContentParser::map))
             );
             CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1_000_000));
             try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
@@ -615,8 +516,8 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testQueryClausesAreChargedTheSizesTheyReport() throws IOException {
-        XContentType type = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR);
+    public void testQueryParserReadsThroughTrackedParser() throws IOException {
+        XContentType type = randomFrom(TYPES);
         int clauses = between(2, 100);
         BytesReference content;
         try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
@@ -628,169 +529,16 @@ public class ParsedContentReservationTests extends ESTestCase {
             content = BytesReference.bytes(builder);
         }
         try (ParsedContentReservation reservation = new ParsedContentReservation(requestBreaker(ByteSizeValue.ofMb(100)), true)) {
-            BoolQueryBuilder bool;
             try (XContentParser parser = reservation.track(parser(searchRegistry(), type, content))) {
-                // parseTopLevelQuery parses named objects through its own wrapper, which must still track them.
-                bool = (BoolQueryBuilder) AbstractQueryBuilder.parseTopLevelQuery(parser);
+                // parseTopLevelQuery parses named objects through its own wrapper, which must still read through the tracked parser.
+                AbstractQueryBuilder.parseTopLevelQuery(parser);
             }
-            // The tokens around the bool query (the root's start and end, its name and the start of its body), each name string once,
-            // and the sizes the queries report.
-            long expected = 3 * ChargingXContentParser.TOKEN_BYTES + ChargingXContentParser.BYTES_PER_CHAR * "bool".length()
-                + ChargingXContentParser.TOKEN_BYTES + distinctNames(type, content) + bool.parsedRetainedBytes();
-            for (QueryBuilder clause : bool.should()) {
-                expected += ((TermQueryBuilder) clause).parsedRetainedBytes();
-            }
-            assertThat(reservation.reservedBytes(), equalTo(expected));
-        }
-    }
-
-    public void testSearchSectionsAreChargedTheSizesTheyReport() throws IOException {
-        XContentType type = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR);
-        Map<String, Object> knn = new LinkedHashMap<>();
-        knn.put("field", "vector");
-        knn.put("query_vector", List.of(1.0f, 2.0f, 3.0f));
-        knn.put("k", 5);
-        knn.put("num_candidates", 10);
-        Map<String, Object> runtimeMappings = new LinkedHashMap<>();
-        runtimeMappings.put("day", Map.of("type", "keyword"));
-        runtimeMappings.put("hour", Map.of("type", "long"));
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("text", "some text");
-        params.put("number", 1);
-        params.put("list", List.of("a", "b"));
-        BytesReference content = document(
-            type,
-            Map.of(
-                "knn",
-                knn,
-                "runtime_mappings",
-                runtimeMappings,
-                "script_fields",
-                Map.of("field", Map.of("script", Map.of("source", "1", "params", params)))
-            )
-        );
-        // Each section replaces the estimate for its tokens, besides its starting token and its names, with the size it reports.
-        long expected = charge(type, content, ParsedContentReservationTests::readAllTokens);
-        BytesReference knnContent = document(type, knn);
-        long knnSize;
-        try (XContentParser parser = parser(type, knnContent)) {
-            knnSize = KnnSearchBuilder.fromXContent(parser).parsedRetainedBytes();
-        }
-        expected += replacedEstimate(type, knnContent, knnSize);
-        for (Map<String, Object> map : List.of(runtimeMappings, params)) {
-            BytesReference mapContent = document(type, map);
-            long size;
-            try (XContentParser parser = parser(type, mapContent)) {
-                size = ParsedObjectSizes.value(parser.map());
-            }
-            expected += replacedEstimate(type, mapContent, size);
-        }
-        try (ParsedContentReservation reservation = new ParsedContentReservation(requestBreaker(ByteSizeValue.ofMb(100)), true)) {
-            try (XContentParser parser = reservation.track(parser(searchRegistry(), type, content))) {
-                new SearchSourceBuilder().parseXContent(parser, true, feature -> true);
-            }
-            assertThat(reservation.reservedBytes(), equalTo(expected));
-        }
-    }
-
-    /**
-     * What replacing the estimate for the tokens of {@code section} with {@code size} changes in the charge. The size must be below the
-     * estimate, so that keeping the estimate fails the test.
-     */
-    private static long replacedEstimate(XContentType type, BytesReference section, long size) throws IOException {
-        long estimate = charge(type, section, ParsedContentReservationTests::readAllTokens) - distinctNames(type, section)
-            - ChargingXContentParser.TOKEN_BYTES;
-        assertThat(size, greaterThan(0L));
-        assertThat(size, lessThan(estimate));
-        return size - estimate;
-    }
-
-    private static BytesReference document(XContentType type, Map<String, Object> map) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
-            return BytesReference.bytes(builder.map(map));
-        }
-    }
-
-    /**
-     * What {@code {"outer": {"<first>": {...}, "sized": {...}}}} is charged when {@code outer} reports {@code outerSize}, {@code sized}
-     * reports {@code innerSize}, and the parser of {@code outer} catches what fails in {@code first} and goes on. The names for
-     * {@code first} have the same length, so their tokens cost the same.
-     */
-    private static long chargeWithFirstInner(XContentType type, String first, long outerSize, long innerSize) throws IOException {
-        BytesReference content;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
-            builder.startObject().startObject("outer");
-            builder.startObject(first).field("key", "value").endObject();
-            builder.startObject("sized").field("key", "value").endObject();
-            builder.endObject().endObject();
-            content = BytesReference.bytes(builder);
-        }
-        NamedXContentRegistry registry = new NamedXContentRegistry(
-            List.of(new NamedXContentRegistry.Entry(Object.class, new ParseField("outer"), p -> {
-                for (XContentParser.Token token = p.nextToken(); token != XContentParser.Token.END_OBJECT; token = p.nextToken()) {
-                    String name = p.currentName();
-                    assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                    try {
-                        p.namedObject(Object.class, name, null);
-                    } catch (IllegalStateException e) {
-                        // Go on with the next object.
-                    }
-                }
-                return new Sized(outerSize, null);
-            }),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("sized"), p -> new Sized(innerSize, p.map())),
-                new NamedXContentRegistry.Entry(
-                    Object.class,
-                    new ParseField("unsized"),
-                    p -> new Sized(SizedParsedObject.UNKNOWN, p.map())
-                ),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("failing"), p -> {
-                    p.map();
-                    throw new IllegalStateException("fails once its tokens are read");
-                }),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("badsize"), p -> new FailsToSize(p.map()))
-            )
-        );
-        try (ParsedContentReservation reservation = new ParsedContentReservation(requestBreaker(ByteSizeValue.ofGb(10)), true)) {
-            try (XContentParser parser = reservation.track(parser(registry, type, content))) {
-                readNamedObjectDocument(parser);
-            }
-            return reservation.reservedBytes();
-        }
-    }
-
-    /** An object that throws when asked for its size. */
-    private record FailsToSize(Object content) implements SizedParsedObject {
-        @Override
-        public long parsedRetainedBytes() {
-            throw new IllegalStateException("cannot be sized");
+            assertThat(reservation.reservedBytes(), equalTo(expectedCharge(type, content)));
         }
     }
 
     private static NamedXContentRegistry searchRegistry() {
         return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
-    }
-
-    /** {@code {"<name>": <body>}} */
-    private static BytesReference namedObjectDocument(XContentType type, String name, BytesReference body) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
-            builder.startObject().field(name);
-            try (XContentParser parser = parser(type, body)) {
-                builder.copyCurrentStructure(parser);
-            }
-            builder.endObject();
-            return BytesReference.bytes(builder);
-        }
-    }
-
-    /** What a tracked {@link #namedObjectParser} charges to read {@code content}. */
-    private static long chargeOfNamedObject(XContentType type, BytesReference content, long outerSize, long innerSize) throws IOException {
-        try (ParsedContentReservation reservation = new ParsedContentReservation(requestBreaker(ByteSizeValue.ofGb(10)), true)) {
-            try (XContentParser parser = reservation.track(namedObjectParser(type, content, outerSize, innerSize))) {
-                readNamedObjectDocument(parser);
-            }
-            return reservation.reservedBytes();
-        }
     }
 
     private static void readNamedObjectDocument(XContentParser parser) throws IOException {
@@ -800,37 +548,6 @@ public class ParsedContentReservationTests extends ESTestCase {
         parser.namedObject(Object.class, name, null);
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
         assertNull(parser.nextToken());
-    }
-
-    /**
-     * A parser whose registry parses {@code sized} as a map that reports {@code outerSize}, and {@code outer} as an object that reports
-     * {@code outerSize} and parses each of its fields as an {@code inner} map that reports {@code innerSize}.
-     */
-    private static XContentParser namedObjectParser(XContentType type, BytesReference content, long outerSize, long innerSize)
-        throws IOException {
-        NamedXContentRegistry registry = new NamedXContentRegistry(
-            List.of(
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("sized"), p -> new Sized(outerSize, p.map())),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("inner"), p -> new Sized(innerSize, p.map())),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("outer"), p -> {
-                    for (XContentParser.Token token = p.nextToken(); token != XContentParser.Token.END_OBJECT; token = p.nextToken()) {
-                        assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-                        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                        p.namedObject(Object.class, "inner", null);
-                    }
-                    return new Sized(outerSize, null);
-                })
-            )
-        );
-        return parser(registry, type, content);
-    }
-
-    /** An object that reports {@code size}, which can be {@link SizedParsedObject#UNKNOWN}. */
-    private record Sized(long size, Object content) implements SizedParsedObject {
-        @Override
-        public long parsedRetainedBytes() {
-            return size;
-        }
     }
 
     private static CircuitBreaker requestBreaker(ByteSizeValue limit) {
@@ -870,6 +587,12 @@ public class ParsedContentReservationTests extends ESTestCase {
             for (XContentParser.Token token = parser.nextToken(); token != null; token = parser.nextToken()) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     expected += ChargingXContentParser.STRING_VALUE_BYTES + ChargingXContentParser.BYTES_PER_CHAR * parser.text().length();
+                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                    expected += switch (parser.numberType()) {
+                        case INT, LONG, FLOAT, DOUBLE -> ChargingXContentParser.NUMBER_VALUE_BYTES;
+                        case BIG_INTEGER, BIG_DECIMAL -> ChargingXContentParser.STRING_VALUE_BYTES + ChargingXContentParser.BYTES_PER_CHAR
+                            * parser.text().length();
+                    };
                 } else if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();
                     expected += ChargingXContentParser.TOKEN_BYTES + ChargingXContentParser.BYTES_PER_CHAR * name.length();
@@ -877,7 +600,7 @@ public class ParsedContentReservationTests extends ESTestCase {
                         if (names.size() < ChargingXContentParser.MAX_CHARGED_NAMES) {
                             names.add(name);
                         }
-                        expected += ParsedObjectSizes.string(name);
+                        expected += RamUsageEstimator.sizeOf(name);
                     }
                 } else {
                     expected += ChargingXContentParser.TOKEN_BYTES;
@@ -885,20 +608,6 @@ public class ParsedContentReservationTests extends ESTestCase {
             }
         }
         return expected;
-    }
-
-    /** What the strings of the distinct field names of {@code content} are charged, once each. */
-    private static long distinctNames(XContentType type, BytesReference content) throws IOException {
-        long charged = 0;
-        Set<String> names = Collections.newSetFromMap(new IdentityHashMap<>());
-        try (XContentParser parser = parser(type, content)) {
-            for (XContentParser.Token token = parser.nextToken(); token != null; token = parser.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME && names.add(parser.currentName())) {
-                    charged += ParsedObjectSizes.string(parser.currentName());
-                }
-            }
-        }
-        return charged;
     }
 
     private static long countTokens(XContentType type, BytesReference content) throws IOException {
@@ -933,6 +642,10 @@ public class ParsedContentReservationTests extends ESTestCase {
             }
             builder.endArray().endObject().endObject();
             builder.field("size", 10);
+            builder.field("min_score", 0.5);
+            builder.field("terminate_after", 10_000_000_000L);
+            // Too large for a long, so charged by its digits.
+            builder.field("big", new BigInteger("123456789012345678901234567890"));
             builder.field("track_total_hits", true);
             builder.nullField("post_filter");
             builder.array("stored_fields", "a", "bb", "ccc");

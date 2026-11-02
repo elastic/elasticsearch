@@ -189,6 +189,29 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         assertThat("released once parsed", breaker.getUsed(), Matchers.equalTo(0L));
     }
 
+    public void testRewriteChargesTheReservationRatherThanTheContextsBreaker() throws IOException {
+        BoolQueryBuilder inner = new BoolQueryBuilder();
+        int clauses = between(1, 20);
+        for (int i = 0; i < clauses; i++) {
+            inner.should(new TermQueryBuilder(TEXT_FIELD_NAME, "value-" + i));
+        }
+        WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        // A shard request on the node that handles the REST request keeps its thread context, so its rewrite has both.
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        ThreadContext threadContext = context.client.threadPool().getThreadContext();
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                assertNotNull(wrapper.rewrite(context));
+            }
+            // Charged once, to the reservation, which holds it until the response, rather than released once parsed.
+            assertThat(reservation.reservedBytes(), Matchers.greaterThan(0L));
+            assertThat(breaker.getUsed(), Matchers.equalTo(reservation.reservedBytes()));
+        }
+        assertThat(breaker.getUsed(), Matchers.equalTo(0L));
+    }
+
     public void testRewriteChargesParsedContentReservation() throws IOException {
         BoolQueryBuilder inner = new BoolQueryBuilder();
         int clauses = between(1, 20);

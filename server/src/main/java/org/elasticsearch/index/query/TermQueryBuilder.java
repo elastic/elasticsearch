@@ -12,13 +12,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParsedObjectSizes;
-import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -32,9 +29,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents containing a term.
  */
-public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> implements SizedParsedObject {
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TermQueryBuilder.class);
+public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public static final String NAME = "term";
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
@@ -220,14 +215,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> imp
             return mapper.termQueryCaseInsensitive(value, context);
         }
         return mapper.termQuery(value, context);
-    }
-
-    @Override
-    public long parsedRetainedBytes() {
-        if (getClass() != TermQueryBuilder.class) {
-            return UNKNOWN;
-        }
-        return ParsedObjectSizes.add(SHALLOW_SIZE + ParsedObjectSizes.string(queryName), ParsedObjectSizes.value(value));
     }
 
     @Override

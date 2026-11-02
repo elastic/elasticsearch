@@ -31,8 +31,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ParsedObjectSizes;
-import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -58,9 +56,7 @@ import java.util.stream.IntStream;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> implements SizedParsedObject {
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TermsQueryBuilder.class);
+public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -324,18 +320,6 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> imple
         return values;
     }
 
-    /**
-     * The query and its values. A terms lookup query keeps the estimate, since it has not fetched its values yet.
-     */
-    @Override
-    public long parsedRetainedBytes() {
-        if (getClass() != TermsQueryBuilder.class || termsLookup != null) {
-            return UNKNOWN;
-        }
-        assert values != null && supplier == null : "sized after a rewrite";
-        return ParsedObjectSizes.add(SHALLOW_SIZE + ParsedObjectSizes.string(queryName), values.parsedRetainedBytes());
-    }
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -547,17 +531,6 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> imple
             List<Object> decoded = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
             values = decoded;
             decodedBytesOverWire = Math.max(0L, ramBytesUsed(decoded) - serializedBytes);
-        }
-
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BinaryValues.class);
-
-        /**
-         * The values as parsed. Once {@link #writeTo} runs (to send the query to another node or build a request cache key), it also
-         * caches a serialized copy, which is not counted and is smaller than the values.
-         */
-        long parsedRetainedBytes() {
-            assert valueRef == null : "sized after being serialized";
-            return ParsedObjectSizes.add(SHALLOW_SIZE, ParsedObjectSizes.value(values));
         }
 
         private BinaryValues(Collection<?> values, boolean convert) {

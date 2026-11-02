@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -48,6 +49,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -63,6 +65,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.After;
@@ -77,6 +80,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -619,6 +623,46 @@ public class RestControllerTests extends ESTestCase {
             for (int i = 1; i < charged.size(); i++) {
                 assertThat(charged.toString(), charged.get(i), greaterThan(charged.get(i - 1)));
             }
+        }
+    }
+
+    public void testMultiSearchLinesChargeTheRequest() throws IOException {
+        String header = "{\"index\":\"test\"}";
+        String body = "{\"size\":1,\"timeout\":\"1s\"}";
+        int searches = 2;
+        List<Long> charged = new ArrayList<>();
+        // The in-flight limit of the shared controller is smaller than the content.
+        RestController controller = new RestController(null, client, parsedContentBreakerService(), usageService, telemetryProvider);
+        controller.registerHandler(new Route(GET, "/_msearch"), (request, channel, client) -> {
+            ParsedContentReservation reservation = client.threadPool()
+                .getThreadContext()
+                .getTransient(ParsedContentReservation.TRANSIENT_NAME);
+            RestMultiSearchAction.parseRequest(request, true, usageService.getSearchUsageHolder(), feature -> true, Optional.empty());
+            charged.add(reservation.reservedBytes());
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        RestRequest request = testRestRequest("/_msearch", (header + "\n" + body + "\n").repeat(searches), XContentType.JSON);
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            controller.dispatchRequest(request, new AssertingChannel(request, true, RestStatus.OK), threadContext);
+        }
+        // The parser of every header and body line charges the request.
+        assertThat(charged, equalTo(List.of(searches * (lineCharge(header) + lineCharge(body)))));
+    }
+
+    /** What a line of content is charged when it is read on its own. */
+    private static long lineCharge(String line) throws IOException {
+        try (ParsedContentReservation reservation = new ParsedContentReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST), true)) {
+            try (
+                XContentParser parser = reservation.track(
+                    XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, line)
+                )
+            ) {
+                while (parser.nextToken() != null) {
+                    // Read every token.
+                }
+            }
+            return reservation.reservedBytes();
         }
     }
 

@@ -11,15 +11,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParsedObjectSizes;
-import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,10 +41,8 @@ import java.util.Arrays;
  * </code>
  * </pre>
  */
-public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> implements SizedParsedObject {
+public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
     public static final String NAME = "wrapper";
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WrapperQueryBuilder.class);
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -110,17 +105,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         builder.startObject(NAME);
         builder.field(QUERY_FIELD.getPreferredName(), source);
         builder.endObject();
-    }
-
-    /**
-     * The query and its decoded source. The query inside the source is parsed at rewrite, and charged then.
-     */
-    @Override
-    public long parsedRetainedBytes() {
-        if (getClass() != WrapperQueryBuilder.class) {
-            return UNKNOWN;
-        }
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(source) + ParsedObjectSizes.string(queryName);
     }
 
     public static WrapperQueryBuilder fromXContent(XContentParser parser) throws IOException {

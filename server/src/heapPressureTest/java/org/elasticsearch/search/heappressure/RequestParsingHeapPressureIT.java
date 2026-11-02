@@ -53,8 +53,8 @@ public class RequestParsingHeapPressureIT extends SearchHeapPressureTestCase {
     private static final int DOCS = 100;
 
     /**
-     * About 27 bytes of content each, and 96 bytes of heap once parsed in a bool or 168 in a filters aggregation, so this is about 54 MB
-     * of content.
+     * About 27 bytes of content each, which retain 96 bytes of heap once parsed in a bool or 168 in a filters aggregation, so this is
+     * about 54 MB of content.
      */
     private static final int MANY_CLAUSES = 2_000_000;
     /** About 11 bytes of content each and 64 bytes of heap while parsed, so this is about 44 MB of content. */
@@ -65,14 +65,14 @@ public class RequestParsingHeapPressureIT extends SearchHeapPressureTestCase {
      */
     private static final int TERMS_PER_SEARCH = 9_000;
     /**
-     * About 36 KB of content and 480 KB of heap each once parsed, so this is about 22 MB of content, which the in-flight requests breaker
-     * lets in even when the parent breaker checks the real heap.
+     * About 36 KB of content each, which retains 480 KB of heap once parsed, so this is about 22 MB of content, which the in-flight
+     * requests breaker lets in even when the parent breaker checks the real heap.
      */
     private static final int MANY_SEARCHES = 600;
 
     /** Pinned so that the number of searches it takes to fill the search threads is known. */
     private static final int SEARCH_THREADS = 4;
-    /** About 8 MB of heap each once parsed, with {@link #FILTERS_PER_HELD_SEARCH} filters, so together they are more than the heap. */
+    /** Each retains about 8 MB of heap once parsed with {@link #FILTERS_PER_HELD_SEARCH} filters, so together more than the heap. */
     private static final int HELD_SEARCHES = 40;
     private static final int FILTERS_PER_HELD_SEARCH = 50_000;
 
@@ -187,11 +187,11 @@ public class RequestParsingHeapPressureIT extends SearchHeapPressureTestCase {
             HELD_SEARCHES,
             rejectedWhileParsing
         );
-        // Each waiting search was parsed long before and is charged about 17 MB for its filters.
+        // Each waiting search was parsed long before and is charged about 24 MB for its filters.
         assertThat(
             "the searches waiting for a thread keep their parsed requests charged",
             heldCharge,
-            greaterThan(ByteSizeValue.ofMb(10).getBytes())
+            greaterThan((HELD_SEARCHES - rejected) * ByteSizeValue.ofMb(20).getBytes())
         );
         assertThat("expected the breakers to reject some of the searches", rejected, greaterThan(0));
         assertThat("expected some of the searches to get past the breakers and wait", rejected, lessThan(HELD_SEARCHES));

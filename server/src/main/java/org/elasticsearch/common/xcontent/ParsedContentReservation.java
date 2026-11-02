@@ -41,7 +41,7 @@ public final class ParsedContentReservation implements Releasable {
      */
     public static final String TRANSIENT_NAME = "_parsed_content_reservation";
 
-    /** Marks a closed reservation, far below any count so that a miscount cannot look closed. */
+    /** Marks a closed reservation. Charges only add to the count, so it never reaches this. */
     private static final long CLOSED = Long.MIN_VALUE;
 
     private final CircuitBreaker breaker;
@@ -128,17 +128,6 @@ public final class ParsedContentReservation implements Releasable {
         return unchecked.get();
     }
 
-    /**
-     * Releases {@code bytes}, for an object that retains less than its estimate. Once the reservation is closed, this releases nothing.
-     */
-    void release(long bytes) {
-        final long previous = reserved.getAndUpdate(r -> r == CLOSED ? CLOSED : r - bytes);
-        if (previous != CLOSED) {
-            assert previous >= bytes : "releasing [" + bytes + "] of [" + previous + "] reserved";
-            breaker.addWithoutBreaking(-bytes);
-        }
-    }
-
     private void record(long bytes) {
         // A forked parser can still charge after its request completed. A charge that raced with close is released at once.
         if (reserved.getAndUpdate(r -> r == CLOSED ? CLOSED : r + bytes) == CLOSED) {
@@ -147,7 +136,7 @@ public final class ParsedContentReservation implements Releasable {
     }
 
     /**
-     * The bytes charged and not yet released.
+     * The bytes charged, until the reservation is closed.
      */
     public long reservedBytes() {
         final long r = reserved.get();

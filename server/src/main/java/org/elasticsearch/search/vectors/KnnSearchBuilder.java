@@ -9,14 +9,11 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ParsedObjectSizes;
-import org.elasticsearch.common.xcontent.SizedParsedObject;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -45,8 +42,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Defines a kNN search to run in the search request.
  */
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(KnnSearchBuilder.class);
     public static final int NUM_CANDS_LIMIT = 10_000;
     public static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
 
@@ -594,7 +589,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 
-    public static class Builder implements SizedParsedObject {
+    public static class Builder {
 
         private String field;
         private VectorData queryVector;
@@ -608,23 +603,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private float boost = DEFAULT_BOOST;
         private InnerHitBuilder innerHitBuilder;
         private RescoreVectorBuilder rescoreVectorBuilder;
-
-        /**
-         * The size of the {@link KnnSearchBuilder} this builds, which keeps this builder's vector, filters, field and query name. This
-         * builder is dropped once the request is parsed, so its boxed {@code k} and {@code num_candidates} are not counted. The filters
-         * report their own sizes. A search without a vector yet, such as one with a vector builder, or with inner hits keeps the
-         * estimate.
-         */
-        @Override
-        public long parsedRetainedBytes() {
-            if (getClass() != Builder.class || queryVector == null || innerHitBuilder != null) {
-                return UNKNOWN;
-            }
-            long size = SHALLOW_SIZE + ParsedObjectSizes.string(field) + ParsedObjectSizes.string(queryName);
-            size += queryVector.retainedBytes();
-            size += ParsedObjectSizes.boxed(visitPercentage) + ParsedObjectSizes.boxed(similarity);
-            return size + ParsedObjectSizes.list(filterQueries) + RescoreVectorBuilder.retainedBytes(rescoreVectorBuilder);
-        }
 
         public Builder addFilterQueries(List<QueryBuilder> filterQueries) {
             Objects.requireNonNull(filterQueries);

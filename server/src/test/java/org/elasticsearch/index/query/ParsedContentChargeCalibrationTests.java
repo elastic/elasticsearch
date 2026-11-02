@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
-import org.elasticsearch.common.xcontent.ParsedObjectSizes;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.SearchModule;
@@ -32,17 +31,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
+import java.lang.management.PlatformManagedObject;
 import java.lang.ref.Reference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.EnumMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
@@ -53,7 +50,7 @@ import java.util.stream.Collectors;
  *
  * <p>The retained heap is read from the heap itself. {@link #COPIES} parsed copies of a request are kept alive, garbage is collected, and
  * the growth of the heap in use is divided between them. {@code RamUsageTester} only approximates JDK collections and strings, which is
- * not precise enough to check the sizes that objects report.
+ * not precise enough to check the costs against.
  *
  * <p>Field names are not measured. Parsers share the string of a field name through a table that outlives them, and the warm-up puts the
  * names there, so the copies share them. A shape with distinct names therefore reads as charged more than it retains.
@@ -61,7 +58,10 @@ import java.util.stream.Collectors;
  * <p>Each shape is measured at two sizes and compared per element, so that the rest of the request, which does not grow with them, cancels
  * out. Other work in the JVM can add to a reading, so a shape that reads as charged less than it retains is measured again before it fails.
  *
- * <p>The costs of {@code ChargingXContentParser} are measured with compressed object pointers, so these tests only run with them.
+ * <p>The costs of {@code ChargingXContentParser} are measured with compressed object pointers and compact object headers, the layout of
+ * the bundled JDK. On older runtimes, which lack compact headers, these tests are skipped, and on the bundled JDK's version or later they
+ * fail if compact headers are off. With larger headers, every shape here still reads at least 1 except sibling {@code terms}
+ * aggregations, at about 0.95.
  */
 public class ParsedContentChargeCalibrationTests extends ESTestCase {
 
@@ -70,32 +70,20 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
     private static final int COPIES = 20;
     private static final double MEASUREMENT_TOLERANCE = 0.01;
     private static final int MEASUREMENT_ATTEMPTS = 3;
-    /**
-     * How much more than it retains a shape that reports its size can be charged, besides the strings of its field names. Sizes read
-     * 1.00 to 1.14 of the retained heap, the most where object headers are smaller than the sizes assume.
-     */
-    private static final double MAX_REPORTED_SIZE_RATIO = 1.25;
+    /** The bundled JDK, which uses compact object headers by default. */
+    private static final int BUNDLED_JDK_FEATURE_VERSION = 27;
     private static final MemoryMXBean MEMORY = ManagementFactory.getMemoryMXBean();
 
-    /** A request of {@code n} elements, and whether all it parses into reports its size. */
-    private record Shape(String name, IntFunction<String> body, boolean reportsSize) {
-        Shape(String name, IntFunction<String> body) {
-            this(name, body, false);
-        }
-    }
-
-    private static Shape sized(String name, IntFunction<String> body) {
-        return new Shape(name, body, true);
-    }
+    private record Shape(String name, IntFunction<String> body) {}
 
     private List<Shape> shapes() {
         return List.of(
-            sized("bool of term, 8 char values", n -> query(should(n, i -> termClause(value(i, 8))))),
-            sized("bool of term, 63 char values", n -> query(should(n, i -> termClause(value(i, 63))))),
-            sized("bool of term, non-ASCII values", n -> query(should(n, i -> termClause(nonAscii(i))))),
-            sized("bool of term, distinct fields", n -> query(should(n, i -> clause("term", name(i), value(i, 8))))),
+            new Shape("bool of term, 8 char values", n -> query(should(n, i -> termClause(value(i, 8))))),
+            new Shape("bool of term, 63 char values", n -> query(should(n, i -> termClause(value(i, 63))))),
+            new Shape("bool of term, non-ASCII values", n -> query(should(n, i -> termClause(nonAscii(i))))),
+            new Shape("bool of term, distinct fields", n -> query(should(n, i -> clause("term", name(i), value(i, 8))))),
             new Shape("bool of match, 8 char values", n -> query(should(n, i -> clause("match", "k", value(i, 8))))),
-            sized("bool of empty bool", n -> query(should(n, i -> "{\"bool\":{}}"))),
+            new Shape("bool of empty bool", n -> query(should(n, i -> "{\"bool\":{}}"))),
             new Shape("bool of match_all", n -> query(should(n, i -> "{\"match_all\":{}}"))),
             new Shape("bool of range", n -> query(should(n, i -> "{\"range\":{\"n\":{\"gte\":" + i + ",\"lte\":" + (i + 1) + "}}}"))),
             new Shape(
@@ -108,21 +96,84 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
                     + elements(n, i -> quote(name(i)) + ":" + termClause(value(i, 8)))
                     + "}}}}}"
             ),
-            sized("terms, 8 char values", n -> query("{\"terms\":{\"k\":[" + elements(n, i -> quote(value(i, 8))) + "]}}")),
-            sized("terms, numbers", n -> query("{\"terms\":{\"n\":[" + elements(n, i -> Integer.toString(1_000_000 + i)) + "]}}")),
-            sized("ids", n -> query("{\"ids\":{\"values\":[" + elements(n, i -> quote(value(i, 8))) + "]}}")),
-            sized("runtime_mappings", n -> "{\"runtime_mappings\":{" + elements(n, i -> quote(name(i)) + ":{\"type\":\"keyword\"}") + "}}"),
-            sized(
+            new Shape("terms, 8 char values", n -> query("{\"terms\":{\"k\":[" + elements(n, i -> quote(value(i, 8))) + "]}}")),
+            new Shape("terms, numbers", n -> query("{\"terms\":{\"n\":[" + elements(n, i -> Integer.toString(1_000_000 + i)) + "]}}")),
+            new Shape("ids", n -> query("{\"ids\":{\"values\":[" + elements(n, i -> quote(value(i, 8))) + "]}}")),
+            new Shape(
+                "runtime_mappings",
+                n -> "{\"runtime_mappings\":{" + elements(n, i -> quote(name(i)) + ":{\"type\":\"keyword\"}") + "}}"
+            ),
+            new Shape(
                 "script params",
                 n -> "{\"script_fields\":{\"s\":{\"script\":{\"source\":\"1\",\"params\":{"
                     + elements(n, i -> quote(name(i)) + ":" + quote(value(i, 8)))
                     + "}}}}}"
+            ),
+            new Shape(
+                "script params, integers",
+                n -> "{\"script_fields\":{\"s\":{\"script\":{\"source\":\"1\",\"params\":{\"p\":["
+                    + elements(n, i -> Integer.toString(1_000_000 + i))
+                    + "]}}}}}"
+            ),
+            new Shape(
+                "script params, doubles",
+                n -> "{\"script_fields\":{\"s\":{\"script\":{\"source\":\"1\",\"params\":{\"p\":["
+                    + elements(n, i -> Double.toString(0.5 + i / 7.0))
+                    + "]}}}}}"
+            ),
+            new Shape(
+                "script params, big integers",
+                n -> "{\"script_fields\":{\"s\":{\"script\":{\"source\":\"1\",\"params\":{\"p\":["
+                    + elements(n, i -> "1234567890123456789" + (10_000 + i))
+                    + "]}}}}}"
             ),
             new Shape("_source includes", n -> "{\"_source\":{\"includes\":[" + elements(n, i -> quote(name(i))) + "]}}"),
             new Shape("docvalue_fields", n -> "{\"docvalue_fields\":[" + elements(n, i -> quote(name(i))) + "]}"),
             new Shape("sort", n -> "{\"sort\":[" + elements(n, i -> "{" + quote(name(i)) + ":\"asc\"}") + "]}"),
             new Shape("highlight fields", n -> "{\"highlight\":{\"fields\":{" + elements(n, i -> quote(name(i)) + ":{}") + "}}}"),
             new Shape("sibling max aggs", n -> "{\"aggs\":{" + elements(n, i -> quote(name(i)) + ":{\"max\":{\"field\":\"n\"}}") + "}}"),
+            new Shape(
+                "sibling terms aggs",
+                n -> "{\"aggs\":{" + elements(n, i -> quote(name(i)) + ":{\"terms\":{\"field\":\"k\"}}") + "}}"
+            ),
+            new Shape(
+                "sibling date_histogram aggs",
+                n -> "{\"aggs\":{"
+                    + elements(n, i -> quote(name(i)) + ":{\"date_histogram\":{\"field\":\"d\",\"calendar_interval\":\"day\"}}")
+                    + "}}"
+            ),
+            new Shape(
+                "terms aggs with a max sub-aggregation",
+                n -> "{\"aggs\":{"
+                    + elements(n, i -> quote(name(i)) + ":{\"terms\":{\"field\":\"k\"},\"aggs\":{\"m\":{\"max\":{\"field\":\"n\"}}}}")
+                    + "}}"
+            ),
+            new Shape(
+                "sibling composite aggs",
+                n -> "{\"aggs\":{"
+                    + elements(n, i -> quote(name(i)) + ":{\"composite\":{\"sources\":[{\"s\":{\"terms\":{\"field\":\"k\"}}}]}}")
+                    + "}}"
+            ),
+            new Shape(
+                "bool of nested with inner_hits",
+                n -> query(should(n, i -> "{\"nested\":{\"path\":\"p\",\"query\":{\"match_all\":{}},\"inner_hits\":{}}}"))
+            ),
+            new Shape(
+                "term suggesters",
+                n -> "{\"suggest\":{" + elements(n, i -> quote(name(i)) + ":{\"text\":\"x\",\"term\":{\"field\":\"f\"}}") + "}}"
+            ),
+            new Shape(
+                "sibling top_hits aggs",
+                n -> "{\"aggs\":{" + elements(n, i -> quote(name(i)) + ":{\"top_hits\":{\"size\":1}}") + "}}"
+            ),
+            new Shape(
+                "sibling significant_terms aggs",
+                n -> "{\"aggs\":{" + elements(n, i -> quote(name(i)) + ":{\"significant_terms\":{\"field\":\"k\"}}") + "}}"
+            ),
+            new Shape(
+                "sibling histogram aggs",
+                n -> "{\"aggs\":{" + elements(n, i -> quote(name(i)) + ":{\"histogram\":{\"field\":\"n\",\"interval\":1}}") + "}}"
+            ),
             new Shape("sort, plain names", n -> "{\"sort\":[" + elements(n, i -> quote(name(i))) + "]}"),
             // The shortest names are the tightest case, since the objects are as large and the characters are charged least.
             new Shape("sort, one char names", n -> "{\"sort\":[" + elements(n, i -> "\"a\"") + "]}"),
@@ -146,7 +197,7 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
                 "more_like_this like",
                 n -> query("{\"more_like_this\":{\"fields\":[\"k\"],\"like\":[" + elements(n, i -> quote(value(i, 8))) + "]}}")
             ),
-            sized(
+            new Shape(
                 "terms_set",
                 n -> query(
                     "{\"terms_set\":{\"k\":{\"minimum_should_match_field\":\"n\",\"terms\":["
@@ -154,7 +205,7 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
                         + "]}}}"
                 )
             ),
-            sized(
+            new Shape(
                 "knn query vector",
                 n -> query(
                     "{\"knn\":{\"field\":\"v\",\"num_candidates\":10,\"query_vector\":["
@@ -162,30 +213,30 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
                         + "]}}"
                 )
             ),
-            sized(
+            new Shape(
                 "knn query hex vector",
                 n -> query("{\"knn\":{\"field\":\"v\",\"num_candidates\":10,\"query_vector\":" + quote(hex(n)) + "}}")
             ),
-            sized(
+            new Shape(
                 "knn search vector",
                 n -> "{\"knn\":{\"field\":\"v\",\"k\":10,\"num_candidates\":10,\"query_vector\":["
                     + elements(n, i -> Float.toString(0.5f + i / 7f))
                     + "]}}"
             ),
-            // Queries that report their sizes, with the optional parts those sizes count.
-            sized(
+            // Queries with the optional parts they keep.
+            new Shape(
                 "bool of term with _name",
                 n -> query(should(n, i -> "{\"term\":{\"k\":{\"value\":" + quote(value(i, 8)) + ",\"_name\":" + quote(name(i)) + "}}}"))
             ),
-            sized(
+            new Shape(
                 "bool of terms with _name",
                 n -> query(should(n, i -> "{\"terms\":{\"k\":[" + quote(value(i, 8)) + "],\"_name\":" + quote(name(i)) + "}}"))
             ),
-            sized(
+            new Shape(
                 "bool of ids with _name",
                 n -> query(should(n, i -> "{\"ids\":{\"values\":[" + quote(value(i, 8)) + "],\"_name\":" + quote(name(i)) + "}}"))
             ),
-            sized(
+            new Shape(
                 "bool of terms_set with minimum_should_match and _name",
                 n -> query(
                     should(
@@ -198,19 +249,19 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
                     )
                 )
             ),
-            sized(
+            new Shape(
                 "bool of wrapper",
                 n -> query(should(n, i -> "{\"wrapper\":{\"query\":" + quote(base64(termClause(value(i, 8)))) + "}}"))
             ),
-            sized(
+            new Shape(
                 "bool of bool with minimum_should_match and _name",
                 n -> query(should(n, i -> "{\"bool\":{\"minimum_should_match\":\"1\",\"_name\":" + quote(name(i)) + "}}"))
             ),
-            sized(
+            new Shape(
                 "bool of knn with filter, similarity, rescore_vector and _name",
                 n -> query(should(n, i -> "{\"knn\":" + knn(i, "\"num_candidates\":10") + "}"))
             ),
-            sized(
+            new Shape(
                 "knn searches with filter, similarity, rescore_vector and _name",
                 n -> "{\"knn\":[" + elements(n, i -> knn(i, "\"k\":5,\"num_candidates\":10")) + "]}"
             )
@@ -222,62 +273,64 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
     @Before
     public void createRegistry() {
         assumeTrue("the costs are measured with compressed object pointers", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        Boolean compactHeaders = compactObjectHeaders();
+        if (compactHeaders != null && Runtime.version().feature() >= BUNDLED_JDK_FEATURE_VERSION) {
+            // Fails rather than skips, so that a JDK or flag change that drops the layout the costs were measured with is noticed.
+            assertTrue("the costs are measured with compact object headers, which this JDK should use", compactHeaders);
+        }
+        assumeTrue("the costs are measured with compact object headers", Boolean.TRUE.equals(compactHeaders));
         registry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
     }
 
-    public void testChargeCoversRetainedHeapAndReportedSizesAreClose() throws Exception {
+    /** Whether the JVM uses compact object headers, as the bundled JDK does, or {@code null} if it cannot tell, as older JVMs. */
+    private static Boolean compactObjectHeaders() {
+        try {
+            Class<? extends PlatformManagedObject> beanClass = Class.forName("com.sun.management.HotSpotDiagnosticMXBean")
+                .asSubclass(PlatformManagedObject.class);
+            Object option = beanClass.getMethod("getVMOption", String.class)
+                .invoke(ManagementFactory.getPlatformMXBean(beanClass), "UseCompactObjectHeaders");
+            return "true".equals(Class.forName("com.sun.management.VMOption").getMethod("getValue").invoke(option));
+        } catch (ReflectiveOperationException e) {
+            return null;
+        }
+    }
+
+    public void testChargeCoversRetainedHeap() throws Exception {
         List<String> undercharged = new ArrayList<>();
-        List<String> overcharged = new ArrayList<>();
         for (Shape shape : shapes()) {
-            Row row = measuredRow(shape.name(), shape.body(), this::parseSearchSource, shape.reportsSize());
+            Row row = measuredRow(shape.name(), shape.body(), this::parseSearchSource);
             if (undercharged(row)) {
                 undercharged.add(row.toString());
-            } else if (shape.reportsSize() && overcharged(row)) {
-                overcharged.add(row.toString());
             }
         }
         assertTrue("shapes charged less than they retain:\n" + String.join("\n", undercharged), undercharged.isEmpty());
-        assertTrue(
-            "shapes that report their size charged more than "
-                + MAX_REPORTED_SIZE_RATIO
-                + " times what they retain:\n"
-                + String.join("\n", overcharged),
-            overcharged.isEmpty()
-        );
     }
 
     public void testChargeCoversTermsValuesWhileParsed() throws Exception {
-        // A terms query reports its size only once parsed, so while it reads its values the per-token estimate has to cover them, with a
-        // BytesRef per string sized for the worst case of UTF-8.
+        // While a terms query reads its values, the per-token estimate has to cover them, with a BytesRef per string sized for the worst
+        // case of UTF-8.
         Row strings = measuredRow(
             "terms values while parsed, 8 char",
             n -> "[" + elements(n, i -> quote(value(i, 8))) + "]",
-            ParsedContentChargeCalibrationTests::parseTermsValues,
-            false
+            ParsedContentChargeCalibrationTests::parseTermsValues
         );
         Row numbers = measuredRow(
             "terms values while parsed, numbers",
             n -> "[" + elements(n, i -> Integer.toString(1_000_000 + i)) + "]",
-            ParsedContentChargeCalibrationTests::parseTermsValues,
-            false
+            ParsedContentChargeCalibrationTests::parseTermsValues
         );
         assertFalse(strings.toString(), undercharged(strings));
         assertFalse(numbers.toString(), undercharged(numbers));
     }
 
     /**
-     * Measures and logs a shape, up to {@link #MEASUREMENT_ATTEMPTS} times while it reads as charged less than it retains, or, if it
-     * reports its size, as charged too much more.
+     * Measures and logs a shape, up to {@link #MEASUREMENT_ATTEMPTS} times while it reads as charged less than it retains.
      */
-    private Row measuredRow(
-        String shape,
-        IntFunction<String> body,
-        CheckedFunction<XContentParser, Object, IOException> parse,
-        boolean reportsSize
-    ) throws Exception {
+    private Row measuredRow(String shape, IntFunction<String> body, CheckedFunction<XContentParser, Object, IOException> parse)
+        throws Exception {
         Row row = row(shape, body, parse);
-        for (int attempt = 1; attempt < MEASUREMENT_ATTEMPTS && (undercharged(row) || (reportsSize && overcharged(row))); attempt++) {
-            logger.info("{} measured out of bounds, measuring again", row);
+        for (int attempt = 1; attempt < MEASUREMENT_ATTEMPTS && undercharged(row); attempt++) {
+            logger.info("{} measured as charged less than it retains, measuring again", row);
             row = row(shape, body, parse);
         }
         logger.info("{}", row);
@@ -293,14 +346,6 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
     }
 
     /**
-     * Whether a shape is charged more than {@link #MAX_REPORTED_SIZE_RATIO} times what it retains, leaving out the strings of its field
-     * names. The parser charges those, but they are kept by the parser's table of names from the warm-up, so they are not measured.
-     */
-    private static boolean overcharged(Row row) {
-        return row.charge() - row.nameStrings() > row.retained() * MAX_REPORTED_SIZE_RATIO;
-    }
-
-    /**
      * Per element of a shape: the tokens by type and the characters it reads, what its parsed form retains, and what it is charged.
      */
     private record Row(
@@ -308,7 +353,6 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
         Map<XContentParser.Token, Double> tokens,
         double stringChars,
         double nameChars,
-        double nameStrings,
         double retained,
         double charge
     ) {
@@ -317,12 +361,11 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
             String byType = tokens.entrySet().stream().map(e -> e.getKey() + "=" + format(e.getValue())).collect(Collectors.joining(", "));
             return String.format(
                 Locale.ROOT,
-                "[%s] per element: tokens [%s] string chars [%s] name chars [%s] name strings [%s] retained [%s] charged [%s] ratio [%.2f]",
+                "[%s] per element: tokens [%s] string chars [%s] name chars [%s] retained [%s] charged [%s] ratio [%.2f]",
                 shape,
                 byType,
                 format(stringChars),
                 format(nameChars),
-                format(nameStrings),
                 format(retained),
                 format(charge),
                 charge / retained
@@ -354,20 +397,12 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
             tokens,
             (large.stringChars() - small.stringChars()) / elements,
             (large.nameChars() - small.nameChars()) / elements,
-            (large.nameStrings() - small.nameStrings()) / elements,
             (large.retained() - small.retained()) / elements,
             (large.charge() - small.charge()) / elements
         );
     }
 
-    private record Measurement(
-        Map<XContentParser.Token, Long> tokens,
-        long stringChars,
-        long nameChars,
-        long nameStrings,
-        long retained,
-        long charge
-    ) {}
+    private record Measurement(Map<XContentParser.Token, Long> tokens, long stringChars, long nameChars, long retained, long charge) {}
 
     private Measurement measure(IntFunction<String> body, int n, CheckedFunction<XContentParser, Object, IOException> parse)
         throws Exception {
@@ -375,9 +410,6 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
         Map<XContentParser.Token, Long> tokens = new EnumMap<>(XContentParser.Token.class);
         long stringChars = 0;
         long nameChars = 0;
-        // The parser charges each field-name string once, told apart by identity.
-        long nameStrings = 0;
-        Set<String> names = Collections.newSetFromMap(new IdentityHashMap<>());
         try (XContentParser parser = parser(content)) {
             for (XContentParser.Token token = parser.nextToken(); token != null; token = parser.nextToken()) {
                 tokens.merge(token, 1L, Long::sum);
@@ -385,9 +417,6 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
                     stringChars += parser.text().length();
                 } else if (token == XContentParser.Token.FIELD_NAME) {
                     nameChars += parser.currentName().length();
-                    if (names.add(parser.currentName())) {
-                        nameStrings += ParsedObjectSizes.string(parser.currentName());
-                    }
                 }
             }
         }
@@ -403,7 +432,7 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
             }
             charge = reservation.reservedBytes();
         }
-        return new Measurement(tokens, stringChars, nameChars, nameStrings, retainedPerCopy(content, parse), charge);
+        return new Measurement(tokens, stringChars, nameChars, retainedPerCopy(content, parse), charge);
     }
 
     /**
@@ -490,8 +519,8 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
     }
 
     /**
-     * The body of a kNN query or search on a two-dimensional vector, with every optional part that its reported size counts: a filter, a
-     * similarity, a rescore and a name.
+     * The body of a kNN query or search on a two-dimensional vector, with the optional parts it keeps: a filter, a similarity, a rescore
+     * and a name.
      */
     private static String knn(int i, String candidates) {
         return "{\"field\":\"v\",\"query_vector\":[0.5,"

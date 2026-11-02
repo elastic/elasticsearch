@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
@@ -1222,6 +1223,33 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Gates the run-table ordinal layout of the ES95 TSDB doc values codec. While the flag exists, release builds
+     * never write the layout, so it can still change without a backwards-compatible read path.
+     */
+    public static final FeatureFlag TIME_SERIES_RUN_TABLE_ORDINALS_FEATURE_FLAG = new FeatureFlag("tsdb_run_table_ordinals");
+
+    /**
+     * Opts a time series index that uses the ES95 TSDB codec into the run-table ordinal layout for single-valued
+     * dimension fields. It has no effect on other indices. It is always registered so that it is a known setting on
+     * every build, but it rejects an explicit {@code true} when {@link #TIME_SERIES_RUN_TABLE_ORDINALS_FEATURE_FLAG}
+     * is off.
+     */
+    public static final Setting<Boolean> TIME_SERIES_RUN_TABLE_ORDINALS_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.run_table_ordinals.enabled",
+        false,
+        value -> {
+            if (value && TIME_SERIES_RUN_TABLE_ORDINALS_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[index.time_series.run_table_ordinals.enabled] can only be enabled when the "
+                        + "tsdb_run_table_ordinals feature flag is enabled"
+                );
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     private static boolean es95CodecEnabledByDefault(final Settings settings) {
         if (settings == null || MODE.get(settings).isTsdb() == false) {
             return false;
@@ -1606,6 +1634,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
+    private final boolean timeSeriesRunTableOrdinalsEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1844,6 +1873,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        timeSeriesRunTableOrdinalsEnabled = TIME_SERIES_RUN_TABLE_ORDINALS_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(TIME_SERIES_RUN_TABLE_ORDINALS_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2728,6 +2759,15 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
+    }
+
+    /**
+     * Checks if this index opted into the run-table ordinal layout, as resolved from
+     * {@link #TIME_SERIES_RUN_TABLE_ORDINALS_ENABLED_SETTING}. Always {@code false} when
+     * {@link #TIME_SERIES_RUN_TABLE_ORDINALS_FEATURE_FLAG} is off.
+     */
+    public boolean isTimeSeriesRunTableOrdinalsEnabled() {
+        return timeSeriesRunTableOrdinalsEnabled;
     }
 
     /**

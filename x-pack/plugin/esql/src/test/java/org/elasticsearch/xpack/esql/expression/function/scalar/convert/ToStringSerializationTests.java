@@ -24,6 +24,7 @@ public class ToStringSerializationTests extends AbstractUnaryScalarSerialization
 
     /** The ordinary conversion expression preserves its opaque metadata input type on the wire. */
     public void testTimeSeriesField() throws IOException {
+        assumeTrue("_timeseries is under construction", DataType.TIMESERIES_DATA_TYPE.supportedVersion().supportedLocally());
         ToString expression = create(randomSource(), field("metadata", DataType.TIMESERIES_DATA_TYPE));
         ToString copy = copyInstance(expression);
         assertEquals(expression, copy);

@@ -102,6 +102,11 @@ public class TimeSeriesMetadataAttributeTests extends AbstractNodeTestCase<TimeS
         assertEquals("this type of node doesn't have any children to replace", exception.getMessage());
     }
 
+    /** The representation a version supporting typed metadata gets: keyword where the type is not available locally. */
+    private static DataType typedRepresentation() {
+        return DataType.TIMESERIES_DATA_TYPE.supportedVersion().supportedLocally() ? DataType.TIMESERIES_DATA_TYPE : DataType.KEYWORD;
+    }
+
     public void testFactorySelectsRepresentationAtVersionBoundary() {
         var introduced = TransportVersion.fromName("promql_functional_timeseries");
         var previous = TransportVersionUtils.getPreviousVersion(introduced);
@@ -110,7 +115,7 @@ public class TimeSeriesMetadataAttributeTests extends AbstractNodeTestCase<TimeS
         assertEquals(DataType.KEYWORD, TimeSeriesMetadataAttribute.create(Source.EMPTY, exclusions, previous).dataType());
         for (var version : List.of(introduced, TransportVersion.current())) {
             var metadata = TimeSeriesMetadataAttribute.create(Source.EMPTY, exclusions, version, Nullability.FALSE, true);
-            assertEquals(DataType.TIMESERIES_DATA_TYPE, metadata.dataType());
+            assertEquals(typedRepresentation(), metadata.dataType());
             assertEquals(exclusions, metadata.excludedFields());
             assertEquals(Nullability.FALSE, metadata.nullable());
             assertTrue(metadata.synthetic());
@@ -145,7 +150,7 @@ public class TimeSeriesMetadataAttributeTests extends AbstractNodeTestCase<TimeS
     public void testDictionaryCloningAndSerialization() {
         var original = TimeSeriesMetadataAttribute.create(Source.EMPTY, Set.of("pod"), TransportVersion.current());
         var clone = (TimeSeriesMetadataAttribute) original.withQualifier("remote").withNullability(Nullability.FALSE).withId(new NameId());
-        assertEquals(DataType.TIMESERIES_DATA_TYPE, clone.dataType());
+        assertEquals(typedRepresentation(), clone.dataType());
         assertEquals(original.excludedFields(), clone.excludedFields());
         assertNotEquals(original.id(), clone.id());
 
@@ -155,7 +160,7 @@ public class TimeSeriesMetadataAttributeTests extends AbstractNodeTestCase<TimeS
             in -> in.readNamedWriteable(Attribute.class)
         );
         assertEquals(clone, copy);
-        assertEquals(DataType.TIMESERIES_DATA_TYPE, copy.dataType());
+        assertEquals(typedRepresentation(), copy.dataType());
         assertEquals(clone.excludedFields(), ((TimeSeriesMetadataAttribute) copy).excludedFields());
     }
 
@@ -177,7 +182,7 @@ public class TimeSeriesMetadataAttributeTests extends AbstractNodeTestCase<TimeS
 
         // Deferred reads retain the type so the shard planner applies the metadata converter.
         var dictionary = TimeSeriesMetadataAttribute.create(Source.EMPTY, Set.of("pod"), TransportVersion.current());
-        assertEquals(DataType.TIMESERIES_DATA_TYPE, dictionary.forSourceRead().dataType());
+        assertEquals(typedRepresentation(), dictionary.forSourceRead().dataType());
         assertEquals(dictionary.excludedFields(), dictionary.forSourceRead().excludedFields());
     }
 

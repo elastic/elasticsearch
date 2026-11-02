@@ -172,21 +172,24 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
-        suppliers.add(caseForTimeSeries("empty", Map.of(), "{}"));
-        var absentLabels = new HashMap<String, String>();
-        absentLabels.put("missing", null);
-        absentLabels.put("empty", "");
-        suppliers.add(caseForTimeSeries("absent labels", absentLabels, "{}"));
-        suppliers.add(
-            caseForTimeSeries("normalized labels", Map.of("pod", "a", "job", "api", "empty", ""), "{\"job\":\"api\",\"pod\":\"a\"}")
-        );
-        suppliers.add(
-            caseForTimeSeries(
-                "escaped and unicode labels",
-                Map.of("unicode", "λ😀", "escaped", "quote\" slash\\ newline\n"),
-                "{\"escaped\":\"quote\\\" slash\\\\ newline\\n\",\"unicode\":\"λ😀\"}"
-            )
-        );
+        // _timeseries is under construction: release builds neither serialize nor evaluate it.
+        if (DataType.TIMESERIES_DATA_TYPE.supportedVersion().supportedLocally()) {
+            suppliers.add(caseForTimeSeries("empty", Map.of(), "{}"));
+            var absentLabels = new HashMap<String, String>();
+            absentLabels.put("missing", null);
+            absentLabels.put("empty", "");
+            suppliers.add(caseForTimeSeries("absent labels", absentLabels, "{}"));
+            suppliers.add(
+                caseForTimeSeries("normalized labels", Map.of("pod", "a", "job", "api", "empty", ""), "{\"job\":\"api\",\"pod\":\"a\"}")
+            );
+            suppliers.add(
+                caseForTimeSeries(
+                    "escaped and unicode labels",
+                    Map.of("unicode", "λ😀", "escaped", "quote\" slash\\ newline\n"),
+                    "{\"escaped\":\"quote\\\" slash\\\\ newline\\n\",\"unicode\":\"λ😀\"}"
+                )
+            );
+        }
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",

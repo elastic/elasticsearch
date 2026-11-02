@@ -47,20 +47,24 @@ PROMQL index=prometheus-k8s step=1h result=(limitk(0, network.total_bytes_in{clu
 result:double | step:datetime | _timeseries:keyword
 ;
 
-// k < series count: two arbitrary series from three. ES returns the first two in tsid (storage) order:
-// pod=one and pod=two come before pod=three in the tsid scan.
-// Values verified by running against promcheck with --enable-feature=promql-experimental-functions.
+// k < series count: exactly two of the three prod series, each with its full source labels.
+// Which two follows per-shard storage order and is not a global tsid order, so this does not
+// pin the series. The three values and labels are pinned by limitk_k_exceeds_series_count.
 limitk_bare
 required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=1h result=(limitk(2, network.total_bytes_in{cluster="prod"}))
-| SORT result;
+| EVAL labels_match = CASE(
+    result == 947.0, _timeseries == """{"labels":{"__name__":"network.total_bytes_in","cluster":"prod","pod":"one","region":["eu","us"]}}""",
+    result == 9969.0, _timeseries == """{"labels":{"__name__":"network.total_bytes_in","cluster":"prod","pod":"three","region":["eu","us"]}}""",
+    result == 10277.0, _timeseries == """{"labels":{"__name__":"network.total_bytes_in","cluster":"prod","pod":"two","region":["eu","us"]}}""",
+    false)
+| STATS n = COUNT(*), matched = COUNT(*) WHERE labels_match, distinct = COUNT_DISTINCT(result);
 
-result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+n:long | matched:long | distinct:long
+2      | 2            | 2
 ;
 
 // limitk is evaluated per step, returning the first k series at each evaluation point.

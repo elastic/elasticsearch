@@ -390,7 +390,7 @@ public class PlanExecutor {
         long begin,
         String client
     ) {
-        countFinishedQuery(finishCounted, caller, request.entryPoint(), true);
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), planTelemetry, true);
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
@@ -427,7 +427,8 @@ public class PlanExecutor {
     ) {
         metrics.failed(caller.client());
         metrics.failed(request.entryPoint());
-        countFinishedQuery(finishCounted, caller, request.entryPoint(), false);
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), planTelemetry, false);
+        metrics.failed(planTelemetry.leadingCommand());
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -448,12 +449,20 @@ public class PlanExecutor {
     }
 
     /**
-     * Counts a finished query on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success
-     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count.
+     * Counts a finished query under its leading command, which is only known once the query is parsed, and on the APM query
+     * counter. {@link ActionListener#wrap} runs the failure handler when the success handler throws, so one query can reach both;
+     * {@code finishCounted} keeps it to one count, and the failure handler still adds the failure.
      */
-    private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, QueryEntryPoint entryPoint, boolean success) {
+    private void countFinishedQuery(
+        AtomicBoolean finishCounted,
+        QueryCaller caller,
+        QueryEntryPoint entryPoint,
+        PlanTelemetry planTelemetry,
+        boolean success
+    ) {
         if (finishCounted.compareAndSet(false, true)) {
-            planTelemetryManager.publishQuery(caller, entryPoint, success);
+            metrics.total(planTelemetry.leadingCommand());
+            planTelemetryManager.publishQuery(caller, entryPoint, planTelemetry.leadingCommand(), success);
         }
     }
 

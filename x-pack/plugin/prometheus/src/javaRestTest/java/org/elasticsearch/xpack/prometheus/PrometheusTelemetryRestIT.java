@@ -18,7 +18,9 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Each Prometheus API endpoint runs one ES|QL query, which the ES|QL usage counts under the endpoint's own entry point.
+ * Each Prometheus API endpoint runs one ES|QL query, which the ES|QL usage counts under the endpoint's own entry point. Only
+ * {@code query} and {@code query_range} run PromQL; the lookup endpoints build {@code TS} plans, so they never add to the
+ * {@code promql} leading command.
  */
 public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
 
@@ -33,7 +35,7 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
         "prometheus_metadata"
     );
 
-    public void testInstantQueryIsCounted() throws IOException {
+    public void testInstantQueryIsCountedAsPromql() throws IOException {
         ingestTestData(METRIC);
         assertCounted(
             prometheusReadRequest(
@@ -41,11 +43,12 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
                 new BasicNameValuePair("query", METRIC),
                 new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
             ),
-            "prometheus_query"
+            "prometheus_query",
+            "promql"
         );
     }
 
-    public void testRangeQueryIsCounted() throws IOException {
+    public void testRangeQueryIsCountedAsPromql() throws IOException {
         ingestTestData(METRIC);
         assertCounted(
             prometheusReadRequest(
@@ -55,31 +58,36 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
                 new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
                 new BasicNameValuePair("step", "60s")
             ),
-            "prometheus_query_range"
+            "prometheus_query_range",
+            "promql"
         );
     }
 
-    public void testLabelsAreCounted() throws IOException {
+    public void testLabelsAreCountedAsTs() throws IOException {
         ingestTestData(METRIC);
-        assertCounted(prometheusReadRequest("/_prometheus/api/v1/labels"), "prometheus_labels");
+        assertCounted(prometheusReadRequest("/_prometheus/api/v1/labels"), "prometheus_labels", "ts");
     }
 
-    public void testLabelValuesAreCounted() throws IOException {
+    public void testLabelValuesAreCountedAsTs() throws IOException {
         ingestTestData(METRIC);
-        assertCounted(prometheusGetRequest("/_prometheus/api/v1/label/job/values", readApiKey), "prometheus_label_values");
+        assertCounted(prometheusGetRequest("/_prometheus/api/v1/label/job/values", readApiKey), "prometheus_label_values", "ts");
     }
 
-    public void testSeriesAreCounted() throws IOException {
+    public void testSeriesAreCountedAsTs() throws IOException {
         ingestTestData(METRIC);
-        assertCounted(prometheusReadRequest("/_prometheus/api/v1/series", new BasicNameValuePair("match[]", METRIC)), "prometheus_series");
+        assertCounted(
+            prometheusReadRequest("/_prometheus/api/v1/series", new BasicNameValuePair("match[]", METRIC)),
+            "prometheus_series",
+            "ts"
+        );
     }
 
-    public void testMetadataIsCounted() throws IOException {
+    public void testMetadataIsCountedAsTs() throws IOException {
         ingestTestData(METRIC);
-        assertCounted(prometheusGetRequest("/_prometheus/api/v1/metadata", readApiKey), "prometheus_metadata");
+        assertCounted(prometheusGetRequest("/_prometheus/api/v1/metadata", readApiKey), "prometheus_metadata", "ts");
     }
 
-    private void assertCounted(Request request, String expectedEntryPoint) throws IOException {
+    private void assertCounted(Request request, String expectedEntryPoint, String expectedLeadingCommand) throws IOException {
         ObjectPath before = esqlUsage();
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -91,7 +99,11 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
         }
         assertThat(delta(before, after, "esql.entry_points.query.total"), equalTo(0));
         assertThat(delta(before, after, "esql.entry_points.internal.total"), equalTo(0));
+        assertThat(delta(before, after, "esql.leading_commands." + expectedLeadingCommand + ".total"), equalTo(1));
         assertThat(delta(before, after, "esql.queries.rest.total"), equalTo(1));
+        if (expectedLeadingCommand.equals("promql") == false) {
+            assertThat(delta(before, after, "esql.leading_commands.promql.total"), equalTo(0));
+        }
     }
 
     private static ObjectPath esqlUsage() throws IOException {

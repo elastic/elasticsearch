@@ -426,11 +426,14 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             case "fleet" -> "other";
             default -> throw new AssertionError("unexpected origin [" + origin + "]");
         };
+        String expectedLeadingCommand = expectedLeadingCommand(query);
         Map<String, Object> expectedQueryAttributes = Map.of(
             PlanTelemetryManager.CLIENT,
             expectedClient,
             PlanTelemetryManager.ENTRY_POINT,
             "internal",
+            PlanTelemetryManager.LEADING_COMMAND,
+            expectedLeadingCommand,
             PlanTelemetryManager.QUERY_SUCCESS,
             success
         );
@@ -505,6 +508,19 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".failed", expectedFailed);
         assertCounterDelta(statsBefore, statsAfter, "entry_points.internal.total", successIterations);
         assertCounterDelta(statsBefore, statsAfter, "entry_points.internal.failed", expectedFailed);
+        assertCounterDelta(statsBefore, statsAfter, "leading_commands." + expectedLeadingCommand + ".total", successIterations);
+        assertCounterDelta(statsBefore, statsAfter, "leading_commands." + expectedLeadingCommand + ".failed", expectedFailed);
+    }
+
+    /**
+     * The first source command of {@code query}, read from the text after any {@code SET} prefix.
+     */
+    private static String expectedLeadingCommand(String query) {
+        String statement = query.strip();
+        while (statement.regionMatches(true, 0, "SET ", 0, 4)) {
+            statement = statement.substring(statement.indexOf(';') + 1).strip();
+        }
+        return statement.split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
     }
 
     private static Counters esqlStats() {

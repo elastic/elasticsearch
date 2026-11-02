@@ -927,3 +927,81 @@ took:
 
   - do: { xpack.usage: { } }
   - gt: { esql.entry_points.query.failed: $query_failed }
+
+---
+"Queries by leading command":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_leading_commands, ts_command_v0 ]
+      reason: "Queries are counted by their first source command"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.leading_commands: 8 }
+  - set: { esql.leading_commands.row.total: row_total }
+  - set: { esql.leading_commands.from.total: from_total }
+  - set: { esql.leading_commands.from.failed: from_failed }
+  - set: { esql.leading_commands.ts.total: ts_total }
+  - set: { esql.leading_commands.show.total: show_total }
+  - set: { esql.leading_commands.promql.total: promql_total }
+  - set: { esql.leading_commands.unknown.total: unknown_total }
+  - set: { esql.leading_commands.unknown.failed: unknown_failed }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.row.total: $row_total }
+  - match: { esql.leading_commands.from.total: $from_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET time_zone = "+01:00"; FROM test | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.from.total: $from_total }
+  - match: { esql.leading_commands.from.failed: $from_failed }
+  - set: { esql.leading_commands.from.total: from_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-ts | STATS max(count) BY host | LIMIT 10'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.ts.total: $ts_total }
+  - match: { esql.leading_commands.from.total: $from_total }
+  - match: { esql.leading_commands.promql.total: $promql_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SHOW INFO | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.show.total: $show_total }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | STATS m = MAX(missing_field)'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.from.failed: $from_failed }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test |'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.unknown.total: $unknown_total }
+  - gt: { esql.leading_commands.unknown.failed: $unknown_failed }

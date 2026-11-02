@@ -26,9 +26,10 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         QueryMetric client = randomFrom(QueryMetric.values());
         QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
+        LeadingCommand leadingCommand = randomFrom(LeadingCommand.values());
         boolean success = randomBoolean();
 
-        manager.publishQuery(new QueryCaller(client), entryPoint, success);
+        manager.publishQuery(new QueryCaller(client), entryPoint, leadingCommand, success);
 
         List<Measurement> measurements = queryMeasurements(registry);
         assertThat(measurements, hasSize(1));
@@ -41,6 +42,8 @@ public class PlanTelemetryManagerTests extends ESTestCase {
                     client.toString(),
                     PlanTelemetryManager.ENTRY_POINT,
                     entryPoint.toString(),
+                    PlanTelemetryManager.LEADING_COMMAND,
+                    leadingCommand.toString(),
                     PlanTelemetryManager.QUERY_SUCCESS,
                     success
                 )
@@ -53,7 +56,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         int queries = between(2, 10);
         for (int i = 0; i < queries; i++) {
-            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), QueryEntryPoint.QUERY, true);
+            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), QueryEntryPoint.QUERY, LeadingCommand.FROM, true);
         }
         assertThat(Measurement.combine(queryMeasurements(registry)).getFirst().getLong(), equalTo((long) queries));
     }
@@ -67,6 +70,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         for (String attribute : List.of(
             PlanTelemetryManager.CLIENT,
             PlanTelemetryManager.ENTRY_POINT,
+            PlanTelemetryManager.LEADING_COMMAND,
             PlanTelemetryManager.QUERY_SUCCESS
         )) {
             assertTrue(attribute, apmAttributeName.matcher(attribute).matches());

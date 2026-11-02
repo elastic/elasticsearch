@@ -704,7 +704,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
-    public void testSuccessCountsEntryPoint() throws Exception {
+    public void testSuccessCountsEntryPointAndLeadingCommand() throws Exception {
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
             QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
@@ -720,10 +720,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("entry_points." + entryPoint + ".total"), equalTo(1L));
             assertThat(stats.get("entry_points." + entryPoint + ".failed"), equalTo(0L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.failed"), equalTo(0L));
         }
     }
 
-    public void testFailureCountsClientAndEntryPoint() throws Exception {
+    public void testFailureCountsClientEntryPointAndLeadingCommand() throws Exception {
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
             executeEsql(
@@ -740,6 +742,27 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("queries.rest.total"), equalTo(0L));
             assertThat(stats.get("entry_points.query_async.total"), equalTo(1L));
             assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.failed"), equalTo(1L));
+        }
+    }
+
+    public void testParseErrorCountsAsUnknownLeadingCommand() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(ParsingException.class)))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("entry_points.query.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.unknown.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.unknown.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
         }
     }
 
@@ -780,6 +803,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         "kibana",
                         PlanTelemetryManager.ENTRY_POINT,
                         "query",
+                        PlanTelemetryManager.LEADING_COMMAND,
+                        "from",
                         PlanTelemetryManager.QUERY_SUCCESS,
                         true
                     ),
@@ -788,6 +813,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         "rest",
                         PlanTelemetryManager.ENTRY_POINT,
                         "query_async",
+                        PlanTelemetryManager.LEADING_COMMAND,
+                        "unknown",
                         PlanTelemetryManager.QUERY_SUCCESS,
                         false
                     )
@@ -798,6 +825,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("queries.rest.failed"), equalTo(1L));
             assertThat(stats.get("entry_points.query.total"), equalTo(1L));
             assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.unknown.failed"), equalTo(1L));
         }
     }
 
@@ -829,6 +858,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             );
             assertThat(failure.get(), instanceOf(IllegalStateException.class));
             Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.failed"), equalTo(1L));
             assertThat(stats.get("entry_points.query.total"), equalTo(1L));
             assertThat(stats.get("entry_points.query.failed"), equalTo(1L));
             assertThat(stats.get("queries.rest.total"), equalTo(1L));
@@ -864,6 +895,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("queries._all.total"), equalTo(0L));
             assertThat(stats.get("entry_points.query.total"), equalTo(0L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
             assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
                 is(empty())

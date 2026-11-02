@@ -100,8 +100,8 @@ public class PlanTelemetryManager {
     public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
 
     /**
-     * Queries, counted once each when they finish, with the {@link #CLIENT}, {@link #ENTRY_POINT} and {@link #QUERY_SUCCESS}
-     * attributes.
+     * Queries, counted once each when they finish, with the {@link #CLIENT}, {@link #ENTRY_POINT}, {@link #LEADING_COMMAND} and
+     * {@link #QUERY_SUCCESS} attributes.
      */
     public static final String QUERY_METRICS = "es.esql.queries.total";
 
@@ -114,6 +114,11 @@ public class PlanTelemetryManager {
      * Attribute of the query counter: the API the query came in on, one of {@link QueryEntryPoint}
      */
     public static final String ENTRY_POINT = "es_esql_entry_point";
+
+    /**
+     * Attribute of the query counter: the query's first source command, one of {@link LeadingCommand}
+     */
+    public static final String LEADING_COMMAND = "es_esql_leading_command";
 
     /**
      * Attribute of the query counter: whether the query succeeded. The older counters' {@link #SUCCESS} name predates the
@@ -197,14 +202,15 @@ public class PlanTelemetryManager {
     }
 
     /**
-     * Counts one finished query under its caller and entry point
+     * Counts one finished query under its caller, entry point and leading command
      */
-    public void publishQuery(QueryCaller caller, QueryEntryPoint entryPoint, boolean success) {
+    public void publishQuery(QueryCaller caller, QueryEntryPoint entryPoint, LeadingCommand leadingCommand, boolean success) {
         queriesCounter.incrementBy(
             1,
             Map.ofEntries(
                 Map.entry(CLIENT, caller.client().toString()),
                 Map.entry(ENTRY_POINT, entryPoint.toString()),
+                Map.entry(LEADING_COMMAND, leadingCommand.toString()),
                 Map.entry(QUERY_SUCCESS, success)
             )
         );

@@ -46,6 +46,7 @@ public class Metrics {
 
     protected static final String QUERIES_PREFIX = "queries.";
     protected static final String ENTRY_POINTS_PREFIX = "entry_points.";
+    protected static final String LEADING_COMMANDS_PREFIX = "leading_commands.";
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
@@ -57,6 +58,7 @@ public class Metrics {
     // map that holds total/failed counters for each client type (kibana, other, rest)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     private final Map<QueryEntryPoint, Map<OperationType, CounterMetric>> opsByEntryPointMetrics;
+    private final Map<LeadingCommand, Map<OperationType, CounterMetric>> opsByLeadingCommandMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     // map that holds one counter per esql query setting (unmapped_fields, time_zone, etc.)
@@ -96,6 +98,7 @@ public class Metrics {
         this.classToFunctionName = initClassToFunctionType();
         opsByTypeMetrics = initOpsMetrics(QueryMetric.values());
         opsByEntryPointMetrics = initOpsMetrics(QueryEntryPoint.values());
+        opsByLeadingCommandMetrics = initOpsMetrics(LeadingCommand.values());
 
         Map<FeatureMetric, CounterMetric> fMap = Maps.newLinkedHashMapWithExpectedSize(FeatureMetric.values().length);
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
@@ -190,6 +193,17 @@ public class Metrics {
         opsByEntryPointMetrics.get(entryPoint).get(OperationType.FAILED).inc();
     }
 
+    /**
+     * Increments the "total" counter of the query's first source command. Called once per query, when it finishes.
+     */
+    public void total(LeadingCommand leadingCommand) {
+        opsByLeadingCommandMetrics.get(leadingCommand).get(OperationType.TOTAL).inc();
+    }
+
+    public void failed(LeadingCommand leadingCommand) {
+        opsByLeadingCommandMetrics.get(leadingCommand).get(OperationType.FAILED).inc();
+    }
+
     private void inc(QueryMetric metric, OperationType op) {
         this.opsByTypeMetrics.get(metric).get(op).inc();
     }
@@ -265,6 +279,7 @@ public class Metrics {
         }
 
         opsCounters(counters, ENTRY_POINTS_PREFIX, opsByEntryPointMetrics);
+        opsCounters(counters, LEADING_COMMANDS_PREFIX, opsByLeadingCommandMetrics);
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {

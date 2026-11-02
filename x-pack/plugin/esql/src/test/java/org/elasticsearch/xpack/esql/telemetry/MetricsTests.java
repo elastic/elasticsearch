@@ -37,6 +37,15 @@ public class MetricsTests extends ESTestCase {
         }
     }
 
+    public void testEveryLeadingCommandIsEmittedAtZero() {
+        Counters stats = newMetrics().stats();
+        assertThat(nested(stats, "leading_commands"), aMapWithSize(LeadingCommand.values().length));
+        for (LeadingCommand command : LeadingCommand.values()) {
+            assertThat(stats.get("leading_commands." + command + ".total"), equalTo(0L));
+            assertThat(stats.get("leading_commands." + command + ".failed"), equalTo(0L));
+        }
+    }
+
     public void testAllIsTheSumOfClients() {
         Metrics metrics = newMetrics();
         metrics.total(QueryMetric.KIBANA);
@@ -68,6 +77,21 @@ public class MetricsTests extends ESTestCase {
             long expectedFailed = other == entryPoint ? 1L : 0L;
             assertThat(stats.get("entry_points." + other + ".total"), equalTo(expectedTotal));
             assertThat(stats.get("entry_points." + other + ".failed"), equalTo(expectedFailed));
+        }
+    }
+
+    public void testLeadingCommandIncrementsOnlyItsOwnCounter() {
+        Metrics metrics = newMetrics();
+        LeadingCommand command = randomFrom(LeadingCommand.values());
+        metrics.total(command);
+        metrics.total(command);
+        metrics.failed(command);
+        Counters stats = metrics.stats();
+        for (LeadingCommand other : LeadingCommand.values()) {
+            long expectedTotal = other == command ? 2L : 0L;
+            long expectedFailed = other == command ? 1L : 0L;
+            assertThat(stats.get("leading_commands." + other + ".total"), equalTo(expectedTotal));
+            assertThat(stats.get("leading_commands." + other + ".failed"), equalTo(expectedFailed));
         }
     }
 

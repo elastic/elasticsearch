@@ -4684,6 +4684,11 @@ public class EsqlCapabilities {
          */
         USAGE_ENTRY_POINTS,
 
+        /**
+         * Does the usage information for ESQL count queries by their first source command ({@code leading_commands.<command>})?
+         */
+        USAGE_LEADING_COMMANDS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

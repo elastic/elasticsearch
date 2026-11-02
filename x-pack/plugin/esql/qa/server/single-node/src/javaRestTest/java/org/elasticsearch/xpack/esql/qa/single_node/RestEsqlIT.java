@@ -886,7 +886,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """);
         }
-        Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
+        Set<DataType> shouldBeSupported = Stream.of(DataType.values())
+            .filter(DataType::isRepresentableInOutput)
+            .collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
         shouldBeSupported.remove(DataType.GEOHASH);

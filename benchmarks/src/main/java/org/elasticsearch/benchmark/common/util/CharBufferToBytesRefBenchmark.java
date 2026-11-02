@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
  * <li>{@code allocThenTrim}: as {@code newBytesRef}, then copy out exactly the bytes used, so a 3x array is allocated per value.</li>
  * <li>{@code asciiFastThenScratch}: a vectorizable ASCII check, with a narrowing copy if it passes, else as {@code exactScratchCopy}.</li>
  * <li>{@code exactScratchCopy}: encode once into a reused scratch array, then copy out exactly the bytes used.</li>
+ * <li>{@code fusedAsciiCopy}: optimized ASCII check with a fused narrowing copy.</li>
  * </ul>
  * The {@code charset} parameter picks how many UTF-8 bytes each char takes, from 1 (ASCII) to 4 per surrogate pair, so that the cost is
  * not measured on 1-byte data only. Run with {@code -prof gc} to see the allocation difference.

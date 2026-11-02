@@ -119,7 +119,7 @@ To change a dataset:
 3. Update the settings in any step. You can't change the **Dataset name**.
 4. On the **Review** step, click **Save**.
 
-To use a different name, [add a new dataset](#add-a-new-dataset) with that name, then delete the old one. Queries that use the old name stop working.
+To use a different name, [add a new dataset](#add-a-new-dataset) with that name, then delete the old one. Queries and views that use the old name stop working.
 
 ## Next steps
 

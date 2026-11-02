@@ -44,7 +44,7 @@ public class BaseBroadcastResponse extends ActionResponse {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        this.shardFailures = List.copyOf(shardFailures);
+        this.shardFailures = shardFailures == null ? List.of() : List.copyOf(shardFailures);
     }
 
     /**

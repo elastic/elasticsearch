@@ -68,7 +68,7 @@ public class CcrRenameIT extends CcrIntegTestCase {
             leaderClient().admin()
                 .indices()
                 .updateSettings(
-                    new UpdateSettingsRequest("leader-renamed").settings(Settings.builder().put("index.max_result_window", 12345))
+                    new UpdateSettingsRequest("leader-renamed").settings(Settings.builder().put("index.mapping.total_fields.limit", 1234))
                 )
                 .get()
         );
@@ -86,7 +86,11 @@ public class CcrRenameIT extends CcrIntegTestCase {
         assertIndexFullyReplicatedToFollower("leader-renamed", "follower");
         assertBusy(() -> {
             final var followerSettings = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower").get();
-            assertThat(followerSettings.getSetting("follower", "index.max_result_window"), equalTo("12345"));
+            assertThat(followerSettings.getSetting("follower", "index.mapping.total_fields.limit"), equalTo("1234")); // a replicated
+                                                                                                                      // setting;
+                                                                                                                      // max_result_window
+                                                                                                                      // is deliberately not
+                                                                                                                      // replicated
             final var followerMappings = followerClient().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "follower").get();
             final Map<?, ?> properties = (Map<?, ?>) followerMappings.mappings().get("follower").getSourceAsMap().get("properties");
             assertTrue("mapping update for field [g] was not replicated: " + properties, properties.containsKey("g"));

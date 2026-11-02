@@ -48,11 +48,6 @@ import java.io.IOException;
  */
 final class RunTableSortedCodec implements SortedOrdinalCodec {
 
-    /** Discriminator: the fallback codec wrote this field's ordinal stream. */
-    static final byte LAYOUT_DEFAULT = 0;
-    /** Discriminator: the run-table layout follows. */
-    static final byte LAYOUT_RUN_TABLE = 1;
-
     private final SortedOrdinalCodec fallback;
     @Nullable
     private final FieldContextResolver fieldContextResolver;
@@ -79,7 +74,7 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
                     return stats;
                 }
             }
-            ctx.meta().writeByte(LAYOUT_DEFAULT);
+            ctx.meta().writeByte(RunTableLayout.LAYOUT_DEFAULT);
             // Reading the values a second time after an abandoned attempt is safe: TsdbDocValuesProducer
             // hands out a fresh iterator on every getSortedNumeric call.
             return fallback.createWriter(ctx).writeOrdinals(field, values, maxOrd, sortedFieldObserver);
@@ -119,7 +114,7 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
                 return null;
             }
         }
-        ctx.meta().writeByte(LAYOUT_RUN_TABLE);
+        ctx.meta().writeByte(RunTableLayout.LAYOUT_RUN_TABLE);
         SortedRunTableLayout.encode(runTable, numDocsWithField, ctx.data(), ctx.meta());
         return new DocValueFieldCountStats(numDocsWithField, numDocsWithField);
     }
@@ -133,7 +128,7 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
     ) throws IOException {
         final byte layout = meta.readByte();
         return switch (layout) {
-            case LAYOUT_RUN_TABLE -> {
+            case RunTableLayout.LAYOUT_RUN_TABLE -> {
                 final SortedRunTableLayout.Meta runTable = SortedRunTableLayout.readMeta(meta);
                 // The merge statistics sum these counts across segments, so they must be exact.
                 entry.numDocsWithField = runTable.numDocsWithField();
@@ -144,7 +139,7 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
                 entry.blockSize = 1 << numericBlockShift;
                 yield new RunTableReader(runTable);
             }
-            case LAYOUT_DEFAULT -> fallback.readOrdinalMeta(ctx, meta, entry, numericBlockShift);
+            case RunTableLayout.LAYOUT_DEFAULT -> fallback.readOrdinalMeta(ctx, meta, entry, numericBlockShift);
             default -> throw new CorruptIndexException("invalid sorted ordinal layout [" + layout + "]", meta);
         };
     }

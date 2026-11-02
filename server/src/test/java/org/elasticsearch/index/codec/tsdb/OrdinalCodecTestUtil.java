@@ -93,7 +93,11 @@ public final class OrdinalCodecTestUtil {
         return write(null, blockSize, maxDoc, primarySortFieldNumber, fieldWriter);
     }
 
-    private static Written write(
+    /**
+     * As {@link #write(Directory, int, int, CheckedFunction)}, with the given field number as the segment's
+     * primary sort field.
+     */
+    public static Written write(
         @Nullable final Directory dir,
         final int blockSize,
         final int maxDoc,

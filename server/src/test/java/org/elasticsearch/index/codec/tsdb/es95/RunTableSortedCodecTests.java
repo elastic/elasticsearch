@@ -59,7 +59,7 @@ public class RunTableSortedCodecTests extends ESTestCase {
 
         final Written written = write(new RunTableSortedCodec(FALLBACK, DIMENSIONS), blockSize, ordinals, maxOrd, NO_PRIMARY_SORT_FIELD);
 
-        assertThat(written.meta()[0], equalTo(RunTableSortedCodec.LAYOUT_RUN_TABLE));
+        assertThat(written.meta()[0], equalTo(RunTableLayout.LAYOUT_RUN_TABLE));
         final int numDocsWithField = countDocsWithValue(ordinals);
         assertThat(written.stats().numDocsWithField(), equalTo(numDocsWithField));
         assertThat(written.stats().numValues(), equalTo((long) numDocsWithField));
@@ -102,7 +102,7 @@ public class RunTableSortedCodecTests extends ESTestCase {
             ctx -> new RunTableSortedCodec(FALLBACK, NO_DIMENSIONS).createWriter(ctx)
                 .writeOrdinals(field, sortedValuesSource(ordinals), maxOrd, SortedFieldObserver.NOOP)
         );
-        assertThat(written.meta()[0], equalTo(RunTableSortedCodec.LAYOUT_RUN_TABLE));
+        assertThat(written.meta()[0], equalTo(RunTableLayout.LAYOUT_RUN_TABLE));
     }
 
     public void testNonDimensionFallsBack() throws IOException {
@@ -155,7 +155,7 @@ public class RunTableSortedCodecTests extends ESTestCase {
 
     public void testUnknownLayoutIsCorruption() throws IOException {
         final byte layout = randomValueOtherThanMany(
-            b -> b == RunTableSortedCodec.LAYOUT_DEFAULT || b == RunTableSortedCodec.LAYOUT_RUN_TABLE,
+            b -> b == RunTableLayout.LAYOUT_DEFAULT || b == RunTableLayout.LAYOUT_RUN_TABLE,
             ESTestCase::randomByte
         );
         try (IndexInput meta = new ByteArrayIndexInput("test-meta", new byte[] { layout })) {
@@ -183,7 +183,7 @@ public class RunTableSortedCodecTests extends ESTestCase {
         );
         final Written viaFallback = write(FALLBACK, blockSize, ordinals, maxOrd, primarySortFieldNumber);
 
-        assertThat(viaRunTableCodec.meta()[0], equalTo(RunTableSortedCodec.LAYOUT_DEFAULT));
+        assertThat(viaRunTableCodec.meta()[0], equalTo(RunTableLayout.LAYOUT_DEFAULT));
         assertThat(Arrays.copyOfRange(viaRunTableCodec.meta(), 1, viaRunTableCodec.meta().length), equalTo(viaFallback.meta()));
         assertThat(viaRunTableCodec.data(), equalTo(viaFallback.data()));
         assertThat(viaRunTableCodec.stats(), equalTo(viaFallback.stats()));

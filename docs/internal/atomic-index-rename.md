@@ -269,7 +269,11 @@ index names in their own configuration stay the user's problem, as they are
 today with reindex.
 
 Cross-cluster replication is handled rather than refused, see T14. Tests now
-cover: rename refused during a snapshot and during a restore, snapshot and
+cover: bulk requests in flight across a rename, which succeed because every
+lookup on the write path resolves the shard by UUID, while requests sent under
+the old name afterwards fail with index not found
+(`RenameIndexIT#testBulkIndexingDuringRename`); rename refused during a
+snapshot and during a restore, snapshot and
 restore of a renamed index (`RenameIndexSnapshotIT`); clone, shrink and split
 from a renamed source and a rename of the source while a clone target recovers
 (`RenameIndexResizeIT`); rename of a system index and into a system index name,

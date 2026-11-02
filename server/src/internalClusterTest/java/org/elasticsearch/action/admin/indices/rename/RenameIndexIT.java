@@ -9,8 +9,13 @@
 
 package org.elasticsearch.action.admin.indices.rename;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,14 +25,24 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @TestLogging(
@@ -314,6 +329,111 @@ public class RenameIndexIT extends ESIntegTestCase {
             ElasticsearchAssertions.assertAcked(
                 client().admin().indices().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, original)
             );
+        }
+    }
+
+    /**
+     * Bulk requests in flight across a rename succeed: every lookup on the write path resolves the shard by UUID, so items that
+     * were grouped under the old name before the rename still reach their primary after it. Only requests sent under the old name
+     * after the rename fail, with index not found (auto-create is disabled so that they cannot recreate the old name).
+     */
+    public void testBulkIndexingDuringRename() throws Exception {
+        final String original = "bulk_original";
+        final String renamed = "bulk_renamed";
+        final int replicas = Math.min(1, internalCluster().numDataNodes() - 1);
+        createIndex(original, indexSettings(randomIntBetween(1, 3), replicas).build(), false);
+        ensureGreen(original);
+        final String uuid = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(original)
+            .get()
+            .getSetting(original, "index.uuid");
+
+        updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false));
+        try {
+            final int writers = randomIntBetween(2, 4);
+            final AtomicBoolean stop = new AtomicBoolean();
+            final AtomicBoolean renameIssued = new AtomicBoolean();
+            final AtomicInteger indexed = new AtomicInteger();
+            final AtomicInteger refusedUnderOldName = new AtomicInteger();
+            final AtomicInteger sequence = new AtomicInteger();
+            final List<Throwable> unexpected = new CopyOnWriteArrayList<>();
+            final CountDownLatch firstBulkDone = new CountDownLatch(writers);
+            final List<Thread> threads = new ArrayList<>();
+            for (int i = 0; i < writers; i++) {
+                final Thread thread = new Thread(() -> {
+                    // each writer addresses the index by the old name until that name stops working, then by the new one
+                    String name = original;
+                    boolean first = true;
+                    while (stop.get() == false) {
+                        final String sentAs = name;
+                        final BulkRequestBuilder bulk = client().prepareBulk();
+                        final int items = randomIntBetween(1, 20);
+                        for (int j = 0; j < items; j++) {
+                            bulk.add(prepareIndex(sentAs).setSource("seq", sequence.incrementAndGet()));
+                        }
+                        try {
+                            final BulkResponse response = bulk.get();
+                            for (BulkItemResponse item : response.getItems()) {
+                                if (item.isFailed() == false) {
+                                    indexed.incrementAndGet();
+                                    continue;
+                                }
+                                final Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
+                                if (cause instanceof IndexNotFoundException && original.equals(sentAs) && renameIssued.get()) {
+                                    refusedUnderOldName.incrementAndGet();
+                                    name = renamed;
+                                } else {
+                                    unexpected.add(
+                                        new AssertionError(
+                                            "unexpected failure for item under [" + sentAs + "]: " + item.getFailureMessage(),
+                                            cause
+                                        )
+                                    );
+                                }
+                            }
+                        } catch (Exception e) {
+                            unexpected.add(e);
+                        } finally {
+                            if (first) {
+                                first = false;
+                                firstBulkDone.countDown();
+                            }
+                        }
+                    }
+                }, "bulk-writer-" + i);
+                threads.add(thread);
+                thread.start();
+            }
+            safeAwait(firstBulkDone);
+
+            renameIssued.set(true);
+            rename(original, renamed);
+
+            // keep writing under the new name for a while before stopping
+            Thread.sleep(randomIntBetween(100, 500));
+            stop.set(true);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertThat("writers hit failures other than the old name disappearing: " + unexpected, unexpected, empty());
+            assertThat(indexed.get(), greaterThan(0));
+            logger.info(
+                "--> [{}] items indexed by [{}] writers across the rename, [{}] refused under the old name after it",
+                indexed.get(),
+                writers,
+                refusedUnderOldName.get()
+            );
+
+            assertFalse(indexExists(original));
+            assertThat(
+                indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(renamed).get().getSetting(renamed, "index.uuid"),
+                equalTo(uuid)
+            );
+            // every item reported as indexed, whether it was sent under the old name or the new one, is in the renamed index
+            refresh(renamed);
+            ElasticsearchAssertions.assertHitCount(prepareSearch(renamed).setSize(0).setTrackTotalHits(true), indexed.get());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey()));
         }
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -506,7 +508,11 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             if (indexRoutingTable == null) {
                 throw new IndexNotFoundException(shardId.getIndex());
             }
-            return indexRoutingTable.shard(shardId.id()).activeInitializingShardsRandomIt();
+            final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
+            if (shardRoutingTable == null) {
+                throw new ShardNotFoundException(shardId);
+            }
+            return shardRoutingTable.activeInitializingShardsRandomIt();
         }
 
         @Override

@@ -88,8 +88,8 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
         ShardFollowTask params = new ShardFollowTask(
             null,
-            new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0),
+            new ShardId("follow_index", IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+            new ShardId("leader_index", IndexMetadata.INDEX_UUID_NA_VALUE, 0),
             1024,
             1024,
             1,

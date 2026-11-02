@@ -545,8 +545,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (metadata != null && metadata.getIndexUUID().equals(index.getUUID())) {
             return metadata;
         }
-        // the name is stale or taken by another index: the index may still exist under a different name, see hasIndex(Index)
-        return indexByUuid(index.getUUID());
+        // the name is stale or taken by another index: the index may still exist under a different name, see hasIndex(Index).
+        // The placeholder uuid identifies nothing, so it never resolves to another index.
+        return ClusterState.UNKNOWN_UUID.equals(index.getUUID()) ? null : indexByUuid(index.getUUID());
     }
 
     /**
@@ -564,7 +565,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         IndexMetadata metadata = index(index.getName());
         if (metadata != null && metadata.getIndexUUID().equals(index.getUUID()) == false) {
             // the name now belongs to another index; the one asked for may still exist under a different name
-            final IndexMetadata byUuid = indexByUuid(index.getUUID());
+            final IndexMetadata byUuid = ClusterState.UNKNOWN_UUID.equals(index.getUUID()) ? null : indexByUuid(index.getUUID());
             if (byUuid != null) {
                 return byUuid;
             }
@@ -580,7 +581,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 )
             );
         }
-        final IndexMetadata byUuid = indexByUuid(index.getUUID());
+        final IndexMetadata byUuid = ClusterState.UNKNOWN_UUID.equals(index.getUUID()) ? null : indexByUuid(index.getUUID());
         if (byUuid != null) {
             return byUuid;
         }

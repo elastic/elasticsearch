@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -102,6 +103,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         if (indexRouting != null && indexRouting.getIndex().equals(index)) {
             return indexRouting;
         }
+        if (ClusterState.UNKNOWN_UUID.equals(index.getUUID())) {
+            // the placeholder uuid identifies nothing, so it never resolves to another index
+            return null;
+        }
         Map<String, IndexRoutingTable> byUuid = indicesRoutingByUuid;
         if (byUuid == null) {
             byUuid = buildIndicesRoutingByUuid();
@@ -116,7 +121,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
         final Map<String, IndexRoutingTable> built = Maps.newHashMapWithExpectedSize(indicesRouting.size());
         for (IndexRoutingTable indexRoutingTable : indicesRouting.values()) {
-            built.put(indexRoutingTable.getIndex().getUUID(), indexRoutingTable);
+            if (ClusterState.UNKNOWN_UUID.equals(indexRoutingTable.getIndex().getUUID()) == false) {
+                built.put(indexRoutingTable.getIndex().getUUID(), indexRoutingTable);
+            }
         }
         indicesRoutingByUuid = built;
         return built;

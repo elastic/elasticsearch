@@ -49,6 +49,8 @@ public class ProjectMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
             "allClosedIndices",
             "visibleClosedIndices",
             "indicesLookup",
+            // lazily built view of indices keyed by uuid; the entries are the already-counted IndexMetadata instances
+            "indicesByUuid",
             "mappingsByHash"
         );
     }

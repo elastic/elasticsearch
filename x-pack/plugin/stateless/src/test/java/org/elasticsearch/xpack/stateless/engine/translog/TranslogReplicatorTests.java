@@ -977,8 +977,8 @@ public class TranslogReplicatorTests extends ESTestCase {
     }
 
     public void testCompoundTranslogFile() throws Exception {
-        ShardId shardId1 = new ShardId(new Index("name1", "uuid"), 0);
-        ShardId shardId2 = new ShardId(new Index("name2", "uuid"), 0);
+        ShardId shardId1 = new ShardId(new Index("name1", "uuid1"), 0);
+        ShardId shardId2 = new ShardId(new Index("name2", "uuid2"), 0);
         long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();

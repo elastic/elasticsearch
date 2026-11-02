@@ -517,8 +517,8 @@ The x-pack failures outside stateless:
   lists the index under its old name. Fixed by renaming the shard's
   `RecoveryState` in `IndexShard#renameTo` (its shard id is now volatile).
 - `CsvIT` `lookup-join.multipleBatchesWithAggregate3` timed out waiting for a
-  task. Not re-examined; likely load, since the stateless suites were timing out
-  in parallel.
+  task. All 319 lookup-join cases pass when run on their own, so this was load
+  from the stateless suites timing out in parallel.
 - `SuppressWaitForActiveShardsActionFilterIT` (stateless companion plugin) hung
   for the same reason as the stateless suites below.
 
@@ -558,10 +558,32 @@ These classes, and `WriteLoadConstraintDeciderIT`, now opt out of the rename
 through `ESIntegTestCase#renameIndexOnCreate()`, a class-level hook that
 replaces per-call opt-outs; each override says why.
 
-Not yet run with the trick: REST tests, and the unit test suites that
-construct `Index` objects by hand. Niels's last CI run of the trick extended to
-`assertAcked` failed on security tests; that extension is not part of this
-prototype.
+### Unit test suites
+
+The unit test tasks CI runs for server, the test framework, the modules and
+x-pack plugins touched by the branch, plus ml, security, sql and monitoring
+(about 62,000 tests) were run against the branch. What they found, beyond
+tests of the new code:
+
+- Two fixtures gave two indices the same UUID (`TranslogReplicatorTests`
+  registers `name1` and `name2` under one UUID; `TransportUnfollowActionTests`
+  used an empty UUID on the task and the placeholder on the index). With UUID
+  identity those are the same index. The fixtures now use distinct UUIDs. This
+  is the category elastic/elasticsearch#132443 cleans up at scale.
+- The by-UUID fallback must never apply to the `_na_` placeholder: a point in
+  time referencing a non-existent index with the placeholder UUID resolved to
+  an unrelated test index. `ProjectMetadata` and `RoutingTable` now skip the
+  fallback for it, and the routing table's by-UUID view omits such indices.
+- `ShardChangesAction` returned a `NullPointerException` instead of
+  `ShardNotFoundException` for a missing shard after the lookup change; fixed.
+- The new `indicesByUuid` field had to be registered with the heap accounting
+  test as a derived view.
+- `PutTransformActionRequestTests#testCloudCredentialRoundTripPreservesValue`
+  failed once on a locale-dependent string and passes on repeat; unrelated.
+
+Not yet run with the trick: REST tests. Niels's last CI run of the trick
+extended to `assertAcked` failed on security tests; that extension is not part
+of this prototype.
 
 ## Suggested sequence of production PRs
 

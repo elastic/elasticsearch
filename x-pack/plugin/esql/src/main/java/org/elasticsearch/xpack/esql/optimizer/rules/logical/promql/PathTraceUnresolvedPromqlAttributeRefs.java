@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlAttribute;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -71,19 +72,38 @@ public final class PathTraceUnresolvedPromqlAttributeRefs extends Rule<LogicalPl
                 input = children.isEmpty() ? null : children.getFirst();
             }
             Set<String> below = input == null || input.unset() == null ? Set.of() : input.unset();
+            if (rebuilt instanceof Eval eval && eval.fields().stream().anyMatch(field -> isMetadata(field.child()))) {
+                return followStatements(eval, below);
+            }
             LogicalPlan plan = rebuilt.transformExpressionsOnly(
                 UnresolvedPromqlAttribute.class,
                 ref -> ref.isMetadata() ? follow(ref, below) : ref
             );
-            if (plan instanceof Eval eval) {
-                var stated = eval.fields().stream().filter(field -> isMetadata(field.child())).toList();
-                if (stated.isEmpty() == false) {
-                    var fields = eval.fields().stream().filter(field -> isMetadata(field.child()) == false).toList();
-                    LogicalPlan rest = fields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), fields);
-                    return new Followed(rest, (UnresolvedPromqlAttribute) stated.getLast().child());
+            return metadataOf(plan, input);
+        }
+
+        /**
+         * An Eval stating metadata: each statement leaves its labels out of the metadata before it, as a later field reads
+         * the earlier ones, so the statements compose in field order and the last is the Eval's metadata. They go once
+         * followed.
+         */
+        private Followed followStatements(Eval eval, Set<String> below) {
+            Set<String> current = below;
+            UnresolvedPromqlAttribute stated = null;
+            var fields = new ArrayList<Alias>();
+            for (Alias field : eval.fields()) {
+                if (isMetadata(field.child())) {
+                    stated = follow((UnresolvedPromqlAttribute) field.child(), current);
+                    current = stated.unset();
+                } else {
+                    Set<String> input = current;
+                    fields.add(
+                        (Alias) field.transformDown(UnresolvedPromqlAttribute.class, ref -> ref.isMetadata() ? follow(ref, input) : ref)
+                    );
                 }
             }
-            return metadataOf(plan, input);
+            LogicalPlan rest = fields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), fields);
+            return new Followed(rest, stated);
         }
 
         /** Intersect unset across branches; a metadata-less branch does not constrain the others. */

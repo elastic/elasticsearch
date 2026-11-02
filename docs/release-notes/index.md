@@ -224,9 +224,6 @@ Vector Search:
 
 
 ## 9.4.9 [elasticsearch-9.4.9-release-notes]
-```{applies_to}
-stack: ga 9.4.9
-```
 
 ### Features and enhancements [elasticsearch-9.4.9-features-enhancements]
 

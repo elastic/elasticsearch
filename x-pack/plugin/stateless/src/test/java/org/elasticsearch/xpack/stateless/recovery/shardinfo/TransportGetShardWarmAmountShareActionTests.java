@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -57,6 +58,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
@@ -284,7 +286,7 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
     }
 
-    public void testZeroAmountOfInitializingCopyIsNotMemoized() {
+    public void testZeroAmountOfInitializingCopyWithCommitIsMemoized() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
         withAmounts(600L, 0L);
@@ -292,20 +294,33 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
         action.computeShare(request(0, startedAt));
         assertEstimated(0, 1);
-        assertEstimated(1, 2);
+        assertEstimated(1, 1);
     }
 
-    public void testInitializingCopyNotCreatedYetCountsAsZeroAndIsNotMemoized() {
+    public void testInitializingCopyNotCreatedYetIsNoShare() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
         withAmount(0, 600L);
         when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
 
-        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 600L)));
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
 
         withAmount(1, 300L);
         assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 900L)));
-        assertEstimated(0, 1);
+        assertEstimated(1, 1);
+    }
+
+    public void testNullCommitIsNoShareAndNotMemoized() {
+        final long startedAt = randomNonNegativeLong();
+        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        withAmount(0, 600L);
+        withoutCommit(1);
+
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(Response.NO_SHARE));
+        assertEstimated(1, 0);
+
+        withAmount(1, 400L);
+        assertThat(action.computeShare(request(0, startedAt)), equalTo(response(600L, 1000L)));
         assertEstimated(1, 1);
     }
 
@@ -463,10 +478,34 @@ public class TransportGetShardWarmAmountShareActionTests extends ESTestCase {
         withAmount(new ShardId(index, shard), amount);
     }
 
+    private static StatelessCompoundCommit commit(ShardId shardId) {
+        return StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+            shardId,
+            new PrimaryTermAndGeneration(1, 1),
+            Map.of(),
+            0L,
+            Set.of(),
+            0L,
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of(),
+            null
+        );
+    }
+
+    /// A competing copy whose shard exists but whose commit is not registered yet.
+    private void withoutCommit(int shard) {
+        final ShardId shardId = new ShardId(index, shard);
+        final SearchDirectory directory = mock(SearchDirectory.class);
+        directories.put(shardId, directory);
+        final IndexShard indexShard = mockShard(shardId, newStore(shardId, directory));
+        when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
+    }
+
     private void withAmount(ShardId shardId, long amount) {
         // A real SearchDirectory needs a shared blob cache. The estimate only reads the current commit's blob file ranges.
         final SearchDirectory directory = mock(SearchDirectory.class);
         final String blobName = "blob-" + shardId.getIndexName() + "-" + shardId.id();
+        when(directory.getCurrentCommit()).thenReturn(commit(shardId));
         when(directory.getCurrentCommitBlobFileRanges()).thenReturn(amount > 0 ? List.of(range(blobName, 0, amount)) : List.of());
         directories.put(shardId, directory);
         final IndexShard indexShard = mockShard(shardId, newStore(shardId, directory));

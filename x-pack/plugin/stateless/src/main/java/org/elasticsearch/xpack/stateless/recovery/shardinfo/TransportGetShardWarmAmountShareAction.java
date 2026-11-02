@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
@@ -119,7 +120,7 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
         );
     }
 
-    /// Runs on the source. Responds [Response#NO_SHARE] when this shard or any shard competing with it has no estimate.
+    /// Runs on the source. Responds [Response#NO_SHARE] when this shard is absent, or when a competing copy has no commit yet.
     // visible for testing
     Response computeShare(NodeRequest request) {
         final ClusterState state = clusterService.state();
@@ -140,8 +141,14 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
                     continue;
                 }
                 final IndexShard shard = indicesService.getShardOrNull(routing.shardId());
-                if (shard == null || shard.store().isClosing()) {
-                    // Already removed or closing on this node, so it will not relocate to the target.
+                if (shard == null) {
+                    // An initializing copy is not created yet, so it has no commit and will still compete. Any other missing copy is gone.
+                    if (routing.initializing()) {
+                        return Response.NO_SHARE;
+                    }
+                    continue;
+                }
+                if (shard.store().isClosing()) {
                     continue;
                 }
                 final Long memoized = estimates.get(routing.shardId());
@@ -149,8 +156,9 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
                 if (memoized != null) {
                     amount = memoized;
                 } else {
+                    final OptionalLong estimate;
                     try {
-                        amount = estimateShardWarmAmount(shard, nowMillis);
+                        estimate = estimateShardWarmAmount(shard, nowMillis);
                     } catch (AlreadyClosedException e) {
                         // Store closed concurrently between isClosing() and directory(); it will not relocate to the target.
                         continue;
@@ -158,11 +166,12 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
                         logger.warn(() -> "failed to estimate warm amount for " + routing.shardId(), e);
                         return Response.NO_SHARE;
                     }
-                    // A copy recovering onto this node estimates to 0 until its recovery registers the first commit,
-                    // just before warming starts. Don't memoize that 0, so later requests count its real amount.
-                    if (routing.initializing() == false || amount > 0L) {
-                        estimates.put(routing.shardId(), amount);
+                    if (estimate.isEmpty()) {
+                        // No commit yet. Counting this as 0 would understate the sum: a ratio of 0 is a present commit instead.
+                        return Response.NO_SHARE;
                     }
+                    amount = estimate.getAsLong();
+                    estimates.put(routing.shardId(), amount);
                 }
                 competingSum += amount;
                 if (routing.shardId().equals(request.shardId())) {
@@ -191,14 +200,20 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
         return memo;
     }
 
+    /// Empty when the shard has no commit yet. A present 0 is a commit whose warming ratio is 0.
     // visible for testing
-    long estimateShardWarmAmount(IndexShard shard, long nowMillis) {
+    OptionalLong estimateShardWarmAmount(IndexShard shard, long nowMillis) {
         final SearchDirectory directory = SearchDirectory.unwrapDirectory(shard.store().directory());
-        return estimateWarmAmount(
-            directory.getCurrentCommitBlobFileRanges(),
-            warmingRatioProviderFactory.create(shard.shardId()),
-            directory::resolveRegionTimestampMillis,
-            nowMillis
+        if (directory.getCurrentCommit() == null) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(
+            estimateWarmAmount(
+                directory.getCurrentCommitBlobFileRanges(),
+                warmingRatioProviderFactory.create(shard.shardId()),
+                directory::resolveRegionTimestampMillis,
+                nowMillis
+            )
         );
     }
 

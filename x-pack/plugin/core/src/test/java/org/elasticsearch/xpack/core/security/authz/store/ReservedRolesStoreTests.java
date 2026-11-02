@@ -204,6 +204,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermi
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -4673,7 +4674,92 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
         }
 
-        assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
+        assertThat(
+            rolesWithRemoteIndicesPrivileges,
+            containsInAnyOrder(
+                "kibana_system",
+                "monitoring_user",
+                "alertzero_threat_hunt",
+                "alertzero_rule_tuning",
+                "alertzero_rule_coverage"
+            )
+        );
+    }
+
+    public void testAlertZeroThreatHuntRoleRemoteIndices() {
+        final Role role = alertZeroRole("alertzero_threat_hunt");
+        final List<String> samples = List.of(
+            "apm-sample-transactionsample",
+            "auditbeat-sample",
+            "endgame-sample",
+            "filebeat-sample",
+            "logs-sample",
+            "packetbeat-sample",
+            "traces-apmsample",
+            "winlogbeat-sample",
+            "metrics-endpoint.metadata_current_sample"
+        );
+        for (String index : samples) {
+            assertRemoteAllowed(role, index, TransportSearchAction.TYPE.name(), true);
+            assertRemoteAllowed(role, index, ResolveIndexAction.NAME, true);
+            assertRemoteAllowed(role, index, TransportIndexAction.NAME, false);
+            assertRemoteAllowed(role, index, TransportDeleteIndexAction.TYPE.name(), false);
+        }
+        assertRemoteAllowed(role, "unrelated-sample", TransportSearchAction.TYPE.name(), false);
+    }
+
+    public void testAlertZeroRuleWorkerRolesRemoteIndices() {
+        final List<String> samples = List.of(
+            "apm-sample-transactionsample",
+            "auditbeat-sample",
+            "endgame-sample",
+            "filebeat-sample",
+            "logs-sample",
+            "packetbeat-sample",
+            "traces-apmsample",
+            "winlogbeat-sample"
+        );
+        for (String roleName : List.of("alertzero_rule_tuning", "alertzero_rule_coverage")) {
+            final Role role = alertZeroRole(roleName);
+            for (String index : samples) {
+                assertRemoteAllowed(role, index, TransportSearchAction.TYPE.name(), true);
+                assertRemoteAllowed(role, index, ResolveIndexAction.NAME, true);
+                assertRemoteAllowed(role, index, GetIndexAction.NAME, true);
+                assertRemoteAllowed(role, index, TransportIndexAction.NAME, false);
+                assertRemoteAllowed(role, index, TransportDeleteIndexAction.TYPE.name(), false);
+            }
+            // alerts are always written to the local cluster
+            assertRemoteAllowed(role, ".alerts-security.alerts-default", TransportSearchAction.TYPE.name(), false);
+            assertRemoteAllowed(role, ".preview.alerts-security.alerts-default", TransportSearchAction.TYPE.name(), false);
+        }
+    }
+
+    public void testAlertZeroWorkerRolesWithoutRemoteIndices() {
+        for (String roleName : List.of("alertzero_alert_triage", "alertzero_attack_discovery", "alertzero_endpoint_analysis")) {
+            final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
+            assertNotNull(roleDescriptor);
+            assertThat(roleName, roleDescriptor.hasRemoteIndicesPrivileges(), is(false));
+        }
+    }
+
+    private static Role alertZeroRole(String roleName) {
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+        final Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
+        final List<RemoteIndicesPermission.RemoteIndicesGroup> groups = role.remoteIndices().remoteIndicesGroups();
+        assertThat(roleName, groups.stream().allMatch(g -> g.checkRemoteClusterAlias(randomAlphaOfLengthBetween(3, 10))), is(true));
+        return role;
+    }
+
+    private static void assertRemoteAllowed(Role role, String index, String action, boolean expected) {
+        final boolean allowed = role.remoteIndices()
+            .forCluster(randomAlphaOfLengthBetween(3, 10))
+            .remoteIndicesGroups()
+            .stream()
+            .flatMap(g -> g.indicesPermissionGroups().stream())
+            .anyMatch(g -> StringMatcher.of(g.indices()).test(index) && g.privilege().predicate().test(action));
+        assertThat(action + " on remote " + index, allowed, is(expected));
     }
 
     /**

@@ -1843,6 +1843,26 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testIndexingErrorsDueToTooManyDocs() throws IOException {
+        final int maxDocs = randomIntBetween(5, 20);
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> EngineTestCase.createEngine(config, maxDocs));
+        for (int id = 0; id < maxDocs; id++) {
+            assertThat(indexDoc(shard, "_doc", "accepted" + id).isCreated(), is(true));
+        }
+        final int rejectedCount = randomIntBetween(1, 10);
+        for (int id = 0; id < rejectedCount; id++) {
+            Engine.IndexResult indexResult = indexDoc(shard, "_doc", "rejected" + id);
+            assertThat(indexResult.getFailure(), instanceOf(IllegalArgumentException.class));
+            assertThat(InternalEngine.isTooManyDocsFailure(indexResult.getFailure()), is(true));
+        }
+        IndexingStats.Stats stats = shard.indexingStats().getTotal();
+        assertThat(stats.getIndexCount(), equalTo((long) maxDocs));
+        assertThat(stats.getIndexFailedCount(), equalTo((long) rejectedCount));
+        assertThat(stats.getIndexFailedDueToTooManyDocsCount(), equalTo((long) rejectedCount));
+        assertThat(stats.getIndexFailedDueToVersionConflictCount(), equalTo(0L));
+        closeShards(shard);
+    }
+
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
         // refresh on: finalize and end of recovery

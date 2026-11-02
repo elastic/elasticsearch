@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
@@ -17,11 +18,21 @@ import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 import org.elasticsearch.simdvec.MultiVectorsSource;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
+import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport {
 
     private static final SimdVecLibrary SIMDVEC = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
+
+    /**
+     * Columns of the result computed per task. This is a multiple of the native panel width, and wide enough
+     * that the native code re-reads the rows of A only once per task, not once per panel.
+     */
+    private static final int MATRIX_TASK_COLUMNS = 64;
 
     /*
      * This is technically separate to the Panama22 implementation, but there's
@@ -93,6 +104,35 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             MemorySegment.ofArray(b).asSlice(offset, length),
             length
         );
+    }
+
+    @Override
+    public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
+        // the native code adds to the result
+        result.fill((byte) 0);
+
+        final int numTasks = (n + MATRIX_TASK_COLUMNS - 1) / MATRIX_TASK_COLUMNS;
+        if (executor == null || numTasks < 2) {
+            SIMDVEC.sgemmI8(a, b, m, k, n, result, 0, n);
+            return;
+        }
+
+        List<Callable<Void>> tasks = new ArrayList<>(numTasks);
+        for (int colStart = 0; colStart < n; colStart += MATRIX_TASK_COLUMNS) {
+            final int start = colStart;
+            final int end = Math.min(start + MATRIX_TASK_COLUMNS, n);
+            tasks.add(() -> {
+                SIMDVEC.sgemmI8(a, b, m, k, n, result, start, end);
+                return null;
+            });
+        }
+
+        try {
+            executor.invokeAll(tasks);
+        } catch (IOException e) {
+            // can't happen
+            throw new AssertionError(e);
+        }
     }
 
     @Override

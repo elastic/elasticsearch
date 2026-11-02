@@ -134,9 +134,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -201,6 +204,11 @@ import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowS
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
+
+    /**
+     * Phase label for the final main plan of a query that ran subplans first. Subplan phases are labelled {@code subplan-N}.
+     */
+    private static final String MAIN_PHASE = "main";
 
     /**
      * Interface for running the underlying plan.
@@ -1154,6 +1162,7 @@ public class EsqlSession {
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
                 new HashMap<>(),
+                0,
                 subPlan,
                 configuration,
                 foldContext,
@@ -1168,7 +1177,7 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else {
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, null, request, physicalPlanOptimizer, planTimeProfile);
             if (explainContext != null) {
                 recordExplainCoordinatorPlan(physicalPlan);
             }
@@ -1364,8 +1373,25 @@ public class EsqlSession {
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
         boolean isSubqueryJoinSubPlan,
-        boolean isApproximationCalibration
+        boolean isApproximationCalibration,
+        String kind,
+        Source origin
     ) {};
+
+    /**
+     * Names the kind of subplan a join needs, for the phase lines of {@link PlanJsonLog}.
+     * The subquery join subclass tells whether it came from {@code IN}, {@code NOT IN}, or an {@code IN} under {@code OR}.
+     */
+    private static String subPlanKind(LogicalPlan join) {
+        return switch (join) {
+            case SemiJoin ignored -> "semi_join";
+            case AntiJoin ignored -> "anti_join";
+            case MarkJoin ignored -> "mark_join";
+            case InnerJoin ignored -> "inner_join";
+            case InlineJoin ignored -> "inline_join";
+            default -> throw new IllegalStateException("unexpected subplan join [" + join.nodeName() + "]");
+        };
+    }
 
     private SubPlanAndCallback firstSubPlan(
         LogicalPlan mainPlan,
@@ -1399,7 +1425,7 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false, subPlanKind(firstJoin), firstJoin.source());
             }
         } else if (firstJoin instanceof InnerJoin) {
             InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1410,7 +1436,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false, subPlanKind(firstJoin), firstJoin.source());
             }
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1421,7 +1447,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, subPlanKind(firstJoin), firstJoin.source());
             }
         }
 
@@ -1437,7 +1463,9 @@ public class EsqlSession {
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
                     false,
-                    true
+                    true,
+                    "approximation",
+                    subPlan.source()
                 );
             }
         }
@@ -1486,6 +1514,7 @@ public class EsqlSession {
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
         Map<String, PinnedColumns> pinnedReads,
+        int subPlanIndex,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -1499,8 +1528,12 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
+        // Same numbering as the subplan rows of EXPLAIN, so log and EXPLAIN phases can be matched up
+        String phase = "subplan-" + subPlanIndex;
+        PlanJsonLog.phase(phase, subPlan.kind(), subPlan.origin());
+        PlanJsonLog.debug("logical", phase, subPlan.subPlan);
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
+        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, phase, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
         // hand side plans are sent to mapper. Ensure there is an ExchangeExec on top of it, so that the intermediate results can be sent
         // back to the coordinator
@@ -1542,7 +1575,15 @@ public class EsqlSession {
 
                     if (newSubPlan == null) {
                         executionInfo.finishSubPlans();
-                        var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                        PlanJsonLog.phase(MAIN_PHASE, "main", null);
+                        PlanJsonLog.debug("logical", MAIN_PHASE, newMainPlan);
+                        var newPhysicalPlan = logicalPlanToPhysicalPlan(
+                            newMainPlan,
+                            MAIN_PHASE,
+                            request,
+                            physicalPlanOptimizer,
+                            planTimeProfile
+                        );
                         if (explainContext != null) {
                             // Capture the post-substitution physical plan — the one that actually runs. For
                             // InlineJoin and similar the plan is only meaningful after all subplans have resolved
@@ -1570,6 +1611,7 @@ public class EsqlSession {
                         executeSubPlan(
                             completionInfoAccumulator,
                             pinnedReads,
+                            subPlanIndex + 1,
                             newSubPlan,
                             configuration,
                             foldContext,
@@ -3225,6 +3267,7 @@ public class EsqlSession {
 
     private PhysicalPlan logicalPlanToPhysicalPlan(
         LogicalPlan optimizedPlan,
+        @Nullable String phase,
         EsqlQueryRequest request,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
@@ -3232,7 +3275,7 @@ public class EsqlSession {
         // Capture the optimized plan before mapping so a failure in physical planning still
         // surfaces it in the failure log.
         planSnapshot = planSnapshot.withOptimized(optimizedPlan);
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, phase, physicalPlanOptimizer, planTimeProfile);
         physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(
             physicalPlan,
             request.filter(),
@@ -3320,31 +3363,32 @@ public class EsqlSession {
         );
     }
 
-    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan) {
+    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan, @Nullable String phase) {
         LogicalPlan logicalPlan = optimizedPlan.inner();
         if (logicalPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
         PhysicalPlan plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
-        PlanJsonLog.debug("physical", plan);
+        PlanJsonLog.debug("physical", phase, plan);
         return plan;
     }
 
     private PhysicalPlan optimizedPhysicalPlan(
         LogicalPlan optimizedPlan,
+        @Nullable String phase,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
         long start = planTimeProfile == null ? 0L : System.nanoTime();
         var plan = physicalPlanOptimizer.optimize(
-            physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()))
+            physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()), phase)
         );
         if (planTimeProfile != null) {
             planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - start);
         }
         LOGGER.debug("Optimized physical plan:\n{}", plan);
-        PlanJsonLog.debug("optimized_physical", plan);
+        PlanJsonLog.debug("optimized_physical", phase, plan);
         return plan;
     }
 

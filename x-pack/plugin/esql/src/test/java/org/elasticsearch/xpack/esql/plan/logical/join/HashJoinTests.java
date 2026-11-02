@@ -32,9 +32,9 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Unit tests for {@link HashJoin}: coordinator hash join ({@link Join} subtype), and it participates in the coordinator phase loop via its own
- * {@link HashJoin#firstSubPlan} / {@link HashJoin#newMainPlan} hooks. Unlike the SEMI family ({@link AbstractSubqueryJoin}), its
- * {@link HashJoin#newMainPlan} path simply replaces the right child with the materialized {@link LocalRelation} so the mapper can
+ * Unit tests for {@link HashJoin}: coordinator hash join ({@link Join} subtype), and it participates in the coordinator phase loop
+ * via its own {@link HashJoin#firstSubPlan} / {@link HashJoin#newMainPlan} hooks. Unlike the SEMI family ({@link AbstractSubqueryJoin}),
+ * its {@link HashJoin#newMainPlan} path simply replaces the right child with the materialized {@link LocalRelation} so the mapper can
  * lower the node to {@code HashJoinExec} (+ lookup-ordinal filter for INNER) - it does not rewrite into an {@code IN} list.
  */
 public class HashJoinTests extends ESTestCase {

@@ -512,19 +512,26 @@ With the fix (T13) the two stateless suites were rerun: 691 tests, 7 failed,
 6 skipped, 25 minutes. None hangs on a write any more. What is left:
 
 - `StatelessPreFlushRelocationIT` (two tests) and
-  `StatelessAbortRunningMergesOnRelocationIT`: relocations of a renamed shard
-  time out. The search-shard-information request sent during a stateless
-  relocation carries a shard id that can still hold the old name, and
-  `TransportFetchSearchShardInformationAction` looked the index up by that
-  name string, so it hit a `NullPointerException`; it now resolves through the
-  `Index` (T13). Not yet rerun after that change.
+  `StatelessAbortRunningMergesOnRelocationIT`: still fail after the
+  `TransportFetchSearchShardInformationAction` lookup was moved to the `Index`
+  (T13, a real fix, kept). The remaining cause is on the test side: both tests
+  block a commit or a merge and then wait for an engine-level event (a
+  pre-flush observer, a merge recorder) filtered by index name, and the engine
+  reports the creation-time name, so the event is never matched and the
+  relocation the test is holding open never finishes. The same shape as
+  `ObsoleteSegmentCacheEvictionIT` and `StatelessRealTimeGetIT` below, and a
+  concrete consequence of T4 worth deciding on: anything that keys engine or
+  commit events by index name (plugin hooks, operational tooling) sees the old
+  name for a renamed shard until it is reallocated.
 - `ObsoleteSegmentCacheEvictionIT` asserts the index name as reported by the
   search engine, which keeps its creation-time shard id (T4: the engine is one
   of the components that keep the old name). Test-framework artifact of the
   rename trick, but a reminder that `Engine#config().getShardId()` is stale
   after a rename.
-- `StatelessRealTimeGetIT#testLiveVersionMapMemoryUsageTriggersFlush`: a
-  live version map memory measurement came back as zero. Not examined.
+- `StatelessRealTimeGetIT#testLiveVersionMapMemoryUsageTriggersFlush` counts
+  commit notifications whose compound commit's shard id matches the index name;
+  the commit carries the creation-time name, so the count stays zero. Same
+  cause as above.
 
 Not yet run with the trick: REST tests, and the unit test suites that
 construct `Index` objects by hand. Niels's last CI run of the trick extended to

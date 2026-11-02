@@ -8,7 +8,7 @@ products:
   - id: elasticsearch
 ---
 
-# Connect external data sources for {{esql}} Data Federation
+# External data sources in {{esql}} Data Federation
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::

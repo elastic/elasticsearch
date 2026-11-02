@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlAttribute;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -63,6 +65,9 @@ public final class PathTraceUnresolvedPromqlAttributeRefs extends Rule<LogicalPl
         private Followed follow(LogicalPlan node) {
             List<Followed> children = node.children().stream().map(this::follow).toList();
             List<LogicalPlan> plans = children.stream().map(Followed::plan).toList();
+            if (node instanceof UnionAll) {
+                plans = nameBranchMetadata(plans);
+            }
             LogicalPlan rebuilt = plans.equals(node.children()) ? node : node.replaceChildren(plans);
             // Union intersects unset so a name-dropping branch cannot strip labels the other still holds.
             Followed input;
@@ -104,6 +109,56 @@ public final class PathTraceUnresolvedPromqlAttributeRefs extends Rule<LogicalPl
             }
             LogicalPlan rest = fields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), fields);
             return new Followed(rest, stated);
+        }
+
+        /**
+         * Union branches project their metadata as {@code _timeseries}, though each holds the view it reads. When every branch
+         * holds the same view, the branch columns take that view's name, so the union's consumer finds the view it reads by
+         * name instead of deriving it again - which keyword metadata cannot. Branches holding different views keep the name:
+         * the union then carries no single view.
+         */
+        private static List<LogicalPlan> nameBranchMetadata(List<LogicalPlan> branches) {
+            String name = null;
+            for (LogicalPlan branch : branches) {
+                String branchName = branch instanceof Project project ? branchMetadataName(project) : null;
+                if (branchName == null || (name != null && name.equals(branchName) == false)) {
+                    return branches;
+                }
+                name = branchName;
+            }
+            if (name.equals(PromqlLabels.metadataLabelName(Set.of()))) {
+                return branches;
+            }
+            String viewName = name;
+            return branches.stream().<LogicalPlan>map(branch -> {
+                Project project = (Project) branch;
+                List<NamedExpression> projections = project.projections()
+                    .stream()
+                    .<NamedExpression>map(projection -> isBranchMetadata(projection) ? renamed((Alias) projection, viewName) : projection)
+                    .toList();
+                return project.withProjections(projections);
+            }).toList();
+        }
+
+        /** {@code alias} under {@code name}, keeping its id so references to the branch column still bind. */
+        private static Alias renamed(Alias alias, String name) {
+            return new Alias(alias.source(), name, alias.child(), alias.id(), alias.synthetic());
+        }
+
+        /** The traced name of the view a branch projects as {@code _timeseries}, or null when it projects none. */
+        private static @Nullable String branchMetadataName(Project branch) {
+            for (NamedExpression projection : branch.projections()) {
+                if (isBranchMetadata(projection)) {
+                    return ((UnresolvedPromqlAttribute) ((Alias) projection).child()).name();
+                }
+            }
+            return null;
+        }
+
+        private static boolean isBranchMetadata(NamedExpression projection) {
+            return projection instanceof Alias alias
+                && alias.name().equals(PromqlLabels.metadataLabelName(Set.of()))
+                && isMetadata(alias.child());
         }
 
         /** Intersect unset across branches; a metadata-less branch does not constrain the others. */

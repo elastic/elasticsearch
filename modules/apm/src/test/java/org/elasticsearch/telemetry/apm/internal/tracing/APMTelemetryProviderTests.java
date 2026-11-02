@@ -15,6 +15,7 @@ import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
@@ -162,7 +163,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
-        APMTracer tracer = new APMTracer(settings, traceSupplier, 0, false);
+        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, traceSupplier, 0, false);
         return new APMTelemetryProvider(
             meterService,
             tracer,

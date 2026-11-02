@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
@@ -38,6 +39,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final HttpServerInstrumentation httpServerInstrumentation;
 
     public APMTelemetryProvider(
+        ThreadContext threadContext,
         Settings settings,
         Path diskBufferPath,
         Path configDir,
@@ -46,7 +48,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
         @Nullable MetricReaderProvider metricReaderProvider
     ) {
         apmMeterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
-        apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
+        apmTracer = new APMTracer(threadContext, settings, apmMeterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(
             settings,
             configDir,
@@ -55,7 +57,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
             apmMeterService::getHealthMeterProvider
         );
         httpServerInstrumentation = new HttpServerInstrumentations(
-            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
+            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(threadContext, apmMeterService.getMeterRegistry()))
         );
     }
 
@@ -65,7 +67,10 @@ public class APMTelemetryProvider implements TelemetryProvider {
         this.apmTracer = apmTracer;
         this.loggingService = loggingService;
         httpServerInstrumentation = new HttpServerInstrumentations(
-            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
+            List.of(
+                new HttpServerTracing(apmTracer),
+                new RestRequestMetrics(new ThreadContext(Settings.EMPTY), apmMeterService.getMeterRegistry())
+            )
         );
     }
 

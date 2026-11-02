@@ -95,6 +95,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -334,8 +335,9 @@ class NodeConstruction {
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider, pluginsLoader);
             constructor.loadLoggingDataProviders();
-            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider();
-            ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
+            ThreadContext threadContext = constructor.createThreadContext(settings);
+            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(threadContext);
+            ThreadPool threadPool = constructor.createThreadPool(threadContext, settings, telemetryProvider.getMeterRegistry());
 
             final SettingsModule settingsModule;
             try (var ignored = threadPool.getThreadContext().newStoredContext()) {
@@ -546,17 +548,25 @@ class NodeConstruction {
         DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
     }
 
-    private TelemetryProvider createTelemetryProvider() {
+    private ThreadContext createThreadContext(Settings settings) {
+        ThreadContext threadContext = new ThreadContext(settings);
+        modules.bindToInstance(ThreadContext.class, threadContext);
+        return threadContext;
+    }
+
+    private TelemetryProvider createTelemetryProvider(ThreadContext threadContext) {
         List<TelemetryLoggingFilterProvider> filterProviders = pluginsService.filterPlugins(TelemetryLoggingFilterProvider.class).toList();
         TelemetryLogResourceProvider logResourceProvider = getSinglePlugin(TelemetryLogResourceProvider.class).orElseGet(
             TelemetryLogResourceProvider.Default::new
         );
-        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(environment, filterProviders, logResourceProvider))
-            .orElse(TelemetryProvider.NOOP);
+        return getSinglePlugin(TelemetryPlugin.class).map(
+            p -> p.getTelemetryProvider(threadContext, environment, filterProviders, logResourceProvider)
+        ).orElse(TelemetryProvider.NOOP);
     }
 
-    private ThreadPool createThreadPool(Settings settings, MeterRegistry meterRegistry) throws IOException {
+    private ThreadPool createThreadPool(ThreadContext threadContext, Settings settings, MeterRegistry meterRegistry) throws IOException {
         ThreadPool threadPool = new ThreadPool(
+            threadContext,
             settings,
             meterRegistry,
             pluginsService.loadSingletonServiceProvider(BuiltInExecutorBuilders.class, DefaultBuiltInExecutorBuilders::new),

@@ -63,6 +63,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -189,6 +190,15 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
     );
 
+    // typed time-series metadata goes out as its JSON display form
+    static final ValueType TIMESERIES_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
+        "timeseries",
+        factory -> factory.newBytesRefBlockBuilder(0),
+        block -> block.appendBytesRef(new BytesRef("{\"pod\":\"" + randomAlphaOfLengthBetween(1, 10) + "\"}")),
+        (b, i, s) -> TimeSeriesMetadata.render(b.getBytesRef(i, s)),
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+    );
+
     static final ValueType IP_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
         "ip",
         factory -> factory.newBytesRefBlockBuilder(0),
@@ -272,6 +282,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.VERSION, VERSION_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
         Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
+        Map.entry(DataType.TIMESERIES_DATA_TYPE, TIMESERIES_VALUES),
 
         Map.entry(DataType.NULL, NULL_VALUES),
         Map.entry(DataType.UNSUPPORTED, NULL_VALUES),

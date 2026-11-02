@@ -38,6 +38,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -87,6 +90,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +103,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -107,6 +112,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -121,6 +127,7 @@ import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -150,6 +157,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private ClusterState clusterState;
     private ClusterService clusterService;
     private NativeStorageProvider nativeStorageProvider;
+    private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+    private final AtomicLong relativeTimeMillis = new AtomicLong(10_000);
 
     private DataCounts dataCounts = new DataCounts("foo");
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
@@ -164,6 +173,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> relativeTimeMillis.get());
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             if (invocationOnMock.getArguments()[0] instanceof ActionType<?> v) {
@@ -1085,6 +1095,111 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(auditor).warning(eq("foo"), org.mockito.ArgumentMatchers.contains("OPENED"));
     }
 
+    public void testOpenedAckShouldRecordProcessStartAndStateWriteDurations() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        // process_start ends when the model state restore returns; state_write ends when the OPENED update is acknowledged.
+        doAnswer(invocation -> {
+            relativeTimeMillis.addAndGet(400);
+            return null;
+        }).when(autodetectCommunicator).restoreState(any());
+        doAnswer(invocation -> {
+            relativeTimeMillis.addAndGet(250);
+            invocation.<CheckedConsumer<Exception, IOException>>getArgument(3).accept(null);
+            return null;
+        }).when(manager).setJobState(any(), eq(JobState.OPENED), any(), any());
+
+        manager.openJob(openingJobTask(), clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        assertThat(openPhaseDurations(), equalTo(Map.of("process_start", 400L, "state_write", 250L)));
+    }
+
+    public void testSlowStepBeforeProcessCreationShouldCountTowardsProcessStart() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        // The job config lookup runs before the process is created.
+        doAnswer(invocation -> {
+            relativeTimeMillis.addAndGet(3_000);
+            invocation.<ActionListener<Job>>getArgument(1).onResponse(createJobDetails("foo"));
+            return null;
+        }).when(jobManager).getJob(eq("foo"), any());
+        doAnswer(invocation -> {
+            relativeTimeMillis.addAndGet(400);
+            return null;
+        }).when(autodetectCommunicator).restoreState(any());
+        doAnswer(invocation -> {
+            relativeTimeMillis.addAndGet(250);
+            invocation.<CheckedConsumer<Exception, IOException>>getArgument(3).accept(null);
+            return null;
+        }).when(manager).setJobState(any(), eq(JobState.OPENED), any(), any());
+
+        manager.openJob(openingJobTask(), clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        assertThat(openPhaseDurations(), equalTo(Map.of("process_start", 3_400L, "state_write", 250L)));
+    }
+
+    public void testOpenedAckFailureShouldNotRecordOpenDurations() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        doAnswer(invocation -> {
+            invocation.<CheckedConsumer<Exception, IOException>>getArgument(3).accept(new RuntimeException("master not available"));
+            return null;
+        }).when(manager).setJobState(any(), eq(JobState.OPENED), any(), any());
+
+        manager.openJob(openingJobTask(), clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        assertThat(openPhaseMeasurements(), is(empty()));
+    }
+
+    public void testProcessCreationFailureShouldNotRecordOpenDurations() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        doThrow(new RuntimeException("process creation failed")).when(manager).create(any(), any(), any(), any());
+        doAnswer(invocation -> {
+            invocation.<CheckedConsumer<Exception, IOException>>getArgument(3).accept(null);
+            return null;
+        }).when(manager).setJobState(any(), eq(JobState.FAILED), any(), any());
+
+        manager.openJob(openingJobTask(), clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        verify(manager, never()).setJobState(any(), eq(JobState.OPENED), any(), any());
+        assertThat(openPhaseMeasurements(), is(empty()));
+    }
+
+    public void testJobClosedDuringOpenShouldNotRecordOpenDurations() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = openingJobTask();
+        // The close request arrives while the process is being created.
+        doAnswer(invocation -> {
+            when(jobTask.isClosing()).thenReturn(true);
+            return autodetectCommunicator;
+        }).when(manager).create(any(), any(), any(), any());
+
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        verify(manager, never()).setJobState(any(), eq(JobState.OPENED), any(), any());
+        assertThat(openPhaseMeasurements(), is(empty()));
+    }
+
+    private static JobTask openingJobTask() {
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+        return jobTask;
+    }
+
+    private List<Measurement> openPhaseMeasurements() {
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AutodetectJobTelemetry.TIME_TO_OPENED_METRIC);
+    }
+
+    private Map<String, Long> openPhaseDurations() {
+        Map<String, Long> durations = new HashMap<>();
+        for (Measurement measurement : openPhaseMeasurements()) {
+            Object previous = durations.put(
+                (String) measurement.attributes().get(AutodetectJobTelemetry.OPEN_PHASE_ATTRIBUTE),
+                measurement.getLong()
+            );
+            assertThat("each phase must be recorded once", previous, is(nullValue()));
+        }
+        return durations;
+    }
+
     private AutodetectProcessManager createNonSpyManager(String jobId) {
         ExecutorService executorService = mock(ExecutorService.class);
         when(threadPool.executor(anyString())).thenReturn(executorService);
@@ -1136,7 +1251,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             autodetectFactory,
             normalizerFactory,
             nativeStorageProvider,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            new AutodetectJobTelemetry(meterRegistry),
+            jobId -> false
         );
     }
 

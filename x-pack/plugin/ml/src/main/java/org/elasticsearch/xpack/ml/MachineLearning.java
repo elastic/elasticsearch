@@ -362,6 +362,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectJobTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
@@ -1300,7 +1301,13 @@ public class MachineLearning extends Plugin
             autodetectProcessFactory,
             normalizerFactory,
             nativeStorageProvider,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            new AutodetectJobTelemetry(telemetryProvider.getMeterRegistry()),
+            // The datafeed runner is built after this manager and depends on it, so it is resolved on each call.
+            jobId -> {
+                DatafeedRunner runner = this.datafeedRunner.get();
+                return runner != null && runner.hasRealtimeDatafeedPastLookback(jobId);
+            }
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
